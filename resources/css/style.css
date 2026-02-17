@@ -1,0 +1,36 @@
+.text-heading {
+    font-size: 1.575rem;
+    line-height: 2.25rem;
+    font-weight: 700;
+}
+
+input, select {
+    border: 1px solid #d1d5db; /* Tailwind's gray-300 */
+    padding: 0.5rem;
+    border-radius: 0.375rem; /* Tailwind's rounded-md */
+    font-size: 1rem;
+    width: 100%;
+}
+
+textarea {
+    border: 1px solid #d1d5db; /* Tailwind's gray-300 */
+    padding: 0.5rem;
+    border-radius: 0.375rem; /* Tailwind's rounded-md */
+    font-size: 1rem;
+    width: 100%;
+}
+
+.save-btn {
+    background-color: #3b82f6; /* Tailwind's blue-500 */
+    color: white;
+    padding: 0.5rem 1rem;
+    border-radius: 0.375rem; /* Tailwind's rounded-md */
+    font-weight: 600;
+}
+.cancel-btn {
+    background-color: #e5e7eb; /* Tailwind's gray-200 */
+    color: #374151; /* Tailwind's gray-700 */
+    padding: 0.5rem 1rem;
+    border-radius: 0.375rem; /* Tailwind's rounded-md */
+    font-weight: 600;
+}
