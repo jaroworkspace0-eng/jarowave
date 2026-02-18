@@ -87,7 +87,7 @@ class ClientController extends Controller
             'max:250',
             Rule::unique('clients', 'email')->ignore($client->id),
         ],
-            'phone' => 'required|integer',
+            'phone' => 'required|numeric',
             'address' => 'nullable|string',
         ]);
 
