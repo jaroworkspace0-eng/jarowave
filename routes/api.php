@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\LiveKitController;
 use App\Http\Controllers\BroadcastAudioController;
 use App\Http\Controllers\ChannelController;
 use App\Http\Controllers\ClientController;
@@ -97,6 +98,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::resource('channels', ChannelController::class);
     Route::get('clients/list', [ClientController::class, 'clients']);
     Route::get('/channels-list', [ChannelController::class, 'getChannels']);
+    Route::post('/livekit/token', [LiveKitController::class, 'generateToken']);
 
    
 });
