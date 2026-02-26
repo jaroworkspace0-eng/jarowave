@@ -26,7 +26,7 @@ class LiveKitController extends Controller
 
         try {
             $token = new AccessToken($apiKey, $apiSecret);
-            $token->identity = $request->participant;
+            $token->setIdentity($request->participant);
             
             $grant = new VideoGrant();
             $grant->roomJoin = true;
