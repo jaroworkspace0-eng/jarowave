@@ -16,7 +16,9 @@ const props = defineProps<{
         <AppLogoIcon class="size-5 fill-current text-white dark:text-black" />
     </div> -->
     <div class="ml-1 flex flex-1 items-center p-0 text-left text-sm">
-        <span class="flex-1 truncate leading-tight font-semibold"> Dycom </span>
+        <span class="flex-1 truncate leading-tight font-semibold"
+            >Echo Link</span
+        >
 
         <!-- <Button
             data-sidebar="trigger"
