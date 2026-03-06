@@ -54,6 +54,23 @@ class EmergencyAlertController extends Controller
      */
     public function store(Request $request)
     {
+
+        // Check if the user already has an UNRESOLVED alert from the last 2 minutes
+        $existingAlert = EmergencyAlert::where('user_id', auth()->id())
+            ->where('is_resolved', false)
+            ->where('created_at', '>', now()->subMinutes(2))
+            ->first();
+
+        if ($existingAlert) {
+            // Instead of a new record, just return the existing one
+            // This prevents "Alert Storms" in your database
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Alert already active. Updating location.',
+                'data' => ['id' => $existingAlert->id]
+            ], 200); 
+        }
+
         $request->validate([
             'channel_id' => 'required|exists:channels,id',
             'latitude' => 'nullable|numeric',
