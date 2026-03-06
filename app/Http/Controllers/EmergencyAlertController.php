@@ -65,7 +65,7 @@ class EmergencyAlertController extends Controller
         $channel = Channel::find($request->channel_id);
 
         $alert = EmergencyAlert::create([
-            'user_id' => auth()->id,
+            'user_id' => auth()->id(),
             'channel_id' => $request->channel_id,
             'client_id' => $channel->client_id,
             'latitude' => $request->latitude,
