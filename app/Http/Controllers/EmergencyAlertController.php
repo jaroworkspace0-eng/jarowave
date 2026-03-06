@@ -103,29 +103,39 @@ class EmergencyAlertController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, EmergencyAlert $alert)
-    {
-
-        //  Security check to ensure the user can update this alert
-        // if ($alert->client_id !== $request->user()->client_id) {
-        //     return response()->json(['status' => 'error', 'message' => 'Unauthorized access to alert.'], 403);
-        // }
-
-        $alert->update([
-            'latitude' => $request->latitude,
-            'longitude' => $request->longitude,
-            'accuracy' => $request->accuracy,
+   public function update(Request $request, EmergencyAlert $alert)
+{
+    try {
+        // 1. Validate - coordinates must be numeric
+        $request->validate([
+            'latitude' => 'required|numeric',
+            'longitude' => 'required|numeric',
         ]);
 
-            return response()->json([
-            'status'  => 'success',
-            'message' => 'GPS Coordinates Synced',
-            'data'    => [
+        // 2. Direct Update (Bypasses some Mass Assignment issues)
+        $alert->latitude = (float) $request->latitude;
+        $alert->longitude = (float) $request->longitude;
+        $alert->accuracy = $request->accuracy;
+        $alert->save();
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'GPS coordinates synchronized',
+            'data' => [
                 'lat' => $alert->latitude,
                 'lng' => $alert->longitude
             ]
         ]);
+    } catch (\Exception $e) {
+        // This will send the ACTUAL error message to your React Native console
+        return response()->json([
+            'status' => 'error',
+            'message' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine()
+        ], 500);
     }
+}
 
     /**
      * Remove the specified resource from storage.
