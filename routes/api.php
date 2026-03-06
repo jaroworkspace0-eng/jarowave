@@ -100,8 +100,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::resource('channels', ChannelController::class);
     Route::get('clients/list', [ClientController::class, 'clients']);
     Route::get('/channels-list', [ChannelController::class, 'getChannels']);
-    Route::post('/emergency-alerts', [EmergencyAlertController::class, 'store'])->name('emergency-alerts.store');
-    Route::patch('/emergency-alerts/{alert}', [EmergencyAlertController::class, 'update'])->name('emergency-alerts.resolve');
+    Route::post('/emergency-alerts', [EmergencyAlertController::class, 'store']);
+    Route::patch('/emergency-alerts/{alert}', [EmergencyAlertController::class, 'update']);
     // Route::post('/livekit/token', [LiveKitController::class, 'generateToken']);
 });
 
