@@ -5,6 +5,7 @@ use App\Http\Controllers\BroadcastAudioController;
 use App\Http\Controllers\ChannelController;
 use App\Http\Controllers\ClientController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EmergencyAlertController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\LiveKitController;
 use App\Http\Controllers\SearchController;
@@ -99,6 +100,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::resource('channels', ChannelController::class);
     Route::get('clients/list', [ClientController::class, 'clients']);
     Route::get('/channels-list', [ChannelController::class, 'getChannels']);
+    Route::post('/emergency-alerts', [EmergencyAlertController::class, 'store'])->name('emergency-alerts.store');
+    Route::patch('/emergency-alerts/{alert}', [EmergencyAlertController::class, 'update'])->name('emergency-alerts.resolve');
     // Route::post('/livekit/token', [LiveKitController::class, 'generateToken']);
 });
 
