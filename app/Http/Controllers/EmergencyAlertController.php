@@ -105,6 +105,12 @@ class EmergencyAlertController extends Controller
      */
     public function update(Request $request, EmergencyAlert $alert)
     {
+
+        $request->validate([
+            'latitude' => 'required|numeric',
+            'longitude' => 'required|numeric',
+            'accuracy' => 'nullable|string',
+        ]);
     
         //  Security check to ensure the user can update this alert
         // if ($alert->client_id !== $request->user()->client_id) {
@@ -113,13 +119,18 @@ class EmergencyAlertController extends Controller
 
         $alert->update([
             'latitude' => $request->latitude,
-            'longitude' => $request->longitude ? now() : null,
+            'longitude' => $request->longitude,
             'accuracy' => $request->accuracy,
         ]);
 
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Emergency alert updated successfully.',
+            return response()->json([
+            'status'  => 'success',
+            'message' => 'GPS Coordinates Synced',
+            'data'    => [
+                'lat' => $alert->latitude,
+                'lng' => $alert->longitude,
+                'updated_at' => $alert->updated_at->format('H:i:s')
+            ]
         ]);
     }
 
