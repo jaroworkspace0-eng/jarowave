@@ -103,36 +103,35 @@ class EmergencyAlertController extends Controller
     /**
      * Update the specified resource in storage.
      */
-   public function update(Request $request, EmergencyAlert $alert)
+// Change the signature from (Request $request, EmergencyAlert $alert) 
+// TO (Request $request, $id)
+public function update(Request $request, $id)
 {
     try {
-        // 1. Validate - coordinates must be numeric
-        $request->validate([
-            'latitude' => 'required|numeric',
-            'longitude' => 'required|numeric',
-        ]);
+        // 1. Manually find the record
+        $alert = EmergencyAlert::find($id);
 
-        // 2. Direct Update (Bypasses some Mass Assignment issues)
-        $alert->latitude = (float) $request->latitude;
-        $alert->longitude = (float) $request->longitude;
+        if (!$alert) {
+            return response()->json(['status' => 'error', 'message' => 'Alert ID not found in DB'], 404);
+        }
+
+        // 2. Update the values directly
+        $alert->latitude = $request->latitude;
+        $alert->longitude = $request->longitude;
         $alert->accuracy = $request->accuracy;
+        
         $alert->save();
 
         return response()->json([
             'status' => 'success',
-            'message' => 'GPS coordinates synchronized',
-            'data' => [
-                'lat' => $alert->latitude,
-                'lng' => $alert->longitude
-            ]
+            'message' => 'GPS Synced'
         ]);
+
     } catch (\Exception $e) {
-        // This will send the ACTUAL error message to your React Native console
+        // This will now definitely show up in your React Native logs
         return response()->json([
             'status' => 'error',
-            'message' => $e->getMessage(),
-            'file' => $e->getFile(),
-            'line' => $e->getLine()
+            'message' => $e->getMessage()
         ], 500);
     }
 }
