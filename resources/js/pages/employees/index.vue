@@ -3,7 +3,8 @@ import Label from '@/components/ui/label/Label.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
+import Multiselect from 'vue-multiselect';
 import '../../../css/style.css';
 
 // 1. Data States
@@ -16,6 +17,7 @@ const showDeleteModal = ref(false);
 const employeeToDelete = ref<number | null>(null);
 const isProcessing = ref(false);
 const loading = ref(false);
+const selectedRole = ref('');
 
 const flashMessage = ref<string | null>(null);
 const errors = ref<Record<string, string[]>>({});
@@ -24,6 +26,59 @@ function showMessage(message: string) {
     flashMessage.value = message;
     setTimeout(() => (flashMessage.value = null), 3000); // auto-hide after 3s
 }
+
+const roleGroups = [
+    {
+        label: 'System & Management',
+        options: [
+            { text: 'Field Unit (Default)', value: 'field_unit' },
+            { text: 'Supervisor', value: 'supervisor' },
+            { text: 'Dispatch / Base Station', value: 'dispatch' },
+            { text: 'Site Manager', value: 'site_manager' },
+            { text: 'System Administrator', value: 'admin' },
+            { text: 'Operations Controller', value: 'ops_controller' }, // new
+        ],
+    },
+    {
+        label: 'Security & Safety',
+        options: [
+            { text: 'Security Guard', value: 'security_guard' },
+            { text: 'Patrol Officer', value: 'patrol_officer' },
+            { text: 'Loss Prevention', value: 'loss_prevention' },
+            { text: 'First Responder', value: 'first_responder' },
+            { text: 'Safety Officer', value: 'safety_officer' }, // moved here
+            { text: 'Emergency Coordinator', value: 'emergency_coordinator' }, // new
+        ],
+    },
+    {
+        label: 'Operations & Logistics',
+        options: [
+            { text: 'Maintenance Technician', value: 'maintenance' },
+            { text: 'Warehouse Operative', value: 'warehouse' },
+            { text: 'Forklift Operator', value: 'forklift' },
+            { text: 'Fleet Driver', value: 'fleet_driver' },
+            { text: 'Logistics Coordinator', value: 'logistics_coordinator' }, // new
+        ],
+    },
+    {
+        label: 'Hospitality & Services',
+        options: [
+            { text: 'Housekeeping', value: 'housekeeping' },
+            { text: 'Front Desk / Concierge', value: 'front_desk' },
+            { text: 'Event Staff', value: 'event_staff' },
+            { text: 'Janitorial', value: 'janitorial' },
+            { text: 'Customer Service Liaison', value: 'customer_service' }, // new
+        ],
+    },
+    {
+        label: 'Medical & Emergency',
+        options: [
+            { text: 'Paramedic', value: 'paramedic' },
+            { text: 'Medic', value: 'medic' },
+            { text: 'Firefighter', value: 'firefighter' },
+        ],
+    },
+];
 
 const employees = ref<any>({
     data: [],
@@ -52,6 +107,8 @@ const reloadEmployees = async (url?: string) => {
         console.log('Employees API response:', data);
         employees.value = data.employees; // full paginator object
         employeesList.value = data.employees.data; // just the records
+
+        console.log('employeesList:', employeesList.value[0].channels);
     } catch (e) {
         console.error('Error fetching employees', e);
     }
@@ -102,7 +159,8 @@ const form = ref({
     email: '',
     phone: '',
     occupation: '',
-    channel_id: '',
+    // channel_id: '',
+    channel_ids: [] as number[],
     client_id: '',
     password: '',
     role: 'employee',
@@ -135,13 +193,16 @@ const openModal = () => {
 
 const editEmployee = (employee: any) => {
     isEditing.value = true;
+
+    form.value.client_id = employee.client_id;
+    form.value.channel_ids = employee.channels || []; // ✅ keep objects
+
     form.value.id = employee.id;
     form.value.name = employee.user.name;
     form.value.email = employee.user.email;
     form.value.phone = employee.user.phone;
     form.value.occupation = employee.user.occupation;
-    form.value.client_id = employee.client_id;
-    form.value.channel_id = employee.channel?.[0]?.id || '';
+
     showModal.value = true;
 };
 
@@ -158,10 +219,17 @@ const confirmDelete = (id: number) => {
 const submitEmployee = async () => {
     try {
         loading.value = true;
+
+        // Ensure only IDs are sent
+        const payload = {
+            ...form.value,
+            channel_ids: form.value.channel_ids.map((c: any) => c.id),
+        };
+
         if (isEditing.value) {
             const { data } = await axios.put(
                 `${import.meta.env.VITE_APP_URL}/api/employees/${form.value.id}`,
-                form.value,
+                payload, // ✅ use payload here
                 {
                     headers: {
                         Authorization: `Bearer ${localStorage.getItem('token')}`,
@@ -172,7 +240,7 @@ const submitEmployee = async () => {
         } else {
             const { data } = await axios.post(
                 `${import.meta.env.VITE_APP_URL}/api/employees`,
-                form.value,
+                payload, // ✅ use payload here
                 {
                     headers: {
                         Authorization: `Bearer ${localStorage.getItem('token')}`,
@@ -182,21 +250,20 @@ const submitEmployee = async () => {
             showMessage(data.message);
             errors.value = {};
 
-            // ✅ manually clear fields only for new employee
             Object.assign(form.value, {
                 id: null,
                 name: '',
                 email: '',
                 phone: '',
                 occupation: '',
-                channel_id: '',
+                channel_ids: [], // ✅ reset array
                 client_id: '',
                 password: '',
                 role: 'employee',
             });
         }
 
-        closeModal(); // just hides the modal
+        closeModal();
         await reloadEmployees();
     } catch (err: any) {
         errors.value = err.response.data.errors;
@@ -242,6 +309,20 @@ const toggleStatus = async (employee: any) => {
         console.error('Failed to toggle status', err);
     }
 };
+
+// Place this in your <script setup>
+watch(
+    () => form.occupation,
+    (newVal) => {
+        if (newVal && !selectedRole.value) {
+            // Only hydrate if not already set by the user
+            const allOptions = roleGroups.flatMap((g) => g.options);
+            selectedRole.value =
+                allOptions.find((o) => o.value === newVal) || null;
+        }
+    },
+    { immediate: true },
+);
 </script>
 
 <template>
@@ -346,16 +427,52 @@ const toggleStatus = async (employee: any) => {
                                                     </p>
                                                 </div>
                                                 <div class="grid gap-2">
-                                                    <Label for="role"
-                                                        >Role / Occupation
-                                                    </Label>
-                                                    <input
+                                                    <div class="form-group">
+                                                        <!-- <input
                                                         id="role"
                                                         default-value="Pedro Duarte"
                                                         v-model="
                                                             form.occupation
                                                         "
-                                                    />
+                                                    /> -->
+                                                        <label for="role-select"
+                                                            >Assign User
+                                                            Role:</label
+                                                        >
+
+                                                        <Multiselect
+                                                            v-model="
+                                                                selectedRole
+                                                            "
+                                                            :options="
+                                                                roleGroups
+                                                            "
+                                                            :multiple="false"
+                                                            :searchable="true"
+                                                            :close-on-select="
+                                                                true
+                                                            "
+                                                            :show-labels="false"
+                                                            group-values="options"
+                                                            group-label="label"
+                                                            placeholder="Select a role..."
+                                                            track-by="value"
+                                                            label="text"
+                                                            @select="
+                                                                (option) => {
+                                                                    form.occupation =
+                                                                        option.value;
+                                                                }
+                                                            "
+                                                            @remove="
+                                                                () => {
+                                                                    form.occupation =
+                                                                        '';
+                                                                }
+                                                            "
+                                                        />
+                                                    </div>
+
                                                     <p
                                                         v-if="errors.occupation"
                                                         class="text-sm text-red-600"
@@ -394,13 +511,14 @@ const toggleStatus = async (employee: any) => {
                                                     {{ errors.client_id[0] }}
                                                 </p>
                                             </div>
-                                            <div class="grid gap-3">
+                                            <!-- <div class="grid gap-3">
                                                 <Label for="channels"
                                                     >Channel
                                                 </Label>
                                                 <select
                                                     v-model="form.channel_id"
                                                     id="channels"
+                                                    multiple
                                                     class="focus:ring-opacity-50 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
                                                 >
                                                     <option value="" disabled>
@@ -420,6 +538,29 @@ const toggleStatus = async (employee: any) => {
                                                     class="text-sm text-red-600"
                                                 >
                                                     {{ errors.channel_id[0] }}
+                                                </p>
+                                            </div> -->
+                                            <div class="grid gap-3">
+                                                <Label for="channels"
+                                                    >Channels</Label
+                                                >
+                                                <Multiselect
+                                                    v-model="form.channel_ids"
+                                                    :options="filteredChannels"
+                                                    :multiple="true"
+                                                    :close-on-select="false"
+                                                    :clear-on-select="false"
+                                                    :preserve-search="true"
+                                                    placeholder="Select channels..."
+                                                    label="name"
+                                                    track-by="id"
+                                                />
+
+                                                <p
+                                                    v-if="errors.channel_ids"
+                                                    class="text-sm text-red-600"
+                                                >
+                                                    {{ errors.channel_ids[0] }}
                                                 </p>
                                             </div>
 
@@ -585,10 +726,12 @@ const toggleStatus = async (employee: any) => {
                             >
                                 {{ employee.user.occupation }}
                             </td>
-                            <td class="border-blue-gray-50 border-b p-4">
-                                <div class="flex flex-wrap gap-1">
+                            <td
+                                class="border-blue-gray-50 border-b p-4 align-top"
+                            >
+                                <div class="flex max-w-[200px] flex-wrap gap-1">
                                     <span
-                                        v-for="c in employee.channel"
+                                        v-for="c in employee.channels"
                                         :key="c.id"
                                         :class="[
                                             'flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold shadow-sm',
@@ -772,6 +915,22 @@ const toggleStatus = async (employee: any) => {
 </template>
 
 <style scoped>
+.custom-select {
+    width: 100%;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    background-color: white;
+}
+optgroup {
+    font-weight: bold;
+    color: #666;
+    font-style: italic;
+}
+option {
+    font-style: normal;
+    color: black;
+}
 .loader {
     border: 2px solid #f3f3f3; /* Light grey background */
     border-top: 2px solid #3498db; /* Blue top border */
@@ -790,3 +949,4 @@ const toggleStatus = async (employee: any) => {
     }
 }
 </style>
+<style src="vue-multiselect/dist/vue-multiselect.min.css"></style>

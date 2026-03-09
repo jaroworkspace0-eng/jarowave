@@ -15,7 +15,7 @@ class EmergencyAlertController extends Controller
 {
     // 1. Fetch with relationships
     // Note: Ensure your EmergencyAlert model has these relationships defined!
-    $alert = EmergencyAlert::with(['user', 'channel', 'client', 'resolver'])
+    $alert = EmergencyAlert::with(['user', 'channels', 'client', 'resolver'])
         ->findOrFail($id);
 
     // 2. Optional: Security check
@@ -29,7 +29,7 @@ class EmergencyAlertController extends Controller
         'data' => [
             'id' => $alert->id,
             'sender' => $alert->user->name,
-            'channel' => $alert->channel->name,
+            'channel' => $alert->channels->name,
             'location' => [
                 'lat' => (float)$alert->latitude,
                 'lng' => (float)$alert->longitude,

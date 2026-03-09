@@ -12,7 +12,6 @@ class Employee extends Model
     protected $fillable = [
         'user_id',
         'client_id',
-        'channel_id'
     ];
 
     public function client() {
@@ -25,6 +24,13 @@ class Employee extends Model
         ->withPivot('is_online', 'last_seen')
         ->withTimestamps();
         // return $this->belongsTo(Channel::class);
+    }
+
+    public function channels()
+    {
+        return $this->belongsToMany(Channel::class, 'channel_employee', 'employee_id', 'channel_id')
+            ->withPivot('is_online', 'last_seen')
+            ->withTimestamps();
     }
 
     public function user() {

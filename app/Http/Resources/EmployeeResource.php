@@ -25,7 +25,7 @@ class EmployeeResource extends JsonResource
             'is_active' => $this->is_active,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
-            'channel' => new ChannelResource($this->whenLoaded('channel')),
+            'channel' => new ChannelResource($this->whenLoaded('channels')),
             'client' => new ClientResource($this->whenLoaded('client')),
             'user' => new UserResource($this->whenLoaded('user')),
         ];

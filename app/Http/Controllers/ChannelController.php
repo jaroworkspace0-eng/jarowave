@@ -29,7 +29,7 @@ class ChannelController extends Controller
     public function getChannels(Request $request)
     {
         // 1. Get user with relationship (mimicking login)
-        $user = $request->user()->load('employee.channel');
+        $user = $request->user()->load('employee.channels');
 
         // 2. Map the data exactly the same way
         $channels = $user->employee?->channel->map(function($channel) {
