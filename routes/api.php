@@ -28,7 +28,7 @@ Route::post('/login', function (Request $request) {
     ]);
 
     // 1. Eager load the employee and channels immediately to save database queries
-    $user = User::with('employee.channel')->where('email', $request->email)->first();
+    $user = User::with('employee.channels')->where('email', $request->email)->first();
 
     if (! $user || ! Hash::check($request->password, $user->password)) {
         throw ValidationException::withMessages([
