@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Channel;
 use App\Models\EmergencyAlert;
+use App\Models\EmergencyResolution;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class EmergencyAlertController extends Controller
 {
@@ -101,6 +103,125 @@ class EmergencyAlertController extends Controller
         ], 201);
     }
 
+    public function emergencyResolution(Request $request)
+    {
+        $request->validate([
+            'emergency_alert_id' => 'required|exists:emergency_alerts,id',
+            'responder_user_id'  => 'required|exists:users,id',
+            'status'             => 'required|string',
+            // Note: GPS coords should come from the phone here
+            'start_latitude'     => 'nullable|numeric',
+            'start_longitude'    => 'nullable|numeric',
+        ]);
+
+        try {
+            // 1. USE A TRANSACTION: This ensures that if two people click at the exact 
+            // same millisecond, the database handles them one by one.
+            return DB::transaction(function () use ($request) {
+                
+                // 2. CHECK FOR EXISTING RESOLUTION: 
+                // We look for any resolution already tied to this alert.
+                $existing = EmergencyResolution::where('emergency_alert_id', $request->emergency_alert_id)
+                    ->first();
+
+                if ($existing && $existing->responder_user_id !== null) {
+                    return response()->json([
+                        'status' => 'error',
+                        'message' => 'This alert has already been claimed by another Responder.',
+                    ], 409); // 409 = Conflict
+                }
+
+                // 3. CREATE OR UPDATE:
+                // Using updateOrCreate ensures we don't double-up records.
+                $resolution = EmergencyResolution::updateOrCreate(
+                    ['emergency_alert_id' => $request->emergency_alert_id],
+                    [
+                        'responder_user_id' => $request->responder_user_id,
+                        'status'            => 'responding', // Force initial status
+                        'accepted_at'       => now(),
+                        // We store where the patroller WAS when they clicked accept
+                        'start_latitude'    => $request->start_latitude,
+                        'start_longitude'   => $request->start_longitude,
+                    ]
+                );
+
+                return response()->json([
+                    'status'  => 'success',
+                    'message' => 'Emergency alert accepted.',
+                    'data'    => $resolution
+                ]);
+            });
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'System error: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    public function emergencyResolutionUpdate(Request $request)
+    {
+        $request->validate([
+            'emergency_alert_id' => 'required|exists:emergency_alerts,id',
+            'responder_user_id'  => 'required|exists:users,id',
+            'status'             => 'required|string',
+            'arrival_latitude'   => 'nullable|numeric',
+            'arrival_longitude'  => 'nullable|numeric',
+            'notes'              => 'nullable|string',
+        ]);
+
+        try {
+            return DB::transaction(function () use ($request) {
+                // 1. Find the resolution record using the Alert ID
+                $resolution = EmergencyResolution::where('emergency_alert_id', $request->emergency_alert_id)
+                    ->firstOrFail();
+
+                // 2. Automated Logic for 'on_site' status
+                if ($request->status === 'on_site') {
+                    $resolution->arrival_time = now();
+                    
+                    // Calculate response time automatically if we have the accept time
+                    if ($resolution->accepted_at) {
+                        $resolution->response_duration = $resolution->accepted_at->diffInSeconds(now());
+                    }
+                }
+
+                // 3. Update the Resolution Record
+                $resolution->update([
+                    'status'            => $request->status,
+                    'notes'             => $request->notes,
+                    'arrival_latitude'  => $request->arrival_latitude,
+                    'arrival_longitude' => $request->arrival_longitude,
+                    // Set resolution_time ONLY if it's the final step
+                    'resolution_time'   => ($request->status === 'resolved') ? now() : $resolution->resolution_time,
+                ]);
+
+                // 4. Update the Parent Alert if the situation is finished
+                if (in_array($request->status, ['resolved', 'false_alarm'])) {
+                    $alert = EmergencyAlert::findOrFail($request->emergency_alert_id);
+                    $alert->update([
+                        'is_resolved' => true,
+                        'resolved_at' => now(),
+                        'resolved_by' => $request->responder_user_id,
+                    ]);
+                }
+
+                return response()->json([
+                    'status'  => 'success',
+                    'message' => "Status updated to: {$request->status}",
+                    'data'    => $resolution
+                ]);
+            });
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Update failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
     /**
      * Display the specified resource.
      */
@@ -127,6 +248,17 @@ public function update(Request $request, $id)
     try {
         // 1. Manually find the record
         $alert = EmergencyAlert::find($id);
+
+        $panic_alert_id = $id; // This is the ID from the route parameter
+        $responder_user_id = $request->responder_user_id; // Assuming this is passed in the request
+        $response_duration = $request->response_duration; // Assuming this is passed in the request
+        $distance_traveled = $request->distance_traveled; // Assuming this is passed in the request
+        $status = $request->status; // Assuming this is passed in the request
+        $notes = $request->notes; // Assuming this is passed in the request
+        $responder_name = $request->responder_name; // Assuming this is passed in the request
+        $resolution_time = $request->resolution_time; // Assuming this is passed in the request
+        $arrival_latitude = $request->arrival_latitude; // Assuming this is passed in the request
+        $arrival_longitude = $request->arrival_longitude; // Assuming this is passed in
 
         if (!$alert) {
             return response()->json(['status' => 'error', 'message' => 'Alert ID not found in DB'], 404);
