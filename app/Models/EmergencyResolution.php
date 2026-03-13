@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class EmergencyResolution extends Model
 {
     protected $fillable = [
-        'panic_alert_id',
+        'emergency_alert_id',
         'responder_user_id',
         'accepted_at',
         'resolution_time',
