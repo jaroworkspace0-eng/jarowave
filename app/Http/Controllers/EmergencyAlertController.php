@@ -103,13 +103,11 @@ class EmergencyAlertController extends Controller
         ], 201);
     }
 
-    public function emergencyResolution(Request $request)
+    public function alertAccept(Request $request)
     {
         $request->validate([
             'emergency_alert_id' => 'required|exists:emergency_alerts,id',
             'responder_user_id'  => 'required|exists:users,id',
-            'status'             => 'required|string',
-            // Note: GPS coords should come from the phone here
             'start_latitude'     => 'nullable|numeric',
             'start_longitude'    => 'nullable|numeric',
         ]);
@@ -160,6 +158,7 @@ class EmergencyAlertController extends Controller
         }
     }
 
+
     public function emergencyResolutionUpdate(Request $request)
     {
         $request->validate([
@@ -169,6 +168,9 @@ class EmergencyAlertController extends Controller
             'arrival_latitude'   => 'nullable|numeric',
             'arrival_longitude'  => 'nullable|numeric',
             'notes'              => 'nullable|string',
+            'resolution_time'    => 'nullable|date',
+            'response_duration'  => 'nullable|numeric',
+            'distance_traveled'  => 'nullable|numeric',
         ]);
 
         try {

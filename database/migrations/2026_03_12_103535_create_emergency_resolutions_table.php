@@ -31,7 +31,7 @@ return new class extends Migration
             $table->string('start_longitude')->nullable();
             $table->string('response_duration')->nullable();
             $table->string('distance_traveled')->nullable();
-            $table->enum('status', ['responding', 'on_site', 'resolved', 'false_alarm'])->default('responding');
+            $table->enum('status', ['responding', 'on_site', 'resolved', 'false_alarm', 'transferred', 'cancelled'])->default('responding');
             $table->text('notes')->nullable();
             $table->timestamps();
         });
