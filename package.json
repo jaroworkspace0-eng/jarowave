@@ -43,6 +43,7 @@
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "inertia-table": "^1.0.8",
+        "intl-tel-input": "^26.8.1",
         "laravel-vite-plugin": "^2.0.0",
         "leaflet": "^1.9.4",
         "lucide-vue-next": "^0.468.0",
@@ -53,6 +54,7 @@
         "vue": "^3.5.13",
         "vue-multiselect": "^3.4.0",
         "vue-router": "^4.6.4",
+        "vue-tel-input": "^9.7.1",
         "ziggy-js": "^2.6.0"
     },
     "optionalDependencies": {

@@ -3,8 +3,12 @@ import Label from '@/components/ui/label/Label.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
+import 'intl-tel-input/build/css/intlTelInput.css';
 import { computed, onMounted, ref, watch } from 'vue';
 import Multiselect from 'vue-multiselect';
+import { VueTelInput } from 'vue-tel-input';
+import 'vue-tel-input/vue-tel-input.css';
+
 import '../../../css/style.css';
 
 // 1. Data States
@@ -218,7 +222,7 @@ const form = ref({
     id: null,
     name: '',
     email: '',
-    phone: '',
+    phone: '+27',
     occupation: '',
     // channel_id: '',
     channel_ids: [] as number[],
@@ -416,6 +420,20 @@ watch(
     },
     { immediate: true },
 );
+
+const handlePhoneInput = (val: string) => {
+    // 1. If the field is empty or they deleted the prefix, force it back
+    if (!val || !val.startsWith('+27')) {
+        form.phone = '+27';
+        return;
+    }
+
+    // 2. Remove any spaces or illegal characters immediately
+    const cleanValue = val.replace(/\s+/g, '').replace(/[^0-9+]/g, '');
+
+    // 3. Update the form with the clean version
+    form.phone = cleanValue;
+};
 </script>
 
 <template>
@@ -551,14 +569,36 @@ watch(
                                                 class="grid grid-cols-1 gap-4 md:grid-cols-2"
                                             >
                                                 <div class="grid gap-2">
-                                                    <Label for="contact"
-                                                        >Contact
-                                                    </Label>
-                                                    <input
+                                                    <div class="grid gap-2">
+                                                        <Label for="contact"
+                                                            >Phone</Label
+                                                        >
+
+                                                        <VueTelInput
+                                                            v-model="form.phone"
+                                                            mode="international"
+                                                            :onlyCountries="[
+                                                                'ZA',
+                                                            ]"
+                                                            defaultCountry="ZA"
+                                                            :autoFormat="true"
+                                                            :inputOptions="{
+                                                                showDialCode: true,
+                                                                placeholder:
+                                                                    '+27821234567',
+                                                            }"
+                                                            @input="
+                                                                handlePhoneInput
+                                                            "
+                                                            class="h-10 rounded-md border-gray-300 shadow-sm"
+                                                        />
+                                                    </div>
+
+                                                    <!-- <input
                                                         id="contact"
                                                         default-value="Pedro Duarte"
                                                         v-model="form.phone"
-                                                    />
+                                                    /> -->
                                                     <p
                                                         v-if="errors.phone"
                                                         class="text-sm text-red-600"
@@ -1163,6 +1203,43 @@ option {
     100% {
         transform: rotate(360deg);
     }
+}
+
+/* Force the library to respect the height and show the borders */
+.vue-tel-input {
+    display: flex !important;
+    background-color: white;
+    min-height: 40px; /* This is h-10 */
+    border: 1px solid #d1d5db !important; /* border-gray-300 */
+}
+
+/* Fix the internal input field */
+.vti__input {
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+}
+/* 1. Force the container to be visible and have the right height */
+:deep(.custom-tel-input) {
+    display: flex !important;
+    height: 40px !important; /* This matches h-10 */
+    border-radius: 6px;
+    border: 1px solid #d1d5db !important; /* gray-300 */
+    background-color: white;
+}
+
+/* 2. Fix the input field inside to not have its own weird borders */
+:deep(.vti__input) {
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    font-size: 0.875rem; /* text-sm */
+}
+
+/* 3. Fix the dropdown part so it doesn't look squashed */
+:deep(.vti__dropdown) {
+    border-radius: 6px 0 0 6px;
 }
 </style>
 <style src="vue-multiselect/dist/vue-multiselect.min.css"></style>

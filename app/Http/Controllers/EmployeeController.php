@@ -126,10 +126,21 @@ class EmployeeController extends Controller
 
 public function store(Request $request)
 {
+    if ($request->has('phone')) {
+        $request->merge([
+            'phone' => preg_replace('/\s+/', '', $request->phone),
+        ]);
+    }
     $validated = $request->validate([
         'name'           => 'required|string',
         'email'          => 'required|email|max:250|unique:users,email',
-        'phone'          => 'required|digits_between:7,15|unique:users,phone',
+        'phone' => [
+            'required',
+            'unique:users,phone',
+            'min:10',
+            'max:15',
+            'regex:/^\+[1-9]\d{1,14}$/' // Validates '+' followed by 2 to 15 digits
+        ],
         'occupation'     => 'required|string',
         'password'       => 'required|string|min:8',
         'channel_ids'    => 'required|array',
@@ -145,7 +156,11 @@ public function store(Request $request)
         'longitude'      => 'required_if:role,household,resident|nullable|numeric',
         'complex_name'   => 'nullable|string',
         'access_code'    => 'nullable|string',
-    ]);
+    ], [
+            // Custom error message for the regex
+            'phone.regex' => 'The phone number must include a country code starting with +',
+        ]);
+
 
     return DB::transaction(function () use ($validated, $request) {
         // Enforce fallback: If not household/resident, it MUST be employee
@@ -272,6 +287,11 @@ public function store(Request $request)
 
 public function update(Request $request, Employee $employee)
 {
+    if ($request->has('phone')) {
+        $request->merge([
+            'phone' => preg_replace('/\s+/', '', $request->phone),
+        ]);
+    }
     $validated = $request->validate([
         'name' => 'required|string',
         'email' => [
@@ -282,9 +302,10 @@ public function update(Request $request, Employee $employee)
         ],
         'phone' => [
             'required',
-            'string',
+            'min:10',
             'max:15',
             Rule::unique('users', 'phone')->ignore($employee->user_id),
+        'regex:/^\+[1-9]\d{1,14}$/' // Validates '+' followed by 2 to 15 digits
         ],
         'occupation' => 'required|string',
         
