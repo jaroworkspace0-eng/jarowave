@@ -30,6 +30,12 @@ class User extends Authenticatable
         'password',
         'is_active',
         'status',
+        'address_line_1',
+        'complex_name',
+        'suburb',
+        'access_code',
+        'latitude',
+        'longitude',
     ];
 
     /**

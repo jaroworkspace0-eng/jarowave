@@ -22,12 +22,73 @@ const selectedRole = ref('');
 const flashMessage = ref<string | null>(null);
 const errors = ref<Record<string, string[]>>({});
 
+const map = ref(null);
+const marker = ref(null);
+
+const addressSuggestions = ref([]);
+const showSuggestions = ref(false);
+let debounceTimeout: any = null;
+
+const handleAddressSearch = (event: any) => {
+    const query = event.target.value;
+
+    // Clear previous timeout
+    clearTimeout(debounceTimeout);
+
+    if (query.length < 3) {
+        addressSuggestions.value = [];
+        return;
+    }
+
+    // Wait 500ms after typing stops to search
+    debounceTimeout = setTimeout(async () => {
+        try {
+            const response = await fetch(
+                `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5`,
+            );
+            addressSuggestions.value = await response.json();
+            showSuggestions.value = true;
+        } catch (error) {
+            console.error('Search error:', error);
+        }
+    }, 500);
+};
+
+const selectAddress = (item) => {
+    // 1. Set Coordinates
+    form.value.latitude = item.lat;
+    form.value.longitude = item.lon;
+
+    // 2. Map Address Details
+    form.value.address_line_1 = item.display_name;
+
+    // Extract suburb or city
+    const addr = item.address;
+    form.value.suburb =
+        addr.suburb ||
+        addr.neighbourhood ||
+        addr.city_district ||
+        addr.town ||
+        '';
+
+    // Close dropdown
+    showSuggestions.value = false;
+    addressSuggestions.value = [];
+};
+
 function showMessage(message: string) {
     flashMessage.value = message;
     setTimeout(() => (flashMessage.value = null), 3000); // auto-hide after 3s
 }
 
 const roleGroups = [
+    {
+        label: 'Residents',
+        options: [
+            { text: 'Household', value: 'household' },
+            { text: 'Resident', value: 'resident' },
+        ],
+    },
     {
         label: 'System & Management',
         options: [
@@ -164,7 +225,28 @@ const form = ref({
     client_id: '',
     password: '',
     role: 'employee',
+    // New Fields
+    address_line_1: '',
+    complex_name: '',
+    suburb: '',
+    access_code: '',
+    latitude: null,
+    longitude: null,
 });
+
+// Watch the occupation and update the role automatically
+watch(
+    () => form.value.occupation,
+    (newVal) => {
+        if (newVal === 'household') {
+            form.value.role = 'household';
+        } else if (newVal === 'resident') {
+            form.value.role = 'resident';
+        } else {
+            form.value.role = 'employee';
+        }
+    },
+);
 
 // 4. Computed Channels
 const filteredChannels = computed(() => {
@@ -202,6 +284,17 @@ const editEmployee = (employee: any) => {
     form.value.email = employee.user.email;
     form.value.phone = employee.user.phone;
     form.value.occupation = employee.user.occupation;
+
+    // Set the role (this triggers the v-if in your template)
+    form.value.role = employee.user.role || 'employee';
+
+    // Preload Household fields
+    form.value.address_line_1 = employee.user.address_line_1 || '';
+    form.value.complex_name = employee.user.complex_name || '';
+    form.value.suburb = employee.user.suburb || '';
+    form.value.access_code = employee.user.access_code || '';
+    form.value.latitude = employee.user.latitude || null;
+    form.value.longitude = employee.user.longitude || null;
 
     showModal.value = true;
 };
@@ -355,7 +448,7 @@ watch(
                             <div v-if="showModal">
                                 <!-- Overlaying -->
                                 <div
-                                    class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-[2px]"
+                                    class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 py-8 backdrop-blur-[2px]"
                                 >
                                     <!-- Modal Content -->
                                     <div
@@ -369,6 +462,53 @@ watch(
                                             }}
                                         </h2>
 
+                                        <div class="mb-4 grid gap-2">
+                                            <div class="form-group">
+                                                <!-- <input
+                                                        id="role"
+                                                        default-value="Pedro Duarte"
+                                                        v-model="
+                                                            form.occupation
+                                                        "
+                                                    /> -->
+                                                <label for="role-select"
+                                                    >Assign User Role:</label
+                                                >
+
+                                                <Multiselect
+                                                    v-model="selectedRole"
+                                                    :options="roleGroups"
+                                                    :multiple="false"
+                                                    :searchable="true"
+                                                    :close-on-select="true"
+                                                    :show-labels="false"
+                                                    group-values="options"
+                                                    group-label="label"
+                                                    placeholder="Select a role..."
+                                                    track-by="value"
+                                                    label="text"
+                                                    @select="
+                                                        (option) => {
+                                                            form.occupation =
+                                                                option.value;
+                                                        }
+                                                    "
+                                                    @remove="
+                                                        () => {
+                                                            form.occupation =
+                                                                '';
+                                                        }
+                                                    "
+                                                />
+                                            </div>
+
+                                            <p
+                                                v-if="errors.occupation"
+                                                class="text-sm text-red-600"
+                                            >
+                                                {{ errors.occupation[0] }}
+                                            </p>
+                                        </div>
                                         <div class="grid gap-4">
                                             <div
                                                 class="grid grid-cols-1 gap-4 md:grid-cols-2"
@@ -426,120 +566,41 @@ watch(
                                                         {{ errors.phone[0] }}
                                                     </p>
                                                 </div>
+
                                                 <div class="grid gap-2">
-                                                    <div class="form-group">
-                                                        <!-- <input
-                                                        id="role"
-                                                        default-value="Pedro Duarte"
-                                                        v-model="
-                                                            form.occupation
-                                                        "
-                                                    /> -->
-                                                        <label for="role-select"
-                                                            >Assign User
-                                                            Role:</label
+                                                    <Label for="clients"
+                                                        >Client</Label
+                                                    >
+                                                    <select
+                                                        id="clients"
+                                                        v-model="form.client_id"
+                                                        class="focus:ring-opacity-50 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
+                                                    >
+                                                        <option
+                                                            value=""
+                                                            disabled
                                                         >
-
-                                                        <Multiselect
-                                                            v-model="
-                                                                selectedRole
-                                                            "
-                                                            :options="
-                                                                roleGroups
-                                                            "
-                                                            :multiple="false"
-                                                            :searchable="true"
-                                                            :close-on-select="
-                                                                true
-                                                            "
-                                                            :show-labels="false"
-                                                            group-values="options"
-                                                            group-label="label"
-                                                            placeholder="Select a role..."
-                                                            track-by="value"
-                                                            label="text"
-                                                            @select="
-                                                                (option) => {
-                                                                    form.occupation =
-                                                                        option.value;
-                                                                }
-                                                            "
-                                                            @remove="
-                                                                () => {
-                                                                    form.occupation =
-                                                                        '';
-                                                                }
-                                                            "
-                                                        />
-                                                    </div>
-
+                                                            -- Choose client --
+                                                        </option>
+                                                        <option
+                                                            v-for="client in clients"
+                                                            :key="client.id"
+                                                            :value="client.id"
+                                                        >
+                                                            {{ client.name }}
+                                                        </option>
+                                                    </select>
                                                     <p
-                                                        v-if="errors.occupation"
+                                                        v-if="errors.client_id"
                                                         class="text-sm text-red-600"
                                                     >
                                                         {{
-                                                            errors.occupation[0]
+                                                            errors.client_id[0]
                                                         }}
                                                     </p>
                                                 </div>
                                             </div>
 
-                                            <div class="grid gap-2">
-                                                <Label for="clients"
-                                                    >Client</Label
-                                                >
-                                                <select
-                                                    id="clients"
-                                                    v-model="form.client_id"
-                                                    class="focus:ring-opacity-50 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
-                                                >
-                                                    <option value="" disabled>
-                                                        -- Choose client --
-                                                    </option>
-                                                    <option
-                                                        v-for="client in clients"
-                                                        :key="client.id"
-                                                        :value="client.id"
-                                                    >
-                                                        {{ client.name }}
-                                                    </option>
-                                                </select>
-                                                <p
-                                                    v-if="errors.client_id"
-                                                    class="text-sm text-red-600"
-                                                >
-                                                    {{ errors.client_id[0] }}
-                                                </p>
-                                            </div>
-                                            <!-- <div class="grid gap-3">
-                                                <Label for="channels"
-                                                    >Channel
-                                                </Label>
-                                                <select
-                                                    v-model="form.channel_id"
-                                                    id="channels"
-                                                    multiple
-                                                    class="focus:ring-opacity-50 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
-                                                >
-                                                    <option value="" disabled>
-                                                        -- Choose channel --
-                                                    </option>
-                                                    <option
-                                                        v-for="channel in filteredChannels"
-                                                        :key="channel.id"
-                                                        :value="channel.id"
-                                                        selected
-                                                    >
-                                                        {{ channel.name }}
-                                                    </option>
-                                                </select>
-                                                <p
-                                                    v-if="errors.channel_id"
-                                                    class="text-sm text-red-600"
-                                                >
-                                                    {{ errors.channel_id[0] }}
-                                                </p>
-                                            </div> -->
                                             <div class="grid gap-3">
                                                 <Label for="channels"
                                                     >Channels</Label
@@ -562,6 +623,161 @@ watch(
                                                 >
                                                     {{ errors.channel_ids[0] }}
                                                 </p>
+                                            </div>
+
+                                            <div
+                                                v-if="
+                                                    form.role === 'household' ||
+                                                    form.role === 'resident'
+                                                "
+                                                class="mt-4 border-t pt-4"
+                                            >
+                                                <h3
+                                                    class="mb-3 text-sm font-semibold tracking-wider text-gray-900 uppercase"
+                                                >
+                                                    Household Details
+                                                </h3>
+
+                                                <div
+                                                    class="relative mb-4 grid gap-2"
+                                                >
+                                                    <Label for="address_search"
+                                                        >Search Address
+                                                        (Free)</Label
+                                                    >
+                                                    <div class="relative">
+                                                        <input
+                                                            id="address_search"
+                                                            type="text"
+                                                            placeholder="Type your street address..."
+                                                            class="w-full rounded-md border-gray-300 pl-10 shadow-sm"
+                                                            @input="
+                                                                handleAddressSearch
+                                                            "
+                                                            @blur="
+                                                                setTimeout(
+                                                                    () =>
+                                                                        (showSuggestions = false),
+                                                                    200,
+                                                                )
+                                                            "
+                                                        />
+                                                        <span
+                                                            class="absolute top-2.5 left-3 text-gray-400"
+                                                        >
+                                                            <i
+                                                                class="fas fa-search-location"
+                                                            ></i>
+                                                        </span>
+                                                    </div>
+
+                                                    <ul
+                                                        v-if="
+                                                            showSuggestions &&
+                                                            addressSuggestions.length
+                                                        "
+                                                        class="absolute top-full z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-200 bg-white shadow-xl"
+                                                    >
+                                                        <li
+                                                            v-for="item in addressSuggestions"
+                                                            :key="item.place_id"
+                                                            @click="
+                                                                selectAddress(
+                                                                    item,
+                                                                )
+                                                            "
+                                                            class="cursor-pointer border-b px-4 py-3 text-sm last:border-0 hover:bg-gray-50"
+                                                        >
+                                                            <div
+                                                                class="font-medium text-gray-800"
+                                                            >
+                                                                {{
+                                                                    item.display_name
+                                                                }}
+                                                            </div>
+                                                        </li>
+                                                    </ul>
+                                                </div>
+
+                                                <div
+                                                    class="grid grid-cols-1 gap-4 md:grid-cols-2"
+                                                >
+                                                    <div class="grid gap-2">
+                                                        <Label
+                                                            for="address_line_1"
+                                                            >Street
+                                                            Address</Label
+                                                        >
+                                                        <input
+                                                            id="address_line_1"
+                                                            v-model="
+                                                                form.address_line_1
+                                                            "
+                                                            placeholder="e.g. 123 Maple Ave"
+                                                        />
+                                                        <p
+                                                            v-if="
+                                                                errors.address_line_1
+                                                            "
+                                                            class="text-sm text-red-600"
+                                                        >
+                                                            {{
+                                                                errors
+                                                                    .address_line_1[0]
+                                                            }}
+                                                        </p>
+                                                    </div>
+                                                    <div class="grid gap-2">
+                                                        <Label for="complex"
+                                                            >Complex/Estate Name
+                                                            (Optional)</Label
+                                                        >
+                                                        <input
+                                                            id="complex"
+                                                            v-model="
+                                                                form.complex_name
+                                                            "
+                                                            placeholder="e.g. Green Valley Estate"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div
+                                                    class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2"
+                                                >
+                                                    <div class="grid gap-2">
+                                                        <Label for="suburb"
+                                                            >Suburb/Area</Label
+                                                        >
+                                                        <input
+                                                            id="suburb"
+                                                            v-model="
+                                                                form.suburb
+                                                            "
+                                                            placeholder="e.g. Morningside"
+                                                        />
+                                                        <p
+                                                            v-if="errors.suburb"
+                                                            class="text-sm text-red-600"
+                                                        >
+                                                            {{
+                                                                errors.suburb[0]
+                                                            }}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <!-- <div
+                                                    v-if="form.latitude"
+                                                    class="mt-2 flex items-center text-[10px] text-green-600"
+                                                >
+                                                    <i
+                                                        class="fas fa-check-circle mr-1"
+                                                    ></i>
+                                                    Location pinned:
+                                                    {{ form.latitude }},
+                                                    {{ form.longitude }}
+                                                </div> -->
                                             </div>
 
                                             <div class="grid gap-3">

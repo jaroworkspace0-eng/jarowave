@@ -124,23 +124,46 @@ class EmployeeController extends Controller
 
     // }
 
-        public function store(Request $request)
+public function store(Request $request)
 {
     $validated = $request->validate([
-        'name'       => 'required|string',
-        'email'      => 'required|email|max:250|unique:users,email',
-        'phone'      => 'required|digits_between:7,15|unique:users,phone',
-        'occupation' => 'required|string',
-        'password'   => 'required|string|min:8',
-        'channel_ids'   => 'required|array',
-        'channel_ids.*' => 'exists:channels,id',
+        'name'           => 'required|string',
+        'email'          => 'required|email|max:250|unique:users,email',
+        'phone'          => 'required|digits_between:7,15|unique:users,phone',
+        'occupation'     => 'required|string',
+        'password'       => 'required|string|min:8',
+        'channel_ids'    => 'required|array',
+        'channel_ids.*'  => 'exists:channels,id',
+        
+        // Role is strictly required
+        'role'           => 'required|string', 
+
+        // Address fields required ONLY for household/resident
+        'address_line_1' => 'required_if:role,household,resident|nullable|string',
+        'suburb'         => 'required_if:role,household,resident|nullable|string',
+        'latitude'       => 'required_if:role,household,resident|nullable|numeric',
+        'longitude'      => 'required_if:role,household,resident|nullable|numeric',
+        'complex_name'   => 'nullable|string',
+        'access_code'    => 'nullable|string',
     ]);
 
     return DB::transaction(function () use ($validated, $request) {
+        // Enforce fallback: If not household/resident, it MUST be employee
+        $finalRole = in_array($validated['role'], ['household', 'resident']) 
+                     ? $validated['role'] 
+                     : 'employee';
+
         // 1. Create the user
         $user = User::create(array_merge($validated, [
-            'role' => 'employee',
-            'password' => bcrypt($validated['password']),
+            'role'           => $finalRole,
+            'password'       => bcrypt($validated['password']),
+            // Nullify address fields if role is employee
+            'address_line_1' => ($finalRole !== 'employee') ? $validated['address_line_1'] : null,
+            'suburb'         => ($finalRole !== 'employee') ? $validated['suburb'] : null,
+            'latitude'       => ($finalRole !== 'employee') ? $validated['latitude'] : null,
+            'longitude'      => ($finalRole !== 'employee') ? $validated['longitude'] : null,
+            'complex_name'   => ($finalRole !== 'employee') ? $validated['complex_name'] : null,
+            'access_code'    => ($finalRole !== 'employee') ? $validated['access_code'] : null,
         ]));
 
         // 2. Derive client_id from the first channel
@@ -160,8 +183,8 @@ class EmployeeController extends Controller
 
         return response()->json([
             'success'  => true,
-            'message'  => 'Employee created and assigned to ' . ($employee->client->name ?? 'client'),
-            'employee' => $employee->load('channels'),
+            'message'  => ucfirst($finalRole) . ' created successfully.',
+            'user'     => $user->load('employee.channel'),
         ]);
     });
 }
@@ -247,7 +270,7 @@ class EmployeeController extends Controller
     //     });
     // }
 
-    public function update(Request $request, Employee $employee)
+public function update(Request $request, Employee $employee)
 {
     $validated = $request->validate([
         'name' => 'required|string',
@@ -257,51 +280,81 @@ class EmployeeController extends Controller
             'max:250',
             Rule::unique('users', 'email')->ignore($employee->user_id),
         ],
-        'phone' => 'required|string|max:15',
+        'phone' => [
+            'required',
+            'string',
+            'max:15',
+            Rule::unique('users', 'phone')->ignore($employee->user_id),
+        ],
         'occupation' => 'required|string',
-        'channel_ids' => 'array', // multiple channels now
+        
+        // Role is a required field
+        'role'       => 'required|string', 
+
+        'channel_ids' => 'array',
         'channel_ids.*' => 'integer|exists:channels,id',
         'password' => 'nullable|string|min:8',
+
+        // Address fields required ONLY if role is household or resident
+        'address_line_1' => 'required_if:role,household,resident|nullable|string',
+        'suburb'         => 'required_if:role,household,resident|nullable|string',
+        'latitude'       => 'required_if:role,household,resident|nullable|numeric',
+        'longitude'      => 'required_if:role,household,resident|nullable|numeric',
+        'complex_name'   => 'nullable|string',
+        'access_code'    => 'nullable|string',
     ]);
 
     return DB::transaction(function () use ($request, $validated, $employee) {
-        // 1. Update the User record
+        
+        // Enforce the "Resort to Employee" rule
+        $finalRole = in_array($validated['role'], ['household', 'resident']) 
+                     ? $validated['role'] 
+                     : 'employee';
+
+        // 1. Prepare User record data
         $userData = [
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'occupation' => $validated['occupation'],
-            'phone' => $validated['phone'],
+            'name'           => $validated['name'],
+            'email'          => $validated['email'],
+            'phone'          => $validated['phone'],
+            'occupation'     => $validated['occupation'],
+            'role'           => $finalRole,
+            
+            // Logic: Wipe address data if the final role is 'employee'
+            'address_line_1' => ($finalRole !== 'employee') ? $validated['address_line_1'] : null,
+            'suburb'         => ($finalRole !== 'employee') ? $validated['suburb'] : null,
+            'complex_name'   => ($finalRole !== 'employee') ? $validated['complex_name'] : null,
+            'access_code'    => ($finalRole !== 'employee') ? $validated['access_code'] : null,
+            'latitude'       => ($finalRole !== 'employee') ? $validated['latitude'] : null,
+            'longitude'      => ($finalRole !== 'employee') ? $validated['longitude'] : null,
         ];
 
         if (!empty($validated['password'])) {
             $userData['password'] = bcrypt($validated['password']);
         }
 
+        // Update the User (Owner of the Employee record)
         $employee->user->update($userData);
 
-        // 2. Derive client_id from the first channel (if provided)
+        // 2. Derive/Update client_id from the first selected channel
         $client_id = $employee->client_id;
         if (!empty($validated['channel_ids'])) {
             $client_id = Channel::where('id', $validated['channel_ids'][0])->value('client_id');
         }
 
         // 3. Update the Employee record
-        $employee->update([
-            'client_id' => $client_id,
-            'phone' => $validated['phone'],
-        ]);
+        $employee->update(['client_id' => $client_id]);
 
-        // 4. Sync channels (replace existing links with new selection)
-        if (!empty($validated['channel_ids'])) {
-            $employee->channels()->sync($validated['channel_ids']);
+        // 4. Sync multiple channels
+        if (isset($validated['channel_ids'])) {
+            $employee->channel()->sync($validated['channel_ids']);
         }
 
-        // 5. Reload relationships for response
-        $employee->load('channels', 'user', 'client');
+        // 5. Reload for response
+        $employee->load('channel', 'user', 'client');
 
         return response()->json([
             'success' => true,
-            'message' => 'Employee updated successfully!',
+            'message' => ucfirst($finalRole) . ' updated successfully!',
             'employee' => $employee,
         ]);
     });

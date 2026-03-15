@@ -44,6 +44,7 @@
         "clsx": "^2.1.1",
         "inertia-table": "^1.0.8",
         "laravel-vite-plugin": "^2.0.0",
+        "leaflet": "^1.9.4",
         "lucide-vue-next": "^0.468.0",
         "primevue": "^4.5.4",
         "reka-ui": "^2.4.1",
