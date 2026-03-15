@@ -172,7 +172,7 @@ Route::post('/login', function (Request $request) {
 
     return response()->json([
         'user' => [
-            'id'        => $user->id,
+            'user_id'        => $user->id,
             'name'      => $user->name,
             'email'     => $user->email,
             'phone'     => $user->phone,
