@@ -59,15 +59,15 @@ async function login() {
 <template>
     <AuthBase
         title="Log in to your account"
-        description="Enter your email and password below to log in"
+        description="Enter your email/phone and password below to log in"
     >
         <form @submit.prevent="login" class="flex flex-col gap-6">
             <div class="grid gap-6">
                 <div class="grid gap-2">
-                    <Label for="email">Email address</Label>
+                    <Label for="email">Email / Phone</Label>
                     <Input
                         id="email"
-                        type="email"
+                        type="text"
                         v-model="email"
                         required
                         autofocus
