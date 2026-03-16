@@ -21,88 +21,6 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
-// Route::post('/login', function (Request $request) {
-//     $request->validate([
-//         'email'    => 'required|string',
-//         'password' => 'required',
-//     ]);
-
-//     $login = $request->email;
-
-//     // Detect format: email vs phone
-//     if (filter_var($login, FILTER_VALIDATE_EMAIL)) {
-//         // It's an email
-//         $user = User::with('employee.channels')
-//             ->where('email', $login)
-//             ->first();
-//     } elseif (preg_match('/^\+?\d{7,15}$/', $login)) {
-//         // It's a phone number (basic regex: 7–15 digits, optional +)
-//         $user = User::with('employee.channels')
-//             ->where('phone', $login)
-//             ->first();
-//     } else {
-//         throw ValidationException::withMessages([
-//             'email' => ['Login must be a valid email or phone number.'],
-//         ]);
-//     }
-
-//     if (! $user || ! Hash::check($request->password, $user->password)) {
-//         throw ValidationException::withMessages([
-//             'email' => ['The provided credentials are incorrect.'],
-//         ]);
-//     }
-
-//     // Role restrictions
-//     if ($user->role === 'admin' && $request->source !== 'web') {
-//         return response()->json([
-//             'status'  => 'error',
-//             'message' => 'Access denied. Admins must use the web dashboard.'
-//         ], 403);
-//     }
-
-//     $appRoles = ['employee','household','resident'];
-//     if (in_array($user->role, $appRoles) && $request->source !== 'app') {
-//         return response()->json([
-//             'status'  => 'error',
-//             'message' => 'Access denied. Please use the mobile application to manage your profile.'
-//         ], 403);
-//     }
-
-//     if ($user->is_active === 0) {
-//         // Using optional() or null coalescing prevents a 500 error if the relationship is missing
-//         $orgName = $user->employee?->client?->name ?? 'your organization management';
-        
-//         return response()->json([
-//             'status'  => 'error',
-//             'message' => "Account inactive. Please contact {$orgName} to restore service."
-//         ], 403);
-//     }
-
-//     // Reset old tokens
-//     $user->tokens()->delete();
-//     $tokenName = $request->source === 'app' ? 'mobile-access' : 'web-access';
-//     $token = $user->createToken($tokenName)->plainTextToken;
-
-//     $channels = $user->employee?->channels->map(function ($channel) {
-//         return [
-//             'id'   => $channel->id,
-//             'name' => $channel->name,
-//         ];
-//     }) ?? collect([]);
-
-//     return response()->json([
-//         'user' => [
-//             'id'        => $user->id,
-//             'name'      => $user->name,
-//             'email'     => $user->email,
-//             'phone'     => $user->phone,
-//             'occupation'=> $user->occupation,
-//             'role'      => $user->role,
-//         ],
-//         'channels' => $channels,
-//         'token'    => $token,
-//     ]);
-// });
 
 Route::post('/login', function (Request $request) {
     $request->validate([
@@ -184,9 +102,6 @@ Route::post('/login', function (Request $request) {
         'token'    => $token,
     ]);
 });
-
-
-
 
 Route::middleware(['auth:sanctum'])->group(function () { 
     Route::get('/user', function (Request $request) {
