@@ -350,25 +350,30 @@ public function update(Request $request, Employee $employee)
         }
     }
  
-    return DB::transaction(function () use ($validated, $employee) {
+    return DB::transaction(function () use ($validated, $employee, $fromApp) {
  
         $finalRole = in_array($validated['role'], ['household', 'resident'])
                      ? $validated['role']
                      : 'employee';
  
         $userData = [
-            'name'           => $validated['name'],
-            'email'          => $validated['email'],
-            'phone'          => $validated['phone'],
-            'occupation'     => $validated['occupation'],
-            'role'           => $finalRole,
-            'address_line_1' => ($finalRole !== 'employee') ? ($validated['address_line_1'] ?? null) : null,
-            'suburb'         => ($finalRole !== 'employee') ? ($validated['suburb'] ?? null) : null,
-            'complex_name'   => ($finalRole !== 'employee') ? ($validated['complex_name'] ?? null) : null,
-            'access_code'    => ($finalRole !== 'employee') ? ($validated['access_code'] ?? null) : null,
-            'latitude'       => ($finalRole !== 'employee') ? ($validated['latitude'] ?? null) : null,
-            'longitude'      => ($finalRole !== 'employee') ? ($validated['longitude'] ?? null) : null,
+            'name'       => $validated['name'],
+            'email'      => $validated['email'],
+            'phone'      => $validated['phone'],
+            'occupation' => $validated['occupation'],
+            'role'       => $finalRole,
         ];
+ 
+        // Only update address fields when request comes from dashboard
+        // App requests must NEVER touch address data — it would wipe them
+        if (!$fromApp) {
+            $userData['address_line_1'] = ($finalRole !== 'employee') ? ($validated['address_line_1'] ?? null) : null;
+            $userData['suburb']         = ($finalRole !== 'employee') ? ($validated['suburb'] ?? null) : null;
+            $userData['complex_name']   = ($finalRole !== 'employee') ? ($validated['complex_name'] ?? null) : null;
+            $userData['access_code']    = ($finalRole !== 'employee') ? ($validated['access_code'] ?? null) : null;
+            $userData['latitude']       = ($finalRole !== 'employee') ? ($validated['latitude'] ?? null) : null;
+            $userData['longitude']      = ($finalRole !== 'employee') ? ($validated['longitude'] ?? null) : null;
+        }
  
         // ── Dashboard: admin sets password directly ──
         if (!empty($validated['password'])) {
@@ -402,6 +407,7 @@ public function update(Request $request, Employee $employee)
         ]);
     });
 }
+ 
 
 
     /**
