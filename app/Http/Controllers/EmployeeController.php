@@ -294,19 +294,19 @@ public function update(Request $request, Employee $employee)
     }
     $validated = $request->validate([
         'name' => 'required|string',
-        'email' => [
-    'required',
-    'email',
-    'max:250',
-    Rule::unique('users', 'email')->ignore($employee->user_id, 'id'),
-],
-'phone' => [
-    'required',
-    'min:10',
-    'max:15',
-    Rule::unique('users', 'phone')->ignore($employee->user_id, 'id'),
-    'regex:/^\+[1-9]\d{1,14}$/',
-],
+                'email' => [
+            'required',
+            'email',
+            'max:250',
+            Rule::unique('users', 'email')->ignore($employee->user_id, 'id'),
+        ],
+        'phone' => [
+            'required',
+            'min:10',
+            'max:15',
+            Rule::unique('users', 'phone')->ignore($employee->user_id, 'id'),
+            'regex:/^\+[1-9]\d{1,14}$/',
+        ],
         'occupation' => 'required|string',
         
         // Role is a required field
