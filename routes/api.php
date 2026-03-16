@@ -98,7 +98,7 @@ Route::post('/login', function (Request $request) {
             'phone'     => $user->phone,
             'occupation'=> $user->occupation,
             'role'      => $user->role,
-            'address_line_1' => $user->address_line_1,
+            'address' => $user->address_line_1,
             'suburb' => $user->suburb,
             'longitude' => $user->longitude,
             'latitude' => $user->latitude,
