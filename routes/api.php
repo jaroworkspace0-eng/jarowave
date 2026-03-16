@@ -92,6 +92,7 @@ Route::post('/login', function (Request $request) {
         'user' => [
             'id' => $user->id,
             'user_id'   => $user->id,
+            'employee_id' => $user->employee?->id,  // ← this line
             'name'      => $user->name,
             'email'     => $user->email,
             'phone'     => $user->phone,
