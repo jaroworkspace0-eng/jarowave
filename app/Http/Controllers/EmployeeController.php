@@ -294,6 +294,9 @@ public function update(Request $request, Employee $employee)
         ]);
     }
  
+    // Detect source: app requests never send address fields
+    $fromApp = !$request->has('address_line_1') && !$request->has('suburb');
+ 
     $validated = $request->validate([
         'name' => 'required|string',
         'email' => [
@@ -314,19 +317,19 @@ public function update(Request $request, Employee $employee)
         'channel_ids'  => 'array',
         'channel_ids.*'=> 'integer|exists:channels,id',
  
-        // ── Dashboard sends this (admin resetting password directly) ──
+        // ── Dashboard: admin resets password directly ──
         'password'                  => 'nullable|string|min:8',
  
-        // ── App sends these (user changing own password) ──
+        // ── App: user changes own password ──
         'current_password'          => 'nullable|string',
         'new_password'              => 'nullable|string|min:8|confirmed',
         'new_password_confirmation' => 'nullable|string',
  
-        // Address fields
-        'address_line_1' => 'required_if:role,household,resident|nullable|string',
-        'suburb'         => 'required_if:role,household,resident|nullable|string',
-        'latitude'       => 'required_if:role,household,resident|nullable|numeric',
-        'longitude'      => 'required_if:role,household,resident|nullable|numeric',
+        // Address fields — only required when coming from dashboard
+        'address_line_1' => ($fromApp ? 'nullable' : 'required_if:role,household,resident') . '|nullable|string',
+        'suburb'         => ($fromApp ? 'nullable' : 'required_if:role,household,resident') . '|nullable|string',
+        'latitude'       => ($fromApp ? 'nullable' : 'required_if:role,household,resident') . '|nullable|numeric',
+        'longitude'      => ($fromApp ? 'nullable' : 'required_if:role,household,resident') . '|nullable|numeric',
         'complex_name'   => 'nullable|string',
         'access_code'    => 'nullable|string',
     ]);
@@ -372,7 +375,7 @@ public function update(Request $request, Employee $employee)
             $userData['password'] = bcrypt($validated['password']);
         }
  
-        // ── App: user changes own password (current was verified above) ──
+        // ── App: user changes own password (current verified above) ──
         if (!empty($validated['new_password'])) {
             $userData['password'] = bcrypt($validated['new_password']);
         }
