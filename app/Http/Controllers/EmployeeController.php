@@ -292,9 +292,10 @@ public function update(Request $request, Employee $employee)
             'phone' => preg_replace('/\s+/', '', $request->phone),
         ]);
     }
+ 
     $validated = $request->validate([
         'name' => 'required|string',
-                'email' => [
+        'email' => [
             'required',
             'email',
             'max:250',
@@ -307,16 +308,20 @@ public function update(Request $request, Employee $employee)
             Rule::unique('users', 'phone')->ignore($employee->user_id, 'id'),
             'regex:/^\+[1-9]\d{1,14}$/',
         ],
-        'occupation' => 'required|string',
-        
-        // Role is a required field
-        'role'       => 'required|string', 
-
-        'channel_ids' => 'array',
-        'channel_ids.*' => 'integer|exists:channels,id',
-        'password' => 'nullable|string|min:8',
-
-        // Address fields required ONLY if role is household or resident
+        'occupation'   => 'required|string',
+        'role'         => 'required|string',
+        'channel_ids'  => 'array',
+        'channel_ids.*'=> 'integer|exists:channels,id',
+ 
+        // ── Dashboard sends this (admin resetting password directly) ──
+        'password'                  => 'nullable|string|min:8',
+ 
+        // ── App sends these (user changing own password) ──
+        'current_password'          => 'nullable|string',
+        'new_password'              => 'nullable|string|min:8|confirmed',
+        'new_password_confirmation' => 'nullable|string',
+ 
+        // Address fields
         'address_line_1' => 'required_if:role,household,resident|nullable|string',
         'suburb'         => 'required_if:role,household,resident|nullable|string',
         'latitude'       => 'required_if:role,household,resident|nullable|numeric',
@@ -324,58 +329,71 @@ public function update(Request $request, Employee $employee)
         'complex_name'   => 'nullable|string',
         'access_code'    => 'nullable|string',
     ]);
-
-    return DB::transaction(function () use ($request, $validated, $employee) {
-        
-        // Enforce the "Resort to Employee" rule
-        $finalRole = in_array($validated['role'], ['household', 'resident']) 
-                     ? $validated['role'] 
+ 
+    // ── App: verify current password before allowing change ──
+    if (!empty($validated['new_password'])) {
+        if (empty($validated['current_password'])) {
+            return response()->json([
+                'message' => 'Current password is required.',
+                'errors'  => ['current_password' => ['Current password is required.']],
+            ], 422);
+        }
+        if (!Hash::check($validated['current_password'], $employee->user->password)) {
+            return response()->json([
+                'message' => 'Current password is incorrect.',
+                'errors'  => ['current_password' => ['The current password is incorrect.']],
+            ], 422);
+        }
+    }
+ 
+    return DB::transaction(function () use ($validated, $employee) {
+ 
+        $finalRole = in_array($validated['role'], ['household', 'resident'])
+                     ? $validated['role']
                      : 'employee';
-
-        // 1. Prepare User record data
+ 
         $userData = [
             'name'           => $validated['name'],
             'email'          => $validated['email'],
             'phone'          => $validated['phone'],
             'occupation'     => $validated['occupation'],
             'role'           => $finalRole,
-            
-            // Logic: Wipe address data if the final role is 'employee'
-            'address_line_1' => ($finalRole !== 'employee') ? $validated['address_line_1'] : null,
-            'suburb'         => ($finalRole !== 'employee') ? $validated['suburb'] : null,
-            'complex_name'   => ($finalRole !== 'employee') ? $validated['complex_name'] : null,
-            'access_code'    => ($finalRole !== 'employee') ? $validated['access_code'] : null,
-            'latitude'       => ($finalRole !== 'employee') ? $validated['latitude'] : null,
-            'longitude'      => ($finalRole !== 'employee') ? $validated['longitude'] : null,
+            'address_line_1' => ($finalRole !== 'employee') ? ($validated['address_line_1'] ?? null) : null,
+            'suburb'         => ($finalRole !== 'employee') ? ($validated['suburb'] ?? null) : null,
+            'complex_name'   => ($finalRole !== 'employee') ? ($validated['complex_name'] ?? null) : null,
+            'access_code'    => ($finalRole !== 'employee') ? ($validated['access_code'] ?? null) : null,
+            'latitude'       => ($finalRole !== 'employee') ? ($validated['latitude'] ?? null) : null,
+            'longitude'      => ($finalRole !== 'employee') ? ($validated['longitude'] ?? null) : null,
         ];
-
+ 
+        // ── Dashboard: admin sets password directly ──
         if (!empty($validated['password'])) {
             $userData['password'] = bcrypt($validated['password']);
         }
-
-        // Update the User (Owner of the Employee record)
+ 
+        // ── App: user changes own password (current was verified above) ──
+        if (!empty($validated['new_password'])) {
+            $userData['password'] = bcrypt($validated['new_password']);
+        }
+ 
         $employee->user->update($userData);
-
-        // 2. Derive/Update client_id from the first selected channel
+ 
         $client_id = $employee->client_id;
         if (!empty($validated['channel_ids'])) {
             $client_id = Channel::where('id', $validated['channel_ids'][0])->value('client_id');
         }
-
-        // 3. Update the Employee record
+ 
         $employee->update(['client_id' => $client_id]);
-
-        // 4. Sync multiple channels
+ 
         if (isset($validated['channel_ids'])) {
             $employee->channel()->sync($validated['channel_ids']);
         }
-
-        // 5. Reload for response
+ 
         $employee->load('channel', 'user', 'client');
-
+ 
         return response()->json([
-            'success' => true,
-            'message' => ucfirst($finalRole) . ' updated successfully!',
+            'success'  => true,
+            'message'  => ucfirst($finalRole) . ' updated successfully!',
             'employee' => $employee,
         ]);
     });
