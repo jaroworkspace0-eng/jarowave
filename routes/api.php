@@ -131,6 +131,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // Route::post('/livekit/token', [LiveKitController::class, 'generateToken']);
 });
 
+Route::post('/channels/assign', [ChannelController::class, 'assignToUser']);
+
+// -------------------------------
+
 Route::post('/livekit/token', [LiveKitController::class, 'generateToken'])->middleware('auth:sanctum');
 
 // Route::resource("employees", EmployeeController::class);

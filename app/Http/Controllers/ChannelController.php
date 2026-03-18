@@ -167,4 +167,29 @@ public function getUnits(Channel $channel)
 
     return response()->json($formattedUnits);
 }
+
+
+    public function assignToUser(Request $request)
+    {
+        // Verify the request is coming from your Node PTT server, not the public
+        $secret = config('app.ptt_server_secret'); // or env('PTT_SERVER_SECRET')
+        if ($request->header('X-PTT-Secret') !== $secret) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $request->validate([
+            'user_id'       => 'required|integer|exists:users,id',
+            'channel_ids'   => 'required|array',
+            'channel_ids.*' => 'integer|exists:channels,id',
+        ]);
+
+        $employee = \App\Models\Employee::where('user_id', $request->user_id)
+            ->firstOrFail();
+
+        $employee->channels()->sync($request->channel_ids);
+
+        return response()->json(
+            $employee->channels()->select('channels.id', 'channels.name')->get()
+        );
+    }
 }
