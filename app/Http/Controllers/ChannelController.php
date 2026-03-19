@@ -7,6 +7,8 @@ use App\Models\Channel;
 use App\Models\Client;
 use App\Models\Employee;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
 class ChannelController extends Controller
@@ -133,18 +135,23 @@ class ChannelController extends Controller
 
     public function toggleStatus(Channel $channel)
     {
-        // Toggle 1 to 0 or 0 to 1
-        $channel->update([
-            'is_active' => !$channel->is_active
-        ]);
+        $channel->update(['is_active' => !$channel->is_active]);
 
-         return response()->json([
-            'success' => true,
-            'message' => 'Channels status updated successfully.',
-            'channel' => $channel,
-        ]);
+        // If deactivating — kick anyone currently connected to this channel
+        if (!$channel->is_active) {
+            try {
+                Http::timeout(5)
+                    ->withHeaders(['Authorization' => 'Bearer ' . env('ASSIGN_SECRET')])
+                    ->post(env('PTT_SERVER_URL') . '/force-disconnect-channel', [
+                        'channelId' => $channel->id,
+                        'reason'    => 'channel_inactive',
+                    ]);
+            } catch (\Exception $e) {
+                Log::warning('PTT channel deactivate failed: ' . $e->getMessage());
+            }
+        }
 
-        
+        return response()->json(['success' => true, 'message' => 'Channels status updated successfully.', 'is_active' => $channel->is_active]);
     }
 
 public function getUnits(Channel $channel)
