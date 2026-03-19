@@ -32,7 +32,11 @@ class ChannelController extends Controller
     public function getChannels(Request $request)
     {
         // 1. Get user with relationship (mimicking login)
-        $user = $request->user()->load('employee.channels');
+        // $user = $request->user()->load('employee.channels');
+
+        $user = $request->user()->load(['employee.channel' => function ($query) {
+            $query->where('is_active', 1); // Change 'status' to your actual column name (e.g., 'is_active', 1)
+        }]);
 
         // 2. Map the data exactly the same way
         $channels = $user->employee?->channel->map(function($channel) {
