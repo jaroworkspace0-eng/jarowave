@@ -171,9 +171,7 @@ public function getUnits(Channel $channel)
 
     public function assignToUser(Request $request)
     {
-        // Verify the request is coming from your Node PTT server, not the public
-        $secret = config('app.ptt_server_secret'); // or env('PTT_SERVER_SECRET')
-        if ($request->header('X-PTT-Secret') !== $secret) {
+        if ($request->header('X-PTT-Secret') !== env('ASSIGN_SECRET')) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
