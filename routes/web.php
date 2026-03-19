@@ -34,6 +34,10 @@ Route::get('channels', function(){
     return Inertia::render('Channels/index');
 });
 
+Route::get('announcements', function(){
+    return Inertia::render('Announcements/Index');
+});
+
 
 Route::resource("users", UserController::class);
 Route::get('/search', [SearchController::class, 'index'])->name('search.index');

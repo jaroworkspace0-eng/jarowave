@@ -19,6 +19,7 @@ import {
     Briefcase,
     Building,
     HomeIcon,
+    Megaphone,
 } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 
@@ -44,10 +45,15 @@ const mainNavItems: NavItem[] = [
         href: '/channels',
         icon: ArrowsUpFromLineIcon,
     },
-       {
+    {
         title: 'Users',
         href: '/employees',
         icon: Briefcase,
+    },
+    {
+        title: 'Announcements',
+        href: '/announcements',
+        icon: Megaphone,
     },
 ];
 

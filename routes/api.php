@@ -1,6 +1,6 @@
 <?php
 
-
+use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\BroadcastAudioController;
 use App\Http\Controllers\ChannelController;
 use App\Http\Controllers\ClientController;
@@ -128,6 +128,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/emergency-alerts/{alert}', [EmergencyAlertController::class, 'update']);
     Route::patch('/emergency-resolutions', [EmergencyAlertController::class, 'emergencyResolutionUpdate']);
     Route::post('/emergency/accept', [EmergencyAlertController::class, 'alertAccept']);
+    Route::get('/announcements',         [AnnouncementController::class, 'index']);
+    Route::post('/announcements/send',   [AnnouncementController::class, 'send']);
+    Route::delete('/announcements/{announcement}', [AnnouncementController::class, 'destroy']);
     // Route::post('/livekit/token', [LiveKitController::class, 'generateToken']);
 });
 
