@@ -3,7 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Models\Employee;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
@@ -126,17 +129,31 @@ class ClientController extends Controller
     }
 
 
-public function toggleStatus(Client $client)
-{
-    $client->update([
-        'is_active' => !$client->is_active,
-    ]);
+    public function toggleStatus(Client $client)
+    {
+        $client->update(['is_active' => !$client->is_active]);
 
-    return response()->json([
-        'success' => true,
-        'message' => 'Client status updated successfully.',
-        'client' => $client,
-    ]);
-}
+        if (!$client->is_active) {
+            // Fetch all user IDs under this client
+            $userIds = Employee::where('client_id', $client->id)
+                ->pluck('user_id')
+                ->toArray();
+
+            if (!empty($userIds)) {
+                try {
+                    Http::timeout(5)
+                        ->withHeaders(['Authorization' => 'Bearer ' . env('ASSIGN_SECRET')])
+                        ->post(env('PTT_SERVER_URL') . '/force-disconnect-client', [
+                            'userIds' => $userIds,
+                            'reason'  => 'client_inactive',
+                        ]);
+                } catch (\Exception $e) {
+                    Log::warning('PTT force-disconnect-client failed: ' . $e->getMessage());
+                }
+            }
+        }
+
+        return response()->json(['success' => true, 'is_active' => $client->is_active]);
+    }
 
 }

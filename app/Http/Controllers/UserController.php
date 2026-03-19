@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
 class UserController extends Controller
@@ -77,12 +78,18 @@ class UserController extends Controller
 
 
         // When marking user inactive
-        Http::timeout(5)
-            ->withHeaders(['Authorization' => 'Bearer ' . env('ASSIGN_SECRET')])
-            ->post(env('PTT_SERVER_URL') . '/force-disconnect', [
-                'userId' => $user->id,
-                'reason' => 'user_inactive',
-            ]);
+         if (!$user->is_active) {
+            try {
+                Http::timeout(5)
+                    ->withHeaders(['Authorization' => 'Bearer ' . env('ASSIGN_SECRET')])
+                    ->post(env('PTT_SERVER_URL') . '/force-disconnect', [
+                        'userId' => $user->id,
+                        'reason' => 'user_inactive',
+                    ]);
+            } catch (\Exception $e) {
+                Log::warning('PTT force-disconnect failed: ' . $e->getMessage());
+            }
+        }
 
           return response()->json([
                 'success' => true,
