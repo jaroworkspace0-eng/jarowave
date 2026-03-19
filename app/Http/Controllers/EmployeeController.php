@@ -232,59 +232,6 @@ public function store(Request $request)
     /**
      * Update the specified resource in storage.
      */
-    // public function update(Request $request, Employee $employee)
-    // {
-    //     $validated = $request->validate([
-    //         'name' => 'required|string',
-    //         'email' => [
-    //             'required',
-    //             'email',
-    //             'max:250',
-    //             Rule::unique('users', 'email')->ignore($employee->user_id),
-    //         ],
-    //         'phone' => 'required|string|max:15',
-    //         'occupation' => 'required|string',
-    //         'channel_id' => 'required|exists:channels,id',
-    //         'password' => 'nullable|string|min:8', // Make password optional on update
-    //     ]);
-
-    //     return DB::transaction(function () use ($request, $validated, $employee) {
-    //         // 1. Update the User record
-    //         $userData = [
-    //             'name' => $validated['name'],
-    //             'email' => $validated['email'],
-    //             'occupation' => $validated['occupation'],
-    //             'phone' => $validated['phone'],
-    //         ];
-
-    //         // Only update password if a new one is provided
-    //         if (!empty($validated['password'])) {
-    //             $userData['password'] = bcrypt($validated['password']);
-    //         }
-
-    //         $employee->user->update($userData);
-
-    //         // 2. Determine client_id from the selected channel (matching your store logic)
-    //         $client_id = Channel::where('id', $request->channel_id)->value('client_id');
-
-    //         // 3. Update the Employee record
-    //         $employee->update([
-    //             'client_id' => $client_id,
-    //             'phone' => $validated['phone'],
-    //         ]);
-
-    //         // 4. Sync the Channel (replaces existing links with the new selection)
-    //         if ($request->has('channel_id')) {
-    //             $employee->channel()->sync([$request->channel_id]);
-    //         }
-
-    //         return response()->json([ 
-    //                     'success' => true, 
-    //                     'message' => 'Employee updated successfully!', 
-    //                     'client' => $employee, 
-    //                 ]);
-    //     });
-    // }
 
 public function update(Request $request, Employee $employee)
 {
@@ -396,6 +343,17 @@ public function update(Request $request, Employee $employee)
  
         if (isset($validated['channel_ids'])) {
             $employee->channel()->sync($validated['channel_ids']);
+
+              try {
+                \Illuminate\Support\Facades\Http::timeout(5)
+                    ->withHeaders(['Authorization' => 'Bearer ' . env('ASSIGN_SECRET')])
+                    ->post(env('PTT_SERVER_URL') . '/assign-channels', [
+                        'userId'     => $employee->user_id,
+                        'channelIds' => $validated['channel_ids'],
+                    ]);
+            } catch (\Exception $e) {
+                \Log::warning('PTT server notify failed: ' . $e->getMessage());
+            }
         }
  
         $employee->load('channel', 'user', 'client');
