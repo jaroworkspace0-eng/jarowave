@@ -169,7 +169,7 @@ public function getUnits(Channel $channel)
 }
 
 
-    public function assignToUser(Request $request)
+   public function assignToUser(Request $request)
     {
         if ($request->header('X-PTT-Secret') !== env('ASSIGN_SECRET')) {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -184,8 +184,8 @@ public function getUnits(Channel $channel)
         $employee = \App\Models\Employee::where('user_id', $request->user_id)
             ->firstOrFail();
 
-        $employee->channels()->sync($request->channel_ids);
-
+        // No sync here — update() already saved to DB.
+        // We just return the fresh list for Node to push to the device.
         return response()->json(
             $employee->channels()->select('channels.id', 'channels.name')->get()
         );
