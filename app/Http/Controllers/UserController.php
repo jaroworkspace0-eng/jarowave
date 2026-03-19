@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Inertia\Inertia;
 
 class UserController extends Controller
@@ -73,6 +74,15 @@ class UserController extends Controller
         $user->update([
             'is_active' => !$user->is_active
         ]);
+
+
+        // When marking user inactive
+        Http::timeout(5)
+            ->withHeaders(['Authorization' => 'Bearer ' . env('ASSIGN_SECRET')])
+            ->post(env('PTT_SERVER_URL') . '/force-disconnect', [
+                'userId' => $user->id,
+                'reason' => 'user_inactive',
+            ]);
 
           return response()->json([
                 'success' => true,

@@ -10,6 +10,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
@@ -342,9 +343,33 @@ public function update(Request $request, Employee $employee)
         $employee->update(['client_id' => $client_id]);
  
         if (isset($validated['channel_ids'])) {
+            // Get the IDs the user currently has BEFORE sync
+            $previousChannelIds = $employee->channel()->pluck('channels.id')->toArray();
+
             $employee->channel()->sync($validated['channel_ids']);
 
-              try {
+            // Check if their current connected channel was removed
+            $removedIds = array_diff($previousChannelIds, $validated['channel_ids']);
+
+            if (!empty($removedIds)) {
+                // At least one channel was removed — notify Node to check if
+                // the user is currently connected to one of the removed channels.
+                // Node will force-disconnect them if so.
+                try {
+                    \Illuminate\Support\Facades\Http::timeout(5)
+                        ->withHeaders(['Authorization' => 'Bearer ' . env('ASSIGN_SECRET')])
+                        ->post(env('PTT_SERVER_URL') . '/force-disconnect-if-on-channel', [
+                            'userId'            => $employee->user_id,
+                            'removedChannelIds' => array_values($removedIds),
+                            'reason'            => 'channel_removed',
+                        ]);
+                } catch (\Exception $e) {
+                    Log::warning('PTT channel removal notify failed: ' . $e->getMessage());
+                }
+            }
+
+            // Always notify Node to push updated channel list to device
+            try {
                 \Illuminate\Support\Facades\Http::timeout(5)
                     ->withHeaders(['Authorization' => 'Bearer ' . env('ASSIGN_SECRET')])
                     ->post(env('PTT_SERVER_URL') . '/assign-channels', [
@@ -352,7 +377,7 @@ public function update(Request $request, Employee $employee)
                         'channelIds' => $validated['channel_ids'],
                     ]);
             } catch (\Exception $e) {
-                \Log::warning('PTT server notify failed: ' . $e->getMessage());
+                Log::warning('PTT server notify failed: ' . $e->getMessage());
             }
         }
  

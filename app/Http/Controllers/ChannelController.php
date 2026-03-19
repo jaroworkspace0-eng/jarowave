@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Resources\ChannelResource;
 use App\Models\Channel;
 use App\Models\Client;
+use App\Models\Employee;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -181,7 +182,7 @@ public function getUnits(Channel $channel)
             'channel_ids.*' => 'integer|exists:channels,id',
         ]);
 
-        $employee = \App\Models\Employee::where('user_id', $request->user_id)
+        $employee = Employee::where('user_id', $request->user_id)
             ->firstOrFail();
 
         // No sync here — update() already saved to DB.
