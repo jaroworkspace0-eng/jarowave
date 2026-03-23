@@ -30,6 +30,7 @@ const flashMessage = ref<string | null>(null);
 const errors = ref<Record<string, string[]>>({});
 const addressSuggestions = ref([]);
 const showSuggestions = ref(false);
+const inComplex = ref(false);
 let debounceTimeout: any = null;
 
 const employees = ref<any>({
@@ -155,6 +156,7 @@ const form = ref({
     complex_name: '',
     suburb: '',
     access_code: '',
+    unit_number: '',
     latitude: null as any,
     longitude: null as any,
     safe_cancel_pin: '',
@@ -250,6 +252,7 @@ onMounted(() => {
 const openModal = () => {
     isEditing.value = false;
     selectedRole.value = '';
+    inComplex.value = false;
     Object.assign(form.value, {
         id: null,
         name: '',
@@ -290,6 +293,8 @@ const editEmployee = (employee: any) => {
     form.value.longitude = employee.user.longitude || null;
     form.value.safe_cancel_pin = employee.user.safe_cancel_pin || '';
     form.value.duress_pin = employee.user.duress_pin || '';
+    form.value.unit_number = employee.user.unit_number || '';
+    inComplex.value = !!employee.user.complex_name;
 
     // Set the role dropdown
     const allOptions = roleGroups.flatMap((g) => g.options);
@@ -728,8 +733,95 @@ const handlePhoneInput = (val: string) => {
                                                 </div>
 
                                                 <!-- Address fields -->
+                                                <!-- Complex toggle — household only -->
+                                                <div
+                                                    v-if="
+                                                        form.role ===
+                                                        'household'
+                                                    "
+                                                    class="mb-3 flex items-center gap-2"
+                                                >
+                                                    <input
+                                                        id="in_complex"
+                                                        type="checkbox"
+                                                        v-model="inComplex"
+                                                        class="h-4 w-4 w-auto rounded border-gray-300 text-indigo-600"
+                                                        @change="
+                                                            () => {
+                                                                if (!inComplex)
+                                                                    form.complex_name =
+                                                                        '';
+                                                            }
+                                                        "
+                                                        style="
+                                                            width: auto !important;
+                                                        "
+                                                    />
+                                                    <label
+                                                        for="in_complex"
+                                                        class="cursor-pointer text-sm text-gray-700 select-none"
+                                                    >
+                                                        This household is inside
+                                                        an estate or complex
+                                                    </label>
+                                                </div>
+
                                                 <div
                                                     class="grid grid-cols-1 gap-4 md:grid-cols-2"
+                                                >
+                                                    <div class="grid gap-2">
+                                                        <Label
+                                                            for="unit_number"
+                                                        >
+                                                            {{
+                                                                inComplex ||
+                                                                form.role ===
+                                                                    'resident'
+                                                                    ? 'Unit Number'
+                                                                    : 'House Number'
+                                                            }}
+                                                        </Label>
+                                                        <input
+                                                            id="unit_number"
+                                                            v-model="
+                                                                form.unit_number
+                                                            "
+                                                            :placeholder="
+                                                                inComplex ||
+                                                                form.role ===
+                                                                    'resident'
+                                                                    ? 'e.g. Unit 4B'
+                                                                    : 'e.g. 2354'
+                                                            "
+                                                        />
+                                                    </div>
+                                                    <div
+                                                        v-if="
+                                                            inComplex ||
+                                                            form.role ===
+                                                                'resident'
+                                                        "
+                                                        class="grid gap-2"
+                                                    >
+                                                        <Label for="complex"
+                                                            >Complex / Estate
+                                                            Name</Label
+                                                        >
+                                                        <input
+                                                            id="complex"
+                                                            v-model="
+                                                                form.complex_name
+                                                            "
+                                                            placeholder="e.g. Green Valley Estate"
+                                                            :required="
+                                                                inComplex
+                                                            "
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div
+                                                    class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2"
                                                 >
                                                     <div class="grid gap-2">
                                                         <Label
@@ -757,34 +849,26 @@ const handlePhoneInput = (val: string) => {
                                                         </p>
                                                     </div>
                                                     <div class="grid gap-2">
-                                                        <Label for="complex"
-                                                            >Complex / Estate
-                                                            Name</Label
+                                                        <Label for="suburb"
+                                                            >Suburb /
+                                                            Area</Label
                                                         >
                                                         <input
-                                                            id="complex"
+                                                            id="suburb"
                                                             v-model="
-                                                                form.complex_name
+                                                                form.suburb
                                                             "
-                                                            placeholder="e.g. Green Valley Estate"
+                                                            placeholder="e.g. Morningside"
                                                         />
+                                                        <p
+                                                            v-if="errors.suburb"
+                                                            class="text-sm text-red-600"
+                                                        >
+                                                            {{
+                                                                errors.suburb[0]
+                                                            }}
+                                                        </p>
                                                     </div>
-                                                </div>
-                                                <div class="mt-4 grid gap-2">
-                                                    <Label for="suburb"
-                                                        >Suburb / Area</Label
-                                                    >
-                                                    <input
-                                                        id="suburb"
-                                                        v-model="form.suburb"
-                                                        placeholder="e.g. Morningside"
-                                                    />
-                                                    <p
-                                                        v-if="errors.suburb"
-                                                        class="text-sm text-red-600"
-                                                    >
-                                                        {{ errors.suburb[0] }}
-                                                    </p>
                                                 </div>
 
                                                 <!-- ── Security PINs ── -->
@@ -852,6 +936,7 @@ const handlePhoneInput = (val: string) => {
                                                                     maxlength="6"
                                                                     class="w-full rounded-md border-gray-300 bg-gray-50 pr-8 font-mono text-lg font-bold tracking-widest shadow-sm"
                                                                     placeholder="——————"
+                                                                    readonly
                                                                 />
                                                             </div>
                                                             <p
@@ -889,6 +974,7 @@ const handlePhoneInput = (val: string) => {
                                                                     maxlength="6"
                                                                     class="w-full rounded-md border-red-200 bg-red-50 pr-8 font-mono text-lg font-bold tracking-widest shadow-sm focus:border-red-400 focus:ring-red-200"
                                                                     placeholder="——————"
+                                                                    readonly
                                                                 />
                                                             </div>
                                                             <p

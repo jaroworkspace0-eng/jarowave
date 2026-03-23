@@ -158,6 +158,7 @@ public function store(Request $request)
         'longitude'      => 'required_if:role,household,resident|nullable|numeric',
         'complex_name'   => 'nullable|string',
         'access_code'    => 'nullable|string',
+        'unit_number' => 'nullable|string',
 
         // security code
         'safe_cancel_pin' => 'nullable|string|size:6',
@@ -185,6 +186,7 @@ public function store(Request $request)
             'longitude'      => ($finalRole !== 'employee') ? $validated['longitude'] : null,
             'complex_name'   => ($finalRole !== 'employee') ? $validated['complex_name'] : null,
             'access_code'    => ($finalRole !== 'employee') ? $validated['access_code'] : null,
+            'unit_number' => ($finalRole !== 'employee') ? ($validated['unit_number'] ?? null) : null,
 
             // security code
             'safe_cancel_pin' => ($finalRole !== 'employee') ? ($validated['safe_cancel_pin'] ?? null) : null,
@@ -288,6 +290,7 @@ public function update(Request $request, Employee $employee)
         'longitude'      => ($fromApp ? 'nullable' : 'required_if:role,household,resident') . '|nullable|numeric',
         'complex_name'   => 'nullable|string',
         'access_code'    => 'nullable|string',
+        'unit_number' => 'nullable|string',
 
         // security code
         'safe_cancel_pin' => 'nullable|string|size:6',
@@ -331,6 +334,7 @@ public function update(Request $request, Employee $employee)
             $userData['suburb']         = ($finalRole !== 'employee') ? ($validated['suburb'] ?? null) : null;
             $userData['complex_name']   = ($finalRole !== 'employee') ? ($validated['complex_name'] ?? null) : null;
             $userData['access_code']    = ($finalRole !== 'employee') ? ($validated['access_code'] ?? null) : null;
+            $userData['unit_number']    = ($finalRole !== 'employee') ? ($validated['unit_number'] ?? null) : null;
             $userData['latitude']       = ($finalRole !== 'employee') ? ($validated['latitude'] ?? null) : null;
             $userData['longitude']      = ($finalRole !== 'employee') ? ($validated['longitude'] ?? null) : null;
 

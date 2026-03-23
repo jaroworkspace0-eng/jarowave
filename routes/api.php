@@ -105,6 +105,7 @@ Route::post('/login', function (Request $request) {
             'complex' => $user->complex_name,
             'safe_cancel_pin' => $user->safe_cancel_pin,
             'duress_pin' => $user->duress_pin,
+            'unit_number' => $user->unit_number
         ],
         'channels' => $channels,
         'token'    => $token,

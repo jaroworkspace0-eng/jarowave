@@ -36,6 +36,7 @@ class User extends Authenticatable
         'complex_name',
         'suburb',
         'access_code',
+        'unit_number',
         'latitude',
         'longitude',
     ];
