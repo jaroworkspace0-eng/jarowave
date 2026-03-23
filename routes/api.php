@@ -102,7 +102,9 @@ Route::post('/login', function (Request $request) {
             'suburb' => $user->suburb,
             'longitude' => $user->longitude,
             'latitude' => $user->latitude,
-            'complex' => $user->complex_name
+            'complex' => $user->complex_name,
+            'safe_cancel_pin' => $user->safe_cancel_pin,
+            'duress_pin' => $user->duress_pin,
         ],
         'channels' => $channels,
         'token'    => $token,

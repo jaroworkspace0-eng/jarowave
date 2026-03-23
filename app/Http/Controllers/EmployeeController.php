@@ -158,6 +158,10 @@ public function store(Request $request)
         'longitude'      => 'required_if:role,household,resident|nullable|numeric',
         'complex_name'   => 'nullable|string',
         'access_code'    => 'nullable|string',
+
+        // security code
+        'safe_cancel_pin' => 'nullable|string|size:6',
+        'duress_pin'      => 'nullable|string|size:6',
     ], [
             // Custom error message for the regex
             'phone.regex' => 'The phone number must include a country code starting with +',
@@ -181,6 +185,10 @@ public function store(Request $request)
             'longitude'      => ($finalRole !== 'employee') ? $validated['longitude'] : null,
             'complex_name'   => ($finalRole !== 'employee') ? $validated['complex_name'] : null,
             'access_code'    => ($finalRole !== 'employee') ? $validated['access_code'] : null,
+
+            // security code
+            'safe_cancel_pin' => ($finalRole !== 'employee') ? ($validated['safe_cancel_pin'] ?? null) : null,
+            'duress_pin'      => ($finalRole !== 'employee') ? ($validated['duress_pin'] ?? null) : null,
         ]));
 
         // 2. Derive client_id from the first channel
@@ -280,6 +288,10 @@ public function update(Request $request, Employee $employee)
         'longitude'      => ($fromApp ? 'nullable' : 'required_if:role,household,resident') . '|nullable|numeric',
         'complex_name'   => 'nullable|string',
         'access_code'    => 'nullable|string',
+
+        // security code
+        'safe_cancel_pin' => 'nullable|string|size:6',
+        'duress_pin'      => 'nullable|string|size:6',
     ]);
  
     // ── App: verify current password before allowing change ──
@@ -321,6 +333,10 @@ public function update(Request $request, Employee $employee)
             $userData['access_code']    = ($finalRole !== 'employee') ? ($validated['access_code'] ?? null) : null;
             $userData['latitude']       = ($finalRole !== 'employee') ? ($validated['latitude'] ?? null) : null;
             $userData['longitude']      = ($finalRole !== 'employee') ? ($validated['longitude'] ?? null) : null;
+
+            // security code
+            $userData['safe_cancel_pin'] = ($finalRole !== 'employee') ? ($validated['safe_cancel_pin'] ?? null) : null;
+            $userData['duress_pin']      = ($finalRole !== 'employee') ? ($validated['duress_pin'] ?? null) : null;
         }
  
         // ── Dashboard: admin sets password directly ──

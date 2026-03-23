@@ -8,10 +8,15 @@ import { computed, onMounted, ref, watch } from 'vue';
 import Multiselect from 'vue-multiselect';
 import { VueTelInput } from 'vue-tel-input';
 import 'vue-tel-input/vue-tel-input.css';
-
 import '../../../css/style.css';
 
-// 1. Data States
+// ─── helpers ──────────────────────────────────────────────────────────────────
+const generatePin = () => String(Math.floor(100000 + Math.random() * 900000));
+
+const isHouseholdRole = (role: string) =>
+    role === 'household' || role === 'resident';
+
+// ─── data states ──────────────────────────────────────────────────────────────
 const showModal = ref(false);
 const isEditing = ref(false);
 const channels = ref<any[]>([]);
@@ -19,54 +24,45 @@ const clients = ref<any[]>([]);
 const employeesList = ref<any[]>([]);
 const showDeleteModal = ref(false);
 const employeeToDelete = ref<number | null>(null);
-const isProcessing = ref(false);
 const loading = ref(false);
 const selectedRole = ref('');
-
 const flashMessage = ref<string | null>(null);
 const errors = ref<Record<string, string[]>>({});
-
-const map = ref(null);
-const marker = ref(null);
-
 const addressSuggestions = ref([]);
 const showSuggestions = ref(false);
 let debounceTimeout: any = null;
 
+const employees = ref<any>({
+    data: [],
+    from: 0,
+    to: 0,
+    total: 0,
+    links: [],
+});
+
+// ─── address search ───────────────────────────────────────────────────────────
 const handleAddressSearch = (event: any) => {
     const query = event.target.value;
-
-    // Clear previous timeout
     clearTimeout(debounceTimeout);
-
     if (query.length < 3) {
         addressSuggestions.value = [];
         return;
     }
-
-    // Wait 500ms after typing stops to search
     debounceTimeout = setTimeout(async () => {
         try {
-            const response = await fetch(
+            const res = await fetch(
                 `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5`,
             );
-            addressSuggestions.value = await response.json();
+            addressSuggestions.value = await res.json();
             showSuggestions.value = true;
-        } catch (error) {
-            console.error('Search error:', error);
-        }
+        } catch {}
     }, 500);
 };
 
-const selectAddress = (item) => {
-    // 1. Set Coordinates
+const selectAddress = (item: any) => {
     form.value.latitude = item.lat;
     form.value.longitude = item.lon;
-
-    // 2. Map Address Details
     form.value.address_line_1 = item.display_name;
-
-    // Extract suburb or city
     const addr = item.address;
     form.value.suburb =
         addr.suburb ||
@@ -74,17 +70,16 @@ const selectAddress = (item) => {
         addr.city_district ||
         addr.town ||
         '';
-
-    // Close dropdown
     showSuggestions.value = false;
     addressSuggestions.value = [];
 };
 
 function showMessage(message: string) {
     flashMessage.value = message;
-    setTimeout(() => (flashMessage.value = null), 3000); // auto-hide after 3s
+    setTimeout(() => (flashMessage.value = null), 3000);
 }
 
+// ─── role groups ──────────────────────────────────────────────────────────────
 const roleGroups = [
     {
         label: 'Residents',
@@ -101,7 +96,7 @@ const roleGroups = [
             { text: 'Dispatch / Base Station', value: 'dispatch' },
             { text: 'Site Manager', value: 'site_manager' },
             { text: 'System Administrator', value: 'admin' },
-            { text: 'Operations Controller', value: 'ops_controller' }, // new
+            { text: 'Operations Controller', value: 'ops_controller' },
         ],
     },
     {
@@ -111,8 +106,8 @@ const roleGroups = [
             { text: 'Patrol Officer', value: 'patrol_officer' },
             { text: 'Loss Prevention', value: 'loss_prevention' },
             { text: 'First Responder', value: 'first_responder' },
-            { text: 'Safety Officer', value: 'safety_officer' }, // moved here
-            { text: 'Emergency Coordinator', value: 'emergency_coordinator' }, // new
+            { text: 'Safety Officer', value: 'safety_officer' },
+            { text: 'Emergency Coordinator', value: 'emergency_coordinator' },
         ],
     },
     {
@@ -122,7 +117,7 @@ const roleGroups = [
             { text: 'Warehouse Operative', value: 'warehouse' },
             { text: 'Forklift Operator', value: 'forklift' },
             { text: 'Fleet Driver', value: 'fleet_driver' },
-            { text: 'Logistics Coordinator', value: 'logistics_coordinator' }, // new
+            { text: 'Logistics Coordinator', value: 'logistics_coordinator' },
         ],
     },
     {
@@ -132,7 +127,7 @@ const roleGroups = [
             { text: 'Front Desk / Concierge', value: 'front_desk' },
             { text: 'Event Staff', value: 'event_staff' },
             { text: 'Janitorial', value: 'janitorial' },
-            { text: 'Customer Service Liaison', value: 'customer_service' }, // new
+            { text: 'Customer Service Liaison', value: 'customer_service' },
         ],
     },
     {
@@ -145,35 +140,73 @@ const roleGroups = [
     },
 ];
 
-const employees = ref<any>({
-    data: [],
-    from: 0,
-    to: 0,
-    total: 0,
-    links: [],
+// ─── form ─────────────────────────────────────────────────────────────────────
+const form = ref({
+    id: null,
+    name: '',
+    email: '',
+    phone: '+27',
+    occupation: '',
+    channel_ids: [] as any[],
+    client_id: '',
+    password: '',
+    role: 'employee',
+    address_line_1: '',
+    complex_name: '',
+    suburb: '',
+    access_code: '',
+    latitude: null as any,
+    longitude: null as any,
+    safe_cancel_pin: '',
+    duress_pin: '',
 });
 
-// 2. Fetch Data
+// ─── watchers ─────────────────────────────────────────────────────────────────
+watch(
+    () => form.value.occupation,
+    (newVal) => {
+        if (newVal === 'household' || newVal === 'resident') {
+            form.value.role = newVal;
+            // Auto-generate pins when first switching to a household role
+            if (!form.value.safe_cancel_pin)
+                form.value.safe_cancel_pin = generatePin();
+            if (!form.value.duress_pin) form.value.duress_pin = generatePin();
+            // Household can only have one channel — keep only the first if multiple were set
+            if (form.value.channel_ids.length > 1)
+                form.value.channel_ids = [form.value.channel_ids[0]];
+        } else {
+            form.value.role = 'employee';
+            // Clear pins when switching away from household role
+            if (!isEditing.value) {
+                form.value.safe_cancel_pin = '';
+                form.value.duress_pin = '';
+            }
+        }
+    },
+);
+
+// ─── computed ─────────────────────────────────────────────────────────────────
+const isHousehold = computed(() => isHouseholdRole(form.value.role));
+
+const filteredChannels = computed(() => {
+    if (!form.value.client_id) return [];
+    return channels.value.filter((c) => c.client_id == form.value.client_id);
+});
+
+// ─── API calls ────────────────────────────────────────────────────────────────
 const reloadEmployees = async (url?: string) => {
     try {
         const params = new URLSearchParams(window.location.search);
-        const status = params.get('status'); // "online" or "offline"
-
-        // If a pagination link is clicked, use that URL directly
+        const status = params.get('status');
         const endpoint = url || `${import.meta.env.VITE_APP_URL}/api/employees`;
-
         const { data } = await axios.get(endpoint, {
-            params: { status }, // keep filter applied
+            params: { status },
             headers: {
                 Authorization: `Bearer ${localStorage.getItem('token')}`,
             },
         });
-
-        console.log('Employees API response:', data);
-        employees.value = data.employees; // full paginator object
-        employeesList.value = data.employees.data; // just the records
-
-        console.log('employeesList:', employeesList.value[0].channels);
+        employees.value = data.employees;
+        employeesList.value = data.employees.data;
     } catch (e) {
         console.error('Error fetching employees', e);
     }
@@ -190,9 +223,7 @@ const handleChannels = async () => {
             },
         );
         channels.value = data;
-    } catch (e) {
-        console.error('Error fetching channels', e);
-    }
+    } catch {}
 };
 
 const handleClients = async () => {
@@ -206,9 +237,7 @@ const handleClients = async () => {
             },
         );
         clients.value = data;
-    } catch (e) {
-        console.error('Error fetching clients', e);
-    }
+    } catch {}
 };
 
 onMounted(() => {
@@ -217,88 +246,55 @@ onMounted(() => {
     handleChannels();
 });
 
-// 3. Form Initialization
-const form = ref({
-    id: null,
-    name: '',
-    email: '',
-    phone: '+27',
-    occupation: '',
-    // channel_id: '',
-    channel_ids: [] as number[],
-    client_id: '',
-    password: '',
-    role: 'employee',
-    // New Fields
-    address_line_1: '',
-    complex_name: '',
-    suburb: '',
-    access_code: '',
-    latitude: null,
-    longitude: null,
-});
-
-// Watch the occupation and update the role automatically
-watch(
-    () => form.value.occupation,
-    (newVal) => {
-        if (newVal === 'household') {
-            form.value.role = 'household';
-        } else if (newVal === 'resident') {
-            form.value.role = 'resident';
-        } else {
-            form.value.role = 'employee';
-        }
-    },
-);
-
-// 4. Computed Channels
-const filteredChannels = computed(() => {
-    if (!form.value.client_id) return [];
-    return channels.value.filter(
-        (channel) => channel.client_id == form.value.client_id,
-    );
-});
-
-// 5. Modal Logic
+// ─── modal ────────────────────────────────────────────────────────────────────
 const openModal = () => {
     isEditing.value = false;
+    selectedRole.value = '';
     Object.assign(form.value, {
         id: null,
         name: '',
         email: '',
-        phone: '',
+        phone: '+27',
         occupation: '',
-        channel_id: '',
+        channel_ids: [],
         client_id: '',
         password: '',
         role: 'employee',
+        address_line_1: '',
+        complex_name: '',
+        suburb: '',
+        access_code: '',
+        latitude: null,
+        longitude: null,
+        safe_cancel_pin: '',
+        duress_pin: '',
     });
     showModal.value = true;
 };
 
 const editEmployee = (employee: any) => {
     isEditing.value = true;
-
     form.value.client_id = employee.client_id;
-    form.value.channel_ids = employee.channels || []; // ✅ keep objects
-
+    form.value.channel_ids = employee.channels || [];
     form.value.id = employee.id;
     form.value.name = employee.user.name;
     form.value.email = employee.user.email;
     form.value.phone = employee.user.phone;
     form.value.occupation = employee.user.occupation;
-
-    // Set the role (this triggers the v-if in your template)
     form.value.role = employee.user.role || 'employee';
-
-    // Preload Household fields
     form.value.address_line_1 = employee.user.address_line_1 || '';
     form.value.complex_name = employee.user.complex_name || '';
     form.value.suburb = employee.user.suburb || '';
     form.value.access_code = employee.user.access_code || '';
     form.value.latitude = employee.user.latitude || null;
     form.value.longitude = employee.user.longitude || null;
+    form.value.safe_cancel_pin = employee.user.safe_cancel_pin || '';
+    form.value.duress_pin = employee.user.duress_pin || '';
+
+    // Set the role dropdown
+    const allOptions = roleGroups.flatMap((g) => g.options);
+    selectedRole.value =
+        allOptions.find((o) => o.value === form.value.occupation) || '';
 
     showModal.value = true;
 };
@@ -307,26 +303,19 @@ const closeModal = () => {
     showModal.value = false;
 };
 
-// 7. Delete Logic
-const confirmDelete = (id: number) => {
-    employeeToDelete.value = id;
-    showDeleteModal.value = true;
-};
-
+// ─── submit ───────────────────────────────────────────────────────────────────
 const submitEmployee = async () => {
     try {
         loading.value = true;
-
-        // Ensure only IDs are sent
         const payload = {
             ...form.value,
-            channel_ids: form.value.channel_ids.map((c: any) => c.id),
+            channel_ids: form.value.channel_ids.map((c: any) => c.id ?? c),
         };
 
         if (isEditing.value) {
             const { data } = await axios.put(
                 `${import.meta.env.VITE_APP_URL}/api/employees/${form.value.id}`,
-                payload, // ✅ use payload here
+                payload,
                 {
                     headers: {
                         Authorization: `Bearer ${localStorage.getItem('token')}`,
@@ -337,7 +326,7 @@ const submitEmployee = async () => {
         } else {
             const { data } = await axios.post(
                 `${import.meta.env.VITE_APP_URL}/api/employees`,
-                payload, // ✅ use payload here
+                payload,
                 {
                     headers: {
                         Authorization: `Bearer ${localStorage.getItem('token')}`,
@@ -346,28 +335,21 @@ const submitEmployee = async () => {
             );
             showMessage(data.message);
             errors.value = {};
-
-            Object.assign(form.value, {
-                id: null,
-                name: '',
-                email: '',
-                phone: '',
-                occupation: '',
-                channel_ids: [], // ✅ reset array
-                client_id: '',
-                password: '',
-                role: 'employee',
-            });
         }
 
         closeModal();
         await reloadEmployees();
     } catch (err: any) {
-        errors.value = err.response.data.errors;
-        console.error('Failed to submit employee', err);
+        errors.value = err.response?.data?.errors || {};
     } finally {
         loading.value = false;
     }
+};
+
+// ─── delete ───────────────────────────────────────────────────────────────────
+const confirmDelete = (id: number) => {
+    employeeToDelete.value = id;
+    showDeleteModal.value = true;
 };
 
 const executeDelete = async () => {
@@ -384,9 +366,7 @@ const executeDelete = async () => {
         showDeleteModal.value = false;
         employeeToDelete.value = null;
         await reloadEmployees();
-    } catch (err) {
-        console.error('Failed to delete employee', err);
-    }
+    } catch {}
 };
 
 const toggleStatus = async (employee: any) => {
@@ -402,37 +382,20 @@ const toggleStatus = async (employee: any) => {
         );
         showMessage(data.message);
         await reloadEmployees();
-    } catch (err) {
-        console.error('Failed to toggle status', err);
-    }
+    } catch {}
 };
 
-// Place this in your <script setup>
-watch(
-    () => form.occupation,
-    (newVal) => {
-        if (newVal && !selectedRole.value) {
-            // Only hydrate if not already set by the user
-            const allOptions = roleGroups.flatMap((g) => g.options);
-            selectedRole.value =
-                allOptions.find((o) => o.value === newVal) || null;
-        }
-    },
-    { immediate: true },
-);
+const regeneratePins = () => {
+    form.value.safe_cancel_pin = generatePin();
+    form.value.duress_pin = generatePin();
+};
 
 const handlePhoneInput = (val: string) => {
-    // 1. If the field is empty or they deleted the prefix, force it back
     if (!val || !val.startsWith('+27')) {
-        form.phone = '+27';
+        form.value.phone = '+27';
         return;
     }
-
-    // 2. Remove any spaces or illegal characters immediately
-    const cleanValue = val.replace(/\s+/g, '').replace(/[^0-9+]/g, '');
-
-    // 3. Update the form with the clean version
-    form.phone = cleanValue;
+    form.value.phone = val.replace(/\s+/g, '').replace(/[^0-9+]/g, '');
 };
 </script>
 
@@ -443,6 +406,7 @@ const handlePhoneInput = (val: string) => {
         <div
             class="relative flex h-full w-full flex-col rounded-xl bg-white bg-clip-border text-gray-700 shadow-md"
         >
+            <!-- Header -->
             <div
                 class="relative mx-4 mt-4 overflow-hidden rounded-none bg-white bg-clip-border text-gray-700"
             >
@@ -462,15 +426,15 @@ const handlePhoneInput = (val: string) => {
                         >
                             Add User
                         </button>
+
+                        <!-- ── Modal ── -->
                         <form @submit.prevent="submitEmployee()">
                             <div v-if="showModal">
-                                <!-- Overlaying -->
                                 <div
                                     class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 py-8 backdrop-blur-[2px]"
                                 >
-                                    <!-- Modal Content -->
                                     <div
-                                        class="w-full max-w-lg rounded-lg bg-white p-6 shadow-lg"
+                                        class="w-full max-w-2xl rounded-lg bg-white p-6 shadow-lg"
                                     >
                                         <h2 class="text-heading">
                                             {{
@@ -480,19 +444,12 @@ const handlePhoneInput = (val: string) => {
                                             }}
                                         </h2>
 
+                                        <!-- Role -->
                                         <div class="mb-4 grid gap-2">
                                             <div class="form-group">
-                                                <!-- <input
-                                                        id="role"
-                                                        default-value="Pedro Duarte"
-                                                        v-model="
-                                                            form.occupation
-                                                        "
-                                                    /> -->
                                                 <label for="role-select"
                                                     >Assign User Role:</label
                                                 >
-
                                                 <Multiselect
                                                     v-model="selectedRole"
                                                     :options="roleGroups"
@@ -519,7 +476,6 @@ const handlePhoneInput = (val: string) => {
                                                     "
                                                 />
                                             </div>
-
                                             <p
                                                 v-if="errors.occupation"
                                                 class="text-sm text-red-600"
@@ -527,7 +483,9 @@ const handlePhoneInput = (val: string) => {
                                                 {{ errors.occupation[0] }}
                                             </p>
                                         </div>
+
                                         <div class="grid gap-4">
+                                            <!-- Name + Email -->
                                             <div
                                                 class="grid grid-cols-1 gap-4 md:grid-cols-2"
                                             >
@@ -537,7 +495,6 @@ const handlePhoneInput = (val: string) => {
                                                     >
                                                     <input
                                                         id="name"
-                                                        default-value="Pedro Duarte"
                                                         v-model="form.name"
                                                     />
                                                     <p
@@ -553,7 +510,6 @@ const handlePhoneInput = (val: string) => {
                                                     >
                                                     <input
                                                         id="email"
-                                                        default-value="Pedro Duarte"
                                                         v-model="form.email"
                                                     />
                                                     <p
@@ -565,40 +521,30 @@ const handlePhoneInput = (val: string) => {
                                                 </div>
                                             </div>
 
+                                            <!-- Phone + Client -->
                                             <div
                                                 class="grid grid-cols-1 gap-4 md:grid-cols-2"
                                             >
                                                 <div class="grid gap-2">
-                                                    <div class="grid gap-2">
-                                                        <Label for="contact"
-                                                            >Phone</Label
-                                                        >
-
-                                                        <VueTelInput
-                                                            v-model="form.phone"
-                                                            mode="international"
-                                                            :onlyCountries="[
-                                                                'ZA',
-                                                            ]"
-                                                            defaultCountry="ZA"
-                                                            :autoFormat="true"
-                                                            :inputOptions="{
-                                                                showDialCode: true,
-                                                                placeholder:
-                                                                    '+27821234567',
-                                                            }"
-                                                            @input="
-                                                                handlePhoneInput
-                                                            "
-                                                            class="h-10 rounded-md border-gray-300 shadow-sm"
-                                                        />
-                                                    </div>
-
-                                                    <!-- <input
-                                                        id="contact"
-                                                        default-value="Pedro Duarte"
+                                                    <Label for="contact"
+                                                        >Phone</Label
+                                                    >
+                                                    <VueTelInput
                                                         v-model="form.phone"
-                                                    /> -->
+                                                        mode="international"
+                                                        :onlyCountries="['ZA']"
+                                                        defaultCountry="ZA"
+                                                        :autoFormat="true"
+                                                        :inputOptions="{
+                                                            showDialCode: true,
+                                                            placeholder:
+                                                                '+27821234567',
+                                                        }"
+                                                        @input="
+                                                            handlePhoneInput
+                                                        "
+                                                        class="h-10 rounded-md border-gray-300 shadow-sm"
+                                                    />
                                                     <p
                                                         v-if="errors.phone"
                                                         class="text-sm text-red-600"
@@ -606,7 +552,6 @@ const handlePhoneInput = (val: string) => {
                                                         {{ errors.phone[0] }}
                                                     </p>
                                                 </div>
-
                                                 <div class="grid gap-2">
                                                     <Label for="clients"
                                                         >Client</Label
@@ -641,11 +586,57 @@ const handlePhoneInput = (val: string) => {
                                                 </div>
                                             </div>
 
+                                            <!-- ── Channels — single for household, multi for others ── -->
                                             <div class="grid gap-3">
-                                                <Label for="channels"
-                                                    >Channels</Label
+                                                <div
+                                                    class="flex items-center justify-between"
                                                 >
+                                                    <Label for="channels">
+                                                        {{
+                                                            isHousehold
+                                                                ? 'Channel (one only)'
+                                                                : 'Channels'
+                                                        }}
+                                                    </Label>
+                                                    <span
+                                                        v-if="isHousehold"
+                                                        class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber-700 uppercase"
+                                                    >
+                                                        Household — 1 channel
+                                                        max
+                                                    </span>
+                                                </div>
+
+                                                <!-- Single-select for household -->
                                                 <Multiselect
+                                                    v-if="isHousehold"
+                                                    v-model="
+                                                        form.channel_ids[0]
+                                                    "
+                                                    :options="filteredChannels"
+                                                    :multiple="false"
+                                                    :close-on-select="true"
+                                                    placeholder="Select one channel..."
+                                                    label="name"
+                                                    track-by="id"
+                                                    @select="
+                                                        (ch) => {
+                                                            form.channel_ids = [
+                                                                ch,
+                                                            ];
+                                                        }
+                                                    "
+                                                    @remove="
+                                                        () => {
+                                                            form.channel_ids =
+                                                                [];
+                                                        }
+                                                    "
+                                                />
+
+                                                <!-- Multi-select for all other roles -->
+                                                <Multiselect
+                                                    v-else
                                                     v-model="form.channel_ids"
                                                     :options="filteredChannels"
                                                     :multiple="true"
@@ -665,12 +656,10 @@ const handlePhoneInput = (val: string) => {
                                                 </p>
                                             </div>
 
+                                            <!-- ── Household Details ── -->
                                             <div
-                                                v-if="
-                                                    form.role === 'household' ||
-                                                    form.role === 'resident'
-                                                "
-                                                class="mt-4 border-t pt-4"
+                                                v-if="isHousehold"
+                                                class="mt-2 rounded-xl border border-gray-200 bg-gray-50 p-4"
                                             >
                                                 <h3
                                                     class="mb-3 text-sm font-semibold tracking-wider text-gray-900 uppercase"
@@ -678,12 +667,12 @@ const handlePhoneInput = (val: string) => {
                                                     Household Details
                                                 </h3>
 
+                                                <!-- Address search -->
                                                 <div
                                                     class="relative mb-4 grid gap-2"
                                                 >
                                                     <Label for="address_search"
-                                                        >Search Address
-                                                        (Free)</Label
+                                                        >Search Address</Label
                                                     >
                                                     <div class="relative">
                                                         <input
@@ -710,7 +699,6 @@ const handlePhoneInput = (val: string) => {
                                                             ></i>
                                                         </span>
                                                     </div>
-
                                                     <ul
                                                         v-if="
                                                             showSuggestions &&
@@ -739,6 +727,7 @@ const handlePhoneInput = (val: string) => {
                                                     </ul>
                                                 </div>
 
+                                                <!-- Address fields -->
                                                 <div
                                                     class="grid grid-cols-1 gap-4 md:grid-cols-2"
                                                 >
@@ -769,8 +758,8 @@ const handlePhoneInput = (val: string) => {
                                                     </div>
                                                     <div class="grid gap-2">
                                                         <Label for="complex"
-                                                            >Complex/Estate Name
-                                                            (Optional)</Label
+                                                            >Complex / Estate
+                                                            Name</Label
                                                         >
                                                         <input
                                                             id="complex"
@@ -781,53 +770,160 @@ const handlePhoneInput = (val: string) => {
                                                         />
                                                     </div>
                                                 </div>
-
-                                                <div
-                                                    class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2"
-                                                >
-                                                    <div class="grid gap-2">
-                                                        <Label for="suburb"
-                                                            >Suburb/Area</Label
-                                                        >
-                                                        <input
-                                                            id="suburb"
-                                                            v-model="
-                                                                form.suburb
-                                                            "
-                                                            placeholder="e.g. Morningside"
-                                                        />
-                                                        <p
-                                                            v-if="errors.suburb"
-                                                            class="text-sm text-red-600"
-                                                        >
-                                                            {{
-                                                                errors.suburb[0]
-                                                            }}
-                                                        </p>
-                                                    </div>
+                                                <div class="mt-4 grid gap-2">
+                                                    <Label for="suburb"
+                                                        >Suburb / Area</Label
+                                                    >
+                                                    <input
+                                                        id="suburb"
+                                                        v-model="form.suburb"
+                                                        placeholder="e.g. Morningside"
+                                                    />
+                                                    <p
+                                                        v-if="errors.suburb"
+                                                        class="text-sm text-red-600"
+                                                    >
+                                                        {{ errors.suburb[0] }}
+                                                    </p>
                                                 </div>
 
-                                                <!-- <div
-                                                    v-if="form.latitude"
-                                                    class="mt-2 flex items-center text-[10px] text-green-600"
+                                                <!-- ── Security PINs ── -->
+                                                <div
+                                                    class="mt-5 rounded-lg border border-red-100 bg-white p-4"
                                                 >
-                                                    <i
-                                                        class="fas fa-check-circle mr-1"
-                                                    ></i>
-                                                    Location pinned:
-                                                    {{ form.latitude }},
-                                                    {{ form.longitude }}
-                                                </div> -->
+                                                    <div
+                                                        class="mb-3 flex items-center justify-between"
+                                                    >
+                                                        <div>
+                                                            <h4
+                                                                class="text-sm font-bold text-gray-900"
+                                                            >
+                                                                Security Codes
+                                                            </h4>
+                                                            <p
+                                                                class="mt-0.5 text-[11px] text-gray-500"
+                                                            >
+                                                                Auto-generated.
+                                                                Send to
+                                                                household via
+                                                                their first
+                                                                login.
+                                                            </p>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            @click="
+                                                                regeneratePins
+                                                            "
+                                                            class="rounded-md border border-gray-200 px-2.5 py-1.5 text-[11px] font-bold text-gray-600 uppercase hover:bg-gray-50 active:scale-95"
+                                                            title="Generate new codes"
+                                                        >
+                                                            ↻ Regenerate
+                                                        </button>
+                                                    </div>
+
+                                                    <div
+                                                        class="grid grid-cols-2 gap-3"
+                                                    >
+                                                        <!-- Safe cancel PIN -->
+                                                        <div
+                                                            class="grid gap-1.5"
+                                                        >
+                                                            <Label
+                                                                for="safe_cancel_pin"
+                                                            >
+                                                                <span
+                                                                    class="flex items-center gap-1.5"
+                                                                >
+                                                                    <span
+                                                                        class="inline-block h-2 w-2 rounded-full bg-green-500"
+                                                                    ></span>
+                                                                    Cancel Code
+                                                                </span>
+                                                            </Label>
+                                                            <div
+                                                                class="relative"
+                                                            >
+                                                                <input
+                                                                    id="safe_cancel_pin"
+                                                                    v-model="
+                                                                        form.safe_cancel_pin
+                                                                    "
+                                                                    maxlength="6"
+                                                                    class="w-full rounded-md border-gray-300 bg-gray-50 pr-8 font-mono text-lg font-bold tracking-widest shadow-sm"
+                                                                    placeholder="——————"
+                                                                />
+                                                            </div>
+                                                            <p
+                                                                class="text-[13px] text-gray-400"
+                                                            >
+                                                                Genuine false
+                                                                alarm cancel
+                                                            </p>
+                                                        </div>
+
+                                                        <!-- Duress PIN -->
+                                                        <div
+                                                            class="grid gap-1.5"
+                                                        >
+                                                            <Label
+                                                                for="duress_pin"
+                                                            >
+                                                                <span
+                                                                    class="flex items-center gap-1.5"
+                                                                >
+                                                                    <span
+                                                                        class="inline-block h-2 w-2 rounded-full bg-red-500"
+                                                                    ></span>
+                                                                    Duress Code
+                                                                </span>
+                                                            </Label>
+                                                            <div
+                                                                class="relative"
+                                                            >
+                                                                <input
+                                                                    id="duress_pin"
+                                                                    v-model="
+                                                                        form.duress_pin
+                                                                    "
+                                                                    maxlength="6"
+                                                                    class="w-full rounded-md border-red-200 bg-red-50 pr-8 font-mono text-lg font-bold tracking-widest shadow-sm focus:border-red-400 focus:ring-red-200"
+                                                                    placeholder="——————"
+                                                                />
+                                                            </div>
+                                                            <p
+                                                                class="text-[13px] text-gray-400"
+                                                            >
+                                                                Covert — keeps
+                                                                patrollers on
+                                                                route
+                                                            </p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div
+                                                        class="mt-3 rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-[11px] text-amber-700"
+                                                    >
+                                                        Never share the duress
+                                                        code label with the
+                                                        household — they should
+                                                        only know it as their
+                                                        "emergency code". Both
+                                                        codes look identical
+                                                        when entered.
+                                                    </div>
+                                                </div>
                                             </div>
 
+                                            <!-- Password -->
                                             <div class="grid gap-3">
                                                 <Label for="password"
                                                     >Set New Password</Label
                                                 >
                                                 <input
                                                     id="password"
-                                                    default-value="Pedro Duarte"
                                                     v-model="form.password"
+                                                    type="password"
                                                 />
                                                 <p
                                                     v-if="errors.password"
@@ -837,6 +933,7 @@ const handlePhoneInput = (val: string) => {
                                                 </p>
                                             </div>
 
+                                            <!-- Actions -->
                                             <div class="flex w-max items-end">
                                                 <button
                                                     type="button"
@@ -850,24 +947,19 @@ const handlePhoneInput = (val: string) => {
                                                     class="save-btn flex items-center justify-center"
                                                     :disabled="loading"
                                                 >
-                                                    <!-- Spinner only when loading -->
                                                     <span
                                                         v-if="loading"
                                                         class="loader mr-2"
                                                     ></span>
-
-                                                    <!-- Label changes depending on loading -->
-                                                    <span>
-                                                        {{
-                                                            loading
-                                                                ? isEditing
-                                                                    ? 'Updating...'
-                                                                    : 'Adding...'
-                                                                : isEditing
-                                                                  ? 'Update User'
-                                                                  : 'Add User'
-                                                        }}
-                                                    </span>
+                                                    <span>{{
+                                                        loading
+                                                            ? isEditing
+                                                                ? 'Updating...'
+                                                                : 'Adding...'
+                                                            : isEditing
+                                                              ? 'Update User'
+                                                              : 'Add User'
+                                                    }}</span>
                                                 </button>
                                             </div>
                                         </div>
@@ -879,15 +971,18 @@ const handlePhoneInput = (val: string) => {
                 </div>
             </div>
 
-            <div class="overflow-scroll p-0 px-0">
-                <div class="pt-0 pr-4 pb-0 pl-4">
-                    <div
-                        v-if="flashMessage"
-                        class="mb-4 rounded bg-green-100 p-2 text-green-700"
-                    >
-                        {{ flashMessage }}
-                    </div>
+            <!-- Flash -->
+            <div class="pt-0 pr-4 pb-0 pl-4">
+                <div
+                    v-if="flashMessage"
+                    class="mb-4 rounded bg-green-100 p-2 text-green-700"
+                >
+                    {{ flashMessage }}
                 </div>
+            </div>
+
+            <!-- Table -->
+            <div class="overflow-scroll p-0 px-0">
                 <table class="mt-0 w-full min-w-max table-auto text-left">
                     <thead>
                         <tr class="bg-gray-50">
@@ -962,11 +1057,9 @@ const handlePhoneInput = (val: string) => {
                                 </div>
                             </td>
                             <td class="border-blue-gray-50 border-b p-4">
-                                <div class="flex flex-col">
-                                    <p class="text-blue-gray-900 text-sm">
-                                        {{ employee.user.phone }}
-                                    </p>
-                                </div>
+                                <p class="text-blue-gray-900 text-sm">
+                                    {{ employee.user.phone }}
+                                </p>
                             </td>
                             <td
                                 class="border-blue-gray-50 border-b p-4 text-sm"
@@ -980,7 +1073,17 @@ const handlePhoneInput = (val: string) => {
                             <td
                                 class="border-blue-gray-50 border-b p-4 text-sm"
                             >
-                                {{ employee.user.occupation }}
+                                <span class="flex items-center gap-1.5">
+                                    <span
+                                        v-if="
+                                            isHouseholdRole(
+                                                employee.user.occupation,
+                                            )
+                                        "
+                                        class="inline-block h-2 w-2 rounded-full bg-amber-400"
+                                    ></span>
+                                    {{ employee.user.occupation }}
+                                </span>
                             </td>
                             <td
                                 class="border-blue-gray-50 border-b p-4 align-top"
@@ -1007,7 +1110,6 @@ const handlePhoneInput = (val: string) => {
                                                     : 'bg-gray-400',
                                             ]"
                                         ></span>
-
                                         {{ c.name }}
                                     </span>
                                 </div>
@@ -1028,7 +1130,6 @@ const handlePhoneInput = (val: string) => {
                                     }}
                                 </span>
                             </td>
-
                             <td class="border-blue-gray-50 border-b p-4">
                                 <button
                                     @click="toggleStatus(employee)"
@@ -1077,7 +1178,6 @@ const handlePhoneInput = (val: string) => {
                                             />
                                         </svg>
                                     </button>
-
                                     <button
                                         @click="confirmDelete(employee.id)"
                                         class="rounded-lg p-2 text-red-600 transition-colors hover:bg-red-50"
@@ -1104,6 +1204,8 @@ const handlePhoneInput = (val: string) => {
                     </tbody>
                 </table>
             </div>
+
+            <!-- Pagination -->
             <div
                 class="border-blue-gray-50 flex items-center justify-between border-t p-4"
             >
@@ -1111,7 +1213,6 @@ const handlePhoneInput = (val: string) => {
                     Showing {{ employees.from || 0 }} to
                     {{ employees.to || 0 }} of {{ employees.total }} entries
                 </div>
-
                 <div class="flex flex-nowrap space-x-2">
                     <template
                         v-for="(link, index) in employees.links"
@@ -1129,7 +1230,6 @@ const handlePhoneInput = (val: string) => {
                                     !link.active,
                             }"
                         />
-
                         <span
                             v-else
                             v-html="link.label"
@@ -1141,6 +1241,7 @@ const handlePhoneInput = (val: string) => {
         </div>
     </AppLayout>
 
+    <!-- Delete confirm modal -->
     <div
         v-if="showDeleteModal"
         class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm"
@@ -1151,7 +1252,6 @@ const handlePhoneInput = (val: string) => {
                 Are you sure you want to delete this employee? This action is
                 permanent and all associated data will be removed.
             </p>
-
             <div class="mt-6 flex justify-center gap-3">
                 <button
                     @click="showDeleteModal = false"
@@ -1171,31 +1271,14 @@ const handlePhoneInput = (val: string) => {
 </template>
 
 <style scoped>
-.custom-select {
-    width: 100%;
-    padding: 8px;
-    border-radius: 4px;
-    border: 1px solid #ccc;
-    background-color: white;
-}
-optgroup {
-    font-weight: bold;
-    color: #666;
-    font-style: italic;
-}
-option {
-    font-style: normal;
-    color: black;
-}
 .loader {
-    border: 2px solid #f3f3f3; /* Light grey background */
-    border-top: 2px solid #3498db; /* Blue top border */
-    border-radius: 50%; /* Make it round */
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #3498db;
+    border-radius: 50%;
     width: 16px;
     height: 16px;
-    animation: spin 1s linear infinite; /* Spin animation */
+    animation: spin 1s linear infinite;
 }
-
 @keyframes spin {
     0% {
         transform: rotate(0deg);
@@ -1204,40 +1287,31 @@ option {
         transform: rotate(360deg);
     }
 }
-
-/* Force the library to respect the height and show the borders */
 .vue-tel-input {
     display: flex !important;
     background-color: white;
-    min-height: 40px; /* This is h-10 */
-    border: 1px solid #d1d5db !important; /* border-gray-300 */
+    min-height: 40px;
+    border: 1px solid #d1d5db !important;
 }
-
-/* Fix the internal input field */
 .vti__input {
     background: transparent !important;
     border: none !important;
     outline: none !important;
     box-shadow: none !important;
 }
-/* 1. Force the container to be visible and have the right height */
 :deep(.custom-tel-input) {
     display: flex !important;
-    height: 40px !important; /* This matches h-10 */
+    height: 40px !important;
     border-radius: 6px;
-    border: 1px solid #d1d5db !important; /* gray-300 */
+    border: 1px solid #d1d5db !important;
     background-color: white;
 }
-
-/* 2. Fix the input field inside to not have its own weird borders */
 :deep(.vti__input) {
     border: none !important;
     outline: none !important;
     box-shadow: none !important;
-    font-size: 0.875rem; /* text-sm */
+    font-size: 0.875rem;
 }
-
-/* 3. Fix the dropdown part so it doesn't look squashed */
 :deep(.vti__dropdown) {
     border-radius: 6px 0 0 6px;
 }

@@ -28,6 +28,8 @@ class User extends Authenticatable
         'phone',
         'occupation',
         'password',
+        'safe_cancel_pin',
+        'duress_pin',
         'is_active',
         'status',
         'address_line_1',
