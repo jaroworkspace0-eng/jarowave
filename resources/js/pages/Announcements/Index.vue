@@ -1,7 +1,9 @@
 <script>
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
+
+import { useAuthStore } from '@/stores/auth';
+import { router } from '@inertiajs/vue3';
 
 const authHeaders = () => ({
     Authorization: `Bearer ${localStorage.getItem('token')}`,
@@ -73,6 +75,18 @@ export default {
         };
     },
 
+    mounted() {
+        // auth guard here instead of script setup
+        const auth = useAuthStore();
+        if (auth.user?.role !== 'admin') {
+            router.visit('/dashboard');
+            return;
+        }
+
+        this.load();
+        this.loadClients();
+    },
+
     computed: {
         currentType() {
             return (
@@ -103,11 +117,6 @@ export default {
                 (a) => new Date(a.created_at).toDateString() === today,
             ).length;
         },
-    },
-
-    mounted() {
-        this.load();
-        this.loadClients();
     },
 
     methods: {

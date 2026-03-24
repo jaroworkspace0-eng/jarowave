@@ -2,10 +2,19 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import '../../../css/style.css';
 
+import { useAuthStore } from '@/stores/auth';
 import { type BreadcrumbItem } from '@/types';
-import { useForm } from '@inertiajs/vue3';
+import { router, useForm } from '@inertiajs/vue3';
 import axios from 'axios';
 import { onMounted, ref } from 'vue';
+
+const auth = useAuthStore();
+
+onMounted(() => {
+    if (auth.user?.role !== 'admin') {
+        router.visit('/dashboard'); // redirect non-admins away
+    }
+});
 
 import '@inertiajs/core';
 
@@ -29,6 +38,7 @@ const flashMessage = ref<string | null>(null);
 const errors = ref<{ [key: string]: string[] }>({});
 const flash = ref<{ success?: string; error?: string }>({});
 const isProcessing = ref(false);
+const confirmToggleClient = ref<any>(null);
 
 const clients = ref<any>({
     data: [],
@@ -237,16 +247,42 @@ const deleteClient = async () => {
     }
 };
 
-const toggleClientStatus = async (client: any) => {
+// const toggleClientStatus = async (client: any) => {
+//     try {
+//         isProcessing.value = true;
+//         let response;
+//         response = await axios.patch(
+//             `${import.meta.env.VITE_APP_URL}/api/clients/${client.id}/toggle-status`,
+//             {},
+//             {
+//                 headers: {
+//                     Authorization: `Bearer ${localStorage.getItem('token')}`, // if using Sanctum or JWT
+//                 },
+//             },
+//         );
+//         showMessage(response.data.message);
+//         await reloadClients();
+//     } catch (err) {
+//         console.error('Failed to toggle status', err);
+//     } finally {
+//         isProcessing.value = false;
+//     }
+// };
+
+function toggleClientStatus(client: any) {
+    confirmToggleClient.value = client;
+}
+
+async function proceedClientToggle() {
+    if (!confirmToggleClient.value) return;
     try {
         isProcessing.value = true;
-        let response;
-        response = await axios.patch(
-            `${import.meta.env.VITE_APP_URL}/api/clients/${client.id}/toggle-status`,
+        const response = await axios.patch(
+            `${import.meta.env.VITE_APP_URL}/api/clients/${confirmToggleClient.value.id}/toggle-status`,
             {},
             {
                 headers: {
-                    Authorization: `Bearer ${localStorage.getItem('token')}`, // if using Sanctum or JWT
+                    Authorization: `Bearer ${localStorage.getItem('token')}`,
                 },
             },
         );
@@ -256,8 +292,9 @@ const toggleClientStatus = async (client: any) => {
         console.error('Failed to toggle status', err);
     } finally {
         isProcessing.value = false;
+        confirmToggleClient.value = null;
     }
-};
+}
 
 async function loadPage(url: string) {
     try {
@@ -687,6 +724,107 @@ async function loadPage(url: string) {
                         deleteForm.processing
                             ? 'Deleting...'
                             : 'Yes, Delete Client'
+                    }}
+                </button>
+            </div>
+        </div>
+    </div>
+    <div
+        v-if="confirmToggleClient"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+    >
+        <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <!-- Header -->
+            <div class="mb-4 flex items-center gap-3">
+                <div
+                    :class="[
+                        'flex h-10 w-10 items-center justify-center rounded-full',
+                        confirmToggleClient.user.is_active
+                            ? 'bg-red-100'
+                            : 'bg-green-100',
+                    ]"
+                >
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        :class="
+                            confirmToggleClient.user.is_active
+                                ? 'text-red-600'
+                                : 'text-green-600'
+                        "
+                        class="h-5 w-5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M12 9v2m0 4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z"
+                        />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-base font-semibold text-gray-900">
+                        {{
+                            confirmToggleClient.user.is_active
+                                ? 'Deactivate Client'
+                                : 'Activate Client'
+                        }}
+                    </h3>
+                    <p class="text-sm text-gray-500">
+                        {{ confirmToggleClient.user.name }}
+                    </p>
+                </div>
+            </div>
+
+            <!-- Body -->
+            <div
+                v-if="confirmToggleClient.user.is_active"
+                class="mb-5 rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-800"
+            >
+                <p class="font-semibold">Before you deactivate:</p>
+                <ul class="mt-2 list-inside list-disc space-y-1">
+                    <li>
+                        Linked personnel will be unable to log in to Echo Link
+                    </li>
+                    <li>
+                        Connected personnel will be dropped from their channels
+                    </li>
+                    <li>Client can be reactivated at any time</li>
+                </ul>
+            </div>
+            <div
+                v-else
+                class="mb-5 rounded-lg border border-green-100 bg-green-50 p-4 text-sm text-green-800"
+            >
+                <p>
+                    Client and all linked personnel will regain access to Echo
+                    Link.
+                </p>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex justify-end gap-3">
+                <button
+                    @click="confirmToggleClient = null"
+                    class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                    Cancel
+                </button>
+                <button
+                    @click="proceedClientToggle"
+                    :class="[
+                        'rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors',
+                        confirmToggleClient.user.is_active
+                            ? 'bg-red-600 hover:bg-red-700'
+                            : 'bg-green-600 hover:bg-green-700',
+                    ]"
+                >
+                    {{
+                        confirmToggleClient.user.is_active
+                            ? 'Yes, Deactivate'
+                            : 'Yes, Activate'
                     }}
                 </button>
             </div>
