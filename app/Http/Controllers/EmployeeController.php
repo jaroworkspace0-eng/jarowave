@@ -8,6 +8,7 @@ use App\Models\ChannelEmployee;
 use App\Models\Employee;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -45,26 +46,33 @@ class EmployeeController extends Controller
     // }
 
 
-
-    public function index(Request $request)
+public function index(Request $request)
 {
     $status = $request->query('status');
+    $user   = Auth::user();
 
-    $employees = Employee::with(['channels', 'client', 'user']) // <-- plural
+    $query = Employee::with(['channels', 'client.user', 'user'])
         ->when($status, function ($query, $status) {
             return $query->whereHas('user', function ($q) use ($status) {
                 $q->where('status', $status);
             });
         })
-        ->orderBy('created_at', 'desc')
-        ->paginate(10)
-        ->withQueryString();
+        ->orderBy('created_at', 'desc');
+
+    // If not admin, restrict employees to those belonging to the user's client
+    if ($user->role !== 'admin') {
+        $clientId = $user->client->id; // user → client via clients.user_id
+        $query->where('client_id', $clientId);
+    }
+
+    $employees = $query->paginate(10)->withQueryString();
 
     return response()->json([
         'employees' => $employees,
-        'filters' => $request->only('status'),
+        'filters'   => $request->only('status'),
     ]);
 }
+
 
 
     /**

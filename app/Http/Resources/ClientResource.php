@@ -16,13 +16,14 @@ class ClientResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'name' => ucfirst($this->name),
-            'email' => $this->email,
-            'phone' => $this->phone,
-            'address' => $this->address,
+            'name' => ucfirst(optional($this->user)->name),
+            'email' => optional($this->user)->email,
+            'phone' => optional($this->user)->phone,
+            'address' => optional($this->user)->address_line_1,
             'is_active' => $this->is_active,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
+
     }
 }

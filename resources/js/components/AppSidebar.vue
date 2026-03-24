@@ -12,8 +12,9 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import { useAuthStore } from '@/stores/auth';
 import { type NavItem } from '@/types';
-import { Link } from '@inertiajs/vue3';
+import { Link } from '@inertiajs/vue3'; // ← back to Inertia Link
 import {
     ArrowsUpFromLineIcon,
     Briefcase,
@@ -23,52 +24,26 @@ import {
 } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 
-const mainNavItems: NavItem[] = [
-    {
-        title: 'Dashboard',
-        href: dashboard(),
-        icon: HomeIcon,
-    },
-    {
-        title: 'Clients',
-        href: '/clients',
-        icon: Building,
-    },
+const auth = useAuthStore();
 
-    //  {
-    //     title: 'Users',
-    //     href: '/users',
-    //     icon: Users,
-    // },
+const mainNavItems: NavItem[] = [
+    { title: 'Dashboard', href: dashboard(), icon: HomeIcon },
+    ...(auth.user?.role === 'admin'
+        ? [{ title: 'Clients', href: '/clients', icon: Building }]
+        : []),
+
     {
         title: 'Channels',
         href: '/channels',
         icon: ArrowsUpFromLineIcon,
     },
-    {
-        title: 'Users',
-        href: '/employees',
-        icon: Briefcase,
-    },
-    {
-        title: 'Announcements',
-        href: '/announcements',
-        icon: Megaphone,
-    },
+    { title: 'Personnels', href: '/employees', icon: Briefcase },
+    ...(auth.user?.role === 'admin'
+        ? [{ title: 'Announcements', href: '/announcements', icon: Megaphone }]
+        : []),
 ];
 
-// const footerNavItems: NavItem[] = [
-//     {
-//         title: 'Github Repo',
-//         href: 'https://github.com/laravel/vue-starter-kit',
-//         icon: Folder,
-//     },
-//     {
-//         title: 'Documentation',
-//         href: 'https://laravel.com/docs/starter-kits#vue',
-//         icon: BookOpen,
-//     },
-// ];
+const footerNavItems: NavItem[] = [];
 </script>
 
 <template>
@@ -78,6 +53,7 @@ const mainNavItems: NavItem[] = [
                 <SidebarMenuItem>
                     <SidebarMenuButton size="lg" as-child>
                         <Link :href="dashboard()">
+                            <!-- ← Inertia Link uses href not to -->
                             <AppLogo />
                         </Link>
                     </SidebarMenuButton>

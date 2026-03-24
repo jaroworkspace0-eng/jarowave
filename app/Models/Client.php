@@ -11,6 +11,7 @@ class Client extends Model
 
     protected $table = "clients";
     protected $fillable = [
+        'user_id',
         'name',
         'phone',
         'email',
@@ -24,6 +25,10 @@ class Client extends Model
 
     public function employees() {
         return $this->hasMany(Employee::class);
+    }
+
+    public function user() {
+        return $this->belongsTo(User::class);
     }
 
 }

@@ -109,6 +109,7 @@ const form: any = useForm({
     phone: '',
     email: '',
     address: '',
+    password: '',
 });
 
 function resetForm() {
@@ -118,6 +119,7 @@ function resetForm() {
     form.email = '';
     form.address = '';
     form.role = '';
+    form.password = '';
 }
 
 // const editClient = (client: any) => {
@@ -153,10 +155,22 @@ function showMessage(message: string) {
     setTimeout(() => (flashMessage.value = null), 3000); // auto-hide after 3s
 }
 
+// const editClient = (client: any) => {
+//     isEditing.value = true;
+//     Object.assign(form, client);
+//     showModal.value = true;
+// };
+
 const editClient = (client: any) => {
     isEditing.value = true;
-    Object.assign(form, client);
     showModal.value = true;
+
+    form.id = client.id;
+    form.name = client.user?.name || '';
+    form.email = client.user?.email || '';
+    form.phone = client.user?.phone || '';
+    form.address = client.user?.address_line_1 || '';
+    form.password = ''; // leave blank for edit
 };
 
 const handleSubmit = async () => {
@@ -370,6 +384,22 @@ async function loadPage(url: string) {
                                                     {{ errors.address[0] }}
                                                 </p>
                                             </div>
+                                            <div class="grid gap-3">
+                                                <Label for="password"
+                                                    >Set New Password</Label
+                                                >
+                                                <input
+                                                    id="password"
+                                                    default-value=""
+                                                    v-model="form.password"
+                                                />
+                                                <p
+                                                    v-if="errors.password"
+                                                    class="text-sm text-red-600"
+                                                >
+                                                    {{ errors.password[0] }}
+                                                </p>
+                                            </div>
                                             <div class="flex w-max items-end">
                                                 <button
                                                     type="button"
@@ -462,7 +492,7 @@ async function loadPage(url: string) {
                                     <p
                                         class="text-blue-gray-900 block font-sans text-sm leading-normal font-normal antialiased"
                                     >
-                                        {{ client.name }}
+                                        {{ client.user.name }}
                                     </p>
                                 </div>
                             </div>
@@ -472,7 +502,7 @@ async function loadPage(url: string) {
                                 <p
                                     class="text-blue-gray-900 block font-sans text-sm leading-normal font-normal antialiased"
                                 >
-                                    {{ client.phone }}
+                                    {{ client.user.phone }}
                                 </p>
                             </div>
                         </td>
@@ -481,7 +511,7 @@ async function loadPage(url: string) {
                                 <div
                                     class="relative grid items-center px-2 py-1 font-sans font-normal"
                                 >
-                                    {{ client.email }}
+                                    {{ client.user.email }}
                                 </div>
                             </div>
                         </td>
@@ -489,7 +519,7 @@ async function loadPage(url: string) {
                             <p
                                 class="text-blue-gray-900 block font-sans text-sm leading-normal font-normal antialiased"
                             >
-                                {{ client.address ?? 'N/A' }}
+                                {{ client.user.address_line_1 ?? 'N/A' }}
                             </p>
                         </td>
 
@@ -499,7 +529,7 @@ async function loadPage(url: string) {
                                     @click="toggleClientStatus(client)"
                                     type="button"
                                     :title="
-                                        client.is_active
+                                        client.user.is_active
                                             ? 'Deactivate Client'
                                             : 'Activate Client'
                                     "
@@ -508,13 +538,13 @@ async function loadPage(url: string) {
                                     <span
                                         :class="[
                                             'cursor-pointer rounded-full px-2 py-1 text-xs font-bold uppercase',
-                                            client.is_active
+                                            client.user.is_active
                                                 ? 'border border-green-500/30 bg-green-500/20 text-green-900'
                                                 : 'border border-red-500/30 bg-red-500/20 text-red-900',
                                         ]"
                                     >
                                         {{
-                                            client.is_active
+                                            client.user.is_active
                                                 ? 'Active'
                                                 : 'Inactive'
                                         }}
@@ -627,7 +657,7 @@ async function loadPage(url: string) {
             <p class="mt-2 text-sm text-gray-600">
                 This action <strong>cannot</strong> be undone. Please type
                 <span class="font-mono font-bold text-red-600 underline">{{
-                    clientToDelete?.name
+                    clientToDelete?.user?.name
                 }}</span>
                 to confirm.
             </p>
@@ -637,7 +667,7 @@ async function loadPage(url: string) {
                     v-model="confirmationName"
                     type="text"
                     class="w-full rounded-md border-gray-300 shadow-sm"
-                    :placeholder="clientToDelete?.name"
+                    :placeholder="clientToDelete?.user?.name"
                 />
             </div>
 
@@ -650,7 +680,7 @@ async function loadPage(url: string) {
                 </button>
                 <button
                     @click="deleteClient"
-                    :disabled="confirmationName !== clientToDelete?.name"
+                    :disabled="confirmationName !== clientToDelete?.user?.name"
                     class="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
                 >
                     {{

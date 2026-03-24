@@ -13,16 +13,37 @@ use Inertia\Inertia;
 class DashboardController extends Controller
 {
    
-   public function index()
-   {
-     return response()->json([
-         'stats' => [
-                'channelsCount' => Channel::count(),
-                'employeesCount' => Employee::count(),
-                'clientsCount' => Client::count(),
-                'onlineCount' => User::where('role', 'employee')->where('status', 'online')->count(),
-                'offlineCount' => User::where('role', 'employee')->where('status', 'offline')->count(),
-            ]
-         ]);
-   }
+  public function index()
+{
+    $user = auth()->user();
+
+    if ($user->role === 'admin') {
+        $stats = [
+            'channelsCount'  => Channel::count(),
+            'employeesCount' => Employee::count(),
+            'clientsCount'   => Client::count(),
+            'onlineCount'    => User::where('role', 'employee')->where('status', 'online')->count(),
+            'offlineCount'   => User::where('role', 'employee')->where('status', 'offline')->count(),
+        ];
+    } else {
+        $client = Client::where('user_id', $user->id)->first();
+        $clientId = $client?->id;
+
+        $stats = [
+            'channelsCount'  => Channel::where('client_id', $clientId)->count(),
+            'employeesCount' => Employee::where('client_id', $clientId)->count(),
+            'clientsCount'   => 1,
+            'onlineCount'    => User::whereHas('employee', fn($q) => $q->where('client_id', $clientId))
+                                    ->where('role', 'employee')
+                                    ->where('status', 'online')
+                                    ->count(),
+            'offlineCount'   => User::whereHas('employee', fn($q) => $q->where('client_id', $clientId))
+                                    ->where('role', 'employee')
+                                    ->where('status', 'offline')
+                                    ->count(),
+        ];
+    }
+
+    return response()->json(['stats' => $stats]);
+}
 }

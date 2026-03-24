@@ -3,17 +3,19 @@ import '../css/app.css';
 import { createInertiaApp } from '@inertiajs/vue3';
 import { configureEcho } from '@laravel/echo-vue';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
+import { createPinia } from 'pinia';
 import type { DefineComponent } from 'vue';
 import { createApp, h } from 'vue';
 import { initializeTheme } from './composables/useAppearance';
+import { useAuthStore } from './stores/auth';
 
-const echoInstance = configureEcho({
+// Echo / Reverb
+configureEcho({
     broadcaster: 'reverb',
     key: import.meta.env.VITE_REVERB_APP_KEY,
     wsHost: import.meta.env.VITE_REVERB_HOST,
     wsPort: import.meta.env.VITE_REVERB_PORT ?? 80,
     wssPort: import.meta.env.VITE_REVERB_PORT ?? 443,
-    // forceTLS: (import.meta.env.VITE_REVERB_SCHEME ?? 'https') === 'https',
     forceTLS: false,
     enabledTransports: ['ws', 'wss'],
     authEndpoint: '/broadcasting/auth',
@@ -27,8 +29,6 @@ const echoInstance = configureEcho({
     },
 });
 
-(window as any).Echo = echoInstance;
-
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
 createInertiaApp({
@@ -39,14 +39,21 @@ createInertiaApp({
             import.meta.glob<DefineComponent>('./pages/**/*.vue'),
         ),
     setup({ el, App, props, plugin }) {
-        createApp({ render: () => h(App, props) })
+        const pinia = createPinia();
+
+        const vueApp = createApp({ render: () => h(App, props) })
             .use(plugin)
-            .mount(el);
+            .use(pinia);
+
+        // Fetch sanctum user once on boot
+        const auth = useAuthStore(pinia);
+        auth.fetchUser().then(() => {
+            vueApp.mount(el);
+        });
     },
     progress: {
         color: '#4B5563',
     },
 });
 
-// This will set light / dark mode on page load...
 initializeTheme();

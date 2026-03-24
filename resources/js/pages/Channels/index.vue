@@ -18,6 +18,7 @@ const confirmationName = ref('');
 const flashMessage = ref<string | null>(null);
 const isProcessing = ref(false);
 const errors = ref<{ [key: string]: string[] }>({});
+const confirmToggleChannel = ref<any>(null);
 
 // --- Form ---
 const form = ref({
@@ -183,11 +184,37 @@ async function deleteChannel() {
     }
 }
 
-async function toggleChannelStatus(channel: any) {
+// async function toggleChannelStatus(channel: any) {
+//     try {
+//         isProcessing.value = true;
+//         await axios.patch(
+//             `${import.meta.env.VITE_APP_URL}/api/channels/${channel.id}/toggle-status`,
+//             {},
+//             {
+//                 headers: {
+//                     Authorization: `Bearer ${localStorage.getItem('token')}`,
+//                 },
+//             },
+//         );
+//         showMessage('Channel status updated');
+//         await reloadChannels();
+//     } catch (err: any) {
+//         errors.value = err.response?.data?.errors || {};
+//     } finally {
+//         isProcessing.value = false;
+//     }
+// }
+
+function toggleChannelStatus(channel: any) {
+    confirmToggleChannel.value = channel;
+}
+
+async function proceedChannelToggle() {
+    if (!confirmToggleChannel.value) return;
     try {
         isProcessing.value = true;
         await axios.patch(
-            `${import.meta.env.VITE_APP_URL}/api/channels/${channel.id}/toggle-status`,
+            `${import.meta.env.VITE_APP_URL}/api/channels/${confirmToggleChannel.value.id}/toggle-status`,
             {},
             {
                 headers: {
@@ -201,6 +228,7 @@ async function toggleChannelStatus(channel: any) {
         errors.value = err.response?.data?.errors || {};
     } finally {
         isProcessing.value = false;
+        confirmToggleChannel.value = null;
     }
 }
 
@@ -326,7 +354,7 @@ const confirmDelete = (channel: any) => {
                                                         :key="client.id"
                                                         :value="client.id"
                                                     >
-                                                        {{ client.name }}
+                                                        {{ client.user?.name }}
                                                     </option>
                                                 </select>
                                                 <p
@@ -509,7 +537,7 @@ const confirmDelete = (channel: any) => {
                                     <p
                                         class="text-blue-gray-900 block font-sans text-sm leading-normal font-normal antialiased"
                                     >
-                                        {{ channel.client.name }}
+                                        {{ channel.client?.user.name }}
                                     </p>
                                 </div>
                             </td>
@@ -543,7 +571,7 @@ const confirmDelete = (channel: any) => {
                                         {{
                                             channel.is_active
                                                 ? 'Active'
-                                                : 'Inactive'
+                                                : 'Deactivated'
                                         }}
                                     </span>
                                 </button>
@@ -684,6 +712,103 @@ const confirmDelete = (channel: any) => {
                     class="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-red-300"
                 >
                     {{ isProcessing ? 'Deleting...' : 'Yes, Delete Channel' }}
+                </button>
+            </div>
+        </div>
+    </div>
+    <div
+        v-if="confirmToggleChannel"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+    >
+        <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <!-- Header -->
+            <div class="mb-4 flex items-center gap-3">
+                <div
+                    :class="[
+                        'flex h-10 w-10 items-center justify-center rounded-full',
+                        confirmToggleChannel.is_active
+                            ? 'bg-red-100'
+                            : 'bg-green-100',
+                    ]"
+                >
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        :class="
+                            confirmToggleChannel.is_active
+                                ? 'text-red-600'
+                                : 'text-green-600'
+                        "
+                        class="h-5 w-5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M12 9v2m0 4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z"
+                        />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-base font-semibold text-gray-900">
+                        {{
+                            confirmToggleChannel.is_active
+                                ? 'Deactivate Channel'
+                                : 'Activate Channel'
+                        }}
+                    </h3>
+                    <p class="text-sm text-gray-500">
+                        {{ confirmToggleChannel.name }}
+                    </p>
+                </div>
+            </div>
+
+            <!-- Body -->
+            <div
+                v-if="confirmToggleChannel.is_active"
+                class="mb-5 rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-800"
+            >
+                <p class="font-semibold">Before you deactivate:</p>
+                <ul class="mt-2 list-inside list-disc space-y-1">
+                    <li>Connected members will be disconnected</li>
+                    <li>No one can transmit or receive on this channel</li>
+                    <li>Channel can be reactivated at any time</li>
+                </ul>
+            </div>
+            <div
+                v-else
+                class="mb-5 rounded-lg border border-green-100 bg-green-50 p-4 text-sm text-green-800"
+            >
+                <p>
+                    Channel will be restored and members will be able to connect
+                    and communicate again.
+                </p>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex justify-end gap-3">
+                <button
+                    @click="confirmToggleChannel = null"
+                    class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                    Cancel
+                </button>
+                <button
+                    @click="proceedChannelToggle"
+                    :class="[
+                        'rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors',
+                        confirmToggleChannel.is_active
+                            ? 'bg-red-600 hover:bg-red-700'
+                            : 'bg-green-600 hover:bg-green-700',
+                    ]"
+                >
+                    {{
+                        confirmToggleChannel.is_active
+                            ? 'Yes, Deactivate'
+                            : 'Yes, Activate'
+                    }}
                 </button>
             </div>
         </div>

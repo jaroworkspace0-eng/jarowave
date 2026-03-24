@@ -32,6 +32,7 @@ const addressSuggestions = ref([]);
 const showSuggestions = ref(false);
 const inComplex = ref(false);
 let debounceTimeout: any = null;
+const confirmToggleEmployee = ref<any>(null);
 
 const employees = ref<any>({
     data: [],
@@ -374,10 +375,31 @@ const executeDelete = async () => {
     } catch {}
 };
 
-const toggleStatus = async (employee: any) => {
+// const toggleStatus = async (employee: any) => {
+//     try {
+//         const { data } = await axios.patch(
+//             `${import.meta.env.VITE_APP_URL}/api/users/${employee.user_id}/toggle-status`,
+//             {},
+//             {
+//                 headers: {
+//                     Authorization: `Bearer ${localStorage.getItem('token')}`,
+//                 },
+//             },
+//         );
+//         showMessage(data.message);
+//         await reloadEmployees();
+//     } catch {}
+// };
+
+function toggleStatus(employee: any) {
+    confirmToggleEmployee.value = employee;
+}
+
+async function proceedToggle() {
+    if (!confirmToggleEmployee.value) return;
     try {
         const { data } = await axios.patch(
-            `${import.meta.env.VITE_APP_URL}/api/users/${employee.user_id}/toggle-status`,
+            `${import.meta.env.VITE_APP_URL}/api/users/${confirmToggleEmployee.value.user_id}/toggle-status`,
             {},
             {
                 headers: {
@@ -387,8 +409,11 @@ const toggleStatus = async (employee: any) => {
         );
         showMessage(data.message);
         await reloadEmployees();
-    } catch {}
-};
+    } catch {
+    } finally {
+        confirmToggleEmployee.value = null;
+    }
+}
 
 const regeneratePins = () => {
     form.value.safe_cancel_pin = generatePin();
@@ -405,7 +430,7 @@ const handlePhoneInput = (val: string) => {
 </script>
 
 <template>
-    <Head title="Users" />
+    <Head title="Personnels" />
 
     <AppLayout>
         <div
@@ -420,7 +445,7 @@ const handlePhoneInput = (val: string) => {
                         <p
                             class="mt-1 block font-sans text-base leading-relaxed font-normal text-gray-700 antialiased"
                         >
-                            Users
+                            Personnels
                         </p>
                     </div>
                     <div class="flex shrink-0 flex-col gap-2 sm:flex-row">
@@ -429,7 +454,7 @@ const handlePhoneInput = (val: string) => {
                             type="button"
                             @click="openModal"
                         >
-                            Add User
+                            Add Personnel
                         </button>
 
                         <!-- ── Modal ── -->
@@ -444,8 +469,8 @@ const handlePhoneInput = (val: string) => {
                                         <h2 class="text-heading">
                                             {{
                                                 isEditing
-                                                    ? 'Edit User'
-                                                    : 'Add User'
+                                                    ? 'Edit Personnel'
+                                                    : 'Add Personnel'
                                             }}
                                         </h2>
 
@@ -453,7 +478,8 @@ const handlePhoneInput = (val: string) => {
                                         <div class="mb-4 grid gap-2">
                                             <div class="form-group">
                                                 <label for="role-select"
-                                                    >Assign User Role:</label
+                                                    >Assign Personnel
+                                                    Role:</label
                                                 >
                                                 <Multiselect
                                                     v-model="selectedRole"
@@ -577,7 +603,10 @@ const handlePhoneInput = (val: string) => {
                                                             :key="client.id"
                                                             :value="client.id"
                                                         >
-                                                            {{ client.name }}
+                                                            {{
+                                                                client.user
+                                                                    ?.name
+                                                            }}
                                                         </option>
                                                     </select>
                                                     <p
@@ -1043,8 +1072,8 @@ const handlePhoneInput = (val: string) => {
                                                                 ? 'Updating...'
                                                                 : 'Adding...'
                                                             : isEditing
-                                                              ? 'Update User'
-                                                              : 'Add User'
+                                                              ? 'Update Personnel'
+                                                              : 'Add Personnel'
                                                     }}</span>
                                                 </button>
                                             </div>
@@ -1152,7 +1181,7 @@ const handlePhoneInput = (val: string) => {
                             >
                                 {{
                                     employee.client
-                                        ? employee.client.name
+                                        ? employee.client.user.name
                                         : 'No Client Assigned'
                                 }}
                             </td>
@@ -1237,7 +1266,7 @@ const handlePhoneInput = (val: string) => {
                                         {{
                                             employee.user.is_active
                                                 ? 'Active'
-                                                : 'Inactive'
+                                                : 'Deactivated'
                                         }}
                                     </span>
                                 </button>
@@ -1350,6 +1379,105 @@ const handlePhoneInput = (val: string) => {
                     class="rounded-lg bg-red-600 px-6 py-2 text-sm font-bold text-white shadow-md transition-all hover:bg-red-700 active:scale-95"
                 >
                     Yes, Delete Employee
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add this modal at the bottom of your template, before closing tag -->
+    <div
+        v-if="confirmToggleEmployee"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+    >
+        <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+            <!-- Header -->
+            <div class="mb-4 flex items-center gap-3">
+                <div
+                    :class="[
+                        'flex h-10 w-10 items-center justify-center rounded-full',
+                        confirmToggleEmployee.user.is_active
+                            ? 'bg-red-100'
+                            : 'bg-green-100',
+                    ]"
+                >
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-5 w-5"
+                        :class="
+                            confirmToggleEmployee.user.is_active
+                                ? 'text-red-600'
+                                : 'text-green-600'
+                        "
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M12 9v2m0 4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z"
+                        />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-base font-semibold text-gray-900">
+                        {{
+                            confirmToggleEmployee.user.is_active
+                                ? 'Deactivate Personnel'
+                                : 'Activate Personnel'
+                        }}
+                    </h3>
+                    <p class="text-sm text-gray-500">
+                        {{ confirmToggleEmployee.user.name }}
+                    </p>
+                </div>
+            </div>
+
+            <!-- Body -->
+            <div
+                v-if="confirmToggleEmployee.user.is_active"
+                class="mb-5 rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-800"
+            >
+                <p class="font-semibold">Before you deactivate:</p>
+                <ul class="mt-2 list-inside list-disc space-y-1">
+                    <li>They'll be logged out of Echo Link immediately</li>
+                    <li>They won't be able to log back in until reactivated</li>
+                    <li>All active channel sessions will be terminated</li>
+                </ul>
+            </div>
+            <div
+                v-else
+                class="mb-5 rounded-lg border border-green-100 bg-green-50 p-4 text-sm text-green-800"
+            >
+                <p>
+                    Personnel will regain access to the Echo Link app and can
+                    log in with their existing credentials.
+                </p>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex justify-end gap-3">
+                <button
+                    @click="confirmToggleEmployee = null"
+                    class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                >
+                    Cancel
+                </button>
+                <button
+                    @click="proceedToggle"
+                    :class="[
+                        'rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors',
+                        confirmToggleEmployee.user.is_active
+                            ? 'bg-red-600 hover:bg-red-700'
+                            : 'bg-green-600 hover:bg-green-700',
+                    ]"
+                >
+                    {{
+                        confirmToggleEmployee.user.is_active
+                            ? 'Yes, Deactivate'
+                            : 'Yes, Activate'
+                    }}
                 </button>
             </div>
         </div>

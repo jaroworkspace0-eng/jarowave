@@ -7,6 +7,7 @@ use App\Models\Channel;
 use App\Models\Client;
 use App\Models\Employee;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
@@ -17,16 +18,26 @@ class ChannelController extends Controller
      * Display a listing of the resource.
      */
    
-    public function index()
-    {
-        $channels = Channel::with('client') 
-                    ->orderBy('created_at', 'desc')
-                    ->paginate(10); 
+   public function index()
+{
+    $user = Auth::user();
 
-        return response()->json([
-            'channels' => $channels ,
-        ]);
+    $query = Channel::with('client.user')
+        ->orderBy('created_at', 'desc');
+
+    // If not admin, restrict to channels belonging to the user's client
+    if ($user->role !== 'admin') {
+        $clientId = $user->client->id; // user → client via clients.user_id
+        $query->where('client_id', $clientId);
     }
+
+    $channels = $query->paginate(10);
+
+    return response()->json([
+        'channels' => $channels,
+    ]);
+}
+
 
 // fetch channels for the app
     public function getChannels(Request $request)
