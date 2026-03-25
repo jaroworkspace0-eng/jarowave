@@ -292,7 +292,17 @@ class EmergencyAlertController extends Controller
     {
         $user = auth()->user();
         $isAdmin = $user->role === 'admin';
-        $clientId = $isAdmin ? null : $user->employee?->client_id;
+
+        // admin → no scope
+        // client role → scope by their own client record
+        // employee/other → scope by their employee's client
+        if ($isAdmin) {
+            $clientId = null;
+        } elseif ($user->role === 'client') {
+            $clientId = \App\Models\Client::where('user_id', $user->id)->value('id');
+        } else {
+            $clientId = $user->employee?->client_id;
+        }
 
         $alerts = EmergencyAlert::with(['user', 'channel', 'client', 'resolver', 'resolution.responder'])
             ->when(!$isAdmin, fn($q) => $q->where('client_id', $clientId))
