@@ -243,55 +243,80 @@ class EmergencyAlertController extends Controller
     /**
      * Update the specified resource in storage.
      */
-// Change the signature from (Request $request, EmergencyAlert $alert) 
-// TO (Request $request, $id)
-public function update(Request $request, $id)
-{
-    try {
-        // 1. Manually find the record
-        $alert = EmergencyAlert::find($id);
+    // Change the signature from (Request $request, EmergencyAlert $alert) 
+    // TO (Request $request, $id)
+    public function update(Request $request, $id)
+    {
+        try {
+            // 1. Manually find the record
+            $alert = EmergencyAlert::find($id);
 
-        $panic_alert_id = $id; // This is the ID from the route parameter
-        $responder_user_id = $request->responder_user_id; // Assuming this is passed in the request
-        $response_duration = $request->response_duration; // Assuming this is passed in the request
-        $distance_traveled = $request->distance_traveled; // Assuming this is passed in the request
-        $status = $request->status; // Assuming this is passed in the request
-        $notes = $request->notes; // Assuming this is passed in the request
-        $responder_name = $request->responder_name; // Assuming this is passed in the request
-        $resolution_time = $request->resolution_time; // Assuming this is passed in the request
-        $arrival_latitude = $request->arrival_latitude; // Assuming this is passed in the request
-        $arrival_longitude = $request->arrival_longitude; // Assuming this is passed in
+            $panic_alert_id = $id; // This is the ID from the route parameter
+            $responder_user_id = $request->responder_user_id; // Assuming this is passed in the request
+            $response_duration = $request->response_duration; // Assuming this is passed in the request
+            $distance_traveled = $request->distance_traveled; // Assuming this is passed in the request
+            $status = $request->status; // Assuming this is passed in the request
+            $notes = $request->notes; // Assuming this is passed in the request
+            $responder_name = $request->responder_name; // Assuming this is passed in the request
+            $resolution_time = $request->resolution_time; // Assuming this is passed in the request
+            $arrival_latitude = $request->arrival_latitude; // Assuming this is passed in the request
+            $arrival_longitude = $request->arrival_longitude; // Assuming this is passed in
 
-        if (!$alert) {
-            return response()->json(['status' => 'error', 'message' => 'Alert ID not found in DB'], 404);
+            if (!$alert) {
+                return response()->json(['status' => 'error', 'message' => 'Alert ID not found in DB'], 404);
+            }
+
+            // 2. Update the values directly
+            $alert->latitude = $request->latitude;
+            $alert->longitude = $request->longitude;
+            $alert->accuracy = $request->accuracy;
+            
+            $alert->save();
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'GPS Synced'
+            ]);
+
+        } catch (\Exception $e) {
+            // This will now definitely show up in your React Native logs
+            return response()->json([
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ], 500);
         }
-
-        // 2. Update the values directly
-        $alert->latitude = $request->latitude;
-        $alert->longitude = $request->longitude;
-        $alert->accuracy = $request->accuracy;
-        
-        $alert->save();
-
-        return response()->json([
-            'status' => 'success',
-            'message' => 'GPS Synced'
-        ]);
-
-    } catch (\Exception $e) {
-        // This will now definitely show up in your React Native logs
-        return response()->json([
-            'status' => 'error',
-            'message' => $e->getMessage()
-        ], 500);
     }
-}
 
-    /**
-     * Remove the specified resource from storage.
-     */
+
+    public function list(Request $request)
+    {
+        $user = auth()->user();
+        $isAdmin = $user->role === 'admin';
+        $clientId = $isAdmin ? null : $user->employee?->client_id;
+
+        $alerts = EmergencyAlert::with(['user', 'channel', 'client', 'resolver', 'resolution.responder'])
+            ->when(!$isAdmin, fn($q) => $q->where('client_id', $clientId))
+            ->latest()
+            ->paginate(20);
+
+        return response()->json($alerts);
+    }
+
+    public function resolve(Request $request, $id)
+    {
+        $alert = EmergencyAlert::findOrFail($id);
+        $alert->update([
+            'is_resolved' => true,
+            'resolved_at' => now(),
+            'resolved_by' => auth()->id(),
+        ]);
+        return response()->json(['message' => 'Alert resolved successfully']);
+    }
+
     public function destroy(string $id)
     {
-        //
+        EmergencyAlert::findOrFail($id)->delete();
+        return response()->json(['message' => 'Alert deleted']);
     }
+
 }

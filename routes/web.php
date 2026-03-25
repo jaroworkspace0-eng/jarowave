@@ -39,6 +39,8 @@ Route::get('announcements', function(){
 });
 
 
+Route::get('/emergencies', fn() => inertia('Emergencies/Index'));
+
 Route::resource("users", UserController::class);
 Route::get('/search', [SearchController::class, 'index'])->name('search.index');
 // });

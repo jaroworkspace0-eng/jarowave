@@ -11,6 +11,7 @@ class EmergencyResolution extends Model
         'responder_user_id',
         'accepted_at',
         'resolution_time',
+        'arrival_time',
         'arrival_latitude',
         'arrival_longitude',
         'start_latitude',
@@ -27,6 +28,11 @@ class EmergencyResolution extends Model
     }
 
     public function resolver()
+    {
+        return $this->belongsTo(User::class, 'responder_user_id');
+    }
+
+    public function responder()
     {
         return $this->belongsTo(User::class, 'responder_user_id');
     }
