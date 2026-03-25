@@ -40,4 +40,9 @@ class EmergencyAlert extends Model
     {
         return $this->belongsTo(User::class, 'resolved_by'); // Assuming the resolver is also a user (user_id)
     }
+
+    public function resolution()
+    {
+        return $this->hasOne(EmergencyResolution::class);
+    }
 }
