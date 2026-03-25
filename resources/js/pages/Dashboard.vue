@@ -52,7 +52,12 @@ const stats = ref({
     announcementsHistory: [] as { date: string; count: number }[],
     channelActivity: [] as { name: string; members: number }[],
     peakHours: [] as { hour: string; count: number }[],
-    recentActivity: [] as { name: string; status: string; logged_at: string }[],
+    recentActivity: [] as {
+        name: string;
+        status: string;
+        logged_at: string;
+        channel: string | null;
+    }[],
 });
 
 onMounted(async () => {
@@ -495,6 +500,11 @@ const gridCols = computed(() => {
                             <span class="text-sm font-medium text-gray-800">{{
                                 activity.name
                             }}</span>
+                            <span
+                                v-if="activity.channel"
+                                class="text-xs text-gray-400"
+                                >· {{ activity.channel }}</span
+                            >
                             <span
                                 :class="[
                                     'rounded-full px-2 py-0.5 text-xs font-semibold',

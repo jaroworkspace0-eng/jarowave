@@ -70,7 +70,7 @@ public function index()
             ->map(fn($r) => ['hour' => $r->hour . ':00', 'count' => $r->count]),
 
         // NEW: recent activity feed
-        'recentActivity' => UserStatusLog::with('user')
+        'recentActivity' => UserStatusLog::with(['user.employee.channels'])
             ->when(!$isAdmin, fn($q) => $q->whereHas('user.employee', fn($q) => $q->where('client_id', $clientId)))
             ->latest('logged_at')
             ->take(10)
@@ -79,6 +79,7 @@ public function index()
                 'name'      => $log->user->name,
                 'status'    => $log->status,
                 'logged_at' => $log->logged_at,
+                'channel'   => $log->user->employee?->channels->first()?->name ?? null,
             ]),
     ]]);
 }
