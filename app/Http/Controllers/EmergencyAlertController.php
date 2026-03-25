@@ -304,7 +304,13 @@ class EmergencyAlertController extends Controller
             $clientId = $user->employee?->client_id;
         }
 
-        $alerts = EmergencyAlert::with(['user', 'channel', 'client', 'resolver', 'resolution.responder'])
+        $alerts = EmergencyAlert::with([
+            'user', 
+            'channel', 
+            'client.user', 
+            'resolver', 
+            'resolution.responder'
+            ])
             ->when(!$isAdmin, fn($q) => $q->where('client_id', $clientId))
             ->latest()
             ->paginate(20);
