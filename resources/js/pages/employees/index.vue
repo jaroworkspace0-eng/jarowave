@@ -43,37 +43,125 @@ const employees = ref<any>({
 });
 
 // ─── address search ───────────────────────────────────────────────────────────
-const handleAddressSearch = (event: any) => {
+// const handleAddressSearch = (event: any) => {
+//     const query = event.target.value;
+//     clearTimeout(debounceTimeout);
+//     if (query.length < 3) {
+//         addressSuggestions.value = [];
+//         return;
+//     }
+//     debounceTimeout = setTimeout(async () => {
+//         try {
+//             const res = await fetch(
+//                 `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5`,
+//             );
+//             addressSuggestions.value = await res.json();
+//             showSuggestions.value = true;
+//         } catch {}
+//     }, 500);
+// };
+
+// const selectAddress = (item: any) => {
+//     form.value.latitude = item.lat;
+//     form.value.longitude = item.lon;
+//     form.value.address_line_1 = item.display_name;
+//     const addr = item.address;
+//     form.value.suburb =
+//         addr.suburb ||
+//         addr.neighbourhood ||
+//         addr.city_district ||
+//         addr.town ||
+//         '';
+//     showSuggestions.value = false;
+//     addressSuggestions.value = [];
+// };
+
+// ─── address search ───────────────────────────────────────────────────────────
+let sessionToken: any = null;
+
+const initPlacesSession = async () => {
+    const { AutocompleteSessionToken } = await (
+        window as any
+    ).google.maps.importLibrary('places');
+    sessionToken = new AutocompleteSessionToken();
+};
+
+const handleAddressSearch = async (event: any) => {
     const query = event.target.value;
+    console.log('input:', query); // step 1 - are we even firing?
     clearTimeout(debounceTimeout);
     if (query.length < 3) {
         addressSuggestions.value = [];
         return;
     }
     debounceTimeout = setTimeout(async () => {
+        console.log('debounce fired'); // step 2 - did debounce run?
         try {
-            const res = await fetch(
-                `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=5`,
-            );
-            addressSuggestions.value = await res.json();
+            await new Promise<void>((resolve) => {
+                const check = () => {
+                    if ((window as any).google?.maps) resolve();
+                    else setTimeout(check, 100);
+                };
+                check();
+            });
+            console.log('google maps ready'); // step 3 - is maps loaded?
+
+            const { AutocompleteSuggestion, AutocompleteSessionToken } = await (
+                window as any
+            ).google.maps.importLibrary('places');
+            console.log('places library loaded'); // step 4 - did library import?
+
+            if (!sessionToken) sessionToken = new AutocompleteSessionToken();
+
+            const { suggestions } =
+                await AutocompleteSuggestion.fetchAutocompleteSuggestions({
+                    input: query,
+                    sessionToken,
+                });
+
+            addressSuggestions.value = suggestions.map((s: any) => ({
+                place_id: s.placePrediction.placeId,
+                display_name: s.placePrediction.text.toString(),
+                _prediction: s.placePrediction,
+            }));
             showSuggestions.value = true;
-        } catch {}
-    }, 500);
+        } catch (e) {
+            console.error('Places error:', e);
+        }
+    }, 400);
 };
 
-const selectAddress = (item: any) => {
-    form.value.latitude = item.lat;
-    form.value.longitude = item.lon;
-    form.value.address_line_1 = item.display_name;
-    const addr = item.address;
-    form.value.suburb =
-        addr.suburb ||
-        addr.neighbourhood ||
-        addr.city_district ||
-        addr.town ||
-        '';
+const selectAddress = async (item: any) => {
     showSuggestions.value = false;
     addressSuggestions.value = [];
+    try {
+        const { Place } = await (window as any).google.maps.importLibrary(
+            'places',
+        );
+        const place = new Place({ id: item.place_id });
+        await place.fetchFields({
+            fields: ['addressComponents', 'formattedAddress', 'location'],
+        });
+
+        form.value.address_line_1 = place.formattedAddress || item.display_name;
+        form.value.latitude = place.location?.lat() ?? null;
+        form.value.longitude = place.location?.lng() ?? null;
+
+        const get = (type: string) =>
+            place.addressComponents?.find((c: any) => c.types.includes(type))
+                ?.longText || '';
+
+        form.value.suburb =
+            get('sublocality_level_1') ||
+            get('locality') ||
+            get('sublocality') ||
+            '';
+
+        // Reset session token after a place is selected (billing best practice)
+        sessionToken = null;
+    } catch (e) {
+        console.error(e);
+    }
 };
 
 function showMessage(message: string) {
@@ -427,6 +515,10 @@ const handlePhoneInput = (val: string) => {
     }
     form.value.phone = val.replace(/\s+/g, '').replace(/[^0-9+]/g, '');
 };
+
+const hideSuggestions = () => {
+    setTimeout(() => (showSuggestions.value = false), 200);
+};
 </script>
 
 <template>
@@ -718,11 +810,7 @@ const handlePhoneInput = (val: string) => {
                                                                 handleAddressSearch
                                                             "
                                                             @blur="
-                                                                setTimeout(
-                                                                    () =>
-                                                                        (showSuggestions = false),
-                                                                    200,
-                                                                )
+                                                                hideSuggestions
                                                             "
                                                         />
                                                         <span
