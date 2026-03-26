@@ -9,6 +9,44 @@ import { createApp, h } from 'vue';
 import { initializeTheme } from './composables/useAppearance';
 import { useAuthStore } from './stores/auth';
 
+// ─── Google Maps ──────────────────────────────────────────────────────────────
+((g) => {
+    var h,
+        a,
+        k,
+        p = 'The Google Maps JavaScript API',
+        c = 'google',
+        l = 'importLibrary',
+        q = '__ib__',
+        m = document,
+        b = window;
+    b = b[c] || (b[c] = {});
+    var d = b.maps || (b.maps = {}),
+        r = new Set(),
+        e = new URLSearchParams(),
+        u = () =>
+            h ||
+            (h = new Promise(async (f, n) => {
+                await (a = m.createElement('script'));
+                e.set('libraries', [...r] + '');
+                for (k in g)
+                    e.set(
+                        k.replace(/[A-Z]/g, (t) => '_' + t[0].toLowerCase()),
+                        g[k],
+                    );
+                e.set('key', import.meta.env.VITE_GOOGLE_PLACES_API_KEY);
+                e.set('v', 'weekly');
+                a.src = `https://maps.${c}apis.com/maps/api/js?` + e;
+                a.onerror = () => n(Error(p + ' could not load.'));
+                a.nonce = m.querySelector('script[nonce]')?.nonce || '';
+                m.head.append(a);
+                d[l] = f;
+            }));
+    d[l] = (f, ...n) => r.add(f) && u().then(() => d[l](f, ...n));
+})({ key: import.meta.env.VITE_GOOGLE_PLACES_API_KEY });
+(window as any).google.maps.importLibrary('places');
+// ────────────────────────────────────────
+
 // Echo / Reverb
 configureEcho({
     broadcaster: 'reverb',
