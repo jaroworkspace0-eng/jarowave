@@ -120,13 +120,21 @@ class AccountDeletionController extends Controller
         $user = User::find($deletion->user_id);
 
         if ($user) {
-            $user->tokens()->delete();
+        $user->tokens()->delete();
             $user->update([
-                'name'      => 'Deleted User',
-                'email'     => 'deleted_' . $user->id . '@deleted.com',
-                'phone'     => null,
-                'password'  => bcrypt(str()->random(32)),
-                'is_active' => 0,
+                'name'             => 'Deleted User',
+                'email'            => 'deleted_' . $user->id . '@deleted.com',
+                'phone'            => null,
+                'password'         => bcrypt(str()->random(32)),
+                'is_active'        => 0,
+                'address_line_1'   => null,
+                'suburb'           => null,
+                'longitude'        => null,
+                'latitude'         => null,
+                'complex_name'     => null,
+                'unit_number'      => null,
+                'safe_cancel_pin'  => null,
+                'duress_pin'       => null,
             ]);
             $user->employee?->delete();
         }
