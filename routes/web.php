@@ -38,6 +38,7 @@ Route::get('announcements', function(){
     return Inertia::render('Announcements/Index');
 });
 
+Route::get('/deletion-requests', fn() => inertia('DeletionRequests/Index'));
 
 Route::get('/emergencies', fn() => inertia('Emergencies/Index'));
 

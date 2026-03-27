@@ -21,6 +21,7 @@ import {
     Building,
     HomeIcon,
     Megaphone,
+    Trash2,
 } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 
@@ -39,7 +40,19 @@ const mainNavItems: NavItem[] = [
     },
     { title: 'Personnels', href: '/employees', icon: Briefcase },
     ...(auth.user?.role === 'admin'
-        ? [{ title: 'Announcements', href: '/announcements', icon: Megaphone }]
+        ? [
+              {
+                  title: 'Announcements',
+                  href: '/announcements',
+                  icon: Megaphone,
+              },
+
+              {
+                  title: 'Deletion Requests',
+                  href: '/deletion-requests',
+                  icon: Trash2,
+              },
+          ]
         : []),
 ];
 
