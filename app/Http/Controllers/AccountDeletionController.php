@@ -22,6 +22,12 @@ class AccountDeletionController extends Controller
 
         $user = User::where('email', $request->email)->first();
 
+        \Log::info('Deletion request debug', [
+            'submitted_email' => $request->email,
+            'user_found'      => $user ? 'yes' : 'no',
+            'user_id'         => $user?->id,
+        ]);
+
         $deletion = AccountDeletionRequest::create([
             'user_id'               => $user?->id,
             'name'                  => $request->name,
