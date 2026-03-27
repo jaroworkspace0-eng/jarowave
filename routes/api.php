@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccountDeletionController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\BroadcastAudioController;
 use App\Http\Controllers\ChannelController;
@@ -112,6 +113,8 @@ Route::post('/login', function (Request $request) {
     ]);
 });
 
+Route::post('/account/deletion-request', [AccountDeletionController::class, 'store']);
+
 Route::middleware(['auth:sanctum'])->group(function () { 
     Route::get('/user', function (Request $request) {
     return $request->user();
@@ -139,6 +142,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/announcements',         [AnnouncementController::class, 'index']);
     Route::post('/announcements/send',   [AnnouncementController::class, 'send']);
     Route::delete('/announcements/{announcement}', [AnnouncementController::class, 'destroy']);
+
+
+    // account deletion request actions
+    Route::get('/account/deletion-requests', [AccountDeletionController::class, 'index']);
+    Route::patch('/account/deletion-requests/{id}/cancel', [AccountDeletionController::class, 'cancel']);
+    Route::delete('/account/deletion-requests/{id}', [AccountDeletionController::class, 'destroy']);
     // Route::post('/livekit/token', [LiveKitController::class, 'generateToken']);
 });
 
