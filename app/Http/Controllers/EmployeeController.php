@@ -11,6 +11,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -430,6 +431,18 @@ public function update(Request $request, Employee $employee)
         // First, delete the associated User record
         User::where('id', $user_id)->delete();
         $employee->delete();
+
+        // Force disconnect from PTT server — no condition needed, we just deactivated them
+        try {
+            Http::timeout(5)
+                ->withHeaders(['Authorization' => 'Bearer ' . env('ASSIGN_SECRET')])
+                ->post(env('PTT_SERVER_URL') . '/force-disconnect', [
+                    'userId' => $user_id,
+                    'reason' => 'user_inactive',
+                ]);
+        } catch (\Exception $e) {
+            Log::warning('PTT force-disconnect failed: ' . $e->getMessage());
+        }
 
          return response()->json([ 
                     'success' => true, 

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AccountDeletionRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -55,6 +56,18 @@ class AccountDeletionController extends Controller
         $user->update(['is_active' => 0]);
         $user->tokens()->delete();
 
+        // Force disconnect from PTT server — no condition needed, we just deactivated them
+        try {
+            Http::timeout(5)
+                ->withHeaders(['Authorization' => 'Bearer ' . env('ASSIGN_SECRET')])
+                ->post(env('PTT_SERVER_URL') . '/force-disconnect', [
+                    'userId' => $user->id,
+                    'reason' => 'user_inactive',
+                ]);
+        } catch (\Exception $e) {
+            Log::warning('PTT force-disconnect failed: ' . $e->getMessage());
+        }
+    
         try {
             Mail::raw(
                 "Hi {$request->name},\n\nYour account deletion request has been received.\n\nYour account has been suspended and all data will be permanently deleted on: " . now()->addDays(30)->format('d M Y') . "\n\nIf this was a mistake, contact us at privacy@jaroworkspace.com.\n\nEcho Link · Management",
