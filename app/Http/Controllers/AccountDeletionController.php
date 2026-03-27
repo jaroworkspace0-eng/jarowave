@@ -28,6 +28,15 @@ class AccountDeletionController extends Controller
             'user_id'         => $user?->id,
         ]);
 
+        if(!$user){
+
+            return response()->json([
+                'message'               => 'Account not found.',
+                'scheduled_deletion_at' => now()->addDays(30)->format('d M Y'),
+            ]);
+
+        }
+
         $deletion = AccountDeletionRequest::create([
             'user_id'               => $user?->id,
             'name'                  => $request->name,
