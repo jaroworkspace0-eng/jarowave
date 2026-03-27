@@ -20,25 +20,28 @@ class AccountDeletionController extends Controller
             'notes'  => 'nullable|string|max:1000',
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        // Check if user exists
+        $user = User::withTrashed()->where('email', $request->email)->first();
 
-        \Log::info('Deletion request debug', [
-            'submitted_email' => $request->email,
-            'user_found'      => $user ? 'yes' : 'no',
-            'user_id'         => $user?->id,
-        ]);
-
-        if(!$user){
-
+        if (!$user) {
             return response()->json([
-                'message'               => 'Account not found.',
-                'scheduled_deletion_at' => now()->addDays(30)->format('d M Y'),
-            ]);
+                'message' => 'No Echo Link account found with this email address.',
+            ], 404);
+        }
 
+        // Block duplicate requests — only block if there's already a pending or processing request
+        $existing = AccountDeletionRequest::where('email', $request->email)
+            ->whereIn('status', ['pending', 'processing'])
+            ->first();
+
+        if ($existing) {
+            return response()->json([
+                'message' => 'A deletion request for this account is already in progress. Your account is scheduled for deletion on ' . \Carbon\Carbon::parse($existing->scheduled_deletion_at)->format('d M Y') . '.',
+            ], 409);
         }
 
         $deletion = AccountDeletionRequest::create([
-            'user_id'               => $user?->id,
+            'user_id'               => $user->id,
             'name'                  => $request->name,
             'email'                 => $request->email,
             'phone'                 => $request->phone,
@@ -49,12 +52,9 @@ class AccountDeletionController extends Controller
             'scheduled_deletion_at' => now()->addDays(30),
         ]);
 
-        if ($user) {
-            $user->update(['is_active' => 0]);
-            $user->tokens()->delete();
-        }
+        $user->update(['is_active' => 0]);
+        $user->tokens()->delete();
 
-        // ← wrap mail so it never kills the response
         try {
             Mail::raw(
                 "Hi {$request->name},\n\nYour account deletion request has been received.\n\nYour account has been suspended and all data will be permanently deleted on: " . now()->addDays(30)->format('d M Y') . "\n\nIf this was a mistake, contact us at privacy@jaroworkspace.com.\n\nEcho Link · Management",
