@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AccountDeletionRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class AccountDeletionController extends Controller
@@ -19,38 +20,40 @@ class AccountDeletionController extends Controller
             'notes'  => 'nullable|string|max:1000',
         ]);
 
-        // Find user by email
         $user = User::where('email', $request->email)->first();
 
         $deletion = AccountDeletionRequest::create([
-            'user_id'              => $user?->id,
-            'name'                 => $request->name,
-            'email'                => $request->email,
-            'phone'                => $request->phone,
-            'reason'               => $request->reason,
-            'notes'                => $request->notes,
-            'status'               => 'pending',
-            'requested_at'         => now(),
+            'user_id'               => $user?->id,
+            'name'                  => $request->name,
+            'email'                 => $request->email,
+            'phone'                 => $request->phone,
+            'reason'                => $request->reason,
+            'notes'                 => $request->notes,
+            'status'                => 'pending',
+            'requested_at'          => now(),
             'scheduled_deletion_at' => now()->addDays(30),
         ]);
 
-        // Suspend account immediately if user exists
         if ($user) {
             $user->update(['is_active' => 0]);
-            $user->tokens()->delete(); // revoke all tokens
+            $user->tokens()->delete();
         }
 
-        // Send confirmation email
-        Mail::raw(
-            "Hi {$request->name},\n\nYour account deletion request has been received.\n\nYour account has been suspended and all data will be permanently deleted on: " . now()->addDays(30)->format('d M Y') . "\n\nIf this was a mistake, contact us at privacy@jaroworkspace.com.\n\nEcho Link · JaroWorkspace",
-            function ($message) use ($request) {
-                $message->to($request->email)
-                        ->subject('Account Deletion Request Received — Echo Link');
-            }
-        );
+        // ← wrap mail so it never kills the response
+        try {
+            Mail::raw(
+                "Hi {$request->name},\n\nYour account deletion request has been received.\n\nYour account has been suspended and all data will be permanently deleted on: " . now()->addDays(30)->format('d M Y') . "\n\nIf this was a mistake, contact us at privacy@jaroworkspace.com.\n\nEcho Link · Management",
+                function ($message) use ($request) {
+                    $message->to($request->email)
+                            ->subject('Account Deletion Request Received — Echo Link');
+                }
+            );
+        } catch (\Exception $e) {
+            Log::warning('Deletion confirmation email failed: ' . $e->getMessage());
+        }
 
         return response()->json([
-            'message'              => 'Deletion request submitted successfully.',
+            'message'               => 'Deletion request submitted successfully.',
             'scheduled_deletion_at' => now()->addDays(30)->format('d M Y'),
         ]);
     }
