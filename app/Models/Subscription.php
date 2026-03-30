@@ -79,7 +79,7 @@ class Subscription extends Model
 
     public function isTrialing(): bool
     {
-        return $this->status === 'trialing' && now()->lessThan($this->trial_ends_at);
+        return $this->status === 'trialing' && $this->trial_ends_at && now()->lessThan($this->trial_ends_at);
     }
 
     public function isActive(): bool
@@ -104,7 +104,7 @@ class Subscription extends Model
 
     public function daysLeftInTrial(): int
     {
-        if (!$this->isTrialing()) return 0;
+        if (!$this->isTrialing() || !$this->trial_ends_at) return 0;
         return (int) now()->diffInDays($this->trial_ends_at);
     }
 

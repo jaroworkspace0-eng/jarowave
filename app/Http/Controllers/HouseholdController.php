@@ -207,8 +207,13 @@ class HouseholdController extends Controller
     // ── GET /api/household/invoices ───────────────────────────────────────────
     public function invoices(Request $request)
     {
-        $invoices = Invoice::where('user_id', $request->user()->id)
-            ->with('payment')
+        $subscription = Subscription::where('user_id', $request->user()->id)->latest()->first();
+
+        if (!$subscription) {
+            return response()->json(['invoices' => []]);
+        }
+
+        $invoices = Invoice::where('subscription_id', $subscription->id)
             ->latest()
             ->paginate(20);
 
@@ -218,8 +223,9 @@ class HouseholdController extends Controller
     // ── GET /api/household/invoices/{id}/pdf ──────────────────────────────────
     public function invoicePdf(Request $request, $id)
     {
+        $subscription = Subscription::where('user_id', $request->user()->id)->latest()->first();
         $invoice = Invoice::where('id', $id)
-            ->where('user_id', $request->user()->id)
+            ->where('subscription_id', $subscription?->id)
             ->firstOrFail();
 
         // TODO: $pdf = PDF::loadView('invoices.pdf', compact('invoice'));
@@ -231,8 +237,9 @@ class HouseholdController extends Controller
     // ── GET /api/household/invoices/{id}/print ────────────────────────────────
     public function invoicePrint(Request $request, $id)
     {
+        $subscription = Subscription::where('user_id', $request->user()->id)->latest()->first();
         $invoice = Invoice::where('id', $id)
-            ->where('user_id', $request->user()->id)
+            ->where('subscription_id', $subscription?->id)
             ->firstOrFail();
 
         // TODO: $pdf = PDF::loadView('invoices.pdf', compact('invoice'));
@@ -244,10 +251,10 @@ class HouseholdController extends Controller
     // ── POST /api/household/invoices/{id}/send ────────────────────────────────
     public function invoiceSend(Request $request, $id)
     {
+        $subscription = Subscription::where('user_id', $request->user()->id)->latest()->first();
         $invoice = Invoice::where('id', $id)
-            ->where('user_id', $request->user()->id)
+            ->where('subscription_id', $subscription?->id)
             ->firstOrFail();
-
         // TODO: Mail::to($request->user()->email)->send(new InvoiceMail($invoice));
 
         return response()->json(['message' => 'Invoice sent to ' . $request->user()->email]);
