@@ -109,8 +109,6 @@ class HouseholdController extends Controller
             'client_id'     => $invite->client_id,
             'status'        => 'trialing',
             'gateway'       => $request->gateway,
-            'plan'          => 'household',
-            'billing_cycle' => 'monthly',
             'price'         => 8000,
         ]);
 
