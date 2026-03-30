@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Client;
 use App\Models\Employee;
+use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -41,41 +42,162 @@ class ClientController extends Controller
         //
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
+
+    // This method is for public registration for clients, not admin creation
+    public function register(Request $request)
     {
-        // return response()->json($request);
         $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email',
-            'phone' => 'required|digits_between:7,15|unique:users,phone',
-            'address' => 'nullable|string',
-            'password' => 'required|string|min:8'
+            'name'              => ['required', 'string', 'max:255'],
+            'phone'             => ['nullable', 'string', 'max:20'],
+            'email'             => ['required', 'email', 'unique:users,email'],
+            'organisation_name' => ['required', 'string', 'max:255'],
+            'organisation_type' => ['required', 'in:watch,estate'],
+            'plan'              => ['nullable', 'required_if:organisation_type,estate', 'in:basic,standard,premium'],
+            'billing_cycle'     => ['nullable', 'in:monthly,annual'],
+            'password'          => ['required', 'confirmed', \Illuminate\Validation\Rules\Password::min(8)],
         ]);
 
-       $user = User::create([
-            'name' => $request->name,
-            'email' => $request->email,
-            'role' => 'client',
-            'address_line_1' => $request->address,
-            'phone' => $request->phone,
-            'password' => bcrypt($validated['password']),
+        $user = User::create([
+            'name'              => $validated['name'],
+            'phone'             => $validated['phone'] ?? null,
+            'email'             => $validated['email'],
+            'password'          => bcrypt($validated['password']),
+            'role'              => 'client',
+            'organisation_type' => $validated['organisation_type'],
+            'organisation_name' => $validated['organisation_name'],
+            'plan'              => $validated['plan'] ?? null,
+            'billing_cycle'     => $validated['billing_cycle'] ?? 'monthly',
         ]);
 
-        Client::create([
+        $client = Client::create([
             'user_id' => $user->id,
         ]);
 
-        // $client = Client::create($validated);
+        // Resolve pricing
+        $billingCycle = $validated['billing_cycle'] ?? 'monthly';
+        $plan         = $validated['plan'] ?? null;
+        $price        = $this->resolvePrice($plan, $billingCycle);
 
-          return response()->json([ 
-            'success' => true, 
-            'message' => 'Client created successfully!', 
-            'client' => $user, 
+        Subscription::create([
+            'client_id'            => $client->id,
+            'plan'                 => $plan,
+            'billing_cycle'        => $billingCycle,
+            'status'               => 'trialing',
+            'price'                => $price['discounted'] / 100, // convert cents to dollars
+            'original_price'       => $price['original'] / 100, // convert cents to dollars
+            'discount_amount'      => $price['discount_amount'] / 100, // convert cents to dollars,
+            'discount_percentage'  => $price['discount_percentage'],
+            'trial_ends_at'        => now()->addDays(14),
+            'current_period_start' => now(),
+            'current_period_end'   => $billingCycle === 'annual' ? now()->addYear() : now()->addMonth(),
         ]);
 
+        // Issue token — same shape as your login response
+        $token = $user->createToken('auth_token')->plainTextToken;
+
+        return response()->json([
+            'token' => $token,
+            'user'  => [
+                'id'    => $user->id,
+                'name'  => $user->name,
+                'email' => $user->email,
+                'role'  => $user->role,
+            ],
+        ], 201);
+    }
+
+    // Helper method to resolve pricing based on plan and billing cycle
+    private function resolvePrice(?string $plan, string $billingCycle): array
+    {
+        $monthlyPrices = [
+            'basic'    => 49900,
+            'standard' => 99900,
+            'premium'  => 199900,
+        ];
+
+        if (!$plan) {
+            return ['original' => 0, 'discounted' => 0, 'discount_amount' => 0, 'discount_percentage' => 0];
+        }
+
+        $monthly = $monthlyPrices[$plan];
+
+        if ($billingCycle === 'annual') {
+            $discounted     = (int) round($monthly * 0.83 * 12);
+            $original       = $monthly * 12;
+            $discountAmount = $original - $discounted;
+            $discountPct    = 17;
+        } else {
+            $discounted     = $monthly;
+            $original       = $monthly;
+            $discountAmount = 0;
+            $discountPct    = 0;
+        }
+
+        return [
+            'original'        => $original,
+            'discounted'      => $discounted,
+            'discount_amount' => $discountAmount,
+            'discount_percentage' => $discountPct,
+        ];
+    }
+
+    // This method is for admin creation of clients, not public registration
+    public function store(Request $request)
+    {
+        $validated = $request->validate([
+            'name'              => 'required|string|max:255',
+            'email'             => 'required|email|unique:users,email',
+            'phone'             => 'required|digits_between:7,15|unique:users,phone',
+            'address'           => 'nullable|string',
+            'password'          => 'required|string|min:8',
+            'organisation_type' => 'required|in:watch,estate',
+            'organisation_name' => 'required|string|max:255',
+            'plan'              => 'nullable|required_if:organisation_type,estate|in:basic,standard,premium',
+            'billing_cycle'     => 'nullable|in:monthly,annual',
+        ]);
+
+        $user = User::create([
+            'name'              => $validated['name'],
+            'email'             => $validated['email'],
+            'role'              => 'client',
+            'address_line_1'    => $validated['address'] ?? null,
+            'phone'             => $validated['phone'],
+            'password'          => bcrypt($validated['password']),
+            'organisation_type' => $validated['organisation_type'],
+            'organisation_name' => $validated['organisation_name'],
+            'plan'              => $validated['plan'] ?? null,
+            'billing_cycle'     => $validated['billing_cycle'] ?? 'monthly',
+        ]);
+
+        $client = Client::create([
+            'user_id' => $user->id,
+        ]);
+
+
+        // Resolve pricing
+        $billingCycle = $validated['billing_cycle'] ?? 'monthly';
+        $plan         = $validated['plan'] ?? null;
+        $price        = $this->resolvePrice($plan, $billingCycle);
+
+        Subscription::create([
+            'client_id'            => $client->id,
+            'plan'                 => $plan,
+            'billing_cycle'        => $billingCycle,
+            'status'               => 'trialing',
+            'price'                => $price['discounted'] / 100, // convert cents to dollars
+            'original_price'       => $price['original'] / 100, // convert cents to dollars
+            'discount_amount'      => $price['discount_amount'] / 100, // convert cents to dollars,
+            'discount_percentage'  => $price['discount_percentage'],
+            'trial_ends_at'        => now()->addDays(14),
+            'current_period_start' => now(),
+            'current_period_end'   => $billingCycle === 'annual' ? now()->addYear() : now()->addMonth(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Client created successfully!',
+            'client'  => $user,
+        ]);
     }
 
     /**

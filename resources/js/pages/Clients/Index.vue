@@ -17,6 +17,7 @@ onMounted(() => {
 });
 
 import '@inertiajs/core';
+import { computed } from 'vue';
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -120,6 +121,10 @@ const form: any = useForm({
     email: '',
     address: '',
     password: '',
+    organisation_type: '', // ← add
+    organisation_name: '', // ← add
+    plan: '', // ← add
+    billing_cycle: 'monthly', // ← add
 });
 
 function resetForm() {
@@ -130,6 +135,10 @@ function resetForm() {
     form.address = '';
     form.role = '';
     form.password = '';
+    form.organisation_type = ''; // ← add
+    form.organisation_name = ''; // ← add
+    form.plan = ''; // ← add
+    form.billing_cycle = 'monthly'; // ← add
 }
 
 // const editClient = (client: any) => {
@@ -314,6 +323,26 @@ async function loadPage(url: string) {
         console.error('Failed to load page', err);
     }
 }
+
+const annualSummary = computed(() => {
+    const monthly: Record<string, number> = {
+        basic: 499,
+        standard: 999,
+        premium: 1999,
+    };
+    const annual: Record<string, number> = {
+        basic: 415,
+        standard: 829,
+        premium: 1659,
+    };
+    const plan = form.plan;
+    if (!plan) return null;
+    return {
+        monthlyEquivalent: annual[plan],
+        billedAnnually: annual[plan] * 12,
+        saving: (monthly[plan] - annual[plan]) * 12,
+    };
+});
 </script>
 
 <template>
@@ -349,7 +378,7 @@ async function loadPage(url: string) {
                                 >
                                     <!-- Modal Content -->
                                     <div
-                                        class="w-full max-w-lg rounded-lg bg-white p-6 shadow-lg"
+                                        class="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-6 shadow-lg"
                                     >
                                         <h2 class="text-lg font-bold">
                                             {{
@@ -360,44 +389,361 @@ async function loadPage(url: string) {
                                         </h2>
 
                                         <div class="grid gap-4">
-                                            <div class="grid gap-3">
-                                                <Label for="name-1">Name</Label>
-                                                <input
-                                                    id="name-1"
-                                                    default-value="Pedro Duarte"
-                                                    v-model="form.name"
-                                                />
+                                            <!-- ORGANISATION TYPE -->
+                                            <div class="grid gap-2">
+                                                <label
+                                                    class="text-sm font-semibold text-gray-700"
+                                                    >Organisation Type</label
+                                                >
+                                                <div
+                                                    class="grid grid-cols-2 gap-2"
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        @click="
+                                                            form.organisation_type =
+                                                                'watch';
+                                                            form.plan = '';
+                                                        "
+                                                        :class="[
+                                                            'flex flex-col items-start gap-1 rounded-xl border-2 p-3 text-left transition-all',
+                                                            form.organisation_type ===
+                                                            'watch'
+                                                                ? 'border-orange-400 bg-orange-50'
+                                                                : 'border-gray-200 hover:border-orange-300',
+                                                        ]"
+                                                    >
+                                                        <span class="text-lg"
+                                                            >🏘️</span
+                                                        >
+                                                        <span
+                                                            class="font-700 text-sm font-bold text-gray-900"
+                                                            >Neighbourhood
+                                                            Watch</span
+                                                        >
+                                                        <span
+                                                            class="text-xs text-gray-500"
+                                                            >CPF / Watch Group /
+                                                            Individual</span
+                                                        >
+                                                        <span
+                                                            v-if="
+                                                                form.organisation_type ===
+                                                                'watch'
+                                                            "
+                                                            class="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-orange-400 text-xs font-bold text-white"
+                                                            >✓</span
+                                                        >
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        @click="
+                                                            form.organisation_type =
+                                                                'estate'
+                                                        "
+                                                        :class="[
+                                                            'flex flex-col items-start gap-1 rounded-xl border-2 p-3 text-left transition-all',
+                                                            form.organisation_type ===
+                                                            'estate'
+                                                                ? 'border-orange-400 bg-orange-50'
+                                                                : 'border-gray-200 hover:border-orange-300',
+                                                        ]"
+                                                    >
+                                                        <span class="text-lg"
+                                                            >🏢</span
+                                                        >
+                                                        <span
+                                                            class="text-sm font-bold text-gray-900"
+                                                            >Estate /
+                                                            Complex</span
+                                                        >
+                                                        <span
+                                                            class="text-xs text-gray-500"
+                                                            >Gated Estate / HOA
+                                                            / Complex</span
+                                                        >
+                                                    </button>
+                                                </div>
                                                 <p
-                                                    v-if="errors.name"
+                                                    v-if="
+                                                        errors.organisation_type
+                                                    "
                                                     class="text-sm text-red-600"
                                                 >
-                                                    {{ errors.name[0] }}
+                                                    {{
+                                                        errors
+                                                            .organisation_type[0]
+                                                    }}
                                                 </p>
                                             </div>
-                                            <div class="grid gap-3">
-                                                <Label for="name-1"
-                                                    >Contact</Label
+
+                                            <!-- ESTATE PLAN -->
+                                            <div
+                                                v-if="
+                                                    form.organisation_type ===
+                                                    'estate'
+                                                "
+                                                class="grid gap-2"
+                                            >
+                                                <label
+                                                    class="text-sm font-semibold text-gray-700"
+                                                    >Plan</label
                                                 >
-                                                <input
-                                                    id="name-1"
-                                                    default-value="Pedro Duarte"
-                                                    v-model="form.phone"
-                                                />
+                                                <div
+                                                    class="grid grid-cols-3 gap-2"
+                                                >
+                                                    <button
+                                                        v-for="p in [
+                                                            {
+                                                                key: 'basic',
+                                                                label: 'Basic',
+                                                                monthly:
+                                                                    'R499/mo',
+                                                                annual: 'R415/mo',
+                                                            },
+                                                            {
+                                                                key: 'standard',
+                                                                label: 'Standard',
+                                                                monthly:
+                                                                    'R999/mo',
+                                                                annual: 'R829/mo',
+                                                            },
+                                                            {
+                                                                key: 'premium',
+                                                                label: 'Premium',
+                                                                monthly:
+                                                                    'R1,999/mo',
+                                                                annual: 'R1,659/mo',
+                                                            },
+                                                        ]"
+                                                        :key="p.key"
+                                                        type="button"
+                                                        @click="
+                                                            form.plan = p.key
+                                                        "
+                                                        :class="[
+                                                            'rounded-xl border-2 p-3 text-center transition-all',
+                                                            form.plan === p.key
+                                                                ? 'border-orange-400 bg-orange-50'
+                                                                : 'border-gray-200 hover:border-orange-300',
+                                                        ]"
+                                                    >
+                                                        <div
+                                                            class="text-sm font-bold text-gray-900"
+                                                        >
+                                                            {{ p.label }}
+                                                        </div>
+                                                        <div
+                                                            class="text-xs font-semibold text-orange-500"
+                                                        >
+                                                            {{
+                                                                form.billing_cycle ===
+                                                                'annual'
+                                                                    ? p.annual
+                                                                    : p.monthly
+                                                            }}
+                                                        </div>
+                                                    </button>
+                                                </div>
                                                 <p
-                                                    v-if="errors.phone"
+                                                    v-if="errors.plan"
                                                     class="text-sm text-red-600"
                                                 >
-                                                    {{ errors.phone[0] }}
+                                                    {{ errors.plan[0] }}
                                                 </p>
                                             </div>
-                                            <div class="grid gap-3">
-                                                <Label for="name-1"
-                                                    >Email</Label
+
+                                            <!-- BILLING CYCLE -->
+                                            <div
+                                                v-if="
+                                                    form.organisation_type ===
+                                                    'estate'
+                                                "
+                                                class="grid gap-2"
+                                            >
+                                                <label
+                                                    class="text-sm font-semibold text-gray-700"
+                                                    >Billing Cycle</label
+                                                >
+                                                <div class="flex gap-2">
+                                                    <button
+                                                        type="button"
+                                                        @click="
+                                                            form.billing_cycle =
+                                                                'monthly'
+                                                        "
+                                                        :class="[
+                                                            'flex-1 rounded-lg border-2 py-2 text-sm font-semibold transition-all',
+                                                            form.billing_cycle ===
+                                                            'monthly'
+                                                                ? 'border-orange-400 bg-orange-50 text-orange-600'
+                                                                : 'border-gray-200 text-gray-600 hover:border-orange-300',
+                                                        ]"
+                                                    >
+                                                        Monthly
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        @click="
+                                                            form.billing_cycle =
+                                                                'annual'
+                                                        "
+                                                        :class="[
+                                                            'flex-1 rounded-lg border-2 py-2 text-sm font-semibold transition-all',
+                                                            form.billing_cycle ===
+                                                            'annual'
+                                                                ? 'border-orange-400 bg-orange-50 text-orange-600'
+                                                                : 'border-gray-200 text-gray-600 hover:border-orange-300',
+                                                        ]"
+                                                    >
+                                                        Annual
+                                                        <span
+                                                            class="text-xs font-bold text-green-600"
+                                                            >Save 17%</span
+                                                        >
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <!-- ANNUAL SAVINGS SUMMARY -->
+                                            <div
+                                                v-if="
+                                                    form.organisation_type ===
+                                                        'estate' &&
+                                                    form.billing_cycle ===
+                                                        'annual' &&
+                                                    annualSummary
+                                                "
+                                                class="rounded-xl border border-green-200 bg-green-50 p-4"
+                                            >
+                                                <div
+                                                    class="mb-2 text-xs font-bold tracking-wide text-green-700 uppercase"
+                                                >
+                                                    Annual Plan Summary
+                                                </div>
+                                                <div
+                                                    class="flex items-center justify-between text-sm"
+                                                >
+                                                    <span class="text-gray-600"
+                                                        >Monthly
+                                                        equivalent</span
+                                                    >
+                                                    <span
+                                                        class="font-semibold text-gray-900"
+                                                        >R{{
+                                                            annualSummary.monthlyEquivalent
+                                                        }}/mo</span
+                                                    >
+                                                </div>
+                                                <div
+                                                    class="mt-1 flex items-center justify-between text-sm"
+                                                >
+                                                    <span class="text-gray-600"
+                                                        >Billed annually</span
+                                                    >
+                                                    <span
+                                                        class="font-semibold text-gray-900"
+                                                        >R{{
+                                                            annualSummary.billedAnnually.toLocaleString()
+                                                        }}/yr</span
+                                                    >
+                                                </div>
+                                                <div
+                                                    class="mt-2 flex items-center justify-between border-t border-green-200 pt-2 text-sm"
+                                                >
+                                                    <span
+                                                        class="font-bold text-green-700"
+                                                        >You save</span
+                                                    >
+                                                    <span
+                                                        class="font-bold text-green-700"
+                                                        >R{{
+                                                            annualSummary.saving.toLocaleString()
+                                                        }}/yr</span
+                                                    >
+                                                </div>
+                                            </div>
+
+                                            <!-- NAME + PHONE -->
+                                            <div class="grid grid-cols-2 gap-3">
+                                                <div class="grid gap-2">
+                                                    <label
+                                                        class="text-sm font-semibold text-gray-700"
+                                                        >Full Name</label
+                                                    >
+                                                    <input
+                                                        class="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                                                        v-model="form.name"
+                                                        placeholder="John Dlamini"
+                                                    />
+                                                    <p
+                                                        v-if="errors.name"
+                                                        class="text-sm text-red-600"
+                                                    >
+                                                        {{ errors.name[0] }}
+                                                    </p>
+                                                </div>
+                                                <div class="grid gap-2">
+                                                    <label
+                                                        class="text-sm font-semibold text-gray-700"
+                                                        >Phone</label
+                                                    >
+                                                    <input
+                                                        class="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                                                        v-model="form.phone"
+                                                        placeholder="+27 82 000 0000"
+                                                    />
+                                                    <p
+                                                        v-if="errors.phone"
+                                                        class="text-sm text-red-600"
+                                                    >
+                                                        {{ errors.phone[0] }}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <!-- ORGANISATION NAME -->
+                                            <div class="grid gap-2">
+                                                <label
+                                                    class="text-sm font-semibold text-gray-700"
+                                                    >Organisation Name</label
                                                 >
                                                 <input
-                                                    id="name-1"
-                                                    default-value="Pedro Duarte"
+                                                    class="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                                                    v-model="
+                                                        form.organisation_name
+                                                    "
+                                                    :placeholder="
+                                                        form.organisation_type ===
+                                                        'estate'
+                                                            ? 'Sunridge Estate'
+                                                            : 'Midrand North Watch'
+                                                    "
+                                                />
+                                                <p
+                                                    v-if="
+                                                        errors.organisation_name
+                                                    "
+                                                    class="text-sm text-red-600"
+                                                >
+                                                    {{
+                                                        errors
+                                                            .organisation_name[0]
+                                                    }}
+                                                </p>
+                                            </div>
+
+                                            <!-- EMAIL -->
+                                            <div class="grid gap-2">
+                                                <label
+                                                    class="text-sm font-semibold text-gray-700"
+                                                    >Email</label
+                                                >
+                                                <input
+                                                    class="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                                                    type="email"
                                                     v-model="form.email"
+                                                    placeholder="email@example.com"
                                                 />
                                                 <p
                                                     v-if="errors.email"
@@ -406,12 +752,16 @@ async function loadPage(url: string) {
                                                     {{ errors.email[0] }}
                                                 </p>
                                             </div>
-                                            <div class="grid gap-3">
-                                                <Label for="name-1"
-                                                    >Address</Label
+
+                                            <!-- ADDRESS -->
+                                            <div class="grid gap-2">
+                                                <label
+                                                    class="text-sm font-semibold text-gray-700"
+                                                    >Address</label
                                                 >
                                                 <textarea
-                                                    rows="7"
+                                                    class="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                                                    rows="3"
                                                     v-model="form.address"
                                                 ></textarea>
                                                 <p
@@ -421,14 +771,26 @@ async function loadPage(url: string) {
                                                     {{ errors.address[0] }}
                                                 </p>
                                             </div>
-                                            <div class="grid gap-3">
-                                                <Label for="password"
-                                                    >Set New Password</Label
+
+                                            <!-- PASSWORD -->
+                                            <div class="grid gap-2">
+                                                <label
+                                                    class="text-sm font-semibold text-gray-700"
+                                                    >{{
+                                                        isEditing
+                                                            ? 'Set New Password'
+                                                            : 'Password'
+                                                    }}</label
                                                 >
                                                 <input
-                                                    id="password"
-                                                    default-value=""
+                                                    class="rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                                                    type="password"
                                                     v-model="form.password"
+                                                    :placeholder="
+                                                        isEditing
+                                                            ? 'Leave blank to keep current'
+                                                            : 'Min. 8 characters'
+                                                    "
                                                 />
                                                 <p
                                                     v-if="errors.password"
@@ -437,33 +799,36 @@ async function loadPage(url: string) {
                                                     {{ errors.password[0] }}
                                                 </p>
                                             </div>
-                                            <div class="flex w-max items-end">
+
+                                            <!-- ACTIONS -->
+                                            <div
+                                                class="flex items-center justify-end gap-3 pt-2"
+                                            >
                                                 <button
                                                     type="button"
                                                     @click="closeModal"
-                                                    class="cancel-btn mr-3"
+                                                    class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                                                 >
                                                     Cancel
                                                 </button>
                                                 <button
                                                     type="submit"
-                                                    class="save-btn flex items-center justify-center"
+                                                    class="flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-60"
+                                                    :disabled="isProcessing"
                                                 >
                                                     <span
                                                         v-if="isProcessing"
-                                                        class="loader mr-2"
+                                                        class="loader"
                                                     ></span>
-                                                    <span>
-                                                        {{
-                                                            isProcessing
-                                                                ? isEditing
-                                                                    ? 'Updating...'
-                                                                    : 'Adding...'
-                                                                : isEditing
-                                                                  ? 'Update Client'
-                                                                  : 'Add Client'
-                                                        }}
-                                                    </span>
+                                                    {{
+                                                        isProcessing
+                                                            ? isEditing
+                                                                ? 'Updating...'
+                                                                : 'Adding...'
+                                                            : isEditing
+                                                              ? 'Update Client'
+                                                              : 'Add Client'
+                                                    }}
                                                 </button>
                                             </div>
                                         </div>

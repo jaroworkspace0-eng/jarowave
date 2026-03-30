@@ -21,6 +21,9 @@ import {
     Building,
     HomeIcon,
     Megaphone,
+    MonitorCheck,
+    Paperclip,
+    ReceiptText, // ← add this
     Trash2,
 } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
@@ -32,13 +35,22 @@ const mainNavItems: NavItem[] = [
     ...(auth.user?.role === 'admin'
         ? [{ title: 'Clients', href: '/clients', icon: Building }]
         : []),
-
-    {
-        title: 'Channels',
-        href: '/channels',
-        icon: ArrowsUpFromLineIcon,
-    },
+    { title: 'Channels', href: '/channels', icon: ArrowsUpFromLineIcon },
     { title: 'Personnels', href: '/employees', icon: Briefcase },
+
+    // Estate users see Subscription + Invoices
+    ...(auth.user?.organisation_type === 'estate'
+        ? [
+              { title: 'Subscription', href: '/billing', icon: MonitorCheck },
+              { title: 'Invoices', href: '/invoices', icon: Paperclip },
+          ]
+        : []),
+
+    // Watch groups see Payouts
+    ...(auth.user?.organisation_type === 'watch'
+        ? [{ title: 'Payouts', href: '/payouts', icon: ReceiptText }]
+        : []),
+
     ...(auth.user?.role === 'admin'
         ? [
               {
@@ -46,7 +58,6 @@ const mainNavItems: NavItem[] = [
                   href: '/announcements',
                   icon: Megaphone,
               },
-
               {
                   title: 'Deletion Requests',
                   href: '/deletion-requests',

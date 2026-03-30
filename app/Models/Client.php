@@ -31,4 +31,21 @@ class Client extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function earnings()
+    {
+        return $this->hasMany(Earning::class);
+    }
+
+    // Total pending payout in cents
+    public function getPendingEarningsAttribute(): int
+    {
+        return $this->earnings()->where('status', 'pending')->sum('earned_amount');
+    }
+
+    // Total paid out all time in cents
+    public function getTotalPaidOutAttribute(): int
+    {
+        return $this->earnings()->where('status', 'paid')->sum('earned_amount');
+    }
+
 }

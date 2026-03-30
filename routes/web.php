@@ -3,6 +3,7 @@
 
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\SearchController;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
@@ -41,6 +42,24 @@ Route::get('announcements', function(){
 Route::get('/deletion-requests', fn() => inertia('DeletionRequests/Index'));
 
 Route::get('/emergencies', fn() => inertia('Emergencies/Index'));
+
+
+Route::get('/payment/thank-you', function () {
+    return inertia('Payment/ThankYou');
+});
+
+Route::get('/billing', function () {
+    return inertia('Billing/Index');
+});
+
+Route::get('/invoices', function () {
+    return inertia('Billing/Invoices');
+});
+
+Route::get('/payouts', function () {
+    return inertia('Billing/Payouts');
+});
+
 
 Route::resource("users", UserController::class);
 Route::get('/search', [SearchController::class, 'index'])->name('search.index');
