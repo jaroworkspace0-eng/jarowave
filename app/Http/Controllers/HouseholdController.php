@@ -258,11 +258,14 @@ class HouseholdController extends Controller
     // ── Private ───────────────────────────────────────────────────────────────
     private function initiatePayment(User $user, string $gateway): string
     {
-        // TODO: replace with real PayFast/Ozow payment initiation
-        if ($gateway === 'payfast') {
-            return 'https://sandbox.payfast.co.za/eng/process';
-        }
 
-        return 'https://pay.ozow.com';
+        return 'pending';
+
+        // TODO: replace with real PayFast/Ozow payment initiation
+        // if ($gateway === 'payfast') {
+        //     return 'https://sandbox.payfast.co.za/eng/process';
+        // }
+
+        // return 'https://pay.ozow.com';
     }
 }
