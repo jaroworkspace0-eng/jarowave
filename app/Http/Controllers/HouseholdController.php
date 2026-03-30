@@ -83,6 +83,7 @@ class HouseholdController extends Controller
             'role'       => 'household',
             'occupation' => 'household',
             'is_active'  => true,
+            'status'     => 'offline',
         ]);
 
         // Create employee record — mirrors the manual add flow
