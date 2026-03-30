@@ -107,7 +107,7 @@ class HouseholdController extends Controller
         Subscription::create([
             'user_id'       => $user->id,
             'client_id'     => $invite->client_id,
-            'status'        => 'pending',
+            'status'        => 'trialing',
             'gateway'       => $request->gateway,
             'plan'          => 'household',
             'billing_cycle' => 'monthly',
