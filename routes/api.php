@@ -145,11 +145,12 @@ Route::get('/household/invite/{token}', [InviteController::class, 'validate']);
 Route::post('/household/login', [HouseholdController::class, 'login']);
 Route::post('/household/register', [HouseholdController::class, 'register']);
 Route::get('/household/invite/{token}', [HouseholdController::class, 'validateInvite']);
-Route::get('/household/payment-url', [HouseholdController::class, 'paymentUrl']);
+
 
 
 // Household routes (require auth)
 Route::middleware('auth:sanctum')->prefix('household')->group(function () {
+    Route::get('/household/payment-url', [HouseholdController::class, 'paymentUrl']);
     Route::get('/subscription', [HouseholdController::class, 'subscription']);
     Route::post('/subscription/cancel', [HouseholdController::class, 'cancelSubscription']);
     Route::get('/invoices', [HouseholdController::class, 'invoices']);
