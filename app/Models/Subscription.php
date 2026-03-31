@@ -24,6 +24,9 @@ class Subscription extends Model
         'current_period_end',
         'cancelled_at',
         'ends_at', 
+        'merchant_reference',
+        'payfast_token',
+        'gateway_status',
     ];
 
     protected $casts = [
