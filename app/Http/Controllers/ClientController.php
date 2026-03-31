@@ -87,7 +87,7 @@ class ClientController extends Controller
             'original_price'       => $price['original'] / 100, // convert cents to dollars
             'discount_amount'      => $price['discount_amount'] / 100, // convert cents to dollars,
             'discount_percentage'  => $price['discount_percentage'],
-            'trial_ends_at'        => now()->addDays(14),
+            'trial_ends_at'        => now()->addDays(30),
             'current_period_start' => now(),
             'current_period_end'   => $billingCycle === 'annual' ? now()->addYear() : now()->addMonth(),
         ]);
@@ -188,7 +188,7 @@ class ClientController extends Controller
             'original_price'       => $price['original'] / 100, // convert cents to dollars
             'discount_amount'      => $price['discount_amount'] / 100, // convert cents to dollars,
             'discount_percentage'  => $price['discount_percentage'],
-            'trial_ends_at'        => now()->addDays(14),
+            'trial_ends_at'        => now()->addDays(30),
             'current_period_start' => now(),
             'current_period_end'   => $billingCycle === 'annual' ? now()->addYear() : now()->addMonth(),
         ]);

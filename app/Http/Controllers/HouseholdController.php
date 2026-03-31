@@ -9,6 +9,7 @@ use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use App\Services\PayFastService;
 
 class HouseholdController extends Controller
 {
@@ -49,6 +50,8 @@ class HouseholdController extends Controller
     // ── POST /api/household/register ──────────────────────────────────────────
     public function register(Request $request)
     {
+        $request->headers->set('Accept', 'application/json');
+ 
         $request->validate([
             'invite_token' => 'required|string',
             'name'         => 'required|string|max:255',
@@ -57,23 +60,23 @@ class HouseholdController extends Controller
             'password'     => 'required|string|min:8|confirmed',
             'gateway'      => 'required|in:payfast,ozow',
         ]);
-
+ 
         $invite = HouseholdInvite::where('token', $request->invite_token)
             ->with('client.user')
             ->first();
-
+ 
         if (!$invite) {
             return response()->json(['message' => 'Invalid invite link.'], 422);
         }
-
+ 
         if ($invite->expires_at && $invite->expires_at->isPast()) {
             return response()->json(['message' => 'This invite link has expired.'], 422);
         }
-
+ 
         if ($invite->max_uses && $invite->uses >= $invite->max_uses) {
             return response()->json(['message' => 'This invite link has reached its limit.'], 422);
         }
-
+ 
         // Create user
         $user = User::create([
             'name'       => $request->name,
@@ -85,13 +88,13 @@ class HouseholdController extends Controller
             'is_active'  => true,
             'status'     => 'offline',
         ]);
-
-        // Create employee record — mirrors the manual add flow
+ 
+        // Create employee record
         $employee = Employee::create([
             'user_id'   => $user->id,
             'client_id' => $invite->client_id,
         ]);
-
+ 
         // Assign to channel from invite
         if ($invite->channel_id) {
             $employee->channels()->attach($invite->channel_id, [
@@ -99,22 +102,31 @@ class HouseholdController extends Controller
                 'last_seen' => now(),
             ]);
         }
-
+ 
         // Increment invite usage
         $invite->increment('uses');
-
-        // Create subscription
-        Subscription::create([
-            'user_id'       => $user->id,
-            'client_id'     => $invite->client_id,
-            'status'        => 'trialing',
-            'gateway'       => $request->gateway,
-            'price'         => 8000,
+ 
+        // Generate unique merchant reference for this subscription
+        $merchantReference = 'HH-' . $user->id . '-' . time();
+ 
+        // Create subscription record (trialing — PayFast will activate on first charge)
+        $subscription = Subscription::create([
+            'user_id'              => $user->id,
+            'client_id'            => $invite->client_id,
+            'status'               => 'trialing',
+            'gateway'              => $request->gateway,
+            'plan'                 => 'household_monthly',
+            'billing_cycle'        => 'monthly',
+            'price'                => 8000,
+            'trial_ends_at'        => now()->addDays(30),
+            'merchant_reference'   => $merchantReference,
         ]);
-
+ 
         $token = $user->createToken('household-token')->plainTextToken;
-        $redirectUrl = $this->initiatePayment($user, $request->gateway);
-
+ 
+        // Build PayFast payment URL
+        $redirectUrl = $this->initiatePayment($user, $request->gateway, $merchantReference);
+ 
         return response()->json([
             'token'        => $token,
             'user'         => [
@@ -125,6 +137,29 @@ class HouseholdController extends Controller
             'redirect_url' => $redirectUrl,
         ]);
     }
+ 
+    // ── Private: initiate PayFast subscription ────────────────────────────────
+    private function initiatePayment(User $user, string $gateway, string $merchantReference): string
+    {
+        if ($gateway === 'payfast') {
+            $payfast = new PayFastService();
+ 
+            return $payfast->buildSubscriptionUrl([
+                'name_first'    => explode(' ', $user->name)[0],
+                'name_last'     => explode(' ', $user->name, 2)[1] ?? '',
+                'email_address' => $user->email,
+                'cell_number'   => $user->phone ?? '',
+                'm_payment_id'  => $merchantReference,
+                'item_name'     => 'Echo Link Community Protection',
+                'item_description' => '30-day free trial then R80/month neighbourhood watch subscription',
+            ]);
+        }
+ 
+        // Ozow — not recurring, redirect to dashboard for now
+        // TODO: implement Ozow recurring when available
+        return 'dashboard';
+    }
+ 
 
     // ── GET /api/household/invite/{token} ─────────────────────────────────────
     public function validateInvite($token)
@@ -260,17 +295,5 @@ class HouseholdController extends Controller
         return response()->json(['message' => 'Invoice sent to ' . $request->user()->email]);
     }
 
-    // ── Private ───────────────────────────────────────────────────────────────
-    private function initiatePayment(User $user, string $gateway): string
-    {
-
-        return 'pending';
-
-        // TODO: replace with real PayFast/Ozow payment initiation
-        // if ($gateway === 'payfast') {
-        //     return 'https://sandbox.payfast.co.za/eng/process';
-        // }
-
-        // return 'https://pay.ozow.com';
-    }
+    
 }

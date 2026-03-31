@@ -79,7 +79,7 @@ class PaymentSeeder extends Seeder
                 'original_price'       => $p['original'],
                 'discount_amount'      => $p['discount'],
                 'discount_percentage'  => $p['pct'],
-                'trial_ends_at'        => $periodStart->copy()->subDays(14),
+                'trial_ends_at'        => $periodStart->copy()->subDays(30),
                 'current_period_start' => $periodStart,
                 'current_period_end'   => $periodEnd,
             ]);
