@@ -201,20 +201,22 @@ class HouseholdController extends Controller
         }
 
         return response()->json([
-            'subscription' => [
-                'status'               => $subscription->status,
-                'plan'                 => $subscription->plan,
-                'gateway'              => $subscription->gateway,
-                'billing_cycle'        => $subscription->billing_cycle,
-                'current_period_start' => $subscription->current_period_start,
-                'current_period_end'   => $subscription->current_period_end,
-                'ends_at'              => $subscription->ends_at,
-                'days_left_in_trial'   => $subscription->daysLeftInTrial(),
-                'watch_group'          => $subscription->client ? [
-                    'organisation_name' => $subscription->client->user->organisation_name,
-                ] : null,
-            ],
-        ]);
+        'subscription' => [
+            'status'               => $subscription->status,
+            'plan'                 => $subscription->plan,
+            'gateway'              => $subscription->gateway,
+            'payfast_token'        => $subscription->payfast_token, // ← add this
+            'trial_ends_at'        => $subscription->trial_ends_at,
+            'billing_cycle'        => $subscription->billing_cycle,
+            'current_period_start' => $subscription->current_period_start,
+            'current_period_end'   => $subscription->current_period_end,
+            'ends_at'              => $subscription->ends_at,
+            'days_left_in_trial'   => $subscription->daysLeftInTrial(),
+            'watch_group'          => $subscription->client ? [
+                'organisation_name' => $subscription->client->user->organisation_name,
+            ] : null,
+        ],
+    ]);
     }
 
     // ── POST /api/household/subscription/cancel ───────────────────────────────

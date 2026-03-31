@@ -145,6 +145,7 @@ Route::get('/household/invite/{token}', [InviteController::class, 'validate']);
 Route::post('/household/login', [HouseholdController::class, 'login']);
 Route::post('/household/register', [HouseholdController::class, 'register']);
 Route::get('/household/invite/{token}', [HouseholdController::class, 'validateInvite']);
+Route::get('/household/payment-url', [HouseholdController::class, 'paymentUrl']);
 
 
 // Household routes (require auth)
