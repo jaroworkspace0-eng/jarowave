@@ -56,39 +56,23 @@ const employees = ref<any>({ data: [], from: 0, to: 0, total: 0, links: [] });
 const clientOrgType = computed(() => {
     // Get org type from the first household's subscription client_type
     // or fall back from the employees list if available
-    const first = householdList.value.find(e => e.user?.subscription?.client_type)
-    return first?.user?.subscription?.client_type ?? 'watch'
-})
-
-const unitPrice = computed(() => 80)
-
-const clientShare = computed(() => clientOrgType.value === 'estate' ? 30 : 52)
-
-const platformShare = computed(() => clientOrgType.value === 'estate' ? 50 : 28)
-
-// Earnings strip computed values
-const activeHouseholds = computed(() =>
-    householdList.value.filter(e => e.user.subscription?.status === 'active').length
-)
-
-const trialingHouseholds = computed(() =>
-    householdList.value.filter(e => e.user.subscription?.status === 'trialing').length
-)
-
-
-const personnelList = computed(() =>
-    employeesList.value.filter((e) => !isHouseholdRole(e.user.occupation)),
-);
-const householdList = computed(() =>
-    employeesList.value.filter((e) => isHouseholdRole(e.user.occupation)),
-);
-
-// Channels that don't yet have an invite link
-const channelsWithoutInvite = computed(() => {
-    const usedChannelIds = new Set(invites.value.map((i) => i.channel_id));
-    return clientChannels.value.filter((ch) => !usedChannelIds.has(ch.id));
+    const first = householdList.value.find(
+        (e) => e.user?.subscription?.client_type,
+    );
+    return first?.user?.subscription?.client_type ?? 'watch';
 });
 
+const unitPrice = computed(() => 80);
+
+const clientShare = computed(() =>
+    clientOrgType.value === 'estate' ? 30 : 52,
+);
+
+const platformShare = computed(() =>
+    clientOrgType.value === 'estate' ? 50 : 28,
+);
+
+// Earnings strip computed values
 const activeHouseholds = computed(
     () =>
         householdList.value.filter(
@@ -102,6 +86,19 @@ const trialingHouseholds = computed(
             (e) => e.user.subscription?.status === 'trialing',
         ).length,
 );
+
+const personnelList = computed(() =>
+    employeesList.value.filter((e) => !isHouseholdRole(e.user.occupation)),
+);
+const householdList = computed(() =>
+    employeesList.value.filter((e) => isHouseholdRole(e.user.occupation)),
+);
+
+// Channels that don't yet have an invite link
+const channelsWithoutInvite = computed(() => {
+    const usedChannelIds = new Set(invites.value.map((i) => i.channel_id));
+    return clientChannels.value.filter((ch) => !usedChannelIds.has(ch.id));
+});
 
 // ─── address search ───────────────────────────────────────────────────────────
 let sessionToken: any = null;
@@ -1118,26 +1115,68 @@ const hideSuggestions = () => {
                 </div>
                 <!-- EARNINGS STRIP -->
                 <div class="mb-6 grid grid-cols-4 gap-3">
-    <div class="rounded-xl bg-gray-900 p-4 text-center">
-        <div class="text-xl font-bold text-white">{{ householdList.length }}</div>
-        <div class="mt-1 text-xs text-gray-400">Registered</div>
-        <div class="text-xs text-orange-400 mt-0.5">{{ trialingHouseholds }} on trial</div>
-    </div>
-    <div class="rounded-xl bg-gray-900 p-4 text-center">
-        <div class="text-xl font-bold text-green-400">{{ activeHouseholds }}</div>
-        <div class="mt-1 text-xs text-gray-400">Active & Paying</div>
-    </div>
-    <div class="rounded-xl bg-gray-900 p-4 text-center">
-        <div class="text-xl font-bold text-orange-400">R{{ (activeHouseholds * clientShare).toLocaleString() }}</div>
-        <div class="mt-1 text-xs text-gray-400">Actual Monthly Earnings</div>
-        <div class="text-xs text-gray-500 mt-0.5">R{{ (householdList.length * clientShare).toLocaleString() }} projected</div>
-    </div>
-    <div class="rounded-xl bg-gray-900 p-4 text-center">
-        <div class="text-xl font-bold text-green-400">R{{ (activeHouseholds * clientShare * 12).toLocaleString() }}</div>
-        <div class="mt-1 text-xs text-gray-400">Actual Annual Earnings</div>
-        <div class="text-xs text-gray-500 mt-0.5">R{{ (householdList.length * clientShare * 12).toLocaleString() }} projected</div>
-    </div>
-</div>
+                    <div class="rounded-xl bg-gray-900 p-4 text-center">
+                        <div class="text-xl font-bold text-white">
+                            {{ householdList.length }}
+                        </div>
+                        <div class="mt-1 text-xs text-gray-400">Registered</div>
+                        <div class="mt-0.5 text-xs text-orange-400">
+                            {{ trialingHouseholds }} on trial
+                        </div>
+                    </div>
+                    <div class="rounded-xl bg-gray-900 p-4 text-center">
+                        <div class="text-xl font-bold text-green-400">
+                            {{ activeHouseholds }}
+                        </div>
+                        <div class="mt-1 text-xs text-gray-400">
+                            Active & Paying
+                        </div>
+                    </div>
+                    <div class="rounded-xl bg-gray-900 p-4 text-center">
+                        <div class="text-xl font-bold text-orange-400">
+                            R{{
+                                (
+                                    activeHouseholds * clientShare
+                                ).toLocaleString()
+                            }}
+                        </div>
+                        <div class="mt-1 text-xs text-gray-400">
+                            Actual Monthly Earnings
+                        </div>
+                        <div class="mt-0.5 text-xs text-gray-500">
+                            R{{
+                                (
+                                    householdList.length * clientShare
+                                ).toLocaleString()
+                            }}
+                            projected
+                        </div>
+                    </div>
+                    <div class="rounded-xl bg-gray-900 p-4 text-center">
+                        <div class="text-xl font-bold text-green-400">
+                            R{{
+                                (
+                                    activeHouseholds *
+                                    clientShare *
+                                    12
+                                ).toLocaleString()
+                            }}
+                        </div>
+                        <div class="mt-1 text-xs text-gray-400">
+                            Actual Annual Earnings
+                        </div>
+                        <div class="mt-0.5 text-xs text-gray-500">
+                            R{{
+                                (
+                                    householdList.length *
+                                    clientShare *
+                                    12
+                                ).toLocaleString()
+                            }}
+                            projected
+                        </div>
+                    </div>
+                </div>
 
                 <!-- HOUSEHOLDS TABLE -->
                 <div class="overflow-x-auto rounded-xl border border-gray-200">
@@ -1317,14 +1356,20 @@ const hideSuggestions = () => {
                                     <span v-else class="text-gray-400">—</span>
                                 </td>
                                 <td class="p-4 font-semibold text-gray-900">
-    R{{ unitPrice }}
-</td>
-<td class="p-4 font-bold text-green-600">
-    R{{ clientShare }}
-    <div class="text-[10px] text-gray-400 font-normal">
-        {{ clientOrgType === 'estate' ? 'Estate rate' : 'Watch rate' }}
-    </div>
-</td>
+                                    R{{ unitPrice }}
+                                </td>
+                                <td class="p-4 font-bold text-green-600">
+                                    R{{ clientShare }}
+                                    <div
+                                        class="text-[10px] font-normal text-gray-400"
+                                    >
+                                        {{
+                                            clientOrgType === 'estate'
+                                                ? 'Estate rate'
+                                                : 'Watch rate'
+                                        }}
+                                    </div>
+                                </td>
                                 <td class="p-4">
                                     <div class="flex flex-col gap-1.5">
                                         <!-- Account active/deactivated -->
