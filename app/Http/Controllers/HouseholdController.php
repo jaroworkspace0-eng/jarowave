@@ -115,7 +115,7 @@ class HouseholdController extends Controller
             'client_id'            => $invite->client_id,
             'status'               => 'trialing',
             'gateway'              => $request->gateway,
-            'plan'                 => 'household_monthly',
+            'plan'                 => null,
             'billing_cycle'        => 'monthly',
             'price'                => 8000,
             'trial_ends_at'        => now()->addDays(30),
