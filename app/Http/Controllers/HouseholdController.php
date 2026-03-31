@@ -295,5 +295,50 @@ class HouseholdController extends Controller
         return response()->json(['message' => 'Invoice sent to ' . $request->user()->email]);
     }
 
+
+     public function paymentUrl(Request $request)
+    {
+        $user         = $request->user();
+        $subscription = Subscription::where('user_id', $user->id)->latest()->first();
+
+        if (!$subscription) {
+            return response()->json(['message' => 'No subscription found.'], 404);
+        }
+
+        $payfast = new \App\Services\PayFastService();
+
+        // If they already have a PayFast token — send them to update their card
+        if ($subscription->payfast_token) {
+            return response()->json([
+                'url'  => 'https://www.payfast.co.za/eng/recurring/update/' . $subscription->payfast_token,
+                'type' => 'update',
+            ]);
+        }
+
+        // No token yet (admin-added household) — initiate a fresh PayFast subscription
+        $merchantReference = $subscription->merchant_reference
+            ?? ('HH-' . $user->id . '-' . time());
+
+        // Save merchant reference if it was missing
+        if (!$subscription->merchant_reference) {
+            $subscription->update(['merchant_reference' => $merchantReference]);
+        }
+
+        $url = $payfast->buildSubscriptionUrl([
+            'name_first'       => explode(' ', $user->name)[0],
+            'name_last'        => explode(' ', $user->name, 2)[1] ?? '',
+            'email_address'    => $user->email,
+            'cell_number'      => $user->phone ?? '',
+            'm_payment_id'     => $merchantReference,
+            'item_name'        => 'Echo Link Community Protection',
+            'item_description' => '30-day free trial then R80/month neighbourhood watch subscription',
+        ]);
+
+        return response()->json([
+            'url'  => $url,
+            'type' => 'new',
+        ]);
+    }
+
     
 }
