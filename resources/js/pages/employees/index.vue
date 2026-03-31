@@ -1180,6 +1180,11 @@ const hideSuggestions = () => {
                                 <th
                                     class="border-b border-gray-200 p-4 font-sans text-xs font-bold tracking-wide text-gray-500 uppercase"
                                 >
+                                    Trial Ends
+                                </th>
+                                <th
+                                    class="border-b border-gray-200 p-4 font-sans text-xs font-bold tracking-wide text-gray-500 uppercase"
+                                >
                                     Monthly Fee
                                 </th>
                                 <th
@@ -1262,6 +1267,60 @@ const hideSuggestions = () => {
                                         class="rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700 capitalize"
                                         >{{ employee.user.occupation }}</span
                                     >
+                                </td>
+                                <td class="p-4 text-xs text-gray-600">
+                                    <div
+                                        v-if="
+                                            employee.user.subscription
+                                                ?.status === 'trialing' &&
+                                            employee.user.subscription
+                                                ?.trial_ends_at
+                                        "
+                                    >
+                                        <div
+                                            :class="[
+                                                'font-semibold',
+                                                new Date(
+                                                    employee.user.subscription.trial_ends_at,
+                                                ) <
+                                                new Date(
+                                                    Date.now() +
+                                                        7 * 24 * 60 * 60 * 1000,
+                                                )
+                                                    ? 'text-red-600' // expiring within 7 days
+                                                    : 'text-gray-700',
+                                            ]"
+                                        >
+                                            {{
+                                                new Date(
+                                                    employee.user.subscription.trial_ends_at,
+                                                ).toLocaleDateString('en-ZA', {
+                                                    day: 'numeric',
+                                                    month: 'short',
+                                                    year: 'numeric',
+                                                })
+                                            }}
+                                        </div>
+                                        <div class="text-gray-400">
+                                            {{
+                                                Math.max(
+                                                    0,
+                                                    Math.ceil(
+                                                        (new Date(
+                                                            employee.user.subscription.trial_ends_at,
+                                                        ) -
+                                                            new Date()) /
+                                                            (1000 *
+                                                                60 *
+                                                                60 *
+                                                                24),
+                                                    ),
+                                                )
+                                            }}
+                                            days left
+                                        </div>
+                                    </div>
+                                    <span v-else class="text-gray-400">—</span>
                                 </td>
                                 <td class="p-4 font-semibold text-gray-900">
                                     R80
