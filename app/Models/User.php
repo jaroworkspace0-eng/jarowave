@@ -85,4 +85,9 @@ class User extends Authenticatable
     {
         return $this->belongsToMany(Channel::class, 'channel_employee');
     }
+
+    public function subscription()
+    {
+        return $this->hasOne(Subscription::class)->latest();
+    }
 }

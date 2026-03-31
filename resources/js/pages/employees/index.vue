@@ -65,6 +65,20 @@ const channelsWithoutInvite = computed(() => {
     return clientChannels.value.filter((ch) => !usedChannelIds.has(ch.id));
 });
 
+const activeHouseholds = computed(
+    () =>
+        householdList.value.filter(
+            (e) => e.user.subscription?.status === 'active',
+        ).length,
+);
+
+const trialingHouseholds = computed(
+    () =>
+        householdList.value.filter(
+            (e) => e.user.subscription?.status === 'trialing',
+        ).length,
+);
+
 // ─── address search ───────────────────────────────────────────────────────────
 let sessionToken: any = null;
 
@@ -1080,33 +1094,45 @@ const hideSuggestions = () => {
                     will only include households with an active paid
                     subscription after their 30-day trial ends.
                 </div>
+                <!-- EARNINGS STRIP -->
                 <div class="mb-6 grid grid-cols-4 gap-3">
                     <div class="rounded-xl bg-gray-900 p-4 text-center">
                         <div class="text-xl font-bold text-white">
                             {{ householdList.length }}
                         </div>
-                        <div class="mt-1 text-xs text-gray-400">
-                            Registered Households
-                        </div>
-                    </div>
-                    <div class="rounded-xl bg-gray-900 p-4 text-center">
-                        <div class="text-xl font-bold text-orange-400">
-                            R{{ (householdList.length * 52).toLocaleString() }}
-                        </div>
-                        <div class="mt-1 text-xs text-gray-400">
-                            Projected Monthly
-                        </div>
-                    </div>
-                    <div class="rounded-xl bg-gray-900 p-4 text-center">
-                        <div class="text-xl font-bold text-white">
-                            R{{ (householdList.length * 80).toLocaleString() }}
-                        </div>
-                        <div class="mt-1 text-xs text-gray-400">
-                            Projected Collected
+                        <div class="mt-1 text-xs text-gray-400">Registered</div>
+                        <div class="mt-0.5 text-xs text-orange-400">
+                            {{ trialingHouseholds }} on trial
                         </div>
                     </div>
                     <div class="rounded-xl bg-gray-900 p-4 text-center">
                         <div class="text-xl font-bold text-green-400">
+                            {{ activeHouseholds }}
+                        </div>
+                        <div class="mt-1 text-xs text-gray-400">
+                            Active & Paying
+                        </div>
+                    </div>
+                    <div class="rounded-xl bg-gray-900 p-4 text-center">
+                        <div class="text-xl font-bold text-orange-400">
+                            R{{ (activeHouseholds * 52).toLocaleString() }}
+                        </div>
+                        <div class="mt-1 text-xs text-gray-400">
+                            Actual Monthly Earnings
+                        </div>
+                        <div class="mt-0.5 text-xs text-gray-500">
+                            R{{ (householdList.length * 52).toLocaleString() }}
+                            projected
+                        </div>
+                    </div>
+                    <div class="rounded-xl bg-gray-900 p-4 text-center">
+                        <div class="text-xl font-bold text-green-400">
+                            R{{ (activeHouseholds * 52 * 12).toLocaleString() }}
+                        </div>
+                        <div class="mt-1 text-xs text-gray-400">
+                            Actual Annual Earnings
+                        </div>
+                        <div class="mt-0.5 text-xs text-gray-500">
                             R{{
                                 (
                                     householdList.length *
@@ -1114,9 +1140,7 @@ const hideSuggestions = () => {
                                     12
                                 ).toLocaleString()
                             }}
-                        </div>
-                        <div class="mt-1 text-xs text-gray-400">
-                            Projected Annual
+                            projected
                         </div>
                     </div>
                 </div>
@@ -1246,25 +1270,76 @@ const hideSuggestions = () => {
                                     R52
                                 </td>
                                 <td class="p-4">
-                                    <button
-                                        @click="toggleStatus(employee)"
-                                        class="transition-transform active:scale-95"
-                                    >
+                                    <div class="flex flex-col gap-1.5">
+                                        <!-- Account active/deactivated -->
+                                        <button
+                                            @click="toggleStatus(employee)"
+                                            class="transition-transform active:scale-95"
+                                        >
+                                            <span
+                                                :class="[
+                                                    'cursor-pointer rounded-full px-2 py-1 text-xs font-bold uppercase',
+                                                    employee.user.is_active
+                                                        ? 'border border-green-500/30 bg-green-500/20 text-green-900'
+                                                        : 'border border-red-500/30 bg-red-500/20 text-red-900',
+                                                ]"
+                                            >
+                                                {{
+                                                    employee.user.is_active
+                                                        ? 'Active'
+                                                        : 'Deactivated'
+                                                }}
+                                            </span>
+                                        </button>
+                                        <!-- Subscription status -->
                                         <span
+                                            v-if="employee.user.subscription"
                                             :class="[
-                                                'cursor-pointer rounded-full px-2 py-1 text-xs font-bold uppercase',
-                                                employee.user.is_active
-                                                    ? 'border border-green-500/30 bg-green-500/20 text-green-900'
-                                                    : 'border border-red-500/30 bg-red-500/20 text-red-900',
+                                                'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase',
+                                                {
+                                                    'border border-green-200 bg-green-100 text-green-700':
+                                                        employee.user
+                                                            .subscription
+                                                            .status ===
+                                                        'active',
+                                                    'border border-orange-200 bg-orange-100 text-orange-700':
+                                                        employee.user
+                                                            .subscription
+                                                            .status ===
+                                                        'trialing',
+                                                    'border border-red-200 bg-red-100 text-red-700':
+                                                        employee.user
+                                                            .subscription
+                                                            .status ===
+                                                        'past_due',
+                                                    'border border-gray-200 bg-gray-100 text-gray-500':
+                                                        employee.user
+                                                            .subscription
+                                                            .status ===
+                                                        'cancelled',
+                                                },
                                             ]"
                                         >
                                             {{
-                                                employee.user.is_active
-                                                    ? 'Active'
-                                                    : 'Deactivated'
+                                                {
+                                                    active: '✓ Paying',
+                                                    trialing: '⏳ Trial',
+                                                    past_due: '⚠ Overdue',
+                                                    cancelled: 'Cancelled',
+                                                }[
+                                                    employee.user.subscription
+                                                        .status
+                                                ] ??
+                                                employee.user.subscription
+                                                    .status
                                             }}
                                         </span>
-                                    </button>
+                                        <span
+                                            v-else
+                                            class="text-[10px] text-gray-400"
+                                            >No subscription</span
+                                        >
+                                    </div>
                                 </td>
                                 <td class="p-2">
                                     <div class="flex items-center gap-1">

@@ -53,7 +53,7 @@ public function index(Request $request)
     $status = $request->query('status');
     $user   = Auth::user();
 
-    $query = Employee::with(['channels', 'client.user', 'user'])
+    $query = Employee::with(['channels', 'client.user', 'user', 'user.subscription'])
         ->when($status, function ($query, $status) {
             return $query->whereHas('user', function ($q) use ($status) {
                 $q->where('status', $status);
