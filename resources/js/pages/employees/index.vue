@@ -1071,13 +1071,22 @@ const hideSuggestions = () => {
                 </div>
 
                 <!-- EARNINGS STRIP -->
+                <!-- EARNINGS STRIP -->
+                <div
+                    class="mb-4 rounded-lg border border-amber-100 bg-amber-50 px-4 py-2.5 text-xs text-amber-700"
+                >
+                    ⚠ Earnings below reflect
+                    <strong>all registered households</strong>. Actual payouts
+                    will only include households with an active paid
+                    subscription after their 30-day trial ends.
+                </div>
                 <div class="mb-6 grid grid-cols-4 gap-3">
                     <div class="rounded-xl bg-gray-900 p-4 text-center">
                         <div class="text-xl font-bold text-white">
                             {{ householdList.length }}
                         </div>
                         <div class="mt-1 text-xs text-gray-400">
-                            Total Households
+                            Registered Households
                         </div>
                     </div>
                     <div class="rounded-xl bg-gray-900 p-4 text-center">
@@ -1085,7 +1094,7 @@ const hideSuggestions = () => {
                             R{{ (householdList.length * 52).toLocaleString() }}
                         </div>
                         <div class="mt-1 text-xs text-gray-400">
-                            Your Monthly Earnings
+                            Projected Monthly
                         </div>
                     </div>
                     <div class="rounded-xl bg-gray-900 p-4 text-center">
@@ -1093,7 +1102,7 @@ const hideSuggestions = () => {
                             R{{ (householdList.length * 80).toLocaleString() }}
                         </div>
                         <div class="mt-1 text-xs text-gray-400">
-                            Total Collected
+                            Projected Collected
                         </div>
                     </div>
                     <div class="rounded-xl bg-gray-900 p-4 text-center">
@@ -1107,7 +1116,7 @@ const hideSuggestions = () => {
                             }}
                         </div>
                         <div class="mt-1 text-xs text-gray-400">
-                            Annual Earnings
+                            Projected Annual
                         </div>
                     </div>
                 </div>
