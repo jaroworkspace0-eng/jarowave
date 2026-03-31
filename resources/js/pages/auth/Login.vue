@@ -158,10 +158,8 @@ async function login() {
         <div class="login-right">
             <div class="login-form-wrap">
                 <div class="login-form-header">
-                    <h1 class="login-title">Admin Sign In</h1>
-                    <p class="login-sub">
-                        Access your JaroWave command dashboard
-                    </p>
+                    <h1 class="login-title">Dashboard Sign In</h1>
+                    <p class="login-sub">Access your command dashboard</p>
                 </div>
 
                 <form @submit.prevent="login" class="login-form">
