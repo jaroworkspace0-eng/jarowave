@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Http\Resources\EmployeeResource;
 use App\Models\Channel;
 use App\Models\ChannelEmployee;
+use App\Models\Client;
 use App\Models\Employee;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\BillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -219,21 +221,26 @@ public function store(Request $request)
         $employee->channel()->sync($request->channel_ids);
 
 
-        if (in_array($finalRole, ['household', 'resident'])) {
-        $merchantReference = 'HH-' . $user->id . '-' . time();
+         if (in_array($finalRole, ['household', 'resident'])) {
+            $merchantReference = 'HH-' . $user->id . '-' . time();
 
-        Subscription::create([
-            'user_id'            => $user->id,
-            'client_id'          => $client_id,
-            'status'             => 'trialing',
-            'gateway'            => 'payfast',
-            'plan'               => null,
-            'billing_cycle'      => 'monthly',
-            'price'              => 8000 / 100, // Store in dollars for consistency with other gateways
-            'trial_ends_at'      => now()->addDays(30),
-            'merchant_reference' => $merchantReference,
-        ]);
-    }
+            // Get org type from the client's user record
+            $client = Client::with('user')->find($client_id);
+            $orgType = $client?->user?->organisation_type ?? 'watch';
+
+            Subscription::create([
+                'user_id'            => $user->id,
+                'client_id'          => $client_id,
+                'client_type'        => $orgType,
+                'status'             => 'trialing',
+                'gateway'            => 'payfast',
+                'plan'               => null,
+                'billing_cycle'      => 'monthly',
+                'price'              => BillingService::UNIT_PRICE / 100,
+                'trial_ends_at'      => now()->addDays(30),
+                'merchant_reference' => $merchantReference,
+            ]);
+        }
 
         return response()->json([
             'success'  => true,

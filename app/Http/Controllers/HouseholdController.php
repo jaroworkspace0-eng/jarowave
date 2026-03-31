@@ -7,6 +7,7 @@ use App\Models\HouseholdInvite;
 use App\Models\Invoice;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\BillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use App\Services\PayFastService;
@@ -48,35 +49,38 @@ class HouseholdController extends Controller
     }
 
     // ── POST /api/household/register ──────────────────────────────────────────
-    public function register(Request $request)
+      public function register(Request $request)
     {
         $request->headers->set('Accept', 'application/json');
- 
+
         $request->validate([
             'invite_token' => 'required|string',
             'name'         => 'required|string|max:255',
             'email'        => 'required|email|unique:users,email',
-            'phone'        => 'nullable|string|max:20',
+            'phone'        => 'nullable|string|max:20|unique:users,phone',
             'password'     => 'required|string|min:8|confirmed',
             'gateway'      => 'required|in:payfast,ozow',
         ]);
- 
+
         $invite = HouseholdInvite::where('token', $request->invite_token)
             ->with('client.user')
             ->first();
- 
+
         if (!$invite) {
             return response()->json(['message' => 'Invalid invite link.'], 422);
         }
- 
+
         if ($invite->expires_at && $invite->expires_at->isPast()) {
             return response()->json(['message' => 'This invite link has expired.'], 422);
         }
- 
+
         if ($invite->max_uses && $invite->uses >= $invite->max_uses) {
             return response()->json(['message' => 'This invite link has reached its limit.'], 422);
         }
- 
+
+        // Determine org type from the client's user record
+        $orgType = $invite->client->user->organisation_type ?? 'watch';
+
         // Create user
         $user = User::create([
             'name'       => $request->name,
@@ -88,13 +92,13 @@ class HouseholdController extends Controller
             'is_active'  => true,
             'status'     => 'offline',
         ]);
- 
+
         // Create employee record
         $employee = Employee::create([
             'user_id'   => $user->id,
             'client_id' => $invite->client_id,
         ]);
- 
+
         // Assign to channel from invite
         if ($invite->channel_id) {
             $employee->channels()->attach($invite->channel_id, [
@@ -102,31 +106,32 @@ class HouseholdController extends Controller
                 'last_seen' => now(),
             ]);
         }
- 
+
         // Increment invite usage
         $invite->increment('uses');
- 
-        // Generate unique merchant reference for this subscription
+
+        // Generate unique merchant reference
         $merchantReference = 'HH-' . $user->id . '-' . time();
- 
-        // Create subscription record (trialing — PayFast will activate on first charge)
+
+        // Create subscription with correct split based on org type
         $subscription = Subscription::create([
-            'user_id'              => $user->id,
-            'client_id'            => $invite->client_id,
-            'status'               => 'trialing',
-            'gateway'              => $request->gateway,
-            'plan'                 => null,
-            'billing_cycle'        => 'monthly',
-            'price'                => 8000,
-            'trial_ends_at'        => now()->addDays(30),
-            'merchant_reference'   => $merchantReference,
+            'user_id'            => $user->id,
+            'client_id'          => $invite->client_id,
+            'client_type'        => $orgType,
+            'status'             => 'trialing',
+            'gateway'            => $request->gateway,
+            'plan'               => null,
+            'billing_cycle'      => 'monthly',
+            'price'              => BillingService::UNIT_PRICE / 100, // 80.00
+            'trial_ends_at'      => now()->addDays(30),
+            'merchant_reference' => $merchantReference,
         ]);
- 
+
         $token = $user->createToken('household-token')->plainTextToken;
- 
+
         // Build PayFast payment URL
         $redirectUrl = $this->initiatePayment($user, $request->gateway, $merchantReference);
- 
+
         return response()->json([
             'token'        => $token,
             'user'         => [
@@ -200,23 +205,29 @@ class HouseholdController extends Controller
             return response()->json(['subscription' => null]);
         }
 
+        $orgType = $subscription->client_type ?? $subscription->client?->user?->organisation_type ?? 'watch';
+        $amounts = BillingService::getDisplayAmounts($orgType);
+
         return response()->json([
-        'subscription' => [
-            'status'               => $subscription->status,
-            'plan'                 => $subscription->plan,
-            'gateway'              => $subscription->gateway,
-            'payfast_token'        => $subscription->payfast_token, // ← add this
-            'trial_ends_at'        => $subscription->trial_ends_at,
-            'billing_cycle'        => $subscription->billing_cycle,
-            'current_period_start' => $subscription->current_period_start,
-            'current_period_end'   => $subscription->current_period_end,
-            'ends_at'              => $subscription->ends_at,
-            'days_left_in_trial'   => $subscription->daysLeftInTrial(),
-            'watch_group'          => $subscription->client ? [
-                'organisation_name' => $subscription->client->user->organisation_name,
-            ] : null,
-        ],
-    ]);
+            'subscription' => [
+                'status'               => $subscription->status,
+                'plan'                 => $subscription->plan,
+                'gateway'              => $subscription->gateway,
+                'payfast_token'        => $subscription->payfast_token,
+                'client_type'          => $orgType,
+                'amounts'              => $amounts, // { total: 80, client: 52|30, platform: 28|50 }
+                'trial_ends_at'        => $subscription->trial_ends_at,
+                'billing_cycle'        => $subscription->billing_cycle,
+                'current_period_start' => $subscription->current_period_start,
+                'current_period_end'   => $subscription->current_period_end,
+                'ends_at'              => $subscription->ends_at,
+                'days_left_in_trial'   => $subscription->daysLeftInTrial(),
+                'watch_group'          => $subscription->client ? [
+                    'organisation_name' => $subscription->client->user->organisation_name,
+                    'organisation_type' => $orgType,
+                ] : null,
+            ],
+        ]);
     }
 
     // ── POST /api/household/subscription/cancel ───────────────────────────────
