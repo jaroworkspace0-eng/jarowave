@@ -150,7 +150,7 @@ Route::get('/household/invite/{token}', [HouseholdController::class, 'validateIn
 
 // Household routes (require auth)
 Route::middleware('auth:sanctum')->prefix('household')->group(function () {
-    Route::get('/household/payment-url', [HouseholdController::class, 'paymentUrl']);
+    Route::get('/payment-url', [HouseholdController::class, 'paymentUrl']);
     Route::get('/subscription', [HouseholdController::class, 'subscription']);
     Route::post('/subscription/cancel', [HouseholdController::class, 'cancelSubscription']);
     Route::get('/invoices', [HouseholdController::class, 'invoices']);
