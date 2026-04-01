@@ -119,7 +119,7 @@ const handleSubmit = async () => {
                         src="https://policy.jaroworkspace.com/echolink.png"
                         alt="Echo Link"
                     />
-                    <span>Echo<em>Link</em></span>
+                    <span>Echo <em>Link</em></span>
                 </a>
 
                 <div class="reg-left-body">
