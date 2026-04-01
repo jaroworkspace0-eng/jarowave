@@ -238,16 +238,16 @@ const handleSubmit = async () => {
                     Get in touch and we'll have your account set up within
                     <strong>24 hours</strong>.
                 </p>
-                <div class="contact-cards" style="display: none">
+                <div class="contact-cards">
                     <a
-                        href="mailto:hello@jaroworkspace.com"
+                        href="mailto:jaroworkspace0@gmail.com"
                         class="contact-card"
                     >
                         <span class="contact-card-icon">✉️</span>
                         <div>
                             <div class="contact-card-title">Email us</div>
                             <div class="contact-card-val">
-                                hello@jaroworkspace.com
+                                jaroworkspace0@gmail.com
                             </div>
                         </div>
                     </a>
@@ -255,6 +255,7 @@ const handleSubmit = async () => {
                         href="https://wa.me/27000000000"
                         target="_blank"
                         class="contact-card contact-card-green"
+                        style="display: none"
                     >
                         <span class="contact-card-icon">💬</span>
                         <div>
