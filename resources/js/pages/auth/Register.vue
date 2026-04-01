@@ -114,7 +114,7 @@ const handleSubmit = async () => {
         <!-- ══════════════════════════════════════════════════════════════ -->
         <div class="reg-left">
             <div class="reg-left-inner">
-                <a href="/" class="reg-logo">
+                <a href="https://jaroworkspace.com" class="reg-logo">
                     <img
                         src="https://policy.jaroworkspace.com/echolink.png"
                         alt="Echo Link"

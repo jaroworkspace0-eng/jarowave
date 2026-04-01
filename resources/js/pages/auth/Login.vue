@@ -42,7 +42,7 @@ async function login() {
         <!-- LEFT PANEL -->
         <div class="login-left">
             <div class="login-left-inner">
-                <a href="/" class="login-logo">
+                <a href="https://jaroworkspace.com" class="login-logo">
                     <img
                         src="https://policy.jaroworkspace.com/echolink.png"
                         alt="Echo Link"
