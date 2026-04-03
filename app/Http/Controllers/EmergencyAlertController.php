@@ -165,6 +165,7 @@ class EmergencyAlertController extends Controller
         $request->validate([
             'emergency_alert_id' => 'required|exists:emergency_alerts,id',
             'responder_user_id'  => 'required|exists:users,id',
+            'responder_name'     => 'nullable|string',
             'status'             => 'required|string',
             'arrival_latitude'   => 'nullable|numeric',
             'arrival_longitude'  => 'nullable|numeric',
@@ -172,6 +173,7 @@ class EmergencyAlertController extends Controller
             'resolution_time'    => 'nullable|date',
             'response_duration'  => 'nullable|numeric',
             'distance_traveled'  => 'nullable|numeric',
+            'channel_id'         => 'nullable|exists:channels,id',
         ]);
 
         try {
@@ -192,13 +194,17 @@ class EmergencyAlertController extends Controller
 
                 // 3. Update the Resolution Record
                 $resolution->update([
-                    'status'            => $request->status,
-                    'notes'             => $request->notes,
-                    'arrival_latitude'  => $request->arrival_latitude,
-                    'arrival_longitude' => $request->arrival_longitude,
-                    // Set resolution_time ONLY if it's the final step
-                    'resolution_time'   => ($request->status === 'resolved') ? now() : $resolution->resolution_time,
-                ]);
+                'status'               => $request->status,
+                'notes'                => $request->notes,
+                'arrival_latitude'     => $request->arrival_latitude,
+                'arrival_longitude'    => $request->arrival_longitude,
+                'resolution_time'      => ($request->status === 'resolved') ? now() : $resolution->resolution_time,
+                // When responder marks resolved, set confirmation to pending — awaiting victim
+                'confirmation_status'  => ($request->status === 'resolved') ? 'pending' : null,
+                'responder_name'       => $request->responder_name ?? null,
+                'response_duration'    => $request->response_duration ?? $resolution->response_duration,
+                'distance_traveled'    => $request->distance_traveled ?? $resolution->distance_traveled,
+            ]);
 
                 // 4. Update the Parent Alert if the situation is finished
                 if (in_array($request->status, ['resolved', 'false_alarm'])) {
@@ -249,40 +255,28 @@ class EmergencyAlertController extends Controller
     public function update(Request $request, $id)
     {
         try {
-            // 1. Manually find the record
             $alert = EmergencyAlert::find($id);
 
-            $panic_alert_id = $id; // This is the ID from the route parameter
-            $responder_user_id = $request->responder_user_id; // Assuming this is passed in the request
-            $response_duration = $request->response_duration; // Assuming this is passed in the request
-            $distance_traveled = $request->distance_traveled; // Assuming this is passed in the request
-            $status = $request->status; // Assuming this is passed in the request
-            $notes = $request->notes; // Assuming this is passed in the request
-            $responder_name = $request->responder_name; // Assuming this is passed in the request
-            $resolution_time = $request->resolution_time; // Assuming this is passed in the request
-            $arrival_latitude = $request->arrival_latitude; // Assuming this is passed in the request
-            $arrival_longitude = $request->arrival_longitude; // Assuming this is passed in
-
             if (!$alert) {
-                return response()->json(['status' => 'error', 'message' => 'Alert ID not found in DB'], 404);
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => 'Alert ID not found in DB'
+                ], 404);
             }
 
-            // 2. Update the values directly
-            $alert->latitude = $request->latitude;
+            $alert->latitude  = $request->latitude;
             $alert->longitude = $request->longitude;
-            $alert->accuracy = $request->accuracy;
-            
+            $alert->accuracy  = $request->accuracy;
             $alert->save();
 
             return response()->json([
-                'status' => 'success',
+                'status'  => 'success',
                 'message' => 'GPS Synced'
             ]);
 
         } catch (\Exception $e) {
-            // This will now definitely show up in your React Native logs
             return response()->json([
-                'status' => 'error',
+                'status'  => 'error',
                 'message' => $e->getMessage()
             ], 500);
         }
@@ -345,8 +339,9 @@ class EmergencyAlertController extends Controller
         ]);
 
         $resolution = EmergencyResolution::where('emergency_alert_id', $alertId)
-                        ->latest()
-                        ->firstOrFail();
+                ->orWhere('id', $alertId)
+                ->latest()
+                ->firstOrFail();
 
         $resolution->update([
             'confirmation_status' => $request->confirmed_by === 'victim' ? 'confirmed' : 
@@ -358,9 +353,9 @@ class EmergencyAlertController extends Controller
 
         // Also mark the parent emergency alert as fully resolved
         EmergencyAlert::where('id', $alertId)->update([
-            'status'       => 'resolved',
-            'resolved_at'  => now(),
-        ]);
+        'is_resolved' => true,
+        'resolved_at' => now(),
+    ]);
 
         return response()->json([
             'success' => true,
