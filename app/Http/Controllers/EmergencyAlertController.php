@@ -140,6 +140,7 @@ class EmergencyAlertController extends Controller
                         // We store where the patroller WAS when they clicked accept
                         'start_latitude'    => $request->start_latitude,
                         'start_longitude'   => $request->start_longitude,
+                        'confirmation_status' => 'pending',
                     ]
                 );
 
@@ -333,6 +334,39 @@ class EmergencyAlertController extends Controller
     {
         EmergencyAlert::findOrFail($id)->delete();
         return response()->json(['message' => 'Alert deleted']);
+    }
+
+    public function confirm(Request $request, $alertId)
+    {
+        $request->validate([
+            'confirmed_at'   => 'required|string',
+            'confirmed_by'   => 'required|string|in:victim,timeout,forced',
+            'victim_response'=> 'nullable|string|max:500',
+        ]);
+
+        $resolution = EmergencyResolution::where('emergency_alert_id', $alertId)
+                        ->latest()
+                        ->firstOrFail();
+
+        $resolution->update([
+            'confirmation_status' => $request->confirmed_by === 'victim' ? 'confirmed' : 
+                                    ($request->confirmed_by === 'forced' ? 'confirmed' : 'auto_confirmed'),
+            'confirmed_at'        => $request->confirmed_at,
+            'confirmed_by'        => $request->confirmed_by,
+            'victim_response'     => $request->victim_response ?? null,
+        ]);
+
+        // Also mark the parent emergency alert as fully resolved
+        EmergencyAlert::where('id', $alertId)->update([
+            'status'       => 'resolved',
+            'resolved_at'  => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Resolution confirmed',
+            'data'    => $resolution,
+        ]);
     }
 
 }

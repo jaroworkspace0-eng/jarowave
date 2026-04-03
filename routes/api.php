@@ -186,6 +186,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/emergency-alerts/{alert}', [EmergencyAlertController::class, 'update']);
     Route::patch('/emergency-resolutions', [EmergencyAlertController::class, 'emergencyResolutionUpdate']);
     Route::post('/emergency/accept', [EmergencyAlertController::class, 'alertAccept']);
+    // NEW: victim confirmation endpoint
+    Route::patch('/emergency-resolutions/{alertId}/confirm', [EmergencyAlertController::class, 'confirm']);
 
     Route::get('/emergency-alerts', [EmergencyAlertController::class, 'list']);
     Route::delete('/emergency-alerts/{id}', [EmergencyAlertController::class, 'destroy']);
