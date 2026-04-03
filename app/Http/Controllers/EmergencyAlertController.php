@@ -183,7 +183,7 @@ class EmergencyAlertController extends Controller
                     ->firstOrFail();
 
                 // 2. Automated Logic for 'on_site' status
-                if ($request->status === 'on_site') {
+                if ($request->status === 'arrived') {
                     $resolution->arrival_time = now();
                     
                     // Calculate response time automatically if we have the accept time
