@@ -338,7 +338,7 @@ class EmergencyAlertController extends Controller
             'victim_response'=> 'nullable|string|max:500',
         ]);
 
-        $resolution = EmergencyResolution::where('id', $alertId)
+        $resolution = EmergencyResolution::where('emergency_alert_id', $alertId)
                 ->orWhere('id', $alertId)
                 ->latest()
                 ->firstOrFail();
