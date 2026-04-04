@@ -331,14 +331,8 @@ class EmergencyAlertController extends Controller
         return response()->json(['message' => 'Alert deleted']);
     }
 
-   public function confirm(Request $request, $alertId)
+    public function confirm(Request $request, $alertId)
     {
-        // 1. Log the raw incoming request to see what React Native is sending
-        \Log::info('Incoming Resolution Request', [
-            'alertId_from_url' => $alertId,
-            'payload' => $request->all()
-        ]);
-
         $request->validate([
             'confirmed_at'   => 'required|string',
             'confirmed_by'   => 'required|string|in:victim,timeout,forced',
@@ -349,37 +343,26 @@ class EmergencyAlertController extends Controller
                 ->latest()
                 ->firstOrFail();
 
-        // 2. Log the "Before" state
-        \Log::info('Resolution Before Update', $resolution->toArray());
 
-        $updateData = [
-            'confirmation_status' => in_array($request->confirmed_by, ['victim', 'forced']) ? 'confirmed' : 'auto_confirmed',
-            'confirmed_at'        => \Carbon\Carbon::parse($request->confirmed_at),
+        $resolution->update([
+            'confirmation_status' => $request->confirmed_by === 'victim' ? 'confirmed' : 'auto_confirmed',
+            'confirmed_at'        => Carbon::parse($request->confirmed_at), // Ensure it's a Carbon object
             'confirmed_by'        => $request->confirmed_by,
             'victim_response'     => $request->victim_response ?? null,
-        ];
-
-        $result = $resolution->update($updateData);
-
-        // 3. Log the "After" state and the result of the update call
-        \Log::info('Update Execution Result', [
-            'update_returned_true' => $result,
-            'was_changed' => $resolution->wasChanged(),
-            'changes' => $resolution->getChanges(), // Shows exactly what columns were modified
-            'current_model_state' => $resolution->refresh()->toArray() // Refresh pulls fresh from DB
         ]);
 
         if (!$resolution->wasChanged()) {
-            \Log::warning('No database changes detected for Resolution ID: ' . $alertId);
+            \Log::info('Resolution was NOT changed', [
+                'original' => $resolution->getOriginal(),
+                'request' => $request->all()
+            ]);
         }
 
-        // Commented out to isolate the Resolution update issue
-        /*
-        EmergencyAlert::where('id', $resolution->emergency_alert_id)->update([
-            'is_resolved' => true,
-            'resolved_at' => now(),
-        ]);
-        */
+        // Also mark the parent emergency alert as fully resolved
+        // EmergencyAlert::where('id', $resolution->emergency_alert_id)->update([
+        //     'is_resolved' => true,
+        //     'resolved_at' => now(),
+        // ]);
 
         return response()->json([
             'success' => true,
