@@ -207,14 +207,14 @@ class EmergencyAlertController extends Controller
             ]);
 
                 // 4. Update the Parent Alert if the situation is finished
-                if (in_array($request->status, ['resolved', 'false_alarm'])) {
-                    $alert = EmergencyAlert::findOrFail($request->emergency_alert_id);
-                    $alert->update([
-                        'is_resolved' => true,
-                        'resolved_at' => now(),
-                        'resolved_by' => $request->responder_user_id,
-                    ]);
-                }
+                // if (in_array($request->status, ['resolved', 'false_alarm'])) {
+                //     $alert = EmergencyAlert::findOrFail($request->emergency_alert_id);
+                //     $alert->update([
+                //         'is_resolved' => true,
+                //         'resolved_at' => now(),
+                //         'resolved_by' => $request->responder_user_id,
+                //     ]);
+                // }
 
                 return response()->json([
                     'status'  => 'success',
@@ -315,13 +315,13 @@ class EmergencyAlertController extends Controller
 
     public function resolve(Request $request, $id)
     {
-        $alert = EmergencyAlert::findOrFail($id);
-        $alert->update([
-            'is_resolved' => true,
-            'resolved_at' => now(),
-            'resolved_by' => auth()->id(),
-        ]);
-        return response()->json(['message' => 'Alert resolved successfully']);
+        // $alert = EmergencyAlert::findOrFail($id);
+        // $alert->update([
+        //     'is_resolved' => true,
+        //     'resolved_at' => now(),
+        //     'resolved_by' => auth()->id(),
+        // ]);
+        // return response()->json(['message' => 'Alert resolved successfully']);
     }
 
     public function destroy(string $id)
@@ -338,8 +338,7 @@ class EmergencyAlertController extends Controller
             'victim_response'=> 'nullable|string|max:500',
         ]);
 
-        $resolution = EmergencyResolution::where('emergency_alert_id', $alertId)
-                ->orWhere('id', $alertId)
+        $resolution = EmergencyResolution::where('id', $alertId)
                 ->latest()
                 ->firstOrFail();
 
@@ -352,10 +351,10 @@ class EmergencyAlertController extends Controller
         ]);
 
         // Also mark the parent emergency alert as fully resolved
-        EmergencyAlert::where('id', $alertId)->update([
-        'is_resolved' => true,
-        'resolved_at' => now(),
-    ]);
+        EmergencyAlert::where('id', $resolution->emergency_alert_id)->update([
+            'is_resolved' => true,
+            'resolved_at' => now(),
+        ]);
 
         return response()->json([
             'success' => true,
