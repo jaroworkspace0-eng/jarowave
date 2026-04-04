@@ -184,7 +184,7 @@ class EmergencyAlertController extends Controller
                     ->firstOrFail();
 
                 // 2. Automated Logic for 'on_site' status
-                if ($request->status === 'arrived') {
+                if ($request->status === 'arrived' || $request->status === 'on_site') {
                     $resolution->arrival_time = now();
                     
                     // Calculate response time automatically if we have the accept time
@@ -199,7 +199,7 @@ class EmergencyAlertController extends Controller
                 'notes'                => $request->notes,
                 'arrival_latitude'     => $request->arrival_latitude,
                 'arrival_longitude'    => $request->arrival_longitude,
-                'resolution_time' => now(),           // Keep whatever is there (usually NULL)
+                'resolution_time'      => ($request->status === 'resolved') ? now() : $resolution->resolution_time,
                 // When responder marks resolved, set confirmation to pending — awaiting victim
                 'confirmation_status'  => ($request->status === 'resolved') ? 'pending' : $resolution->confirmation_status,
                 'responder_name'       => $request->responder_name ?? null,
