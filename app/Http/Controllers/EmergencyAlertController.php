@@ -183,29 +183,31 @@ class EmergencyAlertController extends Controller
                 $resolution = EmergencyResolution::where('emergency_alert_id', $request->emergency_alert_id)
                     ->firstOrFail();
 
-                // 2. Automated Logic for 'on_site' status
-                if ($request->status === 'arrived' || $request->status === 'on_site') {
-                    $resolution->arrival_time = now();
+                // // 2. Automated Logic for 'on_site' status
+                // if ($request->status === 'arrived' || $request->status === 'on_site') {
+                //     $resolution->arrival_time = now();
                     
-                    // Calculate response time automatically if we have the accept time
-                    if ($resolution->accepted_at) {
-                        $resolution->response_duration = $resolution->accepted_at->diffInSeconds(now());
-                    }
-                }
+                //     // Calculate response time automatically if we have the accept time
+                //     if ($resolution->accepted_at) {
+                //         $resolution->response_duration = $resolution->accepted_at->diffInSeconds(now());
+                //     }
+                // }
+
+                // These are all terminal statuses — the incident is done
+                $terminalStatuses = ['resolved', 'false_alarm', 'transferred', 'cancelled'];
 
                 // 3. Update the Resolution Record
                 $resolution->update([
-                'status'               => $request->status,
-                'notes'                => $request->notes,
-                'arrival_latitude'     => $request->arrival_latitude,
-                'arrival_longitude'    => $request->arrival_longitude,
-                'resolution_time'      => ($request->status === 'resolved') ? now() : $resolution->resolution_time,
-                // When responder marks resolved, set confirmation to pending — awaiting victim
-                'confirmation_status'  => ($request->status === 'resolved') ? 'pending' : $resolution->confirmation_status,
-                'responder_name'       => $request->responder_name ?? null,
-                'response_duration'    => $request->response_duration ?? $resolution->response_duration,
-                'distance_traveled'    => $request->distance_traveled ?? $resolution->distance_traveled,
-            ]);
+                    'status'              => $request->status,
+                    'notes'               => $request->notes,
+                    'resolution_time'     => in_array($request->status, $terminalStatuses)
+                                                ? (Carbon::parse($resolution->resolution_time) ?? now()) // don't overwrite if already set
+                                                : $resolution->resolution_time,
+                    'confirmation_status' => ($request->status === 'resolved') ? 'pending' : $resolution->confirmation_status,
+                    'responder_name'      => $request->responder_name ?? $resolution->responder_name,
+                    // 'response_duration'   => $request->response_duration ?? $resolution->response_duration,
+                    'distance_traveled'   => $request->distance_traveled ?? $resolution->distance_traveled,
+                ]);
 
                 // 4. Update the Parent Alert if the situation is finished
                 if (in_array($request->status, ['resolved', 'false_alarm'])) {
@@ -223,6 +225,58 @@ class EmergencyAlertController extends Controller
                     'data'    => $resolution
                 ]);
             });
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => 'Update failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+    public function recordArrival(Request $request)
+    {
+        $request->validate([
+            'emergency_alert_id' => 'required|exists:emergency_alerts,id',
+            'responder_user_id'  => 'required|exists:users,id',
+            'arrival_latitude'   => 'nullable|numeric',
+            'arrival_longitude'  => 'nullable|numeric',
+        ]);
+
+        try {
+            
+                // 1. Find the resolution record using the Alert ID
+                $resolution = EmergencyResolution::where('emergency_alert_id', $request->emergency_alert_id)
+                    ->where('responder_user_id', $request->responder_user_id)
+                    ->firstOrFail();
+
+                // Idempotent — don't overwrite if already recorded
+                if ($resolution->arrival_time) {
+                    return response()->json([
+                        'status'  => 'already_recorded',
+                        'message' => 'Arrival already logged',
+                        'data'    => $resolution,
+                    ]);
+                }
+
+                // 3. Update the Resolution Record
+                $resolution->update([
+                    'arrival_time'       => now(), // Ensure it's a Carbon object
+                    'arrival_latitude'     => $request->arrival_latitude,
+                    'arrival_longitude'    => $request->arrival_longitude,
+                    'response_duration' => $resolution->accepted_at
+                                        ? $resolution->accepted_at->diffInSeconds(now()) // Calculate response time automatically if we have the accept time
+                                        : null, // Only calculate if we have the accept time; otherwise leave it null for now
+                ]);
+
+                return response()->json([
+                    'status'  => 'success',
+                    'message' => 'Arrival recorded',
+                    'data'    => $resolution->fresh(),
+                ]);
+
+            
 
         } catch (\Exception $e) {
             return response()->json([
