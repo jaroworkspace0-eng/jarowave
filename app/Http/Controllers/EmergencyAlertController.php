@@ -201,7 +201,7 @@ class EmergencyAlertController extends Controller
                 'arrival_longitude'    => $request->arrival_longitude,
                 'resolution_time'      => ($request->status === 'resolved') ? now() : $resolution->resolution_time,
                 // When responder marks resolved, set confirmation to pending — awaiting victim
-                'confirmation_status'  => ($request->status === 'resolved') ? 'pending' : null,
+                'confirmation_status'  => ($request->status === 'resolved') ? 'pending' : $resolution->confirmation_status,
                 'responder_name'       => $request->responder_name ?? null,
                 'response_duration'    => $request->response_duration ?? $resolution->response_duration,
                 'distance_traveled'    => $request->distance_traveled ?? $resolution->distance_traveled,
