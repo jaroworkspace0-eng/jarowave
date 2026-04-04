@@ -20,6 +20,15 @@ class EmergencyResolution extends Model
         'distance_traveled',
         'status',
         'notes',
+        'confirmation_status',
+        'confirmed_at',
+        'confirmed_by',
+        'victim_response',
+    ];
+
+
+    protected $casts = [
+        'confirmed_at' => 'datetime',
     ];
 
     public function emergencyAlert()
