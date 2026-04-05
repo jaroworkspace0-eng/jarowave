@@ -29,6 +29,8 @@ class EmergencyResolution extends Model
 
     protected $casts = [
         'confirmed_at' => 'datetime',
+        'resolution_time' => 'datetime',
+        'accepted_at'     => 'datetime',
     ];
 
     public function emergencyAlert()
