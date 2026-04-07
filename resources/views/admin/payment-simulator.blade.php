@@ -16,7 +16,7 @@
 </head>
 <body class="bg-gray-50 min-h-screen">
 
-{{-- @if(app()->environment('production'))
+@if(app()->environment('production'))
 <div class="min-h-screen flex items-center justify-center">
     <div class="bg-white border border-red-200 rounded-2xl p-10 text-center max-w-md">
         <div class="w-14 h-14 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -26,7 +26,7 @@
         <p class="text-sm text-gray-500">The payment simulator is disabled in production environments.</p>
     </div>
 </div>
-@else --}}
+@else
 
 <div class="max-w-3xl mx-auto py-12 px-6">
 
