@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountDeletionController;
+use App\Http\Controllers\Admin\PaymentSimulatorController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\BroadcastAudioController;
 use App\Http\Controllers\ChannelController;
@@ -163,6 +164,13 @@ Route::post('/webhooks/payfast/recovery', [PayfastRecoveryWebhookController::cla
 Route::post('/webhooks/ozow/recovery',    [OzowRecoveryWebhookController::class,    'handle']);
 
 Route::get('/internal/payment-failures', [PaymentRecoveryController::class, 'activeFailures']);
+
+
+// Payment simulator — non-production only
+Route::prefix('admin')->group(function () {
+    Route::get('/simulate-payment',  [PaymentSimulatorController::class, 'index']);
+    Route::post('/simulate-payment', [PaymentSimulatorController::class, 'simulate']);
+});
 
 // Household routes (require auth)
 Route::middleware('auth:sanctum')->prefix('household')->group(function () {

@@ -249,10 +249,11 @@ async function simulate(type) {
     const time = new Date().toLocaleTimeString();
 
     try {
-        const res = await fetch('/admin/simulate-payment', {
+        const res = await fetch('/api/admin/simulate-payment', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
+                'Accept': 'application/json',
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
             },
             body: JSON.stringify({ type, user_id: userId, user_name: userName, user_email: userEmail }),
