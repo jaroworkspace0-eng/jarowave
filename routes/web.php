@@ -60,6 +60,12 @@ Route::get('/payouts', function () {
 });
 
 
+Route::get('/admin/simulate-payment', function () {
+    abort_if(app()->environment('production'), 403);
+    return inertia('Admin/PaymentSimulator');
+});
+
+
 Route::resource("users", UserController::class);
 Route::get('/search', [SearchController::class, 'index'])->name('search.index');
 // });

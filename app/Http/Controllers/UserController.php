@@ -97,4 +97,15 @@ class UserController extends Controller
             ]);
 
     }
+
+    public function users()
+    {
+        abort_if(app()->environment('production'), 403);
+        
+        return response()->json(
+            User::whereIn('role', ['household', 'resident'])
+                ->orderBy('name')
+                ->get(['id', 'name', 'email'])
+        );
+    }
 }

@@ -166,11 +166,6 @@ Route::post('/webhooks/ozow/recovery',    [OzowRecoveryWebhookController::class,
 Route::get('/internal/payment-failures', [PaymentRecoveryController::class, 'activeFailures']);
 
 
-// Payment simulator — non-production only
-Route::prefix('admin')->group(function () {
-    Route::get('/simulate-payment',  [PaymentSimulatorController::class, 'index']);
-    Route::post('/simulate-payment', [PaymentSimulatorController::class, 'simulate']);
-});
 
 // Household routes (require auth)
 Route::middleware('auth:sanctum')->prefix('household')->group(function () {
@@ -196,6 +191,12 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/user', function (Request $request) {
         return $request->user();
     });
+
+
+    // Payment simulator — non-production only
+    // Route::get('/admin/simulate-payment/users', [PaymentSimulatorController::class, 'index']);
+    Route::post('/admin/simulate-payment', [PaymentSimulatorController::class, 'simulate']);
+    Route::get('/admin/simulate-payment/users', [PaymentSimulatorController::class, 'users']);
 
     // Invite management for employees to invite households/residents
     Route::get('/invite', [InviteController::class, 'show']);

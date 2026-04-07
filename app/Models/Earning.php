@@ -12,7 +12,7 @@ class Earning extends Model
         'subscription_payment_id',
         'resident_id',
         'resident_amount',
-        'commission_pct',
+        'commission_percentage',
         'earned_amount',
         'platform_amount',
         'status',
@@ -24,7 +24,7 @@ class Earning extends Model
 
     protected $casts = [
         'resident_amount'  => 'integer',
-        'commission_pct'   => 'integer',
+        'commission_percentage'   => 'integer',
         'earned_amount'    => 'integer',
         'platform_amount'  => 'integer',
         'payout_at'        => 'datetime',
@@ -111,7 +111,7 @@ class Earning extends Model
             'subscription_payment_id' => $payment->id,
             'resident_id'             => $payment->subscription->client->user_id,
             'resident_amount'         => $residentAmount,
-            'commission_pct'          => $commissionPct,
+            'commission_percentage'          => $commissionPct,
             'earned_amount'           => $earnedAmount,
             'platform_amount'         => $platformAmount,
             'status'                  => 'pending',

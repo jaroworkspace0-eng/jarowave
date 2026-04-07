@@ -234,4 +234,23 @@ class PaymentSimulatorController extends Controller
             return ['status' => 'error', 'body' => $e->getMessage()];
         }
     }
+
+
+    public function users(): \Illuminate\Http\JsonResponse
+    {
+        abort_if(app()->environment('production'), 403);
+
+        return response()->json(
+            User::whereIn('role', ['household', 'resident'])
+                ->with('subscription:id,user_id,status')
+                ->orderBy('name')
+                ->get(['id', 'name', 'email'])
+                ->map(fn($u) => [
+                    'id'                 => $u->id,
+                    'name'               => $u->name,
+                    'email'              => $u->email,
+                    'subscription_status'=> $u->subscription?->status ?? 'none',
+                ])
+        );
+    }
 }
