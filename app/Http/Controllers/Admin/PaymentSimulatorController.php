@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Earning;
+use App\Models\Invoice;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Mail\PaymentFailedMail;
@@ -57,14 +59,34 @@ class PaymentSimulatorController extends Controller
                     'sos_suspended_at'     => null,
                 ]);
 
+                $payment = $subscription->payments()->create([
+                    'gateway'               => 'payfast',
+                    'gateway_status'        => 'COMPLETE',
+                    'merchant_reference'    => 'SIM-' . now()->timestamp,
+                    'amount'                => 80.00,
+                    'amount_gross'          => 80.00,
+                    'currency'              => 'ZAR',
+                    'payer_name'            => $user->name,
+                    'payer_email'           => $user->email,
+                    'status'                => 'complete',
+                    'billing_period_start'  => now(),
+                    'billing_period_end'    => now()->addDays(30),
+                    'paid_at'               => now(),
+                    'gateway_payload'       => json_encode(['simulated' => true, 'type' => 'complete']),
+                ]);
+
+                Earning::createFromPayment($payment, $subscription->client);
+                Invoice::createFromPayment($payment);
+
                 Mail::to($user->email)->queue(new PaymentSuccessMail(
                     userName:  $user->name,
                     amount:    '80.00',
                     periodEnd: now()->addDays(30)->format('d M Y'),
                 ));
 
-                $results['email'] = 'PaymentSuccessMail queued';
-                $results['node']  = $this->notifyNode('/payment-resolved', ['userId' => $user->id]);
+                $results['payment_id'] = $payment->id;
+                $results['email']      = 'PaymentSuccessMail queued';
+                $results['node']       = $this->notifyNode('/payment-resolved', ['userId' => $user->id]);
                 break;
 
             case 'failed':
@@ -73,6 +95,20 @@ class PaymentSimulatorController extends Controller
                     'gateway_status'    => 'FAILED',
                     'payment_failed_at' => now(),
                     'sos_suspended_at'  => null,
+                ]);
+
+                $subscription->payments()->create([
+                    'gateway'            => 'payfast',
+                    'gateway_status'     => 'FAILED',
+                    'merchant_reference' => 'SIM-' . now()->timestamp,
+                    'amount'             => 80.00,
+                    'amount_gross'       => 80.00,
+                    'currency'           => 'ZAR',
+                    'payer_name'         => $user->name,
+                    'payer_email'        => $user->email,
+                    'status'             => 'failed',
+                    'failure_reason'     => 'Simulated payment failure',
+                    'gateway_payload'    => json_encode(['simulated' => true, 'type' => 'failed']),
                 ]);
 
                 Mail::to($user->email)->queue(new PaymentFailedMail(
@@ -100,12 +136,12 @@ class PaymentSimulatorController extends Controller
                 ]);
 
                 $results['node'] = $this->notifyNode('/payment-failed', [
-                    'userId'           => $user->id,
-                    'userEmail'        => $user->email,
-                    'userName'         => $user->name,
-                    'amount'           => '80.00',
-                    'reason'           => 'Simulated suspension (grace period expired)',
-                    'forceSuspend'     => true,
+                    'userId'       => $user->id,
+                    'userEmail'    => $user->email,
+                    'userName'     => $user->name,
+                    'amount'       => '80.00',
+                    'reason'       => 'Simulated suspension (grace period expired)',
+                    'forceSuspend' => true,
                 ]);
                 break;
 
@@ -115,6 +151,20 @@ class PaymentSimulatorController extends Controller
                     'gateway_status'    => 'CANCELLED',
                     'ends_at'           => $subscription->current_period_end,
                     'payment_failed_at' => now(),
+                ]);
+
+                $subscription->payments()->create([
+                    'gateway'            => 'payfast',
+                    'gateway_status'     => 'CANCELLED',
+                    'merchant_reference' => 'SIM-' . now()->timestamp,
+                    'amount'             => 80.00,
+                    'amount_gross'       => 80.00,
+                    'currency'           => 'ZAR',
+                    'payer_name'         => $user->name,
+                    'payer_email'        => $user->email,
+                    'status'             => 'cancelled',
+                    'failure_reason'     => 'Simulated cancellation',
+                    'gateway_payload'    => json_encode(['simulated' => true, 'type' => 'cancelled']),
                 ]);
 
                 Mail::to($user->email)->queue(new SubscriptionCancelledMail(
@@ -137,7 +187,27 @@ class PaymentSimulatorController extends Controller
                     'sos_suspended_at'  => null,
                 ]);
 
-                $results['node'] = $this->notifyNode('/payment-resolved', ['userId' => $user->id]);
+                $payment = $subscription->payments()->create([
+                    'gateway'              => 'payfast',
+                    'gateway_status'       => 'COMPLETE',
+                    'merchant_reference'   => 'SIM-RECOVERY-' . now()->timestamp,
+                    'amount'               => 80.00,
+                    'amount_gross'         => 80.00,
+                    'currency'             => 'ZAR',
+                    'payer_name'           => $user->name,
+                    'payer_email'          => $user->email,
+                    'status'               => 'complete',
+                    'billing_period_start' => now(),
+                    'billing_period_end'   => now()->addDays(30),
+                    'paid_at'              => now(),
+                    'gateway_payload'      => json_encode(['simulated' => true, 'type' => 'resolved']),
+                ]);
+
+                Earning::createFromPayment($payment, $subscription->client);
+                Invoice::createFromPayment($payment);
+
+                $results['payment_id'] = $payment->id;
+                $results['node']       = $this->notifyNode('/payment-resolved', ['userId' => $user->id]);
                 break;
         }
 
