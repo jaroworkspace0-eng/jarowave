@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Http;
+
 class PayFastService
 {
     private string $merchantId;
@@ -117,5 +119,19 @@ class PayFastService
         );
 
         return $response === 'VALID';
+    }
+
+    public function cancelSubscription(string $token): bool
+    {
+        $response = Http::withBasicAuth(
+            config('payfast.merchant_id'),
+            config('payfast.merchant_key'),
+        )->put("https://api.payfast.co.za/subscriptions/{$token}/cancel", [
+            'version'     => 'v1',
+            'merchant-id' => config('payfast.merchant_id'),
+            'timestamp'   => now()->toIso8601String(),
+        ]);
+
+        return $response->successful();
     }
 }

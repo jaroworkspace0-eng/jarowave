@@ -1,6 +1,6 @@
 <?php
 
-
+use App\Http\Controllers\Admin\PaymentSimulatorController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\SearchController;
 use Illuminate\Support\Facades\Mail;
@@ -59,6 +59,15 @@ Route::get('/invoices', function () {
 Route::get('/payouts', function () {
     return inertia('Billing/Payouts');
 });
+
+
+
+// Payment simulator — non-production only
+Route::prefix('admin')->group(function () {
+    Route::get('/simulate-payment',  [PaymentSimulatorController::class, 'index']);
+    Route::post('/simulate-payment', [PaymentSimulatorController::class, 'simulate']);
+});
+
 
 
 Route::resource("users", UserController::class);

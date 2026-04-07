@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\ClientWelcomeMail;
 use App\Models\Client;
 use App\Models\Employee;
 use App\Models\Subscription;
@@ -11,6 +12,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
@@ -52,8 +54,8 @@ class ClientController extends Controller
             'email'             => ['required', 'email', 'unique:users,email'],
             'organisation_name' => ['required', 'string', 'max:255'],
             'organisation_type' => ['required', 'in:watch,estate'],
-            'plan'              => ['nullable', 'required_if:organisation_type,estate', 'in:basic,standard,premium'],
-            'billing_cycle'     => ['nullable', 'in:monthly,annual'],
+            // 'plan'              => ['nullable', 'required_if:organisation_type,estate', 'in:basic,standard,premium'],
+            // 'billing_cycle'     => ['nullable', 'in:monthly,annual'],
             'password'          => ['required', 'confirmed', \Illuminate\Validation\Rules\Password::min(8)],
         ]);
 
@@ -78,19 +80,26 @@ class ClientController extends Controller
         $plan         = $validated['plan'] ?? null;
         $price        = $this->resolvePrice($plan, $billingCycle);
 
-        Subscription::create([
-            'client_id'            => $client->id,
-            'plan'                 => $plan,
-            'billing_cycle'        => $billingCycle,
-            'status'               => 'trialing',
-            'price'                => $price['discounted'] / 100, // convert cents to dollars
-            'original_price'       => $price['original'] / 100, // convert cents to dollars
-            'discount_amount'      => $price['discount_amount'] / 100, // convert cents to dollars,
-            'discount_percentage'  => $price['discount_percentage'],
-            'trial_ends_at'        => now()->addDays(30),
-            'current_period_start' => now(),
-            'current_period_end'   => $billingCycle === 'annual' ? now()->addYear() : now()->addMonth(),
-        ]);
+        // Subscription::create([
+        //     'client_id'            => $client->id,
+        //     'plan'                 => $plan,
+        //     'billing_cycle'        => $billingCycle,
+        //     'status'               => 'trialing',
+        //     'price'                => $price['discounted'] / 100, // convert cents to dollars
+        //     'original_price'       => $price['original'] / 100, // convert cents to dollars
+        //     'discount_amount'      => $price['discount_amount'] / 100, // convert cents to dollars,
+        //     'discount_percentage'  => $price['discount_percentage'],
+        //     'trial_ends_at'        => now()->addDays(30),
+        //     'current_period_start' => now(),
+        //     'current_period_end'   => $billingCycle === 'annual' ? now()->addYear() : now()->addMonth(),
+        // ]);
+
+
+        Mail::to($user->email)->queue(new ClientWelcomeMail(
+            user: $user,
+            adminCreated: false,
+            tempPassword: null,
+        ));
 
         // Issue token — same shape as your login response
         $token = $user->createToken('auth_token')->plainTextToken;
@@ -152,8 +161,8 @@ class ClientController extends Controller
             'password'          => 'required|string|min:8',
             'organisation_type' => 'required|in:watch,estate',
             'organisation_name' => 'required|string|max:255',
-            'plan'              => 'nullable|required_if:organisation_type,estate|in:basic,standard,premium',
-            'billing_cycle'     => 'nullable|in:monthly,annual',
+            // 'plan'              => 'nullable|required_if:organisation_type,estate|in:basic,standard,premium',
+            // 'billing_cycle'     => 'nullable|in:monthly,annual',
         ]);
 
         $user = User::create([
@@ -179,19 +188,29 @@ class ClientController extends Controller
         $plan         = $validated['plan'] ?? null;
         $price        = $this->resolvePrice($plan, $billingCycle);
 
-        Subscription::create([
-            'client_id'            => $client->id,
-            'plan'                 => $plan,
-            'billing_cycle'        => $billingCycle,
-            'status'               => 'trialing',
-            'price'                => $price['discounted'] / 100, // convert cents to dollars
-            'original_price'       => $price['original'] / 100, // convert cents to dollars
-            'discount_amount'      => $price['discount_amount'] / 100, // convert cents to dollars,
-            'discount_percentage'  => $price['discount_percentage'],
-            'trial_ends_at'        => now()->addDays(30),
-            'current_period_start' => now(),
-            'current_period_end'   => $billingCycle === 'annual' ? now()->addYear() : now()->addMonth(),
-        ]);
+        // Subscription::create([
+        //     'client_id'            => $client->id,
+        //     'plan'                 => $plan,
+        //     'billing_cycle'        => $billingCycle,
+        //     'status'               => 'trialing',
+        //     'price'                => $price['discounted'] / 100, // convert cents to dollars
+        //     'original_price'       => $price['original'] / 100, // convert cents to dollars
+        //     'discount_amount'      => $price['discount_amount'] / 100, // convert cents to dollars,
+        //     'discount_percentage'  => $price['discount_percentage'],
+        //     'trial_ends_at'        => now()->addDays(30),
+        //     'current_period_start' => now(),
+        //     'current_period_end'   => $billingCycle === 'annual' ? now()->addYear() : now()->addMonth(),
+        // ]);
+
+
+
+        $plainPassword = $request->password;
+
+        Mail::to($user->email)->queue(new ClientWelcomeMail(
+        user:         $user,
+        adminCreated: true,
+        tempPassword: $plainPassword,
+    ));
 
         return response()->json([
             'success' => true,

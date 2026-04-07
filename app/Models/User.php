@@ -90,4 +90,9 @@ class User extends Authenticatable
     {
         return $this->hasOne(Subscription::class)->latest();
     }
+
+    public function isHousehold(): bool
+    {
+        return in_array(strtolower($this->role), ['household', 'resident']);
+    }
 }

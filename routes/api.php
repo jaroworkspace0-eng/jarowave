@@ -13,9 +13,12 @@ use App\Http\Controllers\InviteController;
 use App\Http\Controllers\LiveKitController;
 use App\Http\Controllers\Payments\EarningController;
 use App\Http\Controllers\Payments\InvoiceController;
+use App\Http\Controllers\Payments\OzowRecoveryWebhookController;
 use App\Http\Controllers\Payments\OzowWebhookController;
+use App\Http\Controllers\Payments\PayfastRecoveryWebhookController;
 use App\Http\Controllers\Payments\PayfastWebhookController;
 use App\Http\Controllers\Payments\PaymentController;
+use App\Http\Controllers\Payments\PaymentRecoveryController;
 use App\Http\Controllers\Payments\SubscriptionController;
 use App\Http\Controllers\Payments\SubscriptionPaymentController;
 use App\Http\Controllers\SearchController;
@@ -148,8 +151,29 @@ Route::get('/household/invite/{token}', [HouseholdController::class, 'validateIn
 
 
 
+// Payment notifications (public, called by payment gateways, but we can add a secret token for security if needed)
+Route::post('/notifications/payment-failed', [PaymentController::class, 'notifyPaymentFailed']);
+
+// PayFast webhook — no auth middleware, PayFast signs the payload
+Route::post('/webhooks/payfast', [PaymentController::class, 'handlePayfastWebhook']);
+Route::post('/webhooks/ozow', [PaymentController::class, 'handleOzowWebhook']);
+
+// Recovery webhooks — no auth, verified by signature/hash inside controller
+Route::post('/webhooks/payfast/recovery', [PayfastRecoveryWebhookController::class, 'handle']);
+Route::post('/webhooks/ozow/recovery',    [OzowRecoveryWebhookController::class,    'handle']);
+
+Route::get('/internal/payment-failures', [PaymentRecoveryController::class, 'activeFailures']);
+
 // Household routes (require auth)
 Route::middleware('auth:sanctum')->prefix('household')->group(function () {
+
+    Route::post('/payments/subscription/cancel', [PaymentRecoveryController::class, 'cancelSubscription']);
+
+    Route::post('/payments/recovery/update-url', [PaymentRecoveryController::class, 'getUpdateUrl']);
+
+    // Generate recovery payment link (called by the app)
+    Route::post('/payments/recovery/generate', [PaymentRecoveryController::class, 'generateLink']);
+
     Route::get('/payment-url', [HouseholdController::class, 'paymentUrl']);
     Route::get('/subscription', [HouseholdController::class, 'subscription']);
     Route::post('/subscription/cancel', [HouseholdController::class, 'cancelSubscription']);

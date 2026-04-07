@@ -39,6 +39,8 @@ class SubscriptionPayment extends Model
         'billing_period_start' => 'datetime',
         'billing_period_end'   => 'datetime',
         'paid_at'              => 'datetime',
+        'failed_at'    => 'datetime',
+        'cancelled_at' => 'datetime',
     ];
 
     // ── Relationships ──
