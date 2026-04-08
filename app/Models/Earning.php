@@ -107,7 +107,8 @@ class Earning extends Model
         $platformAmount  = $residentAmount - $earnedAmount;
 
         return self::create([
-            'client_id'               => $client->id,
+            // 'client_id'               => $client->id,
+            'client_id'               => $client->user_id,
             'subscription_payment_id' => $payment->id,
             'resident_id'             => $payment->subscription->client->user_id,
             'resident_amount'         => $residentAmount,
