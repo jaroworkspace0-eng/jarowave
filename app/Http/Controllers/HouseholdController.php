@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\HouseholdWelcomeMail;
 use App\Models\Employee;
 use App\Models\HouseholdInvite;
 use App\Models\Invoice;
@@ -11,6 +12,7 @@ use App\Services\BillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use App\Services\PayFastService;
+use Illuminate\Support\Facades\Mail;
 
 class HouseholdController extends Controller
 {
@@ -49,7 +51,7 @@ class HouseholdController extends Controller
     }
 
     // ── POST /api/household/register ──────────────────────────────────────────
-      public function register(Request $request)
+    public function register(Request $request)
     {
         $request->headers->set('Accept', 'application/json');
 
@@ -128,6 +130,17 @@ class HouseholdController extends Controller
         ]);
 
         $token = $user->createToken('household-token')->plainTextToken;
+
+
+        // Mail::to($user->email)->queue(new HouseholdWelcomeMail(
+        //     user: $user,
+        //     organisationName: $invite->client->user->organisation_name
+        //                 ?? $invite->client->user->name
+        //                 ?? 'Echo Link Community',
+        //     gateway: $request->gateway,
+        //     adminAdded: false,
+        //     tempPassword: null,
+        // ));
 
         // Build PayFast payment URL
         $redirectUrl = $this->initiatePayment($user, $request->gateway, $merchantReference);
@@ -262,6 +275,7 @@ class HouseholdController extends Controller
         }
 
         $invoices = Invoice::where('subscription_id', $subscription->id)
+            ->with('payment:id,billing_period_start,billing_period_end')
             ->latest()
             ->paginate(20);
 
