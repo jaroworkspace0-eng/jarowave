@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Invoice extends Model
 {
     protected $fillable = [
+        'subscription_id',
         'subscription_payment_id',
         'client_id',
         'invoice_number',
