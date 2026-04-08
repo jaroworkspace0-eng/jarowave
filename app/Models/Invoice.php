@@ -20,6 +20,7 @@ class Invoice extends Model
         'notes',
         'issued_at',
         'sent_at',
+        'due_date',
     ];
 
     protected $casts = [
@@ -85,12 +86,13 @@ class Invoice extends Model
             'subscription_payment_id' => $payment->id,
             'client_id'               => $subscription->client->user_id,
             'invoice_number'          => self::generateNumber(),
-            'status'                  => 'issued',
+            'status'                  => 'paid',
             'subtotal'                => $subscription->original_price ?? ($payment->amount_gross * 100),
             'discount_amount'         => $subscription->discount_amount ?? 0,
             'total'                   => $payment->amount,
             'currency'                => 'ZAR',
             'issued_at'               => now(),
+            'due_date'                => $payment->billing_period_end,
         ]);
     }
 }
