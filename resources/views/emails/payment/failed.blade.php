@@ -83,7 +83,7 @@
     </tr>
 </table>
 
-@component('mail::button', ['url' => config('app.url') . '/billing', 'color' => 'primary'])
+@component('mail::button', ['url' => config('app.account_url') . '/dashboard.html', 'color' => 'primary'])
 Update Payment Details →
 @endcomponent
 

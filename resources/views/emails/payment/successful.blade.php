@@ -50,7 +50,7 @@
 
 ---
 
-@component('mail::button', ['url' => config('app.url') . '/dashboard', 'color' => 'primary'])
+@component('mail::button', ['url' => config('app.account_url') . '/dashboard.html', 'color' => 'primary'])
 Go to Dashboard →
 @endcomponent
 
