@@ -40,7 +40,7 @@ class PaymentFailedMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            markdown: 'view.payment.failed', // You need to create this Blade view for the email content
+            markdown: 'emails.payment.failed', // You need to create this Blade view for the email content
         );
     }
 
