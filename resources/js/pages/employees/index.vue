@@ -60,6 +60,7 @@ const employees = ref<any>({ data: [], from: 0, to: 0, total: 0, links: [] });
 
 // ── Subscription management state ─────────────────────────────────────────────
 const subActionMenu = ref<number | null>(null); // which row has open dropdown
+const menuPosition = ref({ top: 0, right: 0 });
 const subLoading = ref<number | null>(null); // subscription id being actioned
 const subFlash = ref<{ msg: string; type: 'success' | 'error' } | null>(null);
 const showPayHistory = ref(false);
@@ -108,8 +109,24 @@ function showSubFlash(msg: string, type: 'success' | 'error' = 'success') {
     setTimeout(() => (subFlash.value = null), 4000);
 }
 
-function toggleSubMenu(subId: number) {
-    subActionMenu.value = subActionMenu.value === subId ? null : subId;
+function toggleSubMenu(subId: number, event: MouseEvent) {
+    if (subActionMenu.value === subId) {
+        subActionMenu.value = null;
+        return;
+    }
+    const btn = event.currentTarget as HTMLElement;
+    const rect = btn.getBoundingClientRect();
+    const dropdownHeight = 320; // approx height of dropdown
+    const spaceBelow = window.innerHeight - rect.bottom;
+
+    menuPosition.value = {
+        top:
+            spaceBelow > dropdownHeight
+                ? rect.bottom + 4 // open downward
+                : rect.top - dropdownHeight - 4, // flip upward
+        right: window.innerWidth - rect.right,
+    };
+    subActionMenu.value = subId;
 }
 
 function closeSubMenus() {
@@ -1419,9 +1436,11 @@ const hideSuggestions = () => {
                 </div>
 
                 <!-- HOUSEHOLDS TABLE -->
-                <div class="overflow-x-auto rounded-xl border border-gray-200">
+                <div
+                    class="overflow-x-auto overflow-y-visible rounded-xl border border-gray-200"
+                >
                     <table
-                        class="w-full min-w-max table-auto text-left text-sm"
+                        class="w-full min-w-max table-auto overflow-visible text-left text-sm"
                     >
                         <thead>
                             <tr class="bg-gray-50">
@@ -1682,7 +1701,7 @@ const hideSuggestions = () => {
                                         >
                                     </div>
                                 </td>
-                                <td class="p-2">
+                                <td class="relative overflow-visible p-2">
                                     <div
                                         class="flex items-center gap-1"
                                         @click.stop
@@ -1719,6 +1738,7 @@ const hideSuggestions = () => {
                                                     toggleSubMenu(
                                                         employee.user
                                                             .subscription.id,
+                                                        $event,
                                                     )
                                                 "
                                                 :disabled="
@@ -1728,9 +1748,6 @@ const hideSuggestions = () => {
                                                 "
                                                 class="mr-3 rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100"
                                                 title="Subscription actions"
-                                                :style="{
-                                                    marginRight: 10,
-                                                }"
                                             >
                                                 <div
                                                     v-if="
@@ -1764,7 +1781,14 @@ const hideSuggestions = () => {
                                                     employee.user.subscription
                                                         .id
                                                 "
-                                                class="absolute top-full right-0 z-50 mt-1 w-52 rounded-xl border border-gray-200 bg-white py-1 shadow-xl"
+                                                class="fixed z-[100] w-52 rounded-xl border border-gray-200 bg-white py-1 shadow-xl"
+                                                :style="{
+                                                    top:
+                                                        menuPosition.top + 'px',
+                                                    right:
+                                                        menuPosition.right +
+                                                        'px',
+                                                }"
                                             >
                                                 <!-- EFT Payment -->
                                                 <button
