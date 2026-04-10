@@ -890,7 +890,7 @@ const hideSuggestions = () => {
                 <!-- INVITE LINKS CARD -->
                 <div
                     class="mb-6 rounded-xl border border-orange-200 bg-orange-50 p-5"
-                    style="display: block"
+                    style="display: none"
                 >
                     <div class="mb-4 flex items-center justify-between">
                         <div>
