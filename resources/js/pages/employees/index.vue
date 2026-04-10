@@ -78,6 +78,16 @@ const confirmSubAction = ref<{
 const conductBlockModal = ref<any>(null);
 const conductBlockReason = ref('');
 
+const searchQuery = ref('');
+let searchTimeout: any = null;
+
+const handleSearch = () => {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        reloadEmployees();
+    }, 400);
+};
+
 // ── Subscription helpers ──────────────────────────────────────────────────────
 const subStatusLabel: Record<string, string> = {
     active: '✓ Active',
@@ -451,15 +461,16 @@ const reloadEmployees = async (
         const { data } = await axios.get(
             personnelUrl || householdUrl || endpoint,
             {
-                params: { status },
+                params: {
+                    status,
+                    search: searchQuery.value || undefined, // ← ADD THIS
+                },
                 ...getHeaders(),
             },
         );
-        // Personnel
         personnel.value = data.personnel;
         personnelList.value = data.personnel.data;
         personnelTotal.value = data.personnel_total;
-        // Households
         households.value = data.households;
         householdList.value = data.households.data;
         householdTotal.value = data.household_total;
@@ -801,6 +812,65 @@ const hideSuggestions = () => {
                             </button>
                         </div>
                     </div>
+
+                    <!-- ── SEARCH ── -->
+                    <div class="flex flex-1 justify-center px-4">
+                        <div class="relative w-full max-w-sm">
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="pointer-events-none absolute top-2.5 left-3 h-4 w-4 text-gray-400"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"
+                                />
+                            </svg>
+                            <input
+                                v-model="searchQuery"
+                                @input="handleSearch"
+                                type="text"
+                                :placeholder="
+                                    activeTab === 'personnel'
+                                        ? 'Search personnel...'
+                                        : 'Search households...'
+                                "
+                                class="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pr-8 pl-9 text-sm text-gray-700 focus:border-gray-400 focus:bg-white focus:outline-none"
+                                :style="{
+                                    paddingLeft: '2rem',
+                                }"
+                            />
+                            <button
+                                v-if="searchQuery"
+                                @click="
+                                    searchQuery = '';
+                                    reloadEmployees();
+                                "
+                                class="absolute top-2.5 right-3 text-gray-400 hover:text-gray-600"
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    class="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M6 18L18 6M6 6l12 12"
+                                    />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- ── ACTIONS ── -->
                     <div class="flex shrink-0 gap-2">
                         <button
                             v-if="activeTab === 'personnel'"

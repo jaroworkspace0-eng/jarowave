@@ -40,8 +40,18 @@ class EmployeeController extends Controller
         $user   = Auth::user();
         $status = $request->query('status');
 
+        // $query = Employee::with(['channels', 'client.user', 'user', 'user.subscription'])
+        //     ->when($status, fn($q) => $q->whereHas('user', fn($u) => $u->where('status', $status)))
+        //     ->orderBy('created_at', 'desc');
+
+        $search = $request->query('search');
+
         $query = Employee::with(['channels', 'client.user', 'user', 'user.subscription'])
             ->when($status, fn($q) => $q->whereHas('user', fn($u) => $u->where('status', $status)))
+            ->when($search, fn($q) => $q->whereHas('user', fn($u) => $u->where('name', 'like', "%$search%")
+                ->orWhere('email', 'like', "%$search%")
+                ->orWhere('phone', 'like', "%$search%")
+            ))
             ->orderBy('created_at', 'desc');
 
         if ($user->role !== 'admin') {
