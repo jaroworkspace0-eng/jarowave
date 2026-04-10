@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountDeletionController;
+use App\Http\Controllers\Admin\AdminSubscriptionController;
 use App\Http\Controllers\Admin\PaymentSimulatorController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\BroadcastAudioController;
@@ -170,6 +171,8 @@ Route::get('/internal/payment-failures', [PaymentRecoveryController::class, 'act
 // Household routes (require auth)
 Route::middleware('auth:sanctum')->prefix('household')->group(function () {
 
+    // ---------------------------------------------------------------
+
     Route::post('/payments/subscription/cancel', [PaymentRecoveryController::class, 'cancelSubscription']);
 
     Route::post('/payments/recovery/update-url', [PaymentRecoveryController::class, 'getUpdateUrl']);
@@ -190,6 +193,19 @@ Route::middleware('auth:sanctum')->prefix('household')->group(function () {
 Route::middleware(['auth:sanctum'])->group(function () { 
         Route::get('/user', function (Request $request) {
         return $request->user();
+    });
+
+
+    // Admin subscription management routes (only for admin users, but we can check that inside the controller since these are under the household prefix)
+    Route::prefix('admin/subscriptions')->group(function () {
+        Route::get('/',                                    [AdminSubscriptionController::class, 'index']);
+        Route::get('/{subscription}/payments',             [AdminSubscriptionController::class, 'payments']);
+        Route::post('/{subscription}/eft-payment',         [AdminSubscriptionController::class, 'markEftPaid']);
+        Route::post('/{subscription}/suspend',             [AdminSubscriptionController::class, 'suspend']);
+        Route::post('/{subscription}/unsuspend',           [AdminSubscriptionController::class, 'unsuspend']);
+        Route::post('/{subscription}/cancel',              [AdminSubscriptionController::class, 'cancel']);
+        Route::post('/{subscription}/conduct-block',   [AdminSubscriptionController::class, 'conductBlock']);
+        Route::post('/{subscription}/conduct-unblock', [AdminSubscriptionController::class, 'conductUnblock']);
     });
 
 

@@ -58,6 +58,164 @@ const householdTotal = ref(0);
 
 const employees = ref<any>({ data: [], from: 0, to: 0, total: 0, links: [] });
 
+// ── Subscription management state ─────────────────────────────────────────────
+const subActionMenu = ref<number | null>(null); // which row has open dropdown
+const subLoading = ref<number | null>(null); // subscription id being actioned
+const subFlash = ref<{ msg: string; type: 'success' | 'error' } | null>(null);
+const showPayHistory = ref(false);
+const payHistorySub = ref<any>(null);
+const payHistoryData = ref<any[]>([]);
+const payHistoryLoading = ref(false);
+const eftModal = ref<any>(null); // subscription for EFT modal
+const eftAmount = ref('80');
+const eftNote = ref('');
+const confirmSubAction = ref<{
+    sub: any;
+    action: string;
+    label: string;
+} | null>(null);
+
+const conductBlockModal = ref<any>(null);
+const conductBlockReason = ref('');
+
+// ── Subscription helpers ──────────────────────────────────────────────────────
+const subStatusLabel: Record<string, string> = {
+    active: '✓ Active',
+    trialing: '⏳ Trial',
+    past_due: '⚠ Overdue',
+    cancelled: '✕ Cancelled',
+};
+
+const subStatusClass: Record<string, string> = {
+    active: 'border-green-200 bg-green-100 text-green-700',
+    trialing: 'border-orange-200 bg-orange-100 text-orange-700',
+    past_due: 'border-red-200 bg-red-100 text-red-700',
+    cancelled: 'border-gray-200 bg-gray-100 text-gray-500',
+};
+
+function showSubFlash(msg: string, type: 'success' | 'error' = 'success') {
+    subFlash.value = { msg, type };
+    setTimeout(() => (subFlash.value = null), 4000);
+}
+
+function toggleSubMenu(subId: number) {
+    subActionMenu.value = subActionMenu.value === subId ? null : subId;
+}
+
+function closeSubMenus() {
+    subActionMenu.value = null;
+}
+
+async function openPayHistory(employee: any) {
+    const sub = employee.user?.subscription;
+    if (!sub) return;
+    payHistorySub.value = { ...sub, userName: employee.user.name };
+    payHistoryData.value = [];
+    showPayHistory.value = true;
+    payHistoryLoading.value = true;
+    try {
+        const { data } = await axios.get(
+            `${import.meta.env.VITE_APP_URL}/api/admin/subscriptions/${sub.id}/payments`,
+            getHeaders(),
+        );
+        payHistoryData.value = data;
+    } catch {
+        payHistoryData.value = [];
+    } finally {
+        payHistoryLoading.value = false;
+    }
+}
+
+function openEftModal(employee: any) {
+    eftModal.value = {
+        ...employee.user.subscription,
+        userName: employee.user.name,
+    };
+    eftAmount.value = '80';
+    eftNote.value = '';
+    subActionMenu.value = null;
+}
+
+async function submitEftPayment() {
+    if (!eftModal.value) return;
+    subLoading.value = eftModal.value.id;
+    try {
+        const { data } = await axios.post(
+            `${import.meta.env.VITE_APP_URL}/api/admin/subscriptions/${eftModal.value.id}/eft-payment`,
+            { amount: parseFloat(eftAmount.value), note: eftNote.value },
+            getHeaders(),
+        );
+        showSubFlash(data.message);
+        eftModal.value = null;
+        await reloadEmployees();
+    } catch (err: any) {
+        showSubFlash(
+            err.response?.data?.message ?? 'Failed to record payment.',
+            'error',
+        );
+    } finally {
+        subLoading.value = null;
+    }
+}
+
+function promptSubAction(employee: any, action: string) {
+    const sub = employee.user?.subscription;
+    if (!sub) return;
+    const labels: Record<string, string> = {
+        suspend: 'Suspend SOS for this household?',
+        unsuspend: 'Reinstate SOS for this household?',
+        cancel: 'Cancel this subscription?',
+    };
+    confirmSubAction.value = { sub, action, label: labels[action] };
+    subActionMenu.value = null;
+}
+
+async function proceedSubAction() {
+    if (!confirmSubAction.value) return;
+    const { sub, action } = confirmSubAction.value;
+    subLoading.value = sub.id;
+    try {
+        const { data } = await axios.post(
+            `${import.meta.env.VITE_APP_URL}/api/admin/subscriptions/${sub.id}/${action}`,
+            {},
+            getHeaders(),
+        );
+        showSubFlash(data.message);
+        await reloadEmployees();
+    } catch (err: any) {
+        showSubFlash(err.response?.data?.message ?? 'Action failed.', 'error');
+    } finally {
+        subLoading.value = null;
+        confirmSubAction.value = null;
+    }
+}
+
+function promptConductBlock(employee: any) {
+    const sub = employee.user?.subscription;
+    if (!sub) return;
+    conductBlockModal.value = { ...sub, userName: employee.user.name };
+    conductBlockReason.value = '';
+}
+
+async function submitConductBlock() {
+    if (!conductBlockModal.value) return;
+    subLoading.value = conductBlockModal.value.id;
+    try {
+        const { data } = await axios.post(
+            `${import.meta.env.VITE_APP_URL}/api/admin/subscriptions/${conductBlockModal.value.id}/conduct-block`,
+            { reason: conductBlockReason.value },
+            getHeaders(),
+        );
+        showSubFlash(data.message);
+        conductBlockModal.value = null;
+        await reloadEmployees();
+    } catch (err: any) {
+        showSubFlash(err.response?.data?.message ?? 'Block failed.', 'error');
+    } finally {
+        subLoading.value = null;
+    }
+}
+
 // ─── computed lists ───────────────────────────────────────────────────────────
 
 const clientOrgType = computed(() => {
@@ -1455,7 +1613,11 @@ const hideSuggestions = () => {
                                     </div>
                                 </td>
                                 <td class="p-2">
-                                    <div class="flex items-center gap-1">
+                                    <div
+                                        class="flex items-center gap-1"
+                                        @click.stop
+                                    >
+                                        <!-- Edit -->
                                         <button
                                             @click="editEmployee(employee)"
                                             class="rounded-lg p-2 text-blue-600 transition-colors hover:bg-blue-50"
@@ -1476,7 +1638,285 @@ const hideSuggestions = () => {
                                                 />
                                             </svg>
                                         </button>
+
+                                        <!-- Subscription actions dropdown -->
+                                        <div
+                                            class="relative"
+                                            v-if="employee.user?.subscription"
+                                        >
+                                            <button
+                                                @click="
+                                                    toggleSubMenu(
+                                                        employee.user
+                                                            .subscription.id,
+                                                    )
+                                                "
+                                                :disabled="
+                                                    subLoading ===
+                                                    employee.user.subscription
+                                                        .id
+                                                "
+                                                class="mr-3 rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100"
+                                                title="Subscription actions"
+                                                :style="{
+                                                    marginRight: 10,
+                                                }"
+                                            >
+                                                <div
+                                                    v-if="
+                                                        subLoading ===
+                                                        employee.user
+                                                            .subscription.id
+                                                    "
+                                                    class="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600"
+                                                ></div>
+                                                <svg
+                                                    v-else
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    class="h-4 w-4"
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
+                                                    stroke="currentColor"
+                                                >
+                                                    <path
+                                                        stroke-linecap="round"
+                                                        stroke-linejoin="round"
+                                                        stroke-width="2"
+                                                        d="M12 5v.01M12 12v.01M12 19v.01"
+                                                    />
+                                                </svg>
+                                            </button>
+
+                                            <!-- Dropdown -->
+                                            <div
+                                                v-if="
+                                                    subActionMenu ===
+                                                    employee.user.subscription
+                                                        .id
+                                                "
+                                                class="absolute top-full right-0 z-50 mt-1 w-52 rounded-xl border border-gray-200 bg-white py-1 shadow-xl"
+                                            >
+                                                <!-- EFT Payment -->
+                                                <button
+                                                    @click="
+                                                        openEftModal(employee)
+                                                    "
+                                                    class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                                                >
+                                                    <div>
+                                                        <div
+                                                            class="font-semibold text-gray-900"
+                                                        >
+                                                            Mark EFT Paid
+                                                        </div>
+                                                        <div
+                                                            class="text-xs text-gray-400"
+                                                        >
+                                                            Record manual
+                                                            payment
+                                                        </div>
+                                                    </div>
+                                                </button>
+
+                                                <!-- Suspend -->
+                                                <button
+                                                    v-if="
+                                                        employee.user
+                                                            .subscription
+                                                            .status !==
+                                                        'cancelled'
+                                                    "
+                                                    @click="
+                                                        promptSubAction(
+                                                            employee,
+                                                            employee.user
+                                                                .subscription
+                                                                .sos_suspended_at
+                                                                ? 'unsuspend'
+                                                                : 'suspend',
+                                                        )
+                                                    "
+                                                    class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium transition-colors hover:bg-gray-50"
+                                                    :class="
+                                                        employee.user
+                                                            .subscription
+                                                            .sos_suspended_at
+                                                            ? 'text-green-700'
+                                                            : 'text-amber-700'
+                                                    "
+                                                >
+                                                    <div>
+                                                        <div
+                                                            class="font-semibold"
+                                                        >
+                                                            {{
+                                                                employee.user
+                                                                    .subscription
+                                                                    .sos_suspended_at
+                                                                    ? 'Reinstate SOS'
+                                                                    : 'Suspend SOS'
+                                                            }}
+                                                        </div>
+                                                        <div
+                                                            class="text-xs opacity-70"
+                                                        >
+                                                            {{
+                                                                employee.user
+                                                                    .subscription
+                                                                    .sos_suspended_at
+                                                                    ? 'Re-enable panic button'
+                                                                    : 'Disable panic button'
+                                                            }}
+                                                        </div>
+                                                    </div>
+                                                </button>
+
+                                                <!-- Cancel -->
+                                                <button
+                                                    v-if="
+                                                        employee.user
+                                                            .subscription
+                                                            .status !==
+                                                        'cancelled'
+                                                    "
+                                                    @click="
+                                                        promptSubAction(
+                                                            employee,
+                                                            'cancel',
+                                                        )
+                                                    "
+                                                    class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
+                                                >
+                                                    <div>
+                                                        <div
+                                                            class="font-semibold"
+                                                        >
+                                                            Cancel Subscription
+                                                        </div>
+                                                        <div
+                                                            class="text-xs opacity-70"
+                                                        >
+                                                            Access until period
+                                                            end
+                                                        </div>
+                                                    </div>
+                                                </button>
+
+                                                <div
+                                                    class="my-1 border-t border-gray-100"
+                                                ></div>
+
+                                                <!-- Conduct block -->
+                                                <button
+                                                    v-if="
+                                                        !employee.user
+                                                            .subscription
+                                                            .conduct_blocked_at
+                                                    "
+                                                    @click="
+                                                        promptConductBlock(
+                                                            employee,
+                                                        );
+                                                        subActionMenu = null;
+                                                    "
+                                                    class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-red-700 transition-colors hover:bg-red-50"
+                                                >
+                                                    <div>
+                                                        <div
+                                                            class="font-semibold"
+                                                        >
+                                                            Conduct Block
+                                                        </div>
+                                                        <div
+                                                            class="text-xs opacity-70"
+                                                        >
+                                                            Abuse of panic alert
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                                <button
+                                                    v-else
+                                                    @click="
+                                                        promptSubAction(
+                                                            employee,
+                                                            'conduct-unblock',
+                                                        );
+                                                        subActionMenu = null;
+                                                    "
+                                                    class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-green-700 transition-colors hover:bg-green-50"
+                                                >
+                                                    <div>
+                                                        <div
+                                                            class="font-semibold"
+                                                        >
+                                                            Lift Conduct Block
+                                                        </div>
+                                                        <div
+                                                            class="text-xs opacity-70"
+                                                        >
+                                                            Restore SOS access
+                                                        </div>
+                                                    </div>
+                                                </button>
+
+                                                <div
+                                                    class="my-1 border-t border-gray-100"
+                                                ></div>
+
+                                                <!-- Payment history -->
+                                                <button
+                                                    @click="
+                                                        openPayHistory(
+                                                            employee,
+                                                        );
+                                                        subActionMenu = null;
+                                                    "
+                                                    class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
+                                                >
+                                                    <div>
+                                                        <div
+                                                            class="font-semibold"
+                                                        >
+                                                            Payment History
+                                                        </div>
+                                                        <div
+                                                            class="text-xs text-gray-400"
+                                                        >
+                                                            View past
+                                                            transactions
+                                                        </div>
+                                                    </div>
+                                                </button>
+
+                                                <!-- Delete -->
+                                                <button
+                                                    @click="
+                                                        confirmDelete(
+                                                            employee.id,
+                                                        );
+                                                        subActionMenu = null;
+                                                    "
+                                                    class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-red-500 transition-colors hover:bg-red-50"
+                                                >
+                                                    <div>
+                                                        <div
+                                                            class="font-semibold"
+                                                        >
+                                                            Delete
+                                                        </div>
+                                                        <div
+                                                            class="text-xs opacity-70"
+                                                        >
+                                                            Remove household
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <!-- Delete (fallback if no subscription) -->
                                         <button
+                                            v-else
                                             @click="confirmDelete(employee.id)"
                                             class="rounded-lg p-2 text-red-600 transition-colors hover:bg-red-50"
                                             title="Delete"
@@ -2226,6 +2666,408 @@ const hideSuggestions = () => {
                             ? 'Yes, Deactivate'
                             : 'Yes, Activate'
                     }}
+                </button>
+            </div>
+        </div>
+    </div>
+    <!-- Subscription flash -->
+    <div
+        v-if="subFlash"
+        :class="[
+            'fixed right-6 bottom-6 z-[70] rounded-xl px-5 py-3 text-sm font-semibold shadow-xl',
+            subFlash.type === 'success'
+                ? 'bg-green-600 text-white'
+                : 'bg-red-600 text-white',
+        ]"
+    >
+        {{ subFlash.type === 'success' ? '✓' : '⚠' }} {{ subFlash.msg }}
+    </div>
+
+    <!-- Click-outside overlay to close dropdown -->
+    <div
+        v-if="subActionMenu !== null"
+        class="fixed inset-0 z-40"
+        @click="closeSubMenus"
+    />
+
+    <!-- EFT Payment Modal -->
+    <div
+        v-if="eftModal"
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+    >
+        <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div class="mb-5 flex items-center gap-3">
+                <div
+                    class="flex h-10 w-10 items-center justify-center rounded-full bg-green-100"
+                >
+                    <span class="text-xl">💳</span>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-gray-900">
+                        Record EFT Payment
+                    </h3>
+                    <p class="text-sm text-gray-500">{{ eftModal.userName }}</p>
+                </div>
+            </div>
+
+            <div class="mb-4 grid gap-4">
+                <div class="grid gap-1.5">
+                    <label
+                        class="text-xs font-bold tracking-wide text-gray-500 uppercase"
+                        >Amount (ZAR)</label
+                    >
+                    <div class="relative">
+                        <span
+                            class="absolute top-2.5 left-3 font-bold text-gray-400"
+                            >R</span
+                        >
+                        <input
+                            v-model="eftAmount"
+                            type="number"
+                            min="1"
+                            step="0.01"
+                            class="w-full rounded-lg border border-gray-300 py-2 pr-4 pl-7 text-sm focus:border-green-400 focus:ring-1 focus:ring-green-400"
+                            placeholder="80.00"
+                        />
+                    </div>
+                </div>
+                <div class="grid gap-1.5">
+                    <label
+                        class="text-xs font-bold tracking-wide text-gray-500 uppercase"
+                        >Note (optional)</label
+                    >
+                    <input
+                        v-model="eftNote"
+                        type="text"
+                        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-400 focus:ring-1 focus:ring-green-400"
+                        placeholder="e.g. EFT received 10 Apr — ref #12345"
+                    />
+                </div>
+            </div>
+
+            <div
+                class="mb-5 rounded-lg border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-800"
+            >
+                This will mark the subscription as <strong>active</strong>,
+                generate an invoice, create an earning record, and notify the
+                household app to re-enable SOS.
+            </div>
+
+            <div class="flex justify-end gap-3">
+                <button
+                    @click="eftModal = null"
+                    class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                    Cancel
+                </button>
+                <button
+                    @click="submitEftPayment"
+                    :disabled="!eftAmount || subLoading !== null"
+                    class="flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2 text-sm font-bold text-white shadow hover:bg-green-700 disabled:opacity-60"
+                >
+                    <div
+                        v-if="subLoading !== null"
+                        class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
+                    ></div>
+                    <span>{{
+                        subLoading !== null
+                            ? 'Processing...'
+                            : 'Confirm Payment'
+                    }}</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Subscription Action Modal (suspend / unsuspend / cancel) -->
+    <div
+        v-if="confirmSubAction"
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+    >
+        <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div class="mb-4 flex items-center gap-3">
+                <div
+                    :class="[
+                        'flex h-10 w-10 items-center justify-center rounded-full',
+                        confirmSubAction.action === 'unsuspend'
+                            ? 'bg-green-100'
+                            : 'bg-red-100',
+                    ]"
+                >
+                    <span class="text-xl">
+                        {{
+                            confirmSubAction.action === 'suspend'
+                                ? '⏸'
+                                : confirmSubAction.action === 'unsuspend'
+                                  ? '▶'
+                                  : '✕'
+                        }}
+                    </span>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-gray-900">
+                        {{ confirmSubAction.label }}
+                    </h3>
+                    <p class="text-sm text-gray-500">
+                        Subscription #{{ confirmSubAction.sub.id }}
+                    </p>
+                </div>
+            </div>
+
+            <div
+                :class="[
+                    'mb-5 rounded-lg border p-4 text-sm',
+                    confirmSubAction.action === 'cancel'
+                        ? 'border-red-100 bg-red-50 text-red-800'
+                        : confirmSubAction.action === 'suspend'
+                          ? 'border-amber-100 bg-amber-50 text-amber-800'
+                          : 'border-green-100 bg-green-50 text-green-800',
+                ]"
+            >
+                <template v-if="confirmSubAction.action === 'suspend'">
+                    The household's SOS panic button will be disabled and a
+                    warning banner will appear on their device. Their
+                    subscription remains active.
+                </template>
+                <template v-else-if="confirmSubAction.action === 'unsuspend'">
+                    SOS will be reinstated immediately and the warning banner
+                    will disappear from their device.
+                </template>
+                <template v-else>
+                    The subscription will be cancelled. The household retains
+                    access until the end of the current billing period, after
+                    which SOS will be disabled.
+                </template>
+            </div>
+
+            <div class="flex justify-end gap-3">
+                <button
+                    @click="confirmSubAction = null"
+                    class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                    Cancel
+                </button>
+                <button
+                    @click="proceedSubAction"
+                    :disabled="subLoading !== null"
+                    :class="[
+                        'flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-bold text-white shadow disabled:opacity-60',
+                        confirmSubAction.action === 'unsuspend'
+                            ? 'bg-green-600 hover:bg-green-700'
+                            : 'bg-red-600 hover:bg-red-700',
+                    ]"
+                >
+                    <div
+                        v-if="subLoading !== null"
+                        class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
+                    ></div>
+                    <span>{{
+                        subLoading !== null ? 'Processing...' : 'Confirm'
+                    }}</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment History Modal -->
+    <div
+        v-if="showPayHistory"
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+    >
+        <div class="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
+            <!-- Header -->
+            <div
+                class="flex items-center justify-between border-b border-gray-100 px-6 py-4"
+            >
+                <div>
+                    <h3 class="text-base font-bold text-gray-900">
+                        Payment History
+                    </h3>
+                    <p class="text-sm text-gray-500">
+                        {{ payHistorySub?.userName }}
+                    </p>
+                </div>
+                <button
+                    @click="showPayHistory = false"
+                    class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                >
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="h-5 w-5"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            stroke-width="2"
+                            d="M6 18L18 6M6 6l12 12"
+                        />
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div class="max-h-[60vh] overflow-y-auto p-6">
+                <div
+                    v-if="payHistoryLoading"
+                    class="flex items-center justify-center py-12"
+                >
+                    <div
+                        class="h-6 w-6 animate-spin rounded-full border-2 border-gray-200 border-t-gray-800"
+                    ></div>
+                </div>
+
+                <div
+                    v-else-if="payHistoryData.length === 0"
+                    class="py-12 text-center text-sm text-gray-400"
+                >
+                    <div class="mb-2 text-3xl">📭</div>
+                    No payments recorded yet.
+                </div>
+
+                <table v-else class="w-full text-sm">
+                    <thead>
+                        <tr class="border-b border-gray-100">
+                            <th
+                                class="pb-3 text-left text-xs font-bold tracking-wide text-gray-400 uppercase"
+                            >
+                                Date
+                            </th>
+                            <th
+                                class="pb-3 text-left text-xs font-bold tracking-wide text-gray-400 uppercase"
+                            >
+                                Gateway
+                            </th>
+                            <th
+                                class="pb-3 text-left text-xs font-bold tracking-wide text-gray-400 uppercase"
+                            >
+                                Reference
+                            </th>
+                            <th
+                                class="pb-3 text-right text-xs font-bold tracking-wide text-gray-400 uppercase"
+                            >
+                                Amount
+                            </th>
+                            <th
+                                class="pb-3 text-center text-xs font-bold tracking-wide text-gray-400 uppercase"
+                            >
+                                Status
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr
+                            v-for="p in payHistoryData"
+                            :key="p.id"
+                            class="border-b border-gray-50 last:border-0"
+                        >
+                            <td class="py-3 text-gray-600">
+                                {{
+                                    new Date(p.created_at).toLocaleDateString(
+                                        'en-ZA',
+                                        {
+                                            day: 'numeric',
+                                            month: 'short',
+                                            year: 'numeric',
+                                        },
+                                    )
+                                }}
+                            </td>
+                            <td class="py-3">
+                                <span
+                                    class="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs font-semibold text-gray-600 capitalize"
+                                >
+                                    {{ p.gateway ?? 'unknown' }}
+                                </span>
+                            </td>
+                            <td class="py-3 font-mono text-xs text-gray-500">
+                                {{ p.merchant_reference ?? '—' }}
+                            </td>
+                            <td class="py-3 text-right font-bold text-gray-900">
+                                R{{ (p.amount / 100).toFixed(2) }}
+                            </td>
+                            <td class="py-3 text-center">
+                                <span
+                                    :class="[
+                                        'rounded-full px-2 py-0.5 text-xs font-bold uppercase',
+                                        p.status === 'complete'
+                                            ? 'bg-green-100 text-green-700'
+                                            : p.status === 'failed'
+                                              ? 'bg-red-100 text-red-700'
+                                              : 'bg-gray-100 text-gray-500',
+                                    ]"
+                                    >{{ p.status }}</span
+                                >
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <!-- Conduct Block Modal -->
+    <div
+        v-if="conductBlockModal"
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+    >
+        <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div class="mb-5 flex items-center gap-3">
+                <div
+                    class="flex h-10 w-10 items-center justify-center rounded-full bg-red-100"
+                >
+                    <span class="text-xl">🚫</span>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-gray-900">
+                        Conduct Block
+                    </h3>
+                    <p class="text-sm text-gray-500">
+                        {{ conductBlockModal.userName }}
+                    </p>
+                </div>
+            </div>
+            <div
+                class="mb-4 rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800"
+            >
+                This will immediately disable the household's SOS panic button.
+                They will see a block notice on their device. Document the
+                reason clearly.
+            </div>
+            <div class="mb-4 grid gap-1.5">
+                <label
+                    class="text-xs font-bold tracking-wide text-gray-500 uppercase"
+                    >Reason for block <span class="text-red-500">*</span></label
+                >
+                <textarea
+                    v-model="conductBlockReason"
+                    rows="3"
+                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-400 focus:ring-1 focus:ring-red-400"
+                    placeholder="e.g. Repeated false panic alerts reported by 3 patrollers on 10 Apr 2026..."
+                ></textarea>
+            </div>
+            <div class="flex justify-end gap-3">
+                <button
+                    @click="conductBlockModal = null"
+                    class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                    Cancel
+                </button>
+                <button
+                    @click="submitConductBlock"
+                    :disabled="
+                        !conductBlockReason.trim() || subLoading !== null
+                    "
+                    class="flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2 text-sm font-bold text-white shadow hover:bg-red-700 disabled:opacity-60"
+                >
+                    <div
+                        v-if="subLoading !== null"
+                        class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
+                    ></div>
+                    <span>{{
+                        subLoading !== null ? 'Blocking...' : 'Block Household'
+                    }}</span>
                 </button>
             </div>
         </div>

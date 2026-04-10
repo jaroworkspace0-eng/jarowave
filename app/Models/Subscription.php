@@ -27,6 +27,9 @@ class Subscription extends Model
         'merchant_reference',
         'payfast_token',
         'gateway_status',
+        'sos_suspended_at',
+        'conduct_blocked_at',
+        'conduct_block_reason',
     ];
 
     protected $casts = [
