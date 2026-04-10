@@ -213,9 +213,12 @@ class AdminSubscriptionController extends Controller
     private function notifyNode(string $method, string $path, array $payload): void
     {
         try {
-            Http::timeout(5)->{strtolower($method)}($this->nodeUrl . $path, array_merge($payload, [
-                'secret' => env('ASSIGN_SECRET'),
-            ]));
+            Http::timeout(5)
+                ->withHeaders([
+                    'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
+                    'Content-Type'  => 'application/json',
+                ])
+                ->{strtolower($method)}($this->nodeUrl . $path, $payload);
         } catch (\Throwable $e) {
             Log::warning('AdminSubscriptionController: Node notify failed', ['path' => $path, 'error' => $e->getMessage()]);
         }
