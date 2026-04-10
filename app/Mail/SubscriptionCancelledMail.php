@@ -27,7 +27,7 @@ class SubscriptionCancelledMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Echo Link - Subscription Cancelled',
+            subject: 'Subscription Cancelled',
         );
     }
 

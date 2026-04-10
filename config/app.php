@@ -53,6 +53,8 @@ return [
     */
 
     'url' => env('APP_URL', 'http://localhost'),
+    'account_url' => env('ACCOUNT_URL', 'https://account.jaroworkspace.com'),
+    'client_url' => env('CLIENT_URL', 'https://client.jaroworkspace.com'),
 
     /*
     |--------------------------------------------------------------------------
