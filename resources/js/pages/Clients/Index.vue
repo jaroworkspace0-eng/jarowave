@@ -402,8 +402,7 @@ const annualSummary = computed(() => {
                                                         type="button"
                                                         @click="
                                                             form.organisation_type =
-                                                                'watch';
-                                                            form.plan = '';
+                                                                'watch'
                                                         "
                                                         :class="[
                                                             'flex flex-col items-start gap-1 rounded-xl border-2 p-3 text-left transition-all',
@@ -417,7 +416,7 @@ const annualSummary = computed(() => {
                                                             >🏘️</span
                                                         >
                                                         <span
-                                                            class="font-700 text-sm font-bold text-gray-900"
+                                                            class="text-sm font-bold text-gray-900"
                                                             >Neighbourhood
                                                             Watch</span
                                                         >
@@ -462,6 +461,14 @@ const annualSummary = computed(() => {
                                                             >Gated Estate / HOA
                                                             / Complex</span
                                                         >
+                                                        <span
+                                                            v-if="
+                                                                form.organisation_type ===
+                                                                'estate'
+                                                            "
+                                                            class="absolute top-2 right-2 flex h-5 w-5 items-center justify-center rounded-full bg-orange-400 text-xs font-bold text-white"
+                                                            >✓</span
+                                                        >
                                                     </button>
                                                 </div>
                                                 <p
@@ -475,193 +482,6 @@ const annualSummary = computed(() => {
                                                             .organisation_type[0]
                                                     }}
                                                 </p>
-                                            </div>
-
-                                            <!-- ESTATE PLAN -->
-                                            <div
-                                                v-if="
-                                                    form.organisation_type ===
-                                                    'estate'
-                                                "
-                                                class="grid gap-2"
-                                            >
-                                                <label
-                                                    class="text-sm font-semibold text-gray-700"
-                                                    >Plan</label
-                                                >
-                                                <div
-                                                    class="grid grid-cols-3 gap-2"
-                                                >
-                                                    <button
-                                                        v-for="p in [
-                                                            {
-                                                                key: 'basic',
-                                                                label: 'Basic',
-                                                                monthly:
-                                                                    'R499/mo',
-                                                                annual: 'R415/mo',
-                                                            },
-                                                            {
-                                                                key: 'standard',
-                                                                label: 'Standard',
-                                                                monthly:
-                                                                    'R999/mo',
-                                                                annual: 'R829/mo',
-                                                            },
-                                                            {
-                                                                key: 'premium',
-                                                                label: 'Premium',
-                                                                monthly:
-                                                                    'R1,999/mo',
-                                                                annual: 'R1,659/mo',
-                                                            },
-                                                        ]"
-                                                        :key="p.key"
-                                                        type="button"
-                                                        @click="
-                                                            form.plan = p.key
-                                                        "
-                                                        :class="[
-                                                            'rounded-xl border-2 p-3 text-center transition-all',
-                                                            form.plan === p.key
-                                                                ? 'border-orange-400 bg-orange-50'
-                                                                : 'border-gray-200 hover:border-orange-300',
-                                                        ]"
-                                                    >
-                                                        <div
-                                                            class="text-sm font-bold text-gray-900"
-                                                        >
-                                                            {{ p.label }}
-                                                        </div>
-                                                        <div
-                                                            class="text-xs font-semibold text-orange-500"
-                                                        >
-                                                            {{
-                                                                form.billing_cycle ===
-                                                                'annual'
-                                                                    ? p.annual
-                                                                    : p.monthly
-                                                            }}
-                                                        </div>
-                                                    </button>
-                                                </div>
-                                                <p
-                                                    v-if="errors.plan"
-                                                    class="text-sm text-red-600"
-                                                >
-                                                    {{ errors.plan[0] }}
-                                                </p>
-                                            </div>
-
-                                            <!-- BILLING CYCLE -->
-                                            <div
-                                                v-if="
-                                                    form.organisation_type ===
-                                                    'estate'
-                                                "
-                                                class="grid gap-2"
-                                            >
-                                                <label
-                                                    class="text-sm font-semibold text-gray-700"
-                                                    >Billing Cycle</label
-                                                >
-                                                <div class="flex gap-2">
-                                                    <button
-                                                        type="button"
-                                                        @click="
-                                                            form.billing_cycle =
-                                                                'monthly'
-                                                        "
-                                                        :class="[
-                                                            'flex-1 rounded-lg border-2 py-2 text-sm font-semibold transition-all',
-                                                            form.billing_cycle ===
-                                                            'monthly'
-                                                                ? 'border-orange-400 bg-orange-50 text-orange-600'
-                                                                : 'border-gray-200 text-gray-600 hover:border-orange-300',
-                                                        ]"
-                                                    >
-                                                        Monthly
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        @click="
-                                                            form.billing_cycle =
-                                                                'annual'
-                                                        "
-                                                        :class="[
-                                                            'flex-1 rounded-lg border-2 py-2 text-sm font-semibold transition-all',
-                                                            form.billing_cycle ===
-                                                            'annual'
-                                                                ? 'border-orange-400 bg-orange-50 text-orange-600'
-                                                                : 'border-gray-200 text-gray-600 hover:border-orange-300',
-                                                        ]"
-                                                    >
-                                                        Annual
-                                                        <span
-                                                            class="text-xs font-bold text-green-600"
-                                                            >Save 17%</span
-                                                        >
-                                                    </button>
-                                                </div>
-                                            </div>
-
-                                            <!-- ANNUAL SAVINGS SUMMARY -->
-                                            <div
-                                                v-if="
-                                                    form.organisation_type ===
-                                                        'estate' &&
-                                                    form.billing_cycle ===
-                                                        'annual' &&
-                                                    annualSummary
-                                                "
-                                                class="rounded-xl border border-green-200 bg-green-50 p-4"
-                                            >
-                                                <div
-                                                    class="mb-2 text-xs font-bold tracking-wide text-green-700 uppercase"
-                                                >
-                                                    Annual Plan Summary
-                                                </div>
-                                                <div
-                                                    class="flex items-center justify-between text-sm"
-                                                >
-                                                    <span class="text-gray-600"
-                                                        >Monthly
-                                                        equivalent</span
-                                                    >
-                                                    <span
-                                                        class="font-semibold text-gray-900"
-                                                        >R{{
-                                                            annualSummary.monthlyEquivalent
-                                                        }}/mo</span
-                                                    >
-                                                </div>
-                                                <div
-                                                    class="mt-1 flex items-center justify-between text-sm"
-                                                >
-                                                    <span class="text-gray-600"
-                                                        >Billed annually</span
-                                                    >
-                                                    <span
-                                                        class="font-semibold text-gray-900"
-                                                        >R{{
-                                                            annualSummary.billedAnnually.toLocaleString()
-                                                        }}/yr</span
-                                                    >
-                                                </div>
-                                                <div
-                                                    class="mt-2 flex items-center justify-between border-t border-green-200 pt-2 text-sm"
-                                                >
-                                                    <span
-                                                        class="font-bold text-green-700"
-                                                        >You save</span
-                                                    >
-                                                    <span
-                                                        class="font-bold text-green-700"
-                                                        >R{{
-                                                            annualSummary.saving.toLocaleString()
-                                                        }}/yr</span
-                                                    >
-                                                </div>
                                             </div>
 
                                             <!-- NAME + PHONE -->

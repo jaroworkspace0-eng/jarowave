@@ -35,7 +35,6 @@ const showModal = ref(false);
 const isEditing = ref(false);
 const channels = ref<any[]>([]);
 const clients = ref<any[]>([]);
-const employeesList = ref<any[]>([]);
 const showDeleteModal = ref(false);
 const employeeToDelete = ref<number | null>(null);
 const loading = ref(false);
@@ -48,6 +47,14 @@ const inComplex = ref(false);
 let debounceTimeout: any = null;
 const confirmToggleEmployee = ref<any>(null);
 const clientChannels = ref<any[]>([]);
+
+// With these:
+const personnel = ref<any>({ data: [], from: 0, to: 0, total: 0, links: [] });
+const households = ref<any>({ data: [], from: 0, to: 0, total: 0, links: [] });
+const personnelList = ref<any[]>([]);
+const householdList = ref<any[]>([]);
+const personnelTotal = ref(0);
+const householdTotal = ref(0);
 
 const employees = ref<any>({ data: [], from: 0, to: 0, total: 0, links: [] });
 
@@ -85,13 +92,6 @@ const trialingHouseholds = computed(
         householdList.value.filter(
             (e) => e.user.subscription?.status === 'trialing',
         ).length,
-);
-
-const personnelList = computed(() =>
-    employeesList.value.filter((e) => !isHouseholdRole(e.user.occupation)),
-);
-const householdList = computed(() =>
-    employeesList.value.filter((e) => isHouseholdRole(e.user.occupation)),
 );
 
 // Channels that don't yet have an invite link
@@ -282,17 +282,29 @@ const getHeaders = () => ({
     headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
 });
 
-const reloadEmployees = async (url?: string) => {
+const reloadEmployees = async (
+    personnelUrl?: string,
+    householdUrl?: string,
+) => {
     try {
         const params = new URLSearchParams(window.location.search);
         const status = params.get('status');
-        const endpoint = url || `${import.meta.env.VITE_APP_URL}/api/employees`;
-        const { data } = await axios.get(endpoint, {
-            params: { status },
-            ...getHeaders(),
-        });
-        employees.value = data.employees;
-        employeesList.value = data.employees.data;
+        const endpoint = `${import.meta.env.VITE_APP_URL}/api/employees`;
+        const { data } = await axios.get(
+            personnelUrl || householdUrl || endpoint,
+            {
+                params: { status },
+                ...getHeaders(),
+            },
+        );
+        // Personnel
+        personnel.value = data.personnel;
+        personnelList.value = data.personnel.data;
+        personnelTotal.value = data.personnel_total;
+        // Households
+        households.value = data.households;
+        householdList.value = data.households.data;
+        householdTotal.value = data.household_total;
     } catch (e) {
         console.error('Error fetching employees', e);
     }
@@ -611,7 +623,7 @@ const hideSuggestions = () => {
                                 Personnel
                                 <span
                                     class="ml-1.5 rounded-full bg-gray-200 px-1.5 py-0.5 text-xs font-bold text-gray-600"
-                                    >{{ personnelList.length }}</span
+                                    >{{ personnelTotal }}</span
                                 >
                             </button>
                             <button
@@ -626,7 +638,7 @@ const hideSuggestions = () => {
                                 Households
                                 <span
                                     class="ml-1.5 rounded-full bg-gray-200 px-1.5 py-0.5 text-xs font-bold text-gray-600"
-                                    >{{ householdList.length }}</span
+                                    >{{ householdTotal }}</span
                                 >
                             </button>
                         </div>
@@ -1493,24 +1505,60 @@ const hideSuggestions = () => {
             </div>
 
             <!-- ── PAGINATION (personnel tab only) ── -->
+            <!-- Personnel pagination -->
             <div
                 v-if="activeTab === 'personnel'"
-                class="border-blue-gray-50 flex items-center justify-between border-t p-4"
+                class="flex items-center justify-between border-t p-4"
             >
                 <div class="text-sm text-gray-600">
-                    Showing {{ employees.from || 0 }} to
-                    {{ employees.to || 0 }} of {{ employees.total }} entries
+                    Showing {{ personnel.from || 0 }} to
+                    {{ personnel.to || 0 }} of {{ personnel.total }} entries
                 </div>
                 <div class="flex flex-nowrap space-x-2">
                     <template
-                        v-for="(link, index) in employees.links"
+                        v-for="(link, index) in personnel.links"
                         :key="index"
                     >
                         <button
                             v-if="link.url"
-                            @click="reloadEmployees(link.url)"
+                            @click="reloadEmployees(link.url, undefined)"
                             v-html="link.label"
-                            class="inline-block min-w-[40px] rounded border px-3 py-1 text-center transition-all duration-200"
+                            class="inline-block min-w-[40px] rounded border px-3 py-1 text-center transition-all"
+                            :class="{
+                                'border-blue-500 bg-blue-500 text-white':
+                                    link.active,
+                                'border-gray-300 bg-white text-blue-500 hover:bg-gray-50':
+                                    !link.active,
+                            }"
+                        />
+                        <span
+                            v-else
+                            v-html="link.label"
+                            class="inline-block min-w-[40px] cursor-not-allowed rounded border border-gray-300 bg-gray-200 px-3 py-1 text-center text-gray-500"
+                        />
+                    </template>
+                </div>
+            </div>
+
+            <!-- Households pagination -->
+            <div
+                v-if="activeTab === 'households'"
+                class="flex items-center justify-between border-t p-4"
+            >
+                <div class="text-sm text-gray-600">
+                    Showing {{ households.from || 0 }} to
+                    {{ households.to || 0 }} of {{ households.total }} entries
+                </div>
+                <div class="flex flex-nowrap space-x-2">
+                    <template
+                        v-for="(link, index) in households.links"
+                        :key="index"
+                    >
+                        <button
+                            v-if="link.url"
+                            @click="reloadEmployees(undefined, link.url)"
+                            v-html="link.label"
+                            class="inline-block min-w-[40px] rounded border px-3 py-1 text-center transition-all"
                             :class="{
                                 'border-blue-500 bg-blue-500 text-white':
                                     link.active,
