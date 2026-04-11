@@ -206,6 +206,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/{subscription}/cancel',              [AdminSubscriptionController::class, 'cancel']);
         Route::post('/{subscription}/conduct-block',   [AdminSubscriptionController::class, 'conductBlock']);
         Route::post('/{subscription}/conduct-unblock', [AdminSubscriptionController::class, 'conductUnblock']);
+        Route::post('/{subscription}/activation-fee', [AdminSubscriptionController::class, 'markActivationFeePaid']);
     });
 
 

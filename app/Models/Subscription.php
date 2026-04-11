@@ -30,6 +30,8 @@ class Subscription extends Model
         'sos_suspended_at',
         'conduct_blocked_at',
         'conduct_block_reason',
+        'activation_fee_paid',
+        'activation_fee_paid_at',
     ];
 
     protected $casts = [
@@ -38,6 +40,7 @@ class Subscription extends Model
         'current_period_end'     => 'datetime',
         'cancelled_at'           => 'datetime',
         'ends_at'                => 'datetime',
+        'activation_fee_paid_at' => 'datetime',
         'price'                  => 'integer',
         'original_price'         => 'integer',
         'discount_amount'        => 'integer',

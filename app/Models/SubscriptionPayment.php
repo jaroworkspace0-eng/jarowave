@@ -28,6 +28,8 @@ class SubscriptionPayment extends Model
         'billing_period_start',
         'billing_period_end',
         'paid_at',
+        'notes',
+        'proof_of_payment',
     ];
 
     protected $casts = [

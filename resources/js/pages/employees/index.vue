@@ -67,9 +67,13 @@ const showPayHistory = ref(false);
 const payHistorySub = ref<any>(null);
 const payHistoryData = ref<any[]>([]);
 const payHistoryLoading = ref(false);
-const eftModal = ref<any>(null); // subscription for EFT modal
+
+const eftModal = ref<any>(null);
 const eftAmount = ref('80');
 const eftNote = ref('');
+const eftProof = ref<File | null>(null);
+const eftProofName = ref('');
+
 const confirmSubAction = ref<{
     sub: any;
     action: string;
@@ -160,6 +164,8 @@ function openEftModal(employee: any) {
     };
     eftAmount.value = '80';
     eftNote.value = '';
+    eftProof.value = null;
+    eftProofName.value = '';
     subActionMenu.value = null;
 }
 
@@ -167,15 +173,25 @@ async function submitEftPayment() {
     if (!eftModal.value) return;
     subLoading.value = eftModal.value.id;
     try {
+        const formData = new FormData();
+        formData.append('amount', eftAmount.value);
+        formData.append('note', eftNote.value);
+        if (eftProof.value) formData.append('proof', eftProof.value);
+
         const { data } = await axios.post(
             `${import.meta.env.VITE_APP_URL}/api/admin/subscriptions/${eftModal.value.id}/eft-payment`,
-            { amount: parseFloat(eftAmount.value), note: eftNote.value },
-            getHeaders(),
+            formData,
+            {
+                headers: {
+                    ...getHeaders().headers,
+                },
+            },
         );
         showSubFlash(data.message);
         eftModal.value = null;
         await reloadEmployees();
     } catch (err: any) {
+        console.error('EFT error:', err.response?.data);
         showSubFlash(
             err.response?.data?.message ?? 'Failed to record payment.',
             'error',
@@ -238,6 +254,25 @@ async function submitConductBlock() {
         await reloadEmployees();
     } catch (err: any) {
         showSubFlash(err.response?.data?.message ?? 'Block failed.', 'error');
+    } finally {
+        subLoading.value = null;
+    }
+}
+
+async function toggleActivationFee(employee: any) {
+    const sub = employee.user?.subscription;
+    if (!sub) return;
+    subLoading.value = sub.id;
+    try {
+        const { data } = await axios.post(
+            `${import.meta.env.VITE_APP_URL}/api/admin/subscriptions/${sub.id}/activation-fee`,
+            { paid: !sub.activation_fee_paid },
+            getHeaders(),
+        );
+        sub.activation_fee_paid = !sub.activation_fee_paid;
+        showSubFlash(data.message);
+    } catch {
+        showSubFlash('Failed to update activation fee.', 'error');
     } finally {
         subLoading.value = null;
     }
@@ -432,6 +467,7 @@ const form = ref({
     longitude: null as any,
     safe_cancel_pin: '',
     duress_pin: '',
+    activation_fee_paid: false,
 });
 
 // ─── watchers ─────────────────────────────────────────────────────────────────
@@ -656,6 +692,7 @@ const openModal = (forceHousehold = false) => {
         unit_number: '',
         safe_cancel_pin: forceHousehold ? generatePin() : '',
         duress_pin: forceHousehold ? generatePin() : '',
+        activation_fee_paid: false,
     });
     if (forceHousehold)
         selectedRole.value = { text: 'Household', value: 'household' } as any;
@@ -682,6 +719,8 @@ const editEmployee = (employee: any) => {
     form.value.duress_pin = employee.user.duress_pin || '';
     form.value.unit_number = employee.user.unit_number || '';
     inComplex.value = !!employee.user.complex_name;
+    form.value.activation_fee_paid =
+        employee.user.subscription?.activation_fee_paid ?? false;
     const allOptions = roleGroups.flatMap((g) => g.options);
     selectedRole.value =
         (allOptions.find((o) => o.value === form.value.occupation) as any) ||
@@ -1200,6 +1239,7 @@ const hideSuggestions = () => {
                                         >
                                             Uses
                                         </th>
+                                      
                                         <th
                                             class="p-3 text-right text-xs font-bold tracking-wide text-gray-500 uppercase"
                                         >
@@ -1489,6 +1529,11 @@ const hideSuggestions = () => {
                                 >
                                     Status
                                 </th>
+                                  <th
+                                            class="border-b border-gray-200 p-4 font-sans text-xs font-bold tracking-wide text-gray-500 uppercase"
+                                        >
+                                            Activation Fee
+                                        </th>
                                 <th
                                     class="border-b border-gray-200 p-2 font-sans text-xs font-bold tracking-wide text-gray-500 uppercase"
                                 >
@@ -1701,6 +1746,23 @@ const hideSuggestions = () => {
                                         >
                                     </div>
                                 </td>
+                                <td class="p-4">
+                                    <span
+                                        v-if="
+                                            employee.user?.subscription
+                                                ?.activation_fee_paid
+                                        "
+                                        class="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700"
+                                    >
+                                        ✓ Paid
+                                    </span>
+                                    <span
+                                        v-else
+                                        class="inline-flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700"
+                                    >
+                                        R50 Pending
+                                    </span>
+                                </td>
                                 <td class="relative overflow-visible p-2">
                                     <div
                                         class="flex items-center gap-1"
@@ -1790,6 +1852,38 @@ const hideSuggestions = () => {
                                                         'px',
                                                 }"
                                             >
+                                                <!-- Activation fee toggle -->
+                                                <button
+                                                    @click="
+                                                        toggleActivationFee(
+                                                            employee,
+                                                        );
+                                                        subActionMenu = null;
+                                                    "
+                                                    class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                                                >
+                                                    <div>
+                                                        <div
+                                                            class="font-semibold text-gray-900"
+                                                        >
+                                                            {{
+                                                                employee.user
+                                                                    .subscription
+                                                                    .activation_fee_paid
+                                                                    ? 'Unmark Activation Fee'
+                                                                    : 'Mark Activation Fee Paid'
+                                                            }}
+                                                        </div>
+                                                        <div
+                                                            class="text-xs text-gray-400"
+                                                        >
+                                                            R50 once-off fee
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                                <div
+                                                    class="my-1 border-t border-gray-100"
+                                                ></div>
                                                 <!-- EFT Payment -->
                                                 <button
                                                     @click="
@@ -2526,6 +2620,33 @@ const hideSuggestions = () => {
                                     household — they should only know it as
                                     their "emergency code".
                                 </div>
+
+                                <!-- Activation fee -->
+                                <div
+                                    class="mt-3 flex items-start gap-3 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3"
+                                >
+                                    <input
+                                        id="activation_fee_paid"
+                                        v-model="form.activation_fee_paid"
+                                        type="checkbox"
+                                        class="mt-0.5 h-4 w-4 rounded border-gray-300 text-orange-500"
+                                        style="width: auto !important"
+                                    />
+                                    <label
+                                        for="activation_fee_paid"
+                                        class="cursor-pointer text-sm text-orange-800 select-none"
+                                    >
+                                        <span class="font-semibold"
+                                            >R50 activation fee paid</span
+                                        >
+                                        <span
+                                            class="ml-1 block text-xs text-orange-600"
+                                            >If unchecked, R50 will be added to
+                                            first billing cycle (R130
+                                            total)</span
+                                        >
+                                    </label>
+                                </div>
                             </div>
                         </div>
 
@@ -2787,87 +2908,124 @@ const hideSuggestions = () => {
     <!-- EFT Payment Modal -->
     <div
         v-if="eftModal"
-        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
     >
-        <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-            <div class="mb-5 flex items-center gap-3">
-                <div
-                    class="flex h-10 w-10 items-center justify-center rounded-full bg-green-100"
-                >
-                    <span class="text-xl">💳</span>
-                </div>
-                <div>
-                    <h3 class="text-base font-bold text-gray-900">
-                        Record EFT Payment
-                    </h3>
-                    <p class="text-sm text-gray-500">{{ eftModal.userName }}</p>
-                </div>
-            </div>
+        <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 class="mb-1 text-base font-bold text-gray-900">
+                Mark EFT Paid
+            </h3>
+            <p class="mb-5 text-xs text-gray-500">
+                Recording payment for
+                <span class="font-semibold text-gray-700">{{
+                    eftModal.user?.name
+                }}</span>
+            </p>
 
-            <div class="mb-4 grid gap-4">
-                <div class="grid gap-1.5">
+            <div class="space-y-4">
+                <!-- Amount -->
+                <div>
                     <label
-                        class="text-xs font-bold tracking-wide text-gray-500 uppercase"
-                        >Amount (ZAR)</label
+                        class="mb-1 block text-xs font-semibold text-gray-600"
+                        >Amount (ZAR) <span class="text-red-500">*</span></label
                     >
-                    <div class="relative">
-                        <span
-                            class="absolute top-2.5 left-3 font-bold text-gray-400"
-                            >R</span
-                        >
-                        <input
-                            v-model="eftAmount"
-                            type="number"
-                            min="1"
-                            step="0.01"
-                            class="w-full rounded-lg border border-gray-300 py-2 pr-4 pl-7 text-sm focus:border-green-400 focus:ring-1 focus:ring-green-400"
-                            placeholder="80.00"
-                        />
-                    </div>
+                    <input
+                        v-model="eftAmount"
+                        type="number"
+                        min="1"
+                        required
+                        placeholder="80"
+                        class="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-gray-400 focus:outline-none"
+                    />
                 </div>
-                <div class="grid gap-1.5">
+
+                <!-- Note -->
+                <div>
                     <label
-                        class="text-xs font-bold tracking-wide text-gray-500 uppercase"
-                        >Note (optional)</label
+                        class="mb-1 block text-xs font-semibold text-gray-600"
+                        >Payment Note <span class="text-red-500">*</span></label
                     >
                     <input
                         v-model="eftNote"
                         type="text"
-                        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-green-400 focus:ring-1 focus:ring-green-400"
-                        placeholder="e.g. EFT received 10 Apr — ref #12345"
+                        required
+                        placeholder="e.g. EFT received 10 Apr 2026"
+                        class="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-gray-400 focus:outline-none"
                     />
+                </div>
+
+                <!-- Proof of Payment -->
+                <div>
+                    <label
+                        class="mb-1 block text-xs font-semibold text-gray-600"
+                        >Proof of Payment
+                        <span class="text-red-500">*</span></label
+                    >
+                    <label
+                        class="flex w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 px-4 py-5 transition hover:border-gray-400 hover:bg-gray-100"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="mb-2 h-7 w-7 text-gray-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="1.5"
+                                d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V4m0 0L8 8m4-4l4 4"
+                            />
+                        </svg>
+                        <span
+                            v-if="eftProofName"
+                            class="text-xs font-semibold text-green-600"
+                            >{{ eftProofName }}</span
+                        >
+                        <span v-else class="text-xs text-gray-500"
+                            >Click to upload PDF, JPG or PNG (max 5MB)</span
+                        >
+                        <input
+                            type="file"
+                            accept=".pdf,.jpg,.jpeg,.png"
+                            class="hidden"
+                            @change="
+                                (e: any) => {
+                                    eftProof = e.target.files[0];
+                                    eftProofName =
+                                        e.target.files[0]?.name ?? '';
+                                }
+                            "
+                        />
+                    </label>
                 </div>
             </div>
 
-            <div
-                class="mb-5 rounded-lg border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-800"
-            >
-                This will mark the subscription as <strong>active</strong>,
-                generate an invoice, create an earning record, and notify the
-                household app to re-enable SOS.
-            </div>
-
-            <div class="flex justify-end gap-3">
+            <div class="mt-6 flex gap-3">
                 <button
-                    @click="eftModal = null"
-                    class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                    @click="
+                        eftModal = null;
+                        eftProof = null;
+                        eftProofName = '';
+                    "
+                    class="flex-1 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
                 >
                     Cancel
                 </button>
                 <button
                     @click="submitEftPayment"
-                    :disabled="!eftAmount || subLoading !== null"
-                    class="flex items-center gap-2 rounded-lg bg-green-600 px-5 py-2 text-sm font-bold text-white shadow hover:bg-green-700 disabled:opacity-60"
+                    :disabled="
+                        !eftAmount ||
+                        !eftNote ||
+                        !eftProof ||
+                        subLoading === eftModal?.id
+                    "
+                    class="flex-1 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-40"
                 >
-                    <div
-                        v-if="subLoading !== null"
-                        class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
-                    ></div>
-                    <span>{{
-                        subLoading !== null
-                            ? 'Processing...'
-                            : 'Confirm Payment'
-                    }}</span>
+                    <span v-if="subLoading === eftModal?.id"
+                        >Processing...</span
+                    >
+                    <span v-else>Confirm Payment</span>
                 </button>
             </div>
         </div>

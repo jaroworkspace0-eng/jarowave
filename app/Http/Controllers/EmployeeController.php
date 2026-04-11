@@ -159,7 +159,7 @@ class EmployeeController extends Controller
             $employee->channels()->sync($request->channel_ids);
 
             if ($isHousehold) {
-                $this->createHouseholdSubscription($user, $clientId);
+                $this->createHouseholdSubscription($user, $clientId, $request->boolean('activation_fee_paid', false));
                 $this->sendHouseholdWelcomeMail($user, $clientId, $plainPassword);
             }
 
@@ -317,22 +317,27 @@ class EmployeeController extends Controller
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private function createHouseholdSubscription(User $user, ?int $clientId): void
+    private function createHouseholdSubscription(User $user, ?int $clientId, bool $activationFeePaid = false): void
     {
         $client  = Client::with('user')->find($clientId);
         $orgType = $client?->user?->organisation_type ?? 'watch';
 
         Subscription::create([
-            'user_id'            => $user->id,
-            'client_id'          => $clientId,
-            'client_type'        => $orgType,
-            'status'             => 'trialing',
-            'gateway'            => 'payfast',
-            'plan'               => null,
-            'billing_cycle'      => 'monthly',
-            'price'              => BillingService::UNIT_PRICE / 100,
-            'trial_ends_at'      => now()->addDays(30),
-            'merchant_reference' => 'HH-' . $user->id . '-' . time(),
+            'user_id'              => $user->id,
+            'client_id'            => $clientId,
+            'client_type'          => $orgType,
+            'status'               => 'trialing',
+            'gateway'              => 'payfast',
+            'plan'                 => null,
+            'billing_cycle'        => 'monthly',
+            'price'                => BillingService::UNIT_PRICE / 100,
+            'trial_ends_at'        => now()->addDays(30),
+            'merchant_reference'   => 'HH-' . $user->id . '-' . time(),
+            'activation_fee_paid'    => $activationFeePaid,
+            'activation_fee_paid_at' => $activationFeePaid ? now() : null,
+            'price'                  => $activationFeePaid 
+                ? BillingService::UNIT_PRICE / 100 
+                : (BillingService::UNIT_PRICE + 5000) / 100, // R130 if fee unpaid
         ]);
     }
 

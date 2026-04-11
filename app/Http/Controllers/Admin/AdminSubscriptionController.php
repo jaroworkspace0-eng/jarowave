@@ -10,6 +10,7 @@ use App\Models\Invoice;
 use App\Models\Subscription;
 use App\Models\SubscriptionPayment;
 use App\Models\User;
+use App\Services\BillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -61,9 +62,12 @@ class AdminSubscriptionController extends Controller
     public function markEftPaid(Request $request, Subscription $subscription)
     {
         $request->validate([
-            'amount'  => 'required|numeric|min:1',
-            'note'    => 'nullable|string|max:255',
+            'amount' => 'required|numeric|min:1',
+            'note'   => 'required|string|max:255',
+            'proof'  => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
         ]);
+
+        $proofPath = $request->file('proof')->store('eft-proofs', 'public');
 
         $amountCents = (int) round($request->amount * 100);
 
@@ -78,7 +82,8 @@ class AdminSubscriptionController extends Controller
             'merchant_reference'  => 'EFT-' . strtoupper(uniqid()),
             'billing_period_start'=> $subscription->current_period_start,
             'billing_period_end'  => $subscription->current_period_end,
-            'notes'               => $request->note ?? 'Manual EFT payment recorded by admin',
+            'notes'               => $request->note,
+            'proof_of_payment'    => $proofPath,
         ]);
 
         // Activate subscription
@@ -95,6 +100,17 @@ class AdminSubscriptionController extends Controller
                 Earning::createFromPayment($payment, $subscription->client);
             }
             Invoice::createFromPayment($payment);
+
+
+            // Mark activation fee as paid on first successful payment if not already
+            if (!$subscription->activation_fee_paid) {
+                $subscription->update([
+                    'activation_fee_paid'    => true,
+                    'activation_fee_paid_at' => now(),
+                    'price'                  => BillingService::UNIT_PRICE / 100, // reset to R80
+                ]);
+}
+
         } catch (\Throwable $e) {
             Log::warning('EFT payment: earning/invoice failed', ['error' => $e->getMessage()]);
         }
@@ -207,6 +223,21 @@ class AdminSubscriptionController extends Controller
         ]);
 
         return response()->json(['success' => true, 'message' => 'Conduct block lifted. SOS restored.']);
+    }
+
+
+    // ── POST /api/admin/subscriptions/{id}/activation-fee ────────────────────
+    public function markActivationFeePaid(Request $request, Subscription $subscription)
+    {
+        $paid = $request->boolean('paid', true);
+        $subscription->update([
+            'activation_fee_paid'    => $paid,
+            'activation_fee_paid_at' => $paid ? now() : null,
+        ]);
+        return response()->json([
+            'success' => true,
+            'message' => $paid ? 'Activation fee marked as paid.' : 'Activation fee marked as unpaid.',
+        ]);
     }
 
     // ── Helper ────────────────────────────────────────────────────────────────

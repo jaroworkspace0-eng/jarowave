@@ -10,7 +10,8 @@ class BillingService
     // Split by organisation type
     const SPLITS = [
         'watch'  => ['client' => 5200, 'platform' => 2800], // R52 / R28
-        'estate' => ['client' => 3000, 'platform' => 5000], // R30 / R50
+        'estate' => ['client' => 5200, 'platform' => 2800], // R52 / R28
+        // 'estate' => ['client' => 3000, 'platform' => 5000], // R30 / R50
     ];
 
     /**
