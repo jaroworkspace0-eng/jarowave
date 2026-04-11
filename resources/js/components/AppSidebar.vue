@@ -21,8 +21,7 @@ import {
     Building,
     HomeIcon,
     Megaphone,
-    MonitorCheck,
-    Paperclip,
+    Newspaper,
     ReceiptText, // ← add this
     Trash2,
 } from 'lucide-vue-next';
@@ -39,12 +38,12 @@ const mainNavItems: NavItem[] = [
     { title: 'Personnels', href: '/employees', icon: Briefcase },
 
     // Estate users see Subscription + Invoices
-    ...(auth.user?.organisation_type === 'estate'
-        ? [
-              { title: 'Subscription', href: '/billing', icon: MonitorCheck },
-              { title: 'Invoices', href: '/invoices', icon: Paperclip },
-          ]
-        : []),
+    // ...(auth.user?.organisation_type === 'estate'
+    //     ? [
+    //           { title: 'Subscription', href: '/billing', icon: MonitorCheck },
+    //           { title: 'Invoices', href: '/invoices', icon: Paperclip },
+    //       ]
+    //     : []),
 
     // Watch groups see Payouts
     ...(auth.user?.organisation_type === 'watch'
@@ -57,6 +56,11 @@ const mainNavItems: NavItem[] = [
                   title: 'Announcements',
                   href: '/announcements',
                   icon: Megaphone,
+              },
+              {
+                  title: 'Incident Reports',
+                  href: '/admin/incident-reports',
+                  icon: Newspaper,
               },
               {
                   title: 'Deletion Requests',

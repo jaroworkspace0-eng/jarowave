@@ -4,6 +4,7 @@ use App\Http\Controllers\AccountDeletionController;
 use App\Http\Controllers\Admin\AdminSubscriptionController;
 use App\Http\Controllers\Admin\PaymentSimulatorController;
 use App\Http\Controllers\AnnouncementController;
+use App\Http\Controllers\Api\SosIncidentReportController;
 use App\Http\Controllers\BroadcastAudioController;
 use App\Http\Controllers\ChannelController;
 use App\Http\Controllers\ClientController;
@@ -194,6 +195,21 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/user', function (Request $request) {
         return $request->user();
     });
+
+
+    // Patroller — submit and view own reports
+    Route::post('/incident-reports', [SosIncidentReportController::class, 'store']);
+    Route::get('/incident-reports', [SosIncidentReportController::class, 'index']);
+
+    // Admin — all reports + actions
+    Route::prefix('admin')->group(function () {
+        Route::get('/incident-reports', [SosIncidentReportController::class, 'adminIndex']);
+        Route::get('/incident-reports/{report}', [SosIncidentReportController::class, 'show']);
+        Route::post('/incident-reports/{report}/action', [SosIncidentReportController::class, 'action']);
+    });
+
+    // Household — view reports on their own alerts
+    Route::get('/household/incident-reports', [SosIncidentReportController::class, 'householdReports']);
 
 
     // Admin subscription management routes (only for admin users, but we can check that inside the controller since these are under the household prefix)

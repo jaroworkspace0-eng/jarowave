@@ -66,6 +66,11 @@ Route::get('/admin/simulate-payment', function () {
 });
 
 
+Route::get('/admin/incident-reports', function() {
+return inertia('Admin/IncidentReports');
+});
+
+
 Route::resource("users", UserController::class);
 Route::get('/search', [SearchController::class, 'index'])->name('search.index');
 // });
