@@ -21,7 +21,7 @@
 {{-- ── WARNING BLOCK ── --}}
 <div style="background:#fffbeb; border:1px solid #fcd34d; border-radius:10px; padding:14px 16px; margin-bottom:24px;">
     <p style="font-size:13px; color:#b45309; margin:0; font-weight:600;">
-        ⚠ This is a formal warning. Continued misuse of the SOS panic button may result in your access being suspended.
+        This is a formal warning. Continued misuse of the SOS panic button may result in your access being suspended.
     </p>
 </div>
 
@@ -80,7 +80,7 @@
     </tr>
     <tr>
         <td style="padding:6px 0; font-size:13px; color:#888;">Status</td>
-        <td style="padding:6px 0; font-size:13px; font-weight:700; color:#b45309; text-align:right;">⚠ Warning Issued</td>
+        <td style="padding:6px 0; font-size:13px; font-weight:700; color:#b45309; text-align:right;">Warning Issued</td>
     </tr>
     <tr>
         <td style="padding:6px 0; font-size:13px; color:#888;">Subscription</td>
