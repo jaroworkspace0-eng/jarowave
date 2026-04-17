@@ -12,7 +12,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmergencyAlertController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\HouseholdController;
-use App\Http\Controllers\IncidentReportExportController;
+use App\Http\Controllers\Admin\IncidentReportExportController;
 use App\Http\Controllers\InviteController;
 use App\Http\Controllers\LiveKitController;
 use App\Http\Controllers\Payments\EarningController;
