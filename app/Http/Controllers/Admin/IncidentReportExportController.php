@@ -253,7 +253,7 @@ class IncidentReportExportController extends Controller
                 dateTo:      $request->date_to,
                 total:       $reports->count(),
                 formats:     $request->formats,
-                attachments: $attachments,
+                exportFiles: $attachments,
             ));
         }
 
