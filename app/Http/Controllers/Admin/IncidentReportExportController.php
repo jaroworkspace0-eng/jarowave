@@ -8,6 +8,7 @@ use App\Models\SosIncidentReport;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 
 class IncidentReportExportController extends Controller
 {
@@ -68,10 +69,10 @@ class IncidentReportExportController extends Controller
         return Pdf::loadView('exports.incident-reports-pdf', $data)
             ->setPaper('a4', 'landscape')
             ->setOptions([
-                'defaultFont'          => 'DejaVu Sans',
-                'isHtml5ParserEnabled' => true,
-                'isRemoteEnabled'      => false,
-                'dpi'                  => 96,
+                'defaultFont'             => 'DejaVu Sans',
+                'isHtml5ParserEnabled'    => true,
+                'isRemoteEnabled'         => false,
+                'dpi'                     => 96,
                 'isFontSubsettingEnabled' => true,
             ]);
     }
@@ -110,10 +111,14 @@ class IncidentReportExportController extends Controller
         $pdf      = $this->makePdf($data);
         $filename = 'incident-reports-' . $request->date_from . '-to-' . $request->date_to . '.pdf';
 
+        // Save PDF to storage (queue-safe)
+        $path = Storage::path("reports/$filename");
+        Storage::put("reports/$filename", $pdf->output());
+
         $attachments = [[
-            'content' => $pdf->output(),
-            'name'    => $filename,
-            'mime'    => 'application/pdf',
+            'path' => $path,
+            'name' => $filename,
+            'mime' => 'application/pdf',
         ]];
 
         foreach ($request->emails as $email) {

@@ -18,7 +18,7 @@ class IncidentReportExportMail extends Mailable
         public string $dateTo,
         public int    $total,
         public array  $formats,
-        public array  $exportFiles, // [['content'=>'...','name'=>'...','mime'=>'...']]
+        public array  $exportFiles, // [['path'=>'...','name'=>'...','mime'=>'...']] OR [['content'=>'...','name'=>'...','mime'=>'...']]
     ) {}
 
     public function envelope(): Envelope
@@ -43,12 +43,17 @@ class IncidentReportExportMail extends Mailable
 
     public function attachments(): array
     {
-        return array_map(
-            fn($file) => Attachment::fromData(
+        return array_map(function ($file) {
+            if (isset($file['path'])) {
+                return Attachment::fromPath($file['path'])
+                    ->as($file['name'])
+                    ->withMime($file['mime']);
+            }
+
+            return Attachment::fromData(
                 fn() => $file['content'],
                 $file['name'],
-            )->withMime($file['mime']),
-            $this->exportFiles,
-        );
+            )->withMime($file['mime']);
+        }, $this->exportFiles);
     }
 }
