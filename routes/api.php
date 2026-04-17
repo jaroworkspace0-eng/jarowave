@@ -201,7 +201,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // 
     Route::prefix('admin/incident-reports')->group(function () {
         Route::get('/export/pdf',   [IncidentReportExportController::class, 'exportPdf']);
-        Route::get('/export/csv',   [IncidentReportExportController::class, 'exportCsv']);
+        // Route::get('/export/csv',   [IncidentReportExportController::class, 'exportCsv']);
         Route::post('/export/email',[IncidentReportExportController::class, 'emailExport']);
     });
 

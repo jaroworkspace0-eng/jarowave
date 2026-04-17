@@ -4,6 +4,7 @@ namespace App\Mail;
 
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
+use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
@@ -17,13 +18,13 @@ class IncidentReportExportMail extends Mailable
         public string $dateTo,
         public int    $total,
         public array  $formats,
-        public array  $exportFiles,
+        public array  $exportFiles, // [['content'=>'...','name'=>'...','mime'=>'...']]
     ) {}
 
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Echo Link — Incident Reports Export (' . $this->dateFrom . ' to ' . $this->dateTo . ')',
+            subject: 'Echo Link — Incident Reports (' . $this->dateFrom . ' to ' . $this->dateTo . ')',
         );
     }
 
@@ -40,11 +41,14 @@ class IncidentReportExportMail extends Mailable
         );
     }
 
-    public function build(): static
+    public function attachments(): array
     {
-        foreach ($this->exportFiles as $file) {
-            $this->attachData($file['content'], $file['name'], ['mime' => $file['mime']]);
-        }
-        return $this;
+        return array_map(
+            fn($file) => Attachment::fromData(
+                fn() => $file['content'],
+                $file['name'],
+            )->withMime($file['mime']),
+            $this->exportFiles,
+        );
     }
 }

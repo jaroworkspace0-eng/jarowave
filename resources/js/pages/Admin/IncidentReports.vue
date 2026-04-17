@@ -32,13 +32,11 @@ const actionNotes = ref('');
 const flash = ref<{ msg: string; type: 'success' | 'error' } | null>(null);
 
 const showExport = ref(false);
-const exportFormat = ref<'pdf' | 'csv' | 'both'>('pdf');
 const exportLoading = ref(false);
 
 const showEmail = ref(false);
 const emailInput = ref('');
 const emailList = ref<string[]>([]);
-const emailFormats = ref<string[]>(['pdf']);
 const emailLoading = ref(false);
 const emailError = ref('');
 
@@ -48,7 +46,7 @@ const getHeaders = () => ({
 
 function showFlash(msg: string, type: 'success' | 'error' = 'success') {
     flash.value = { msg, type };
-    setTimeout(() => (flash.value = null), 4000);
+    setTimeout(() => (flash.value = null), 5000);
 }
 
 function validateDates(): boolean {
@@ -162,12 +160,13 @@ function buildExportParams() {
     }).toString();
 }
 
-async function doExport(format: 'pdf' | 'csv') {
+async function downloadPdf() {
     if (!validateDates()) return;
     exportLoading.value = true;
+    showExport.value = false;
     try {
         const response = await axios.get(
-            `${import.meta.env.VITE_APP_URL}/api/admin/incident-reports/export/${format}?${buildExportParams()}`,
+            `${import.meta.env.VITE_APP_URL}/api/admin/incident-reports/export/pdf?${buildExportParams()}`,
             {
                 headers: {
                     Authorization: `Bearer ${localStorage.getItem('token')}`,
@@ -175,16 +174,14 @@ async function doExport(format: 'pdf' | 'csv') {
                 responseType: 'blob',
             },
         );
-        const blob = new Blob([response.data], {
-            type: format === 'pdf' ? 'application/pdf' : 'text/csv',
-        });
+        const blob = new Blob([response.data], { type: 'application/pdf' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `incident-reports-${dateFrom.value}-to-${dateTo.value}.${format}`;
+        a.download = `incident-reports-${dateFrom.value}-to-${dateTo.value}.pdf`;
         a.click();
         URL.revokeObjectURL(url);
-        showFlash(`${format.toUpperCase()} downloaded.`);
+        showFlash('PDF downloaded successfully.');
     } catch {
         showFlash('Export failed. Try again.', 'error');
     } finally {
@@ -192,22 +189,11 @@ async function doExport(format: 'pdf' | 'csv') {
     }
 }
 
-async function handleExport() {
-    if (!validateDates()) return;
-    if (exportFormat.value === 'both') {
-        await doExport('pdf');
-        await doExport('csv');
-    } else {
-        await doExport(exportFormat.value);
-    }
-    showExport.value = false;
-}
-
 function addEmail() {
     const e = emailInput.value.trim();
     if (!e) return;
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) {
-        emailError.value = 'Invalid email.';
+        emailError.value = 'Invalid email address.';
         return;
     }
     if (emailList.value.includes(e)) {
@@ -215,7 +201,7 @@ function addEmail() {
         return;
     }
     if (emailList.value.length >= 10) {
-        emailError.value = 'Max 10 recipients.';
+        emailError.value = 'Maximum 10 recipients.';
         return;
     }
     emailList.value.push(e);
@@ -225,15 +211,6 @@ function addEmail() {
 
 function removeEmail(e: string) {
     emailList.value = emailList.value.filter((x) => x !== e);
-}
-
-function toggleEmailFormat(f: string) {
-    if (emailFormats.value.includes(f)) {
-        if (emailFormats.value.length === 1) return;
-        emailFormats.value = emailFormats.value.filter((x) => x !== f);
-    } else {
-        emailFormats.value.push(f);
-    }
 }
 
 async function sendEmail() {
@@ -250,7 +227,6 @@ async function sendEmail() {
                 date_from: dateFrom.value,
                 date_to: dateTo.value,
                 emails: emailList.value,
-                formats: emailFormats.value,
                 status: filterStatus.value || undefined,
                 outcome: filterOutcome.value || undefined,
                 search: searchQuery.value || undefined,
@@ -261,9 +237,11 @@ async function sendEmail() {
         showEmail.value = false;
         emailList.value = [];
         emailInput.value = '';
-        emailFormats.value = ['pdf'];
     } catch (err: any) {
-        showFlash(err.response?.data?.message ?? 'Failed to send.', 'error');
+        showFlash(
+            err.response?.data?.message ?? 'Failed to send email.',
+            'error',
+        );
     } finally {
         emailLoading.value = false;
     }
@@ -346,21 +324,30 @@ onMounted(() => loadReports());
                             Incident Reports
                         </h1>
                         <p class="mt-0.5 text-sm text-gray-500">
-                            SOS alert reports submitted by patrollers
+                            SOS alert reports submitted by patrollers — review
+                            and take action
                         </p>
                     </div>
                     <div class="flex items-center gap-2">
                         <button
                             @click="showExport = true"
-                            class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                            :disabled="exportLoading"
+                            class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                         >
-                            ⬇ Export
+                            <span
+                                v-if="exportLoading"
+                                class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700"
+                            ></span>
+                            <span v-else>⬇</span>
+                            {{
+                                exportLoading ? 'Generating...' : 'Download PDF'
+                            }}
                         </button>
                         <button
                             @click="showEmail = true"
                             class="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
                         >
-                            ✉ Send Report
+                            ✉ Email Report
                         </button>
                         <div
                             v-if="flash"
@@ -499,7 +486,7 @@ onMounted(() => loadReports());
                 <select
                     v-model="filterStatus"
                     @change="loadReports()"
-                    class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 focus:outline-none"
+                    class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:outline-none"
                 >
                     <option value="">All Statuses</option>
                     <option value="pending">Pending</option>
@@ -511,7 +498,7 @@ onMounted(() => loadReports());
                 <select
                     v-model="filterOutcome"
                     @change="loadReports()"
-                    class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 focus:outline-none"
+                    class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:outline-none"
                 >
                     <option value="">All Outcomes</option>
                     <option value="misuse">Misuse</option>
@@ -736,7 +723,7 @@ onMounted(() => loadReports());
                     ></div>
                 </div>
                 <div v-else class="space-y-6 p-6">
-                    <div class="flex items-center gap-3">
+                    <div class="flex flex-wrap items-center gap-3">
                         <span
                             :class="[
                                 'rounded-full border px-3 py-1.5 text-xs font-bold',
@@ -1015,58 +1002,39 @@ onMounted(() => loadReports());
             </div>
         </div>
 
-        <!-- EXPORT MODAL -->
+        <!-- DOWNLOAD CONFIRM MODAL -->
         <div
             v-if="showExport"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm"
         >
-            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
                 <h3 class="mb-1 text-base font-bold text-gray-900">
-                    Export Reports
+                    Download PDF Report
                 </h3>
-                <p class="mb-5 text-xs text-gray-500">
-                    Downloads data for the selected date range and active
+                <p class="mb-5 text-sm text-gray-500">
+                    A PDF report will be generated for the selected period and
                     filters.
                 </p>
                 <div
-                    class="mb-5 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-700"
+                    class="mb-5 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm"
                 >
-                    <span class="font-semibold">Period:</span> {{ dateFrom }} →
-                    {{ dateTo }}
-                    <span
+                    <div class="flex justify-between">
+                        <span class="text-gray-500">Period</span
+                        ><span class="font-semibold text-gray-800"
+                            >{{ dateFrom }} → {{ dateTo }}</span
+                        >
+                    </div>
+                    <div
                         v-if="filterStatus || filterOutcome"
-                        class="ml-3 text-gray-400"
-                        >· Filters applied</span
+                        class="mt-1 flex justify-between"
                     >
-                </div>
-                <p
-                    class="mb-2 text-xs font-bold tracking-wide text-gray-500 uppercase"
-                >
-                    Format
-                </p>
-                <div class="mb-5 flex gap-3">
-                    <button
-                        v-for="f in [
-                            {
-                                id: 'pdf',
-                                label: '📄 PDF',
-                                sub: 'Formatted report',
-                            },
-                            { id: 'csv', label: '📊 CSV', sub: 'Spreadsheet' },
-                            { id: 'both', label: '⬇ Both', sub: 'PDF + CSV' },
-                        ]"
-                        :key="f.id"
-                        @click="exportFormat = f.id as any"
-                        :class="[
-                            'flex-1 rounded-xl border px-3 py-3 text-center transition-all',
-                            exportFormat === f.id
-                                ? 'border-gray-900 bg-gray-900 text-white'
-                                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50',
-                        ]"
-                    >
-                        <div class="text-sm font-bold">{{ f.label }}</div>
-                        <div class="mt-0.5 text-xs opacity-60">{{ f.sub }}</div>
-                    </button>
+                        <span class="text-gray-500">Filters</span
+                        ><span class="text-gray-600">{{
+                            [filterStatus, filterOutcome]
+                                .filter(Boolean)
+                                .join(', ')
+                        }}</span>
+                    </div>
                 </div>
                 <div class="flex gap-3">
                     <button
@@ -1076,11 +1044,10 @@ onMounted(() => loadReports());
                         Cancel
                     </button>
                     <button
-                        @click="handleExport"
-                        :disabled="exportLoading"
-                        class="flex-1 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50"
+                        @click="downloadPdf"
+                        class="flex-1 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-700"
                     >
-                        {{ exportLoading ? 'Generating...' : '⬇ Download' }}
+                        ⬇ Download PDF
                     </button>
                 </div>
             </div>
@@ -1093,43 +1060,21 @@ onMounted(() => loadReports());
         >
             <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
                 <h3 class="mb-1 text-base font-bold text-gray-900">
-                    Send Report via Email
+                    Email PDF Report
                 </h3>
                 <p class="mb-5 text-xs text-gray-500">
-                    Report compiled for the selected date range and sent as
-                    attachment.
+                    A PDF report will be compiled for the selected period and
+                    emailed as an attachment.
                 </p>
                 <div
-                    class="mb-5 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-700"
+                    class="mb-5 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm"
                 >
-                    <span class="font-semibold">Period:</span> {{ dateFrom }} →
-                    {{ dateTo }}
-                </div>
-                <p
-                    class="mb-2 text-xs font-bold tracking-wide text-gray-500 uppercase"
-                >
-                    Attach as
-                </p>
-                <div class="mb-5 flex gap-3">
-                    <button
-                        v-for="f in [
-                            { id: 'pdf', label: '📄 PDF' },
-                            { id: 'csv', label: '📊 CSV' },
-                        ]"
-                        :key="f.id"
-                        @click="toggleEmailFormat(f.id)"
-                        :class="[
-                            'flex-1 rounded-xl border px-4 py-2.5 text-sm font-bold transition-all',
-                            emailFormats.includes(f.id)
-                                ? 'border-blue-500 bg-blue-500 text-white'
-                                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50',
-                        ]"
-                    >
-                        {{ f.label }}
-                        <span v-if="emailFormats.includes(f.id)" class="ml-1"
-                            >✓</span
+                    <div class="flex justify-between">
+                        <span class="text-gray-500">Period</span
+                        ><span class="font-semibold text-gray-800"
+                            >{{ dateFrom }} → {{ dateTo }}</span
                         >
-                    </button>
+                    </div>
                 </div>
                 <p
                     class="mb-2 text-xs font-bold tracking-wide text-gray-500 uppercase"
@@ -1191,11 +1136,19 @@ onMounted(() => loadReports());
                         :disabled="emailLoading || emailList.length === 0"
                         class="flex-1 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
                     >
-                        {{
-                            emailLoading
-                                ? 'Sending...'
-                                : `✉ Send to ${emailList.length} recipient${emailList.length !== 1 ? 's' : ''}`
-                        }}
+                        <span
+                            v-if="emailLoading"
+                            class="flex items-center justify-center gap-2"
+                            ><span
+                                class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white"
+                            ></span
+                            >Sending...</span
+                        >
+                        <span v-else
+                            >✉ Send to {{ emailList.length }} recipient{{
+                                emailList.length !== 1 ? 's' : ''
+                            }}</span
+                        >
                     </button>
                 </div>
             </div>
