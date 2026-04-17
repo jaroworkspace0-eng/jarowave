@@ -17,7 +17,7 @@ class IncidentReportExportMail extends Mailable
         public string $dateTo,
         public int    $total,
         public array  $formats,
-        public array  $attachments,
+        public array  $exportFiles,
     ) {}
 
     public function envelope(): Envelope
@@ -42,7 +42,7 @@ class IncidentReportExportMail extends Mailable
 
     public function build(): static
     {
-        foreach ($this->attachments as $file) {
+        foreach ($this->exportFiles as $file) {
             $this->attachData($file['content'], $file['name'], ['mime' => $file['mime']]);
         }
         return $this;
