@@ -323,7 +323,7 @@ async function exportPdf(scope: 'all' | 'single' = 'all') {
         doc.setTextColor(255, 255, 255);
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
-        doc.text('ECHO LINK — Incident Reports', 10, 11);
+        doc.text('ECHO LINK - Incident Report', 10, 11);
         doc.setFontSize(8);
         doc.setFont('helvetica', 'normal');
         doc.text(`Generated: ${new Date().toLocaleString('en-ZA')}`, 230, 11);
@@ -358,6 +358,8 @@ async function exportPdf(scope: 'all' | 'single' = 'all') {
             r.status ?? '—',
             r.injuries_reported ? 'Yes' : 'No',
             r.property_damage ? 'Yes' : 'No',
+            r.narrative ?? '-',
+            r.admin_notes ?? '-',
             r.created_at ? fmtDate(r.created_at) : '—',
         ]);
 
@@ -373,6 +375,8 @@ async function exportPdf(scope: 'all' | 'single' = 'all') {
                     'Status',
                     'Injuries',
                     'Damage',
+                    'Narrative',
+                    'Admin Notes',
                     'Date',
                 ],
             ],
