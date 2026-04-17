@@ -12,6 +12,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EmergencyAlertController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\HouseholdController;
+use App\Http\Controllers\IncidentReportExportController;
 use App\Http\Controllers\InviteController;
 use App\Http\Controllers\LiveKitController;
 use App\Http\Controllers\Payments\EarningController;
@@ -194,6 +195,14 @@ Route::middleware('auth:sanctum')->prefix('household')->group(function () {
 Route::middleware(['auth:sanctum'])->group(function () { 
         Route::get('/user', function (Request $request) {
         return $request->user();
+    });
+
+
+    // 
+    Route::prefix('admin/incident-reports')->group(function () {
+        Route::get('/export/pdf',   [IncidentReportExportController::class, 'exportPdf']);
+        Route::get('/export/csv',   [IncidentReportExportController::class, 'exportCsv']);
+        Route::post('/export/email',[IncidentReportExportController::class, 'emailExport']);
     });
 
 

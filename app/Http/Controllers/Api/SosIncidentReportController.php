@@ -93,6 +93,16 @@ class SosIncidentReportController extends Controller
             );
         }
 
+
+        // Add conditional date filter
+        $query->when($request->date_from, function ($q) use ($request) {
+            $q->whereBetween('created_at', [
+                $request->date_from . ' 00:00:00',
+                ($request->date_to ?? $request->date_from) . ' 23:59:59',
+            ]);
+        });
+
+
         return response()->json($query->paginate(20));
     }
 

@@ -4,7 +4,6 @@ import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
 
-// ─── state ────────────────────────────────────────────────────────────────────
 const reports = ref<any>({ data: [], total: 0, from: 0, to: 0, links: [] });
 const reportList = ref<any[]>([]);
 const loading = ref(false);
@@ -13,22 +12,36 @@ const filterStatus = ref('');
 const filterOutcome = ref('');
 let searchTimeout: any = null;
 
+const today = new Date().toISOString().split('T')[0];
+const firstOfMonth = new Date(
+    new Date().getFullYear(),
+    new Date().getMonth(),
+    1,
+)
+    .toISOString()
+    .split('T')[0];
+const dateFrom = ref(firstOfMonth);
+const dateTo = ref(today);
+const dateError = ref('');
+
 const selectedReport = ref<any>(null);
 const showDetail = ref(false);
 const detailLoading = ref(false);
-
 const actionLoading = ref(false);
 const actionNotes = ref('');
 const flash = ref<{ msg: string; type: 'success' | 'error' } | null>(null);
 
-// ─── export state ─────────────────────────────────────────────────────────────
-const exportLoading = ref<'pdf' | 'csv' | 'email' | null>(null);
-const showEmailModal = ref(false);
-const emailTarget = ref('');
-const emailScope = ref<'all' | 'single'>('all');
-const emailSending = ref(false);
+const showExport = ref(false);
+const exportFormat = ref<'pdf' | 'csv' | 'both'>('pdf');
+const exportLoading = ref(false);
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
+const showEmail = ref(false);
+const emailInput = ref('');
+const emailList = ref<string[]>([]);
+const emailFormats = ref<string[]>(['pdf']);
+const emailLoading = ref(false);
+const emailError = ref('');
+
 const getHeaders = () => ({
     headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
 });
@@ -38,7 +51,27 @@ function showFlash(msg: string, type: 'success' | 'error' = 'success') {
     setTimeout(() => (flash.value = null), 4000);
 }
 
-// ─── stats ────────────────────────────────────────────────────────────────────
+function validateDates(): boolean {
+    if (!dateFrom.value || !dateTo.value) {
+        dateError.value = 'Both dates are required.';
+        return false;
+    }
+    if (new Date(dateTo.value) < new Date(dateFrom.value)) {
+        dateError.value = '"To" date must be after "From" date.';
+        return false;
+    }
+    const diffDays =
+        (new Date(dateTo.value).getTime() -
+            new Date(dateFrom.value).getTime()) /
+        (1000 * 60 * 60 * 24);
+    if (diffDays > 366) {
+        dateError.value = 'Date range cannot exceed 1 year.';
+        return false;
+    }
+    dateError.value = '';
+    return true;
+}
+
 const stats = computed(() => {
     const all = reportList.value;
     return {
@@ -51,20 +84,23 @@ const stats = computed(() => {
     };
 });
 
-// ─── fetch ────────────────────────────────────────────────────────────────────
 async function loadReports(url?: string) {
+    if (!validateDates()) return;
     loading.value = true;
     try {
-        const endpoint =
-            url || `${import.meta.env.VITE_APP_URL}/api/admin/incident-reports`;
-        const { data } = await axios.get(endpoint, {
-            params: {
-                search: searchQuery.value || undefined,
-                status: filterStatus.value || undefined,
-                outcome: filterOutcome.value || undefined,
+        const { data } = await axios.get(
+            url || `${import.meta.env.VITE_APP_URL}/api/admin/incident-reports`,
+            {
+                params: {
+                    search: searchQuery.value || undefined,
+                    status: filterStatus.value || undefined,
+                    outcome: filterOutcome.value || undefined,
+                    date_from: dateFrom.value,
+                    date_to: dateTo.value,
+                },
+                ...getHeaders(),
             },
-            ...getHeaders(),
-        });
+        );
         reports.value = data;
         reportList.value = data.data;
     } catch {
@@ -116,7 +152,123 @@ async function takeAction(action: string) {
     }
 }
 
-// ─── formatting ───────────────────────────────────────────────────────────────
+function buildExportParams() {
+    return new URLSearchParams({
+        date_from: dateFrom.value,
+        date_to: dateTo.value,
+        ...(filterStatus.value ? { status: filterStatus.value } : {}),
+        ...(filterOutcome.value ? { outcome: filterOutcome.value } : {}),
+        ...(searchQuery.value ? { search: searchQuery.value } : {}),
+    }).toString();
+}
+
+async function doExport(format: 'pdf' | 'csv') {
+    if (!validateDates()) return;
+    exportLoading.value = true;
+    try {
+        const response = await axios.get(
+            `${import.meta.env.VITE_APP_URL}/api/admin/incident-reports/export/${format}?${buildExportParams()}`,
+            {
+                headers: {
+                    Authorization: `Bearer ${localStorage.getItem('token')}`,
+                },
+                responseType: 'blob',
+            },
+        );
+        const blob = new Blob([response.data], {
+            type: format === 'pdf' ? 'application/pdf' : 'text/csv',
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `incident-reports-${dateFrom.value}-to-${dateTo.value}.${format}`;
+        a.click();
+        URL.revokeObjectURL(url);
+        showFlash(`${format.toUpperCase()} downloaded.`);
+    } catch {
+        showFlash('Export failed. Try again.', 'error');
+    } finally {
+        exportLoading.value = false;
+    }
+}
+
+async function handleExport() {
+    if (!validateDates()) return;
+    if (exportFormat.value === 'both') {
+        await doExport('pdf');
+        await doExport('csv');
+    } else {
+        await doExport(exportFormat.value);
+    }
+    showExport.value = false;
+}
+
+function addEmail() {
+    const e = emailInput.value.trim();
+    if (!e) return;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) {
+        emailError.value = 'Invalid email.';
+        return;
+    }
+    if (emailList.value.includes(e)) {
+        emailError.value = 'Already added.';
+        return;
+    }
+    if (emailList.value.length >= 10) {
+        emailError.value = 'Max 10 recipients.';
+        return;
+    }
+    emailList.value.push(e);
+    emailInput.value = '';
+    emailError.value = '';
+}
+
+function removeEmail(e: string) {
+    emailList.value = emailList.value.filter((x) => x !== e);
+}
+
+function toggleEmailFormat(f: string) {
+    if (emailFormats.value.includes(f)) {
+        if (emailFormats.value.length === 1) return;
+        emailFormats.value = emailFormats.value.filter((x) => x !== f);
+    } else {
+        emailFormats.value.push(f);
+    }
+}
+
+async function sendEmail() {
+    if (!validateDates()) return;
+    if (emailList.value.length === 0) {
+        emailError.value = 'Add at least one recipient.';
+        return;
+    }
+    emailLoading.value = true;
+    try {
+        const { data } = await axios.post(
+            `${import.meta.env.VITE_APP_URL}/api/admin/incident-reports/export/email`,
+            {
+                date_from: dateFrom.value,
+                date_to: dateTo.value,
+                emails: emailList.value,
+                formats: emailFormats.value,
+                status: filterStatus.value || undefined,
+                outcome: filterOutcome.value || undefined,
+                search: searchQuery.value || undefined,
+            },
+            getHeaders(),
+        );
+        showFlash(data.message);
+        showEmail.value = false;
+        emailList.value = [];
+        emailInput.value = '';
+        emailFormats.value = ['pdf'];
+    } catch (err: any) {
+        showFlash(err.response?.data?.message ?? 'Failed to send.', 'error');
+    } finally {
+        emailLoading.value = false;
+    }
+}
+
 function fmtDate(d: string) {
     if (!d) return '—';
     return new Date(d).toLocaleDateString('en-ZA', {
@@ -125,7 +277,6 @@ function fmtDate(d: string) {
         year: 'numeric',
     });
 }
-
 function fmtDateTime(d: string) {
     if (!d) return '—';
     return new Date(d).toLocaleString('en-ZA', {
@@ -159,7 +310,6 @@ const statusConfig: Record<string, { label: string; cls: string }> = {
         cls: 'border-gray-200 bg-gray-50 text-gray-500',
     },
 };
-
 const outcomeConfig: Record<string, { label: string; cls: string }> = {
     legitimate: {
         label: '✓ Legitimate',
@@ -170,7 +320,6 @@ const outcomeConfig: Record<string, { label: string; cls: string }> = {
         cls: 'border-red-200 bg-red-50 text-red-700',
     },
 };
-
 const misuseCategoryLabel: Record<string, string> = {
     accidental: 'Accidental',
     prank: 'Prank',
@@ -179,319 +328,6 @@ const misuseCategoryLabel: Record<string, string> = {
     repeated_false_alarm: 'Repeated False Alarm',
     other: 'Other',
 };
-
-// ─── CSV export ───────────────────────────────────────────────────────────────
-function buildCsvRows(rows: any[]): string {
-    const headers = [
-        'ID',
-        'Household',
-        'Household Email',
-        'Reporter',
-        'Reporter Email',
-        'Outcome',
-        'Category',
-        'Status',
-        'Injuries',
-        'Property Damage',
-        'Arrived At',
-        'Departed At',
-        'Narrative',
-        'Admin Notes',
-        'Created At',
-    ];
-
-    const escape = (v: any) => {
-        const s = v == null ? '' : String(v);
-        return s.includes(',') || s.includes('"') || s.includes('\n')
-            ? `"${s.replace(/"/g, '""')}"`
-            : s;
-    };
-
-    const lines = [headers.join(',')];
-    for (const r of rows) {
-        lines.push(
-            [
-                r.id,
-                r.household?.name ?? '',
-                r.household?.email ?? '',
-                r.reporter?.name ?? '',
-                r.reporter?.email ?? '',
-                r.outcome ?? '',
-                r.misuse_category
-                    ? (misuseCategoryLabel[r.misuse_category] ??
-                      r.misuse_category)
-                    : '',
-                r.status ?? '',
-                r.injuries_reported ? 'Yes' : 'No',
-                r.property_damage ? 'Yes' : 'No',
-                r.arrived_at ? fmtDateTime(r.arrived_at) : '',
-                r.departed_at ? fmtDateTime(r.departed_at) : '',
-                r.narrative ?? '',
-                r.admin_notes ?? '',
-                r.created_at ? fmtDateTime(r.created_at) : '',
-            ]
-                .map(escape)
-                .join(','),
-        );
-    }
-    return lines.join('\n');
-}
-
-function downloadCsv(rows: any[], filename: string) {
-    const csv = buildCsvRows(rows);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-}
-
-async function exportCsv(scope: 'all' | 'single' = 'all') {
-    exportLoading.value = 'csv';
-    try {
-        if (scope === 'single' && selectedReport.value) {
-            downloadCsv(
-                [selectedReport.value],
-                `incident-report-${selectedReport.value.id}.csv`,
-            );
-        } else {
-            // Fetch all (no pagination) for export
-            const { data } = await axios.get(
-                `${import.meta.env.VITE_APP_URL}/api/admin/incident-reports`,
-                {
-                    params: {
-                        search: searchQuery.value || undefined,
-                        status: filterStatus.value || undefined,
-                        outcome: filterOutcome.value || undefined,
-                        per_page: 9999,
-                    },
-                    ...getHeaders(),
-                },
-            );
-            const rows = data.data ?? data;
-            downloadCsv(
-                rows,
-                `incident-reports-${new Date().toISOString().slice(0, 10)}.csv`,
-            );
-        }
-        showFlash('CSV downloaded successfully.');
-    } catch {
-        showFlash('CSV export failed.', 'error');
-    } finally {
-        exportLoading.value = null;
-    }
-}
-
-// ─── PDF export ───────────────────────────────────────────────────────────────
-async function loadJsPDF(): Promise<any> {
-    // Dynamically import jsPDF from CDN
-    if ((window as any).jspdf) return (window as any).jspdf.jsPDF;
-    await new Promise<void>((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src =
-            'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-        s.onload = () => resolve();
-        s.onerror = () => reject(new Error('Failed to load jsPDF'));
-        document.head.appendChild(s);
-    });
-    await new Promise<void>((resolve, reject) => {
-        const s = document.createElement('script');
-        s.src =
-            'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js';
-        s.onload = () => resolve();
-        s.onerror = () => reject(new Error('Failed to load autoTable'));
-        document.head.appendChild(s);
-    });
-    return (window as any).jspdf.jsPDF;
-}
-
-async function exportPdf(scope: 'all' | 'single' = 'all') {
-    exportLoading.value = 'pdf';
-    try {
-        const JsPDF = await loadJsPDF();
-        const doc = new JsPDF({
-            orientation: 'landscape',
-            unit: 'mm',
-            format: 'a4',
-        });
-
-        // Header
-        doc.setFillColor(17, 24, 39);
-        doc.rect(0, 0, 297, 18, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.text('ECHO LINK - Incident Report', 10, 11);
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`Generated: ${new Date().toLocaleString('en-ZA')}`, 230, 11);
-
-        let rows: any[] = [];
-        if (scope === 'single' && selectedReport.value) {
-            rows = [selectedReport.value];
-        } else {
-            const { data } = await axios.get(
-                `${import.meta.env.VITE_APP_URL}/api/admin/incident-reports`,
-                {
-                    params: {
-                        search: searchQuery.value || undefined,
-                        status: filterStatus.value || undefined,
-                        outcome: filterOutcome.value || undefined,
-                        per_page: 9999,
-                    },
-                    ...getHeaders(),
-                },
-            );
-            rows = data.data ?? data;
-        }
-
-        const tableRows = rows.map((r: any) => [
-            r.id,
-            r.household?.name ?? '—',
-            r.reporter?.name ?? '—',
-            r.outcome ?? '—',
-            r.misuse_category
-                ? (misuseCategoryLabel[r.misuse_category] ?? r.misuse_category)
-                : '—',
-            r.status ?? '—',
-            r.injuries_reported ? 'Yes' : 'No',
-            r.property_damage ? 'Yes' : 'No',
-            r.narrative ?? '-',
-            r.admin_notes ?? '-',
-            r.created_at ? fmtDate(r.created_at) : '—',
-        ]);
-
-        (doc as any).autoTable({
-            startY: 22,
-            head: [
-                [
-                    '#',
-                    'Household',
-                    'Reporter',
-                    'Outcome',
-                    'Category',
-                    'Status',
-                    'Injuries',
-                    'Damage',
-                    'Narrative',
-                    'Admin Notes',
-                    'Date',
-                ],
-            ],
-            body: tableRows,
-            theme: 'grid',
-            headStyles: {
-                fillColor: [31, 41, 55],
-                textColor: 255,
-                fontStyle: 'bold',
-                fontSize: 8,
-            },
-            bodyStyles: { fontSize: 7.5, textColor: [31, 41, 55] },
-            alternateRowStyles: { fillColor: [249, 250, 251] },
-            columnStyles: {
-                0: { cellWidth: 12 },
-                1: { cellWidth: 48 },
-                2: { cellWidth: 48 },
-                3: { cellWidth: 24 },
-                4: { cellWidth: 36 },
-                5: { cellWidth: 24 },
-                6: { cellWidth: 18 },
-                7: { cellWidth: 18 },
-                8: { cellWidth: 28 },
-            },
-            margin: { left: 10, right: 10 },
-        });
-
-        // Single report — add narrative block on next page
-        if (scope === 'single' && selectedReport.value) {
-            const r = selectedReport.value;
-            doc.addPage();
-            doc.setFillColor(17, 24, 39);
-            doc.rect(0, 0, 297, 18, 'F');
-            doc.setTextColor(255, 255, 255);
-            doc.setFontSize(11);
-            doc.setFont('helvetica', 'bold');
-            doc.text(`Report #${r.id} — Full Detail`, 10, 11);
-
-            doc.setTextColor(31, 41, 55);
-            doc.setFontSize(9);
-            doc.setFont('helvetica', 'bold');
-            doc.text("Patroller's Account", 10, 28);
-            doc.setFont('helvetica', 'normal');
-            const narrative = doc.splitTextToSize(r.narrative ?? '—', 270);
-            doc.text(narrative, 10, 35);
-
-            if (r.admin_notes) {
-                const yAfter = 35 + narrative.length * 5 + 6;
-                doc.setFont('helvetica', 'bold');
-                doc.text('Admin Notes', 10, yAfter);
-                doc.setFont('helvetica', 'normal');
-                doc.text(
-                    doc.splitTextToSize(r.admin_notes, 270),
-                    10,
-                    yAfter + 7,
-                );
-            }
-        }
-
-        const filename =
-            scope === 'single'
-                ? `incident-report-${selectedReport.value?.id}.pdf`
-                : `incident-reports-${new Date().toISOString().slice(0, 10)}.pdf`;
-        doc.save(filename);
-        showFlash('PDF downloaded successfully.');
-    } catch (e: any) {
-        showFlash(e?.message ?? 'PDF export failed.', 'error');
-    } finally {
-        exportLoading.value = null;
-    }
-}
-
-// ─── Email export ─────────────────────────────────────────────────────────────
-function openEmailModal(scope: 'all' | 'single') {
-    emailScope.value = scope;
-    emailTarget.value = '';
-    showEmailModal.value = true;
-}
-
-async function sendEmail() {
-    if (!emailTarget.value.trim()) {
-        showFlash('Please enter an email address.', 'error');
-        return;
-    }
-    emailSending.value = true;
-    try {
-        const payload: any = {
-            email: emailTarget.value.trim(),
-            filters: {
-                search: searchQuery.value || undefined,
-                status: filterStatus.value || undefined,
-                outcome: filterOutcome.value || undefined,
-            },
-        };
-        if (emailScope.value === 'single' && selectedReport.value) {
-            payload.report_id = selectedReport.value.id;
-        }
-        await axios.post(
-            `${import.meta.env.VITE_APP_URL}/api/admin/incident-reports/send-email`,
-            payload,
-            getHeaders(),
-        );
-        showFlash(
-            `Report${emailScope.value === 'single' ? '' : 's'} sent to ${emailTarget.value}`,
-        );
-        showEmailModal.value = false;
-    } catch (err: any) {
-        showFlash(
-            err.response?.data?.message ?? 'Failed to send email.',
-            'error',
-        );
-    } finally {
-        emailSending.value = false;
-    }
-}
 
 onMounted(() => loadReports());
 </script>
@@ -502,7 +338,7 @@ onMounted(() => loadReports());
         <div
             class="relative flex h-full w-full flex-col rounded-xl bg-white bg-clip-border text-gray-700 shadow-md"
         >
-            <!-- ── HEADER ── -->
+            <!-- HEADER -->
             <div class="border-b border-gray-100 px-6 py-5">
                 <div class="flex items-center justify-between">
                     <div>
@@ -510,93 +346,26 @@ onMounted(() => loadReports());
                             Incident Reports
                         </h1>
                         <p class="mt-0.5 text-sm text-gray-500">
-                            SOS alert reports submitted by patrollers — review
-                            and take action
+                            SOS alert reports submitted by patrollers
                         </p>
                     </div>
                     <div class="flex items-center gap-2">
-                        <!-- Export buttons (list scope) -->
                         <button
-                            @click="exportCsv('all')"
-                            :disabled="exportLoading === 'csv'"
-                            class="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                            title="Download all visible reports as CSV"
+                            @click="showExport = true"
+                            class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                         >
-                            <span
-                                v-if="exportLoading === 'csv'"
-                                class="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700"
-                            ></span>
-                            <svg
-                                v-else
-                                xmlns="http://www.w3.org/2000/svg"
-                                class="h-3.5 w-3.5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
-                                />
-                            </svg>
-                            CSV
+                            ⬇ Export
                         </button>
                         <button
-                            @click="exportPdf('all')"
-                            :disabled="exportLoading === 'pdf'"
-                            class="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                            title="Download all visible reports as PDF"
+                            @click="showEmail = true"
+                            class="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
                         >
-                            <span
-                                v-if="exportLoading === 'pdf'"
-                                class="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700"
-                            ></span>
-                            <svg
-                                v-else
-                                xmlns="http://www.w3.org/2000/svg"
-                                class="h-3.5 w-3.5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                                />
-                            </svg>
-                            PDF
+                            ✉ Send Report
                         </button>
-                        <button
-                            @click="openEmailModal('all')"
-                            class="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-                            title="Send reports to email"
-                        >
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                class="h-3.5 w-3.5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                                />
-                            </svg>
-                            Email
-                        </button>
-
-                        <!-- Flash -->
                         <div
                             v-if="flash"
                             :class="[
-                                'rounded-xl px-4 py-2.5 text-sm font-semibold shadow',
+                                'rounded-xl px-4 py-2 text-sm font-semibold shadow',
                                 flash.type === 'success'
                                     ? 'bg-green-600 text-white'
                                     : 'bg-red-600 text-white',
@@ -609,13 +378,54 @@ onMounted(() => loadReports());
                 </div>
             </div>
 
-            <!-- ── STATS ── -->
+            <!-- DATE RANGE -->
+            <div
+                class="flex flex-wrap items-end gap-3 border-b border-gray-100 bg-gray-50 px-5 py-3"
+            >
+                <div>
+                    <label
+                        class="mb-1 block text-xs font-bold tracking-wide text-gray-500 uppercase"
+                        >From</label
+                    >
+                    <input
+                        v-model="dateFrom"
+                        type="date"
+                        :max="dateTo"
+                        class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                    />
+                </div>
+                <div>
+                    <label
+                        class="mb-1 block text-xs font-bold tracking-wide text-gray-500 uppercase"
+                        >To</label
+                    >
+                    <input
+                        v-model="dateTo"
+                        type="date"
+                        :min="dateFrom"
+                        :max="today"
+                        class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                    />
+                </div>
+                <button
+                    @click="loadReports()"
+                    :disabled="loading"
+                    class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-bold text-white hover:bg-gray-700 disabled:opacity-50"
+                >
+                    {{ loading ? 'Loading...' : 'Apply' }}
+                </button>
+                <p v-if="dateError" class="text-xs text-red-600">
+                    {{ dateError }}
+                </p>
+            </div>
+
+            <!-- STATS -->
             <div class="grid grid-cols-6 gap-3 border-b border-gray-100 p-5">
                 <div class="rounded-xl bg-gray-900 p-4 text-center">
                     <div class="text-2xl font-bold text-white">
                         {{ reports.total ?? 0 }}
                     </div>
-                    <div class="mt-1 text-xs text-gray-400">Total Reports</div>
+                    <div class="mt-1 text-xs text-gray-400">Total</div>
                 </div>
                 <div
                     class="rounded-xl border border-amber-100 bg-amber-50 p-4 text-center"
@@ -623,9 +433,7 @@ onMounted(() => loadReports());
                     <div class="text-2xl font-bold text-amber-700">
                         {{ stats.pending }}
                     </div>
-                    <div class="mt-1 text-xs text-amber-600">
-                        Pending Review
-                    </div>
+                    <div class="mt-1 text-xs text-amber-600">Pending</div>
                 </div>
                 <div
                     class="rounded-xl border border-red-100 bg-red-50 p-4 text-center"
@@ -633,7 +441,7 @@ onMounted(() => loadReports());
                     <div class="text-2xl font-bold text-red-700">
                         {{ stats.misuse }}
                     </div>
-                    <div class="mt-1 text-xs text-red-500">Misuse Reports</div>
+                    <div class="mt-1 text-xs text-red-500">Misuse</div>
                 </div>
                 <div
                     class="rounded-xl border border-green-100 bg-green-50 p-4 text-center"
@@ -649,9 +457,7 @@ onMounted(() => loadReports());
                     <div class="text-2xl font-bold text-orange-700">
                         {{ stats.warned }}
                     </div>
-                    <div class="mt-1 text-xs text-orange-600">
-                        Warnings Sent
-                    </div>
+                    <div class="mt-1 text-xs text-orange-600">Warned</div>
                 </div>
                 <div
                     class="rounded-xl border border-rose-100 bg-rose-50 p-4 text-center"
@@ -659,11 +465,11 @@ onMounted(() => loadReports());
                     <div class="text-2xl font-bold text-rose-700">
                         {{ stats.blocked }}
                     </div>
-                    <div class="mt-1 text-xs text-rose-600">SOS Blocked</div>
+                    <div class="mt-1 text-xs text-rose-600">Blocked</div>
                 </div>
             </div>
 
-            <!-- ── FILTERS ── -->
+            <!-- FILTERS -->
             <div
                 class="flex items-center gap-3 border-b border-gray-100 px-5 py-3"
             >
@@ -693,7 +499,7 @@ onMounted(() => loadReports());
                 <select
                     v-model="filterStatus"
                     @change="loadReports()"
-                    class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 focus:border-gray-400 focus:outline-none"
+                    class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 focus:outline-none"
                 >
                     <option value="">All Statuses</option>
                     <option value="pending">Pending</option>
@@ -705,7 +511,7 @@ onMounted(() => loadReports());
                 <select
                     v-model="filterOutcome"
                     @change="loadReports()"
-                    class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 focus:border-gray-400 focus:outline-none"
+                    class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 focus:outline-none"
                 >
                     <option value="">All Outcomes</option>
                     <option value="misuse">Misuse</option>
@@ -719,7 +525,7 @@ onMounted(() => loadReports());
                 </button>
             </div>
 
-            <!-- ── TABLE ── -->
+            <!-- TABLE -->
             <div class="overflow-x-auto">
                 <table class="w-full min-w-max table-auto text-left text-sm">
                     <thead>
@@ -776,8 +582,7 @@ onMounted(() => loadReports());
                                     No reports found
                                 </div>
                                 <div class="mt-1 text-xs text-gray-400">
-                                    Reports submitted by patrollers will appear
-                                    here
+                                    Try adjusting the date range or filters
                                 </div>
                             </td>
                         </tr>
@@ -809,12 +614,11 @@ onMounted(() => loadReports());
                                         'rounded-full border px-2.5 py-1 text-xs font-bold',
                                         outcomeConfig[report.outcome]?.cls,
                                     ]"
-                                >
-                                    {{
+                                    >{{
                                         outcomeConfig[report.outcome]?.label ??
                                         report.outcome
-                                    }}
-                                </span>
+                                    }}</span
+                                >
                             </td>
                             <td class="p-4 text-xs text-gray-600">
                                 {{
@@ -831,12 +635,11 @@ onMounted(() => loadReports());
                                         'rounded-full border px-2.5 py-1 text-xs font-bold',
                                         statusConfig[report.status]?.cls,
                                     ]"
-                                >
-                                    {{
+                                    >{{
                                         statusConfig[report.status]?.label ??
                                         report.status
-                                    }}
-                                </span>
+                                    }}</span
+                                >
                             </td>
                             <td class="p-4 text-xs text-gray-600">
                                 {{ fmtDate(report.created_at) }}
@@ -854,7 +657,7 @@ onMounted(() => loadReports());
                 </table>
             </div>
 
-            <!-- ── PAGINATION ── -->
+            <!-- PAGINATION -->
             <div
                 class="flex items-center justify-between border-t border-gray-100 p-4"
             >
@@ -885,9 +688,7 @@ onMounted(() => loadReports());
             </div>
         </div>
 
-        <!-- ══════════════════════════════════════════ -->
-        <!-- DETAIL MODAL                               -->
-        <!-- ══════════════════════════════════════════ -->
+        <!-- DETAIL MODAL -->
         <div
             v-if="showDetail"
             class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm"
@@ -895,7 +696,6 @@ onMounted(() => loadReports());
             <div
                 class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
             >
-                <!-- Header -->
                 <div
                     class="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-6 py-4"
                 >
@@ -907,105 +707,26 @@ onMounted(() => loadReports());
                             {{ fmtDateTime(selectedReport?.created_at) }}
                         </p>
                     </div>
-                    <div class="flex items-center gap-2">
-                        <!-- Per-report export buttons -->
-                        <button
-                            @click="exportCsv('single')"
-                            :disabled="exportLoading === 'csv'"
-                            class="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                            title="Download this report as CSV"
+                    <button
+                        @click="showDetail = false"
+                        class="rounded-lg p-2 text-gray-400 hover:bg-gray-100"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-5 w-5"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
                         >
-                            <span
-                                v-if="exportLoading === 'csv'"
-                                class="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700"
-                            ></span>
-                            <svg
-                                v-else
-                                xmlns="http://www.w3.org/2000/svg"
-                                class="h-3.5 w-3.5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M12 10v6m0 0l-3-3m3 3l3-3M3 17V7a2 2 0 012-2h6l2 2h6a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2z"
-                                />
-                            </svg>
-                            CSV
-                        </button>
-                        <button
-                            @click="exportPdf('single')"
-                            :disabled="exportLoading === 'pdf'"
-                            class="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50"
-                            title="Download this report as PDF"
-                        >
-                            <span
-                                v-if="exportLoading === 'pdf'"
-                                class="h-3 w-3 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700"
-                            ></span>
-                            <svg
-                                v-else
-                                xmlns="http://www.w3.org/2000/svg"
-                                class="h-3.5 w-3.5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
-                                />
-                            </svg>
-                            PDF
-                        </button>
-                        <button
-                            @click="openEmailModal('single')"
-                            class="flex items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100"
-                            title="Send this report by email"
-                        >
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                class="h-3.5 w-3.5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                                />
-                            </svg>
-                            Email
-                        </button>
-                        <button
-                            @click="showDetail = false"
-                            class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                        >
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                class="h-5 w-5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M6 18L18 6M6 6l12 12"
-                                />
-                            </svg>
-                        </button>
-                    </div>
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                stroke-width="2"
+                                d="M6 18L18 6M6 6l12 12"
+                            />
+                        </svg>
+                    </button>
                 </div>
-
                 <div
                     v-if="detailLoading"
                     class="flex items-center justify-center py-16"
@@ -1014,39 +735,36 @@ onMounted(() => loadReports());
                         class="h-6 w-6 animate-spin rounded-full border-2 border-gray-200 border-t-gray-800"
                     ></div>
                 </div>
-
                 <div v-else class="space-y-6 p-6">
-                    <!-- Outcome + Status badges -->
                     <div class="flex items-center gap-3">
                         <span
                             :class="[
                                 'rounded-full border px-3 py-1.5 text-xs font-bold',
                                 outcomeConfig[selectedReport?.outcome]?.cls,
                             ]"
+                            >{{
+                                outcomeConfig[selectedReport?.outcome]?.label
+                            }}</span
                         >
-                            {{ outcomeConfig[selectedReport?.outcome]?.label }}
-                        </span>
                         <span
                             :class="[
                                 'rounded-full border px-3 py-1.5 text-xs font-bold',
                                 statusConfig[selectedReport?.status]?.cls,
                             ]"
+                            >{{
+                                statusConfig[selectedReport?.status]?.label
+                            }}</span
                         >
-                            {{ statusConfig[selectedReport?.status]?.label }}
-                        </span>
                         <span
                             v-if="selectedReport?.misuse_category"
                             class="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600"
-                        >
-                            {{
+                            >{{
                                 misuseCategoryLabel[
                                     selectedReport.misuse_category
                                 ]
-                            }}
-                        </span>
+                            }}</span
+                        >
                     </div>
-
-                    <!-- Parties -->
                     <div class="grid grid-cols-2 gap-4">
                         <div
                             class="rounded-xl border border-gray-100 bg-gray-50 p-4"
@@ -1054,7 +772,7 @@ onMounted(() => loadReports());
                             <p
                                 class="mb-2 text-xs font-bold tracking-wide text-gray-400 uppercase"
                             >
-                                Household (Subject)
+                                Household
                             </p>
                             <p class="font-semibold text-gray-900">
                                 {{ selectedReport?.household?.name }}
@@ -1072,7 +790,7 @@ onMounted(() => loadReports());
                             <p
                                 class="mb-2 text-xs font-bold tracking-wide text-gray-400 uppercase"
                             >
-                                Reporter (Patroller)
+                                Patroller
                             </p>
                             <p class="font-semibold text-gray-900">
                                 {{ selectedReport?.reporter?.name }}
@@ -1085,8 +803,6 @@ onMounted(() => loadReports());
                             </p>
                         </div>
                     </div>
-
-                    <!-- Incident details -->
                     <div
                         class="grid grid-cols-2 gap-3 rounded-xl border border-gray-100 bg-gray-50 p-4"
                     >
@@ -1114,7 +830,7 @@ onMounted(() => loadReports());
                             <p
                                 class="text-xs font-bold tracking-wide text-gray-400 uppercase"
                             >
-                                Injuries Reported
+                                Injuries
                             </p>
                             <p
                                 class="mt-1 text-sm font-semibold"
@@ -1153,8 +869,6 @@ onMounted(() => loadReports());
                             </p>
                         </div>
                     </div>
-
-                    <!-- Narrative -->
                     <div>
                         <p
                             class="mb-2 text-xs font-bold tracking-wide text-gray-400 uppercase"
@@ -1167,8 +881,6 @@ onMounted(() => loadReports());
                             "{{ selectedReport?.narrative }}"
                         </div>
                     </div>
-
-                    <!-- Additional notes -->
                     <div v-if="selectedReport?.additional_notes">
                         <p
                             class="mb-2 text-xs font-bold tracking-wide text-gray-400 uppercase"
@@ -1181,8 +893,6 @@ onMounted(() => loadReports());
                             {{ selectedReport.additional_notes }}
                         </div>
                     </div>
-
-                    <!-- Emergency alert link -->
                     <div
                         v-if="selectedReport?.emergency_alert_id"
                         class="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3"
@@ -1193,8 +903,6 @@ onMounted(() => loadReports());
                             }}
                         </p>
                     </div>
-
-                    <!-- Previous admin action -->
                     <div
                         v-if="selectedReport?.actioned_by"
                         class="rounded-xl border border-gray-200 bg-gray-50 p-4"
@@ -1205,7 +913,7 @@ onMounted(() => loadReports());
                             Previous Action
                         </p>
                         <p class="text-sm text-gray-700">
-                            Actioned by
+                            By
                             <span class="font-semibold">{{
                                 selectedReport.actioned_by?.name
                             }}</span>
@@ -1218,8 +926,6 @@ onMounted(() => loadReports());
                             {{ selectedReport.admin_notes }}
                         </p>
                     </div>
-
-                    <!-- ── ACTION PANEL ── -->
                     <div
                         v-if="
                             !['blocked', 'dismissed'].includes(
@@ -1235,11 +941,10 @@ onMounted(() => loadReports());
                             <label
                                 class="mb-1 block text-xs font-semibold text-gray-600"
                                 >Admin Notes (optional)</label
-                            >
-                            <textarea
+                            ><textarea
                                 v-model="actionNotes"
                                 rows="2"
-                                placeholder="Add internal notes before actioning..."
+                                placeholder="Add internal notes..."
                                 class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
                             ></textarea>
                         </div>
@@ -1253,8 +958,8 @@ onMounted(() => loadReports());
                                 <span
                                     v-if="actionLoading"
                                     class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-300 border-t-blue-700"
-                                ></span>
-                                👁 Mark Reviewed
+                                ></span
+                                >👁 Mark Reviewed
                             </button>
                             <button
                                 v-if="
@@ -1268,8 +973,8 @@ onMounted(() => loadReports());
                                 <span
                                     v-if="actionLoading"
                                     class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-amber-300 border-t-amber-700"
-                                ></span>
-                                ⚠ Send Warning Email
+                                ></span
+                                >⚠ Send Warning
                             </button>
                             <button
                                 v-if="selectedReport?.outcome === 'misuse'"
@@ -1280,8 +985,8 @@ onMounted(() => loadReports());
                                 <span
                                     v-if="actionLoading"
                                     class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-300 border-t-red-700"
-                                ></span>
-                                🚫 Block SOS Access
+                                ></span
+                                >🚫 Block SOS
                             </button>
                             <button
                                 @click="takeAction('dismiss')"
@@ -1291,8 +996,8 @@ onMounted(() => loadReports());
                                 <span
                                     v-if="actionLoading"
                                     class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600"
-                                ></span>
-                                ✕ Dismiss Report
+                                ></span
+                                >✕ Dismiss
                             </button>
                         </div>
                     </div>
@@ -1300,108 +1005,198 @@ onMounted(() => loadReports());
                         v-else
                         class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-center text-sm text-gray-500"
                     >
-                        This report has been
+                        Report
                         <span class="font-semibold text-gray-700">{{
                             selectedReport?.status
                         }}</span>
-                        and requires no further action.
+                        — no further action required.
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- ══════════════════════════════════════════ -->
-        <!-- EMAIL MODAL                                -->
-        <!-- ══════════════════════════════════════════ -->
+        <!-- EXPORT MODAL -->
         <div
-            v-if="showEmailModal"
-            class="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 px-4 backdrop-blur-sm"
+            v-if="showExport"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm"
         >
-            <div class="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+                <h3 class="mb-1 text-base font-bold text-gray-900">
+                    Export Reports
+                </h3>
+                <p class="mb-5 text-xs text-gray-500">
+                    Downloads data for the selected date range and active
+                    filters.
+                </p>
                 <div
-                    class="flex items-center justify-between border-b border-gray-100 px-6 py-4"
+                    class="mb-5 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-700"
                 >
-                    <div>
-                        <h3 class="text-sm font-bold text-gray-900">
-                            Send Report{{ emailScope === 'all' ? 's' : '' }} by
-                            Email
-                        </h3>
-                        <p class="mt-0.5 text-xs text-gray-500">
-                            {{
-                                emailScope === 'single'
-                                    ? `Report #${selectedReport?.id} will be sent as a PDF attachment`
-                                    : 'Current filtered reports will be sent as a PDF attachment'
-                            }}
-                        </p>
-                    </div>
-                    <button
-                        @click="showEmailModal = false"
-                        class="rounded-lg p-2 text-gray-400 hover:bg-gray-100"
+                    <span class="font-semibold">Period:</span> {{ dateFrom }} →
+                    {{ dateTo }}
+                    <span
+                        v-if="filterStatus || filterOutcome"
+                        class="ml-3 text-gray-400"
+                        >· Filters applied</span
                     >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            class="h-4 w-4"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M6 18L18 6M6 6l12 12"
-                            />
-                        </svg>
+                </div>
+                <p
+                    class="mb-2 text-xs font-bold tracking-wide text-gray-500 uppercase"
+                >
+                    Format
+                </p>
+                <div class="mb-5 flex gap-3">
+                    <button
+                        v-for="f in [
+                            {
+                                id: 'pdf',
+                                label: '📄 PDF',
+                                sub: 'Formatted report',
+                            },
+                            { id: 'csv', label: '📊 CSV', sub: 'Spreadsheet' },
+                            { id: 'both', label: '⬇ Both', sub: 'PDF + CSV' },
+                        ]"
+                        :key="f.id"
+                        @click="exportFormat = f.id as any"
+                        :class="[
+                            'flex-1 rounded-xl border px-3 py-3 text-center transition-all',
+                            exportFormat === f.id
+                                ? 'border-gray-900 bg-gray-900 text-white'
+                                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50',
+                        ]"
+                    >
+                        <div class="text-sm font-bold">{{ f.label }}</div>
+                        <div class="mt-0.5 text-xs opacity-60">{{ f.sub }}</div>
                     </button>
                 </div>
-                <div class="space-y-4 p-6">
-                    <div>
-                        <label
-                            class="mb-1.5 block text-xs font-semibold text-gray-700"
-                            >Recipient Email Address</label
+                <div class="flex gap-3">
+                    <button
+                        @click="showExport = false"
+                        class="flex-1 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        @click="handleExport"
+                        :disabled="exportLoading"
+                        class="flex-1 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-50"
+                    >
+                        {{ exportLoading ? 'Generating...' : '⬇ Download' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- EMAIL MODAL -->
+        <div
+            v-if="showEmail"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm"
+        >
+            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+                <h3 class="mb-1 text-base font-bold text-gray-900">
+                    Send Report via Email
+                </h3>
+                <p class="mb-5 text-xs text-gray-500">
+                    Report compiled for the selected date range and sent as
+                    attachment.
+                </p>
+                <div
+                    class="mb-5 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm text-gray-700"
+                >
+                    <span class="font-semibold">Period:</span> {{ dateFrom }} →
+                    {{ dateTo }}
+                </div>
+                <p
+                    class="mb-2 text-xs font-bold tracking-wide text-gray-500 uppercase"
+                >
+                    Attach as
+                </p>
+                <div class="mb-5 flex gap-3">
+                    <button
+                        v-for="f in [
+                            { id: 'pdf', label: '📄 PDF' },
+                            { id: 'csv', label: '📊 CSV' },
+                        ]"
+                        :key="f.id"
+                        @click="toggleEmailFormat(f.id)"
+                        :class="[
+                            'flex-1 rounded-xl border px-4 py-2.5 text-sm font-bold transition-all',
+                            emailFormats.includes(f.id)
+                                ? 'border-blue-500 bg-blue-500 text-white'
+                                : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50',
+                        ]"
+                    >
+                        {{ f.label }}
+                        <span v-if="emailFormats.includes(f.id)" class="ml-1"
+                            >✓</span
                         >
-                        <input
-                            v-model="emailTarget"
-                            type="email"
-                            placeholder="admin@example.com"
-                            class="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-gray-400 focus:outline-none"
-                            @keyup.enter="sendEmail"
-                        />
-                    </div>
-                    <div class="flex gap-3">
+                    </button>
+                </div>
+                <p
+                    class="mb-2 text-xs font-bold tracking-wide text-gray-500 uppercase"
+                >
+                    Recipients
+                </p>
+                <div class="mb-2 flex gap-2">
+                    <input
+                        v-model="emailInput"
+                        type="email"
+                        placeholder="email@example.com"
+                        @keydown.enter.prevent="addEmail"
+                        class="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
+                    />
+                    <button
+                        @click="addEmail"
+                        class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-bold text-white hover:bg-gray-700"
+                    >
+                        Add
+                    </button>
+                </div>
+                <p v-if="emailError" class="mb-2 text-xs text-red-600">
+                    {{ emailError }}
+                </p>
+                <div
+                    v-if="emailList.length > 0"
+                    class="mb-4 flex flex-wrap gap-2"
+                >
+                    <span
+                        v-for="e in emailList"
+                        :key="e"
+                        class="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700"
+                    >
+                        {{ e }}
                         <button
-                            @click="showEmailModal = false"
-                            class="flex-1 rounded-lg border border-gray-200 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+                            @click="removeEmail(e)"
+                            class="ml-1 text-blue-400 hover:text-blue-700"
                         >
-                            Cancel
+                            ✕
                         </button>
-                        <button
-                            @click="sendEmail"
-                            :disabled="emailSending || !emailTarget.trim()"
-                            class="flex flex-1 items-center justify-center gap-2 rounded-lg bg-gray-900 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:opacity-50"
-                        >
-                            <span
-                                v-if="emailSending"
-                                class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-600 border-t-white"
-                            ></span>
-                            <svg
-                                v-else
-                                xmlns="http://www.w3.org/2000/svg"
-                                class="h-3.5 w-3.5"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
-                                />
-                            </svg>
-                            {{ emailSending ? 'Sending…' : 'Send Email' }}
-                        </button>
-                    </div>
+                    </span>
+                </div>
+                <p v-else class="mb-4 text-xs text-gray-400">
+                    No recipients yet — press Enter or click Add.
+                </p>
+                <div class="flex gap-3">
+                    <button
+                        @click="
+                            showEmail = false;
+                            emailList = [];
+                            emailError = '';
+                        "
+                        class="flex-1 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        @click="sendEmail"
+                        :disabled="emailLoading || emailList.length === 0"
+                        class="flex-1 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                    >
+                        {{
+                            emailLoading
+                                ? 'Sending...'
+                                : `✉ Send to ${emailList.length} recipient${emailList.length !== 1 ? 's' : ''}`
+                        }}
+                    </button>
                 </div>
             </div>
         </div>
