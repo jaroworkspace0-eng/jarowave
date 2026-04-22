@@ -632,103 +632,107 @@ onBeforeUnmount(() => {
                 </div>
 
                 <!-- List -->
-                <div v-else class="space-y-3">
-                    <div
+                <ul v-else class="space-y-1.5">
+                    <li
                         v-for="rec in pastRecordings"
                         :key="rec.id"
-                        class="group relative overflow-hidden rounded-xl border border-gray-100 bg-white p-4 shadow-sm transition-all hover:border-indigo-200 hover:shadow-md"
+                        class="group relative flex items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 transition-all duration-200 hover:bg-gray-100/80"
                     >
-                        <div class="mb-3 flex items-center justify-between">
+                        <div
+                            :class="[
+                                'absolute top-2 bottom-2 left-0 w-[3px] rounded-r-full',
+                                rec.cancel_pin_used === 'duress'
+                                    ? 'bg-rose-400'
+                                    : rec.cancel_pin_used &&
+                                        rec.cancel_pin_used !== 'none'
+                                      ? 'bg-emerald-400'
+                                      : !rec.is_finalised
+                                        ? 'bg-amber-400'
+                                        : 'bg-gray-200',
+                            ]"
+                        ></div>
+
+                        <div class="min-w-0 flex-1 pl-1">
                             <div class="flex items-center gap-2">
                                 <span
-                                    class="inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 ring-1 ring-gray-500/10 ring-inset"
+                                    class="font-mono text-[11px] font-bold tracking-widest text-gray-400 uppercase"
                                 >
                                     #{{ rec.alert_id }}
                                 </span>
-
                                 <span
-                                    v-if="!rec.is_finalised"
-                                    class="flex animate-pulse items-center gap-1.5 text-[11px] font-medium text-amber-600"
+                                    v-if="
+                                        rec.cancel_pin_used &&
+                                        rec.cancel_pin_used !== 'none'
+                                    "
+                                    :class="[
+                                        'inline-flex items-center rounded-full px-2 py-px text-[10px] font-bold tracking-wider uppercase',
+                                        rec.cancel_pin_used === 'duress'
+                                            ? 'bg-rose-100 text-rose-600'
+                                            : 'bg-emerald-100 text-emerald-700',
+                                    ]"
                                 >
-                                    <span
-                                        class="h-1.5 w-1.5 rounded-full bg-amber-600"
-                                    ></span>
-                                    Recording...
+                                    {{
+                                        rec.cancel_pin_used === 'duress'
+                                            ? '⚠ Duress'
+                                            : '✓ Safe'
+                                    }}
                                 </span>
                             </div>
-
                             <div
-                                v-if="
-                                    rec.cancel_pin_used &&
-                                    rec.cancel_pin_used !== 'none'
-                                "
-                                :class="[
-                                    'flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[11px] font-bold tracking-wider uppercase',
-                                    rec.cancel_pin_used === 'duress'
-                                        ? 'bg-red-100 text-red-700 ring-1 ring-red-600/20 ring-inset'
-                                        : 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-600/20 ring-inset',
-                                ]"
+                                class="mt-0.5 flex items-center gap-1.5 text-xs"
                             >
-                                <span v-if="rec.cancel_pin_used === 'duress'"
-                                    >⚠️ Duress</span
+                                <span
+                                    class="truncate font-medium text-gray-700"
+                                    >{{ rec.victim_name ?? 'Unknown' }}</span
                                 >
-                                <span v-else>✨ Safe</span>
+                                <span class="text-gray-300">·</span>
+                                <span class="text-gray-500">{{
+                                    formatDuration(rec.duration_secs)
+                                }}</span>
+                                <span class="text-gray-300">·</span>
+                                <span class="text-gray-400">{{
+                                    timeAgo(rec.started_at)
+                                }}</span>
                             </div>
                         </div>
 
-                        <div class="flex items-end justify-between">
-                            <div class="space-y-1">
-                                <h4 class="text-sm font-semibold text-gray-900">
-                                    {{ rec.victim_name ?? 'Unknown User' }}
-                                </h4>
-                                <div
-                                    class="flex items-center gap-2 text-xs text-gray-500"
-                                >
-                                    <span class="flex items-center gap-1">
-                                        <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            class="h-3.5 w-3.5 text-gray-400"
-                                            viewBox="0 0 20 20"
-                                            fill="currentColor"
-                                        >
-                                            <path
-                                                fill-rule="evenodd"
-                                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
-                                                clip-rule="evenodd"
-                                            />
-                                        </svg>
-                                        {{ formatDuration(rec.duration_secs) }}
-                                    </span>
-                                    <span class="text-gray-300">•</span>
-                                    <span>{{ timeAgo(rec.started_at) }}</span>
-                                </div>
-                            </div>
+                        <a
+                            v-if="rec.is_finalised"
+                            :href="`${$page?.props?.appUrl ?? ''}/api/dv-recordings/${rec.alert_id}/stream`"
+                            :download="`dv_alert_${rec.alert_id}.wav`"
+                            class="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-gray-400 shadow-sm ring-1 ring-gray-200/80 transition-all duration-150 hover:bg-indigo-600 hover:text-white hover:shadow-md hover:shadow-indigo-200"
+                            title="Download"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-3.5 w-3.5"
+                                viewBox="0 0 20 20"
+                                fill="currentColor"
+                            >
+                                <path
+                                    fill-rule="evenodd"
+                                    d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
+                                    clip-rule="evenodd"
+                                />
+                            </svg>
+                        </a>
 
-                            <div class="flex items-center">
-                                <a
-                                    v-if="rec.is_finalised"
-                                    :href="`${$page?.props?.appUrl ?? ''}/api/dv-recordings/${rec.alert_id}/stream`"
-                                    :download="`dv_alert_${rec.alert_id}.wav`"
-                                    class="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600 transition-colors hover:bg-indigo-600 hover:text-white"
-                                    title="Download Recording"
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        class="h-5 w-5"
-                                        viewBox="0 0 20 20"
-                                        fill="currentColor"
-                                    >
-                                        <path
-                                            fill-rule="evenodd"
-                                            d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
-                                            clip-rule="evenodd"
-                                        />
-                                    </svg>
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                        <span
+                            v-else
+                            class="ml-auto flex h-8 shrink-0 items-center gap-1.5 text-[11px] font-medium text-amber-500"
+                        >
+                            <span class="relative flex h-1.5 w-1.5">
+                                <span
+                                    class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"
+                                ></span>
+                                <span
+                                    class="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-400"
+                                ></span>
+                            </span>
+                            Live
+                        </span>
+                    </li>
+                </ul>
             </div>
         </div>
     </AppLayout>
