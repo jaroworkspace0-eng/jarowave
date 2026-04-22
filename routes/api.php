@@ -176,6 +176,9 @@ Route::patch('/internal/dv-recordings/{alertId}/set-cancel-pin', [DvRecordingCon
 Route::patch('/internal/emergency-alerts/{alert}/set-cancel-pin', [EmergencyAlertController::class, 'cancelPin']);
 
 
+// MUST be outside — standalone, no middleware
+Route::get('/dv-recordings/{alertId}/stream', [DvRecordingController::class, 'stream']);
+
 
 // Household routes (require auth)
 Route::middleware('auth:sanctum')->prefix('household')->group(function () {
@@ -208,8 +211,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // DV recording endpoints
     Route::get('/dv-recording-list', [DvRecordingController::class, 'index']);
     Route::get('/dv-recordings/{alertId}',         [DvRecordingController::class, 'show']);
-    Route::get('/dv-recordings/{alertId}/stream',  [DvRecordingController::class, 'stream']);
-    Route::get('/dv-recordings/{alertId}/stream',  [DvRecordingController::class, 'stream']);
+    // Route::get('/dv-recordings/{alertId}/stream',  [DvRecordingController::class, 'stream']);
 
     // Admin incident report export routes 
     Route::prefix('admin/incident-reports')->group(function () {

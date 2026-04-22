@@ -79,6 +79,16 @@ class DvRecordingController extends Controller
     // ensures only CPF/admin roles can access recordings.
     public function stream(int $alertId): StreamedResponse|\Illuminate\Http\JsonResponse
     {
+        // ── ADD THIS BLOCK ──────────────────────────────────────
+        if ($token = request()->query('token')) {
+            $tokenRecord = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
+            if (!$tokenRecord) {
+                return response()->json(['message' => 'Unauthorised'], 401);
+            }
+        }
+        // ── END ADD ─────────────────────────────────────────────
+
+
         $recording = DvRecording::where('alert_id', $alertId)->first();
  
         if (!$recording) {
