@@ -492,6 +492,7 @@ onBeforeUnmount(() => {
                         </div>
 
                         <!-- Audio player after stream ends -->
+
                         <audio
                             v-if="hasEnded && streamUrl"
                             ref="audioEl"
@@ -723,8 +724,8 @@ onBeforeUnmount(() => {
                                     :class="[
                                         'flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-150',
                                         playingId === String(rec.alert_id)
-                                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
-                                            : 'bg-gray-50 text-gray-400 ring-1 ring-gray-200/80 hover:bg-indigo-600 hover:text-white hover:shadow-md hover:shadow-indigo-200',
+                                            ? 'bg-indigo-600 text-white shadow-md shadow-orange-200'
+                                            : 'bg-gray-50 text-gray-400 ring-1 ring-gray-200/80 hover:bg-orange-600 hover:text-white hover:shadow-md hover:shadow-orange-200',
                                     ]"
                                     :title="
                                         playingId === String(rec.alert_id)
@@ -805,11 +806,11 @@ onBeforeUnmount(() => {
 
                         <!-- Inline audio player — expands when play is clicked -->
                         <div
-                            v-if="playingId === rec.alert_id"
+                            v-if="playingId === String(rec.alert_id)"
                             class="border-t border-gray-100 bg-gray-50 px-4 py-3"
                         >
                             <audio
-                                :src="streamUrl(rec.alert_id)"
+                                :src="streamUri(rec.alert_id)"
                                 controls
                                 autoplay
                                 class="w-full rounded-lg"
