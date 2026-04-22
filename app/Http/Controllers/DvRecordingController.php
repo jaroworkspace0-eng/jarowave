@@ -37,6 +37,7 @@ class DvRecordingController extends Controller
                     'stream_url'    => $rec->stream_url,
                     'is_finalised'  => $rec->is_finalised,
                     'alert_id' => $rec->alert_id,
+                    'file_name' => $rec->file_path ? basename($rec->file_path) : null,
                 ];
             })
         ]);

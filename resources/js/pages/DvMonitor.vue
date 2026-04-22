@@ -699,7 +699,7 @@ onBeforeUnmount(() => {
                         <a
                             v-if="rec.is_finalised"
                             :href="`${$page?.props?.appUrl ?? ''}/api/dv-recordings/${rec.alert_id}/stream`"
-                            :download="`dv_alert_${rec.alert_id}.wav`"
+                            :download="`${rec.file_name}`"
                             class="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-gray-400 shadow-sm ring-1 ring-gray-200/80 transition-all duration-150 hover:bg-indigo-600 hover:text-white hover:shadow-md hover:shadow-indigo-200"
                             title="Download"
                         >
