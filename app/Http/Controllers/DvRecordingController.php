@@ -99,6 +99,12 @@ class DvRecordingController extends Controller
  
         $fileSize = filesize($filePath);
         $rangeHeader = request()->header('Range');
+
+        dd([
+    'path' => $filePath,
+    'exists' => file_exists($filePath),
+    'size' => file_exists($filePath) ? filesize($filePath) : 'N/A',
+]);
  
         if ($rangeHeader) {
             // Parse range:  bytes=start-end
