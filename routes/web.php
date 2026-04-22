@@ -70,6 +70,10 @@ Route::get('/admin/incident-reports', function() {
 return inertia('Admin/IncidentReports');
 });
 
+Route::get('/dv-recordings', function() {
+    return inertia('DvMonitor');
+});
+
 
 Route::resource("users", UserController::class);
 Route::get('/search', [SearchController::class, 'index'])->name('search.index');

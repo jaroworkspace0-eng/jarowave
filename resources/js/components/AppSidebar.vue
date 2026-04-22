@@ -22,6 +22,7 @@ import {
     HomeIcon,
     Megaphone,
     Newspaper,
+    Radio,
     ReceiptText, // ← add this
     Trash2,
 } from 'lucide-vue-next';
@@ -61,6 +62,11 @@ const mainNavItems: NavItem[] = [
                   title: 'Incident Reports',
                   href: '/admin/incident-reports',
                   icon: Newspaper,
+              },
+              {
+                  title: 'DV Recordings',
+                  href: '/dv-recordings',
+                  icon: Radio,
               },
               {
                   title: 'Deletion Requests',

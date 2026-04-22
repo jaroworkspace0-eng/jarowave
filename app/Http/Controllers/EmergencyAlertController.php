@@ -79,6 +79,7 @@ class EmergencyAlertController extends Controller
             'latitude' => 'nullable|numeric',
             'longitude' => 'nullable|numeric',
             'accuracy' => 'nullable|string',
+            'alert_type' => 'nullable|string|in:sos,domestic_violence',
         ]);
 
 
@@ -91,6 +92,7 @@ class EmergencyAlertController extends Controller
             'latitude' => $request->latitude,
             'longitude' => $request->longitude,
             'accuracy' => $request->accuracy,
+            'alert_type'  => $validated['alert_type'] ?? 'sos',
         ]);
 
         return response()->json([

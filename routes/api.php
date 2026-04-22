@@ -13,6 +13,7 @@ use App\Http\Controllers\EmergencyAlertController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\HouseholdController;
 use App\Http\Controllers\Admin\IncidentReportExportController;
+use App\Http\Controllers\DvRecordingController;
 use App\Http\Controllers\InviteController;
 use App\Http\Controllers\LiveKitController;
 use App\Http\Controllers\Payments\EarningController;
@@ -168,6 +169,9 @@ Route::post('/webhooks/ozow/recovery',    [OzowRecoveryWebhookController::class,
 
 Route::get('/internal/payment-failures', [PaymentRecoveryController::class, 'activeFailures']);
 
+// DV recording finalisation endpoint — called internally by the recording service when it finishes processing a recording. Secured by a strong secret token in the header.
+Route::post('/internal/dv-recordings/{alertId}/finalise', [DvRecordingController::class, 'finalise']);
+
 
 
 // Household routes (require auth)
@@ -198,7 +202,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
 
-    // 
+    // DV recording endpoints
+    Route::get('/dv-recordings/{alertId}',         [DvRecordingController::class, 'show']);
+    Route::get('/dv-recordings/{alertId}/stream',  [DvRecordingController::class, 'stream']);
+
+    // Admin incident report export routes 
     Route::prefix('admin/incident-reports')->group(function () {
         Route::get('/export/pdf',   [IncidentReportExportController::class, 'exportPdf']);
         // Route::get('/export/csv',   [IncidentReportExportController::class, 'exportCsv']);

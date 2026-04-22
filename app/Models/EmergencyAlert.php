@@ -18,7 +18,9 @@ class EmergencyAlert extends Model
         'accuracy',
         'is_resolved',
         'resolved_at',
-        'resolved_by'
+        'resolved_by',
+        'alert_type',
+        'cancel_pin_used',
     ];
 
     public function user()
@@ -44,5 +46,9 @@ class EmergencyAlert extends Model
     public function resolution()
     {
         return $this->hasOne(EmergencyResolution::class);
+    }
+
+    public function dvRecording() {
+        return $this->hasOne(DvRecording::class, 'alert_id');
     }
 }
