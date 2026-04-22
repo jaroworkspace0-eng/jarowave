@@ -11,6 +11,36 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DvRecordingController extends Controller
 {
+    public function index(Request $request): JsonResponse
+    {
+        // 1. Validate the incoming request
+        $channelId = $request->query('channel_id');
+        $limit = $request->query('limit', 10); // Default to 10 if not provided
+
+        // 2. Build the query
+        $recordings = DvRecording::with(['user:id,name']) // Load the victim/user info
+            ->when($channelId, function ($query, $channelId) {
+                return $query->where('channel_id', $channelId);
+            })
+            ->orderByDesc('started_at')
+            ->limit($limit)
+            ->get();
+
+        // 3. Return the collection
+        return response()->json([
+            'data' => $recordings->map(function ($rec) {
+                return [
+                    'id'            => $rec->id,
+                    'victim_name'   => $rec->user->name ?? 'Unknown',
+                    'started_at'    => $rec->started_at,
+                    'duration_secs' => $rec->duration_secs,
+                    'stream_url'    => $rec->stream_url,
+                    'is_finalised'  => $rec->is_finalised,
+                ];
+            })
+        ]);
+    }
+
     // ── GET /api/dv-recordings/{alertId} ─────────────────────
     // Returns metadata for a DV recording linked to an alert.
     // Used by CPF dashboard and admin panel.

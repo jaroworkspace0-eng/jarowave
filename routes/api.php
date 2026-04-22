@@ -206,7 +206,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
 
     // DV recording endpoints
+    Route::get('/dv-recording-list', [DvRecordingController::class, 'index']);
     Route::get('/dv-recordings/{alertId}',         [DvRecordingController::class, 'show']);
+    Route::get('/dv-recordings/{alertId}/stream',  [DvRecordingController::class, 'stream']);
     Route::get('/dv-recordings/{alertId}/stream',  [DvRecordingController::class, 'stream']);
 
     // Admin incident report export routes 

@@ -92,7 +92,7 @@ async function loadHistory() {
     loadingHistory.value = true;
     try {
         const { data } = await axios.get(
-            `${import.meta.env.VITE_APP_URL}/api/dv-recordings?channel_id=${selectedChannel.value}&limit=10`,
+            `${import.meta.env.VITE_APP_URL}/api/dv-recording-list?channel_id=${selectedChannel.value}&limit=10`,
             { headers: { Authorization: `Bearer ${token.value}` } },
         );
         pastRecordings.value = data.data ?? data ?? [];
