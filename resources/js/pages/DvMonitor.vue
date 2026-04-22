@@ -60,6 +60,18 @@ let waveTimer: ReturnType<typeof setInterval> | null = null;
 
 const token = computed(() => auth.token ?? localStorage.getItem('token') ?? '');
 
+cconst playingId = ref<string | null>(null);
+
+function streamUri(alertId: number) {
+    const token = auth.token ?? localStorage.getItem('token') ?? '';
+    return `${import.meta.env.VITE_APP_URL}/api/dv-recordings/${alertId}/stream?token=${encodeURIComponent(token)}`;
+}
+
+function togglePlay(alertId: number) {
+    const id = String(alertId)
+    playingId.value = playingId.value === id ? null : id
+}
+
 const formattedElapsed = computed(() => {
     const m = Math.floor(elapsedSecs.value / 60);
     const s = elapsedSecs.value % 60;
@@ -632,105 +644,178 @@ onBeforeUnmount(() => {
                 </div>
 
                 <!-- List -->
-                <ul v-else class="space-y-1.5">
+                <ul v-else class="space-y-2">
                     <li
                         v-for="rec in pastRecordings"
                         :key="rec.id"
-                        class="group relative flex items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 transition-all duration-200 hover:bg-gray-100/80"
+                        class="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm transition-all duration-200 hover:shadow-md"
                     >
-                        <div
-                            :class="[
-                                'absolute top-2 bottom-2 left-0 w-[3px] rounded-r-full',
-                                rec.cancel_pin_used === 'duress'
-                                    ? 'bg-rose-400'
-                                    : rec.cancel_pin_used &&
-                                        rec.cancel_pin_used !== 'none'
-                                      ? 'bg-emerald-400'
-                                      : !rec.is_finalised
-                                        ? 'bg-amber-400'
-                                        : 'bg-gray-200',
-                            ]"
-                        ></div>
-
-                        <div class="min-w-0 flex-1 pl-1">
-                            <div class="flex items-center gap-2">
-                                <span
-                                    class="font-mono text-[11px] font-bold tracking-widest text-gray-400 uppercase"
-                                >
-                                    #{{ rec.alert_id }}
-                                </span>
-                                <span
-                                    v-if="
-                                        rec.cancel_pin_used &&
-                                        rec.cancel_pin_used !== 'none'
-                                    "
-                                    :class="[
-                                        'inline-flex items-center rounded-full px-2 py-px text-[10px] font-bold tracking-wider uppercase',
-                                        rec.cancel_pin_used === 'duress'
-                                            ? 'bg-rose-100 text-rose-600'
-                                            : 'bg-emerald-100 text-emerald-700',
-                                    ]"
-                                >
-                                    {{
-                                        rec.cancel_pin_used === 'duress'
-                                            ? '⚠ Duress'
-                                            : '✓ Safe'
-                                    }}
-                                </span>
-                            </div>
+                        <!-- Top row -->
+                        <div class="flex items-center gap-3 px-4 py-3">
+                            <!-- Left accent dot -->
                             <div
-                                class="mt-0.5 flex items-center gap-1.5 text-xs"
-                            >
-                                <span
-                                    class="truncate font-medium text-gray-700"
-                                    >{{ rec.victim_name ?? 'Unknown' }}</span
+                                :class="[
+                                    'h-2 w-2 shrink-0 rounded-full',
+                                    rec.cancel_pin_used === 'duress'
+                                        ? 'bg-rose-400'
+                                        : rec.cancel_pin_used &&
+                                            rec.cancel_pin_used !== 'none'
+                                          ? 'bg-emerald-400'
+                                          : !rec.is_finalised
+                                            ? 'animate-pulse bg-amber-400'
+                                            : 'bg-gray-200',
+                                ]"
+                            ></div>
+
+                            <!-- Info -->
+                            <div class="min-w-0 flex-1">
+                                <div class="flex items-center gap-2">
+                                    <span
+                                        class="font-mono text-xs font-bold tracking-widest text-gray-400 uppercase"
+                                    >
+                                        #{{ rec.alert_id }}
+                                    </span>
+                                    <span
+                                        v-if="
+                                            rec.cancel_pin_used &&
+                                            rec.cancel_pin_used !== 'none'
+                                        "
+                                        :class="[
+                                            'rounded-full px-2 py-px text-[10px] font-bold tracking-wider uppercase',
+                                            rec.cancel_pin_used === 'duress'
+                                                ? 'bg-rose-100 text-rose-600'
+                                                : 'bg-emerald-100 text-emerald-700',
+                                        ]"
+                                    >
+                                        {{
+                                            rec.cancel_pin_used === 'duress'
+                                                ? '⚠ Duress'
+                                                : '✓ Safe'
+                                        }}
+                                    </span>
+                                </div>
+                                <div
+                                    class="mt-0.5 flex items-center gap-1.5 text-xs text-gray-400"
                                 >
-                                <span class="text-gray-300">·</span>
-                                <span class="text-gray-500">{{
-                                    formatDuration(rec.duration_secs)
-                                }}</span>
-                                <span class="text-gray-300">·</span>
-                                <span class="text-gray-400">{{
-                                    timeAgo(rec.started_at)
-                                }}</span>
+                                    <span
+                                        class="truncate font-medium text-gray-600"
+                                        >{{
+                                            rec.victim_name ?? 'Unknown'
+                                        }}</span
+                                    >
+                                    <span>·</span>
+                                    <span>{{
+                                        formatDuration(rec.duration_secs)
+                                    }}</span>
+                                    <span>·</span>
+                                    <span>{{ timeAgo(rec.started_at) }}</span>
+                                </div>
                             </div>
+
+                            <!-- Action buttons -->
+                            <div
+                                v-if="rec.is_finalised"
+                                class="flex shrink-0 items-center gap-1.5"
+                            >
+                                <!-- Play / Pause -->
+                                <button
+                                    @click="togglePlay(rec.alert_id)"
+                                    :class="[
+                                        'flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-150',
+                                        playingId === String(rec.alert_id)
+                                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
+                                            : 'bg-gray-50 text-gray-400 ring-1 ring-gray-200/80 hover:bg-indigo-600 hover:text-white hover:shadow-md hover:shadow-indigo-200',
+                                    ]"
+                                    :title="
+                                        playingId === String(rec.alert_id)
+                                            ? 'Stop'
+                                            : 'Play'
+                                    "
+                                >
+                                    <!-- Play icon -->
+                                    <svg
+                                        v-if="
+                                            playingId !== String(rec.alert_id)
+                                        "
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        class="h-3.5 w-3.5"
+                                        viewBox="0 0 20 20"
+                                        fill="currentColor"
+                                    >
+                                        <path
+                                            fill-rule="evenodd"
+                                            d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
+                                            clip-rule="evenodd"
+                                        />
+                                    </svg>
+                                    <!-- Stop icon -->
+                                    <svg
+                                        v-else
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        class="h-3.5 w-3.5"
+                                        viewBox="0 0 20 20"
+                                        fill="currentColor"
+                                    >
+                                        <path
+                                            fill-rule="evenodd"
+                                            d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z"
+                                            clip-rule="evenodd"
+                                        />
+                                    </svg>
+                                </button>
+
+                                <!-- Download -->
+                                <a
+                                    :href="streamUri(rec.alert_id)"
+                                    :download="`dv_alert_${rec.alert_id}.wav`"
+                                    class="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-50 text-gray-400 ring-1 ring-gray-200/80 transition-all duration-150 hover:bg-indigo-600 hover:text-white hover:shadow-md hover:shadow-indigo-200"
+                                    title="Download"
+                                >
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        class="h-3.5 w-3.5"
+                                        viewBox="0 0 20 20"
+                                        fill="currentColor"
+                                    >
+                                        <path
+                                            fill-rule="evenodd"
+                                            d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
+                                            clip-rule="evenodd"
+                                        />
+                                    </svg>
+                                </a>
+                            </div>
+
+                            <!-- Live indicator -->
+                            <span
+                                v-else
+                                class="ml-auto flex shrink-0 items-center gap-1.5 text-[11px] font-medium text-amber-500"
+                            >
+                                <span class="relative flex h-1.5 w-1.5">
+                                    <span
+                                        class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"
+                                    ></span>
+                                    <span
+                                        class="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-400"
+                                    ></span>
+                                </span>
+                                Live
+                            </span>
                         </div>
 
-                        <a
-                            v-if="rec.is_finalised"
-                            :href="`${$page?.props?.appUrl ?? ''}/api/dv-recordings/${rec.alert_id}/stream`"
-                            target="_blank"
-                            class="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white text-gray-400 shadow-sm ring-1 ring-gray-200/80 transition-all duration-150 hover:bg-indigo-600 hover:text-white hover:shadow-md hover:shadow-indigo-200"
-                            title="Download"
+                        <!-- Inline audio player — expands when play is clicked -->
+                        <div
+                            v-if="playingId === rec.alert_id"
+                            class="border-t border-gray-100 bg-gray-50 px-4 py-3"
                         >
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                class="h-3.5 w-3.5"
-                                viewBox="0 0 20 20"
-                                fill="currentColor"
-                            >
-                                <path
-                                    fill-rule="evenodd"
-                                    d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
-                                    clip-rule="evenodd"
-                                />
-                            </svg>
-                        </a>
-
-                        <span
-                            v-else
-                            class="ml-auto flex h-8 shrink-0 items-center gap-1.5 text-[11px] font-medium text-amber-500"
-                        >
-                            <span class="relative flex h-1.5 w-1.5">
-                                <span
-                                    class="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75"
-                                ></span>
-                                <span
-                                    class="relative inline-flex h-1.5 w-1.5 rounded-full bg-amber-400"
-                                ></span>
-                            </span>
-                            Live
-                        </span>
+                            <audio
+                                :src="streamUrl(rec.alert_id)"
+                                controls
+                                autoplay
+                                class="w-full rounded-lg"
+                                @ended="playingId = null"
+                            ></audio>
+                        </div>
                     </li>
                 </ul>
             </div>
