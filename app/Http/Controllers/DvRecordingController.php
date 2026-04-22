@@ -36,6 +36,7 @@ class DvRecordingController extends Controller
                     'duration_secs' => $rec->duration_secs,
                     'stream_url'    => $rec->stream_url,
                     'is_finalised'  => $rec->is_finalised,
+                    'alert_id' => $rec->alert_id,
                 ];
             })
         ]);
