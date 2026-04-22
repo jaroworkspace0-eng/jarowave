@@ -60,7 +60,7 @@ let waveTimer: ReturnType<typeof setInterval> | null = null;
 
 const token = computed(() => auth.token ?? localStorage.getItem('token') ?? '');
 
-cconst playingId = ref<string | null>(null);
+const playingId = ref<string | null>(null);
 
 function streamUri(alertId: number) {
     const token = auth.token ?? localStorage.getItem('token') ?? '';
@@ -68,8 +68,8 @@ function streamUri(alertId: number) {
 }
 
 function togglePlay(alertId: number) {
-    const id = String(alertId)
-    playingId.value = playingId.value === id ? null : id
+    const id = String(alertId);
+    playingId.value = playingId.value === id ? null : id;
 }
 
 const formattedElapsed = computed(() => {
