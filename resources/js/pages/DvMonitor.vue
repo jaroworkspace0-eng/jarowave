@@ -302,6 +302,7 @@ onBeforeUnmount(() => {
                     v-model="selectedChannel"
                     class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 shadow-sm transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100 focus:outline-none"
                 >
+                    <option :value="null" disabled>Select channel</option>
                     <option
                         v-for="ch in channels?.channels?.data"
                         :key="ch.id"

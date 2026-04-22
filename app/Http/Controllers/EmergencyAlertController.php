@@ -92,7 +92,7 @@ class EmergencyAlertController extends Controller
             'latitude' => $request->latitude,
             'longitude' => $request->longitude,
             'accuracy' => $request->accuracy,
-            'alert_type'  => $validated['alert_type'] ?? 'sos',
+            'alert_type'  => $request->alert_type ?? 'sos',
         ]);
 
         return response()->json([
