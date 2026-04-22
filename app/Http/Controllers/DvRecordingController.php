@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\DvRecording;
+use App\Models\EmergencyAlert;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -138,5 +139,45 @@ class DvRecordingController extends Controller
         );
  
         return response()->json(['ok' => true, 'id' => $recording->id]);
+    }
+
+    function cancelPin(Request $request, int $alertId)
+    {
+        $secret = $request->header('X-PTT-Secret');
+        if ($secret !== env('ASSIGN_SECRET')) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $validated = $request->validate([
+            'cancel_pin_used' => 'nullable|string',
+        ]);
+
+
+        try {
+
+                $recording = DvRecording::where('alert_id', $alertId)->first();
+                if (!$recording) {
+                    return response()->json([
+                        'status'  => 'error',
+                        'message' => 'Alert ID not found in DV Recordings'
+                    ], 404);
+                }
+
+                $recording->cancel_pin_used = $request->cancel_pin_used ?? $recording->cancel_pin_used; // Only update if provided
+                $recording->save();
+
+                return response()->json([
+                    'status'  => 'success',
+                    'message' => 'GPS Synced to DV Recording'
+                ]);
+            
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+        
     }
 }

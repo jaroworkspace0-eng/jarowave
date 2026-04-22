@@ -428,4 +428,38 @@ class EmergencyAlertController extends Controller
         ]);
     }
 
+     public function cancelPin(Request $request, $id)
+    {
+        $secret = $request->header('X-PTT-Secret');
+        if ($secret !== env('ASSIGN_SECRET')) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        try {
+            $alert = EmergencyAlert::find($id);
+
+            if (!$alert) {
+                return response()->json([
+                    'status'  => 'error',
+                    'message' => 'Alert ID not found in DB'
+                ], 404);
+            }
+            
+            $alert->cancel_pin_used = $request->cancel_pin_used ?? $alert->cancel_pin_used; // Only update if provided
+            $alert->save();
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'GPS Synced'
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'status'  => 'error',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+
 }

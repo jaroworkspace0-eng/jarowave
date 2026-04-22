@@ -172,6 +172,9 @@ Route::get('/internal/payment-failures', [PaymentRecoveryController::class, 'act
 // DV recording finalisation endpoint — called internally by the recording service when it finishes processing a recording. Secured by a strong secret token in the header.
 Route::post('/internal/dv-recordings/{alertId}/finalise', [DvRecordingController::class, 'finalise']);
 
+Route::patch('/internal/dv-recordings/{alertId}/set-cancel-pin', [DvRecordingController::class, 'cancelPin']);
+Route::patch('/internal/emergency-alerts/{alert}/set-cancel-pin', [EmergencyAlertController::class, 'cancelPin']);
+
 
 
 // Household routes (require auth)
