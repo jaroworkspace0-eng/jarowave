@@ -324,6 +324,7 @@ class EmergencyAlertController extends Controller
             $alert->latitude  = $request->latitude;
             $alert->longitude = $request->longitude;
             $alert->accuracy  = $request->accuracy;
+            $alert->cancel_pin_used = $request->cancel_pin_used ?? $alert->cancel_pin_used; // Only update if provided
             $alert->save();
 
             return response()->json([
