@@ -6,6 +6,7 @@ use App\Models\DvRecording;
 use App\Models\EmergencyAlert;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class DvRecordingController extends Controller
@@ -109,27 +110,41 @@ class DvRecordingController extends Controller
     // so Laravel keeps the DB up to date.
     // POST /api/internal/dv-recordings/{alertId}/finalise
     // Protected by a shared internal secret header, not user auth.
-    public function finalise(Request $request, int $alertId): JsonResponse
+   public function finalise(Request $request, int $alertId): JsonResponse
     {
-        // Verify internal call — use a strong secret in your .env
+
         $secret = $request->header('X-PTT-Secret');
         if ($secret !== env('ASSIGN_SECRET')) {
-            return response()->json(['message' => 'Unauthorized'], 401);
+            return response()->json(['message' => 'Forbidden'], 403);
         }
  
         $validated = $request->validate([
             'file_path'     => 'required|string|max:500',
             'chunk_count'   => 'required|integer|min:0',
             'duration_secs' => 'required|numeric|min:0',
+            'channel_id'    => 'nullable|integer',
+            'user_id'       => 'nullable|integer',
             'started_at'    => 'nullable|date',
         ]);
  
+        // ── Log the call so you can confirm it's reaching Laravel ──
+        Log::info('[DV] finalise called', ['alert_id' => $alertId, 'data' => $validated]);
+ 
+        // Verify the emergency alert actually exists first
+        $alertExists = \App\Models\EmergencyAlert::find($alertId);
+        if (!$alertExists) {
+            Log::warning('[DV] finalise — emergency alert not found', ['alert_id' => $alertId]);
+            return response()->json(['message' => 'Emergency alert not found', 'alert_id' => $alertId], 404);
+        }
+ 
         $recording = DvRecording::updateOrCreate(
-            ['alert_id' => $alertId],
             [
-                'channel_id'    => $request->input('channel_id', 0),
-                'user_id'       => $request->input('user_id', 0),
-                'started_at'    => $validated['started_at'] ?? now(),
+                'alert_id' => $alertId,   // match on alert_id
+            ],
+            [
+                'channel_id'    => $validated['channel_id']    ?? $alertExists->channel_id,
+                'user_id'       => $validated['user_id']        ?? $alertExists->user_id,
+                'started_at'    => $validated['started_at']    ?? now(),
                 'ended_at'      => now(),
                 'file_path'     => $validated['file_path'],
                 'chunk_count'   => $validated['chunk_count'],
@@ -137,6 +152,8 @@ class DvRecordingController extends Controller
                 'is_finalised'  => true,
             ]
         );
+ 
+        Log::info('[DV] finalise saved', ['recording_id' => $recording->id]);
  
         return response()->json(['ok' => true, 'id' => $recording->id]);
     }
