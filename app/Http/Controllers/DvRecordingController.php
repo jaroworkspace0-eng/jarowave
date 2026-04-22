@@ -80,7 +80,9 @@ class DvRecordingController extends Controller
     public function stream(int $alertId): StreamedResponse|\Illuminate\Http\JsonResponse
     {
         // ── ADD THIS BLOCK ──────────────────────────────────────
+
         if ($token = request()->query('token')) {
+            $token = urldecode($token);  // ← add this line
             $tokenRecord = \Laravel\Sanctum\PersonalAccessToken::findToken($token);
             if (!$tokenRecord) {
                 return response()->json(['message' => 'Unauthorised'], 401);
