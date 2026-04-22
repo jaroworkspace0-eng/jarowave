@@ -92,6 +92,12 @@ class DvRecordingController extends Controller
         }
  
         $filePath = $recording->file_path;
+
+        dd([
+    'path' => $filePath,
+    'exists' => file_exists($filePath),
+    'size' => file_exists($filePath) ? filesize($filePath) : 'N/A',
+]);
  
         if (!file_exists($filePath)) {
             return response()->json(['message' => 'Audio file missing from disk'], 404);
@@ -99,12 +105,7 @@ class DvRecordingController extends Controller
  
         $fileSize = filesize($filePath);
         $rangeHeader = request()->header('Range');
-
-        dd([
-    'path' => $filePath,
-    'exists' => file_exists($filePath),
-    'size' => file_exists($filePath) ? filesize($filePath) : 'N/A',
-]);
+        
  
         if ($rangeHeader) {
             // Parse range:  bytes=start-end
