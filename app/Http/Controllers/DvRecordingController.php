@@ -133,7 +133,7 @@ class DvRecordingController extends Controller
             'Content-Type'        => 'audio/wav',
             'Content-Length'      => $fileSize,
             'Accept-Ranges'       => 'bytes',
-            'Content-Disposition' => "inline; filename=\"dv_alert_{$alertId}.wav\"",
+            'Content-Disposition' => "attachment; filename=\"dv_alert_{$alertId}.wav\"",
         ]);
     }
  
