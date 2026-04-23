@@ -22,8 +22,7 @@ import {
     HomeIcon,
     Megaphone,
     Newspaper,
-    Radio,
-    ReceiptText, // ← add this
+    Radio, // ← add this
     Trash2,
 } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
@@ -33,9 +32,16 @@ const auth = useAuthStore();
 const mainNavItems: NavItem[] = [
     { title: 'Dashboard', href: dashboard(), icon: HomeIcon },
     ...(auth.user?.role === 'admin'
-        ? [{ title: 'Clients', href: '/clients', icon: Building }]
+        ? [
+              { title: 'Clients', href: '/clients', icon: Building },
+              {
+                  title: 'Channels',
+                  href: '/channels',
+                  icon: ArrowsUpFromLineIcon,
+              },
+          ]
         : []),
-    { title: 'Channels', href: '/channels', icon: ArrowsUpFromLineIcon },
+
     { title: 'Personnels', href: '/employees', icon: Briefcase },
 
     // Estate users see Subscription + Invoices
@@ -47,9 +53,9 @@ const mainNavItems: NavItem[] = [
     //     : []),
 
     // Watch groups see Payouts
-    ...(auth.user?.organisation_type === 'watch'
-        ? [{ title: 'Payouts', href: '/payouts', icon: ReceiptText }]
-        : []),
+    // ...(auth.user?.organisation_type === 'watch'
+    //     ? [{ title: 'Payouts', href: '/payouts', icon: ReceiptText }]
+    //     : []),
 
     ...(auth.user?.role === 'admin'
         ? [
@@ -63,11 +69,7 @@ const mainNavItems: NavItem[] = [
                   href: '/admin/incident-reports',
                   icon: Newspaper,
               },
-              {
-                  title: 'DV Recordings',
-                  href: '/dv-recordings',
-                  icon: Radio,
-              },
+
               {
                   title: 'Deletion Requests',
                   href: '/deletion-requests',
@@ -75,6 +77,11 @@ const mainNavItems: NavItem[] = [
               },
           ]
         : []),
+    {
+        title: 'DV Recordings',
+        href: '/dv-recordings',
+        icon: Radio,
+    },
 ];
 
 const footerNavItems: NavItem[] = [];
