@@ -17,6 +17,7 @@ class DvRecording extends Model
         'chunk_count',
         'duration_secs',
         'is_finalised',
+        'cancel_pin_used',
     ];
  
     protected $casts = [

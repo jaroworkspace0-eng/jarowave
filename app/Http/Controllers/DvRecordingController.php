@@ -187,13 +187,13 @@ class DvRecordingController extends Controller
                 'alert_id' => $alertId,   // match on alert_id
             ],
             [
-                'channel_id'    => $validated['channel_id']    ?? $alertExists->channel_id,
-                'user_id'       => $validated['user_id']        ?? $alertExists->user_id,
-                'started_at'    => $validated['started_at']    ?? now(),
+                'channel_id'    => $request->channel_id    ?? $alertExists->channel_id,
+                'user_id'       => $request->user_id        ?? $alertExists->user_id,
+                'started_at'    => $request->started_at    ?? now(),
                 'ended_at'      => now(),
-                'file_path'     => $validated['file_path'],
-                'chunk_count'   => $validated['chunk_count'],
-                'duration_secs' => $validated['duration_secs'],
+                'file_path'     => $request->file_path,
+                'chunk_count'   => $request->chunk_count,
+                'duration_secs' => $request->duration_secs,
                 'is_finalised'  => true,
             ]
         );
@@ -213,7 +213,6 @@ class DvRecordingController extends Controller
         $validated = $request->validate([
             'cancel_pin_used' => 'nullable|string',
         ]);
-
 
         try {
 
