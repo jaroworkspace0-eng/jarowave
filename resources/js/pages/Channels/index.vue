@@ -1,8 +1,18 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
+import { useAuthStore } from '@/stores/auth';
+import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { onMounted, ref } from 'vue';
 import '../../../css/style.css';
+
+const auth = useAuthStore();
+
+onMounted(() => {
+    if (auth.user?.role !== 'admin') {
+        router.visit('/dashboard'); // redirect non-admins away
+    }
+});
 
 // --- State ---
 const showModal = ref(false);
