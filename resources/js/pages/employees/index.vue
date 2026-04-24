@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import Label from '@/components/ui/label/Label.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { useAuthStore } from '@/stores/auth';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import 'intl-tel-input/build/css/intlTelInput.css';
@@ -9,6 +10,8 @@ import Multiselect from 'vue-multiselect';
 import { VueTelInput } from 'vue-tel-input';
 import 'vue-tel-input/vue-tel-input.css';
 import '../../../css/style.css';
+
+const auth = useAuthStore();
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const generatePin = () => String(Math.floor(100000 + Math.random() * 900000));
@@ -1239,7 +1242,7 @@ const hideSuggestions = () => {
                                         >
                                             Uses
                                         </th>
-                                      
+
                                         <th
                                             class="p-3 text-right text-xs font-bold tracking-wide text-gray-500 uppercase"
                                         >
@@ -1529,11 +1532,11 @@ const hideSuggestions = () => {
                                 >
                                     Status
                                 </th>
-                                  <th
-                                            class="border-b border-gray-200 p-4 font-sans text-xs font-bold tracking-wide text-gray-500 uppercase"
-                                        >
-                                            Activation Fee
-                                        </th>
+                                <th
+                                    class="border-b border-gray-200 p-4 font-sans text-xs font-bold tracking-wide text-gray-500 uppercase"
+                                >
+                                    Activation Fee
+                                </th>
                                 <th
                                     class="border-b border-gray-200 p-2 font-sans text-xs font-bold tracking-wide text-gray-500 uppercase"
                                 >
@@ -2623,6 +2626,7 @@ const hideSuggestions = () => {
 
                                 <!-- Activation fee -->
                                 <div
+                                    v-if="auth.user?.role === 'admin'"
                                     class="mt-3 flex items-start gap-3 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3"
                                 >
                                     <input
