@@ -153,38 +153,68 @@ class DvRecordingController extends Controller
 
     public function store(Request $request)
     {
-        $alertId  = preg_replace('/[^a-zA-Z0-9_\-]/', '', $request->input('alert_id'));
-        $m4aPath  = storage_path("app/dv-recordings/dv_alert_{$alertId}_upload.m4a");
-        $mp3Path  = storage_path("app/dv-recordings/dv_alert_{$alertId}.mp3");
+        try {
+            $alertId = preg_replace('/[^a-zA-Z0-9_\-]/', '', $request->input('alert_id', 'unknown'));
 
-        $request->file('audio')->move(dirname($m4aPath), basename($m4aPath));
+            if (!$request->hasFile('audio')) {
+                return response()->json(['error' => 'No audio file received'], 422);
+            }
 
-        // Convert to mp3 via ffmpeg
-        $cmd = "ffmpeg -y -i {$m4aPath} -q:a 4 {$mp3Path} 2>&1";
-        exec($cmd, $output, $exitCode);
+            $file = $request->file('audio');
+            $dir  = storage_path('app/dv-recordings');
 
-        if ($exitCode !== 0 || !file_exists($mp3Path)) {
-            // ffmpeg failed — store the m4a as fallback
-            Log::error('DV ffmpeg conversion failed', ['alert_id' => $alertId, 'output' => $output]);
-            $storedPath = "dv-recordings/dv_alert_{$alertId}_upload.m4a";
-        } else {
-            @unlink($m4aPath); // remove intermediate m4a
-            $storedPath = "dv-recordings/dv_alert_{$alertId}.mp3";
+            if (!is_dir($dir)) {
+                mkdir($dir, 0775, true);
+            }
+
+            $m4aName = "dv_alert_{$alertId}_" . time() . ".m4a";
+            $m4aPath = $dir . '/' . $m4aName;
+            $file->move($dir, $m4aName);
+
+            // Convert to mp3 via ffmpeg
+            $mp3Name = "dv_alert_{$alertId}_" . time() . ".mp3";
+            $mp3Path = $dir . '/' . $mp3Name;
+            $cmd     = "ffmpeg -y -i {$m4aPath} -q:a 4 {$mp3Path} 2>&1";
+            exec($cmd, $output, $code);
+
+            if ($code !== 0 || !file_exists($mp3Path)) {
+                Log::warning('DV ffmpeg failed — keeping m4a', [
+                    'alert_id' => $alertId,
+                    'output'   => implode("\n", $output),
+                ]);
+                $finalPath = "dv-recordings/{$m4aName}";
+            } else {
+                @unlink($m4aPath);
+                $finalPath = "dv-recordings/{$mp3Name}";
+            }
+
+            // Only update if no larger file already exists (server stream may have arrived first)
+            $existing = EmergencyAlert::find($alertId);
+            $existingSize = $existing?->audio_path
+                ? @filesize(storage_path("app/{$existing->audio_path}")) : 0;
+            $newSize = @filesize(storage_path("app/{$finalPath}"));
+
+            if ($newSize > $existingSize) {
+                EmergencyAlert::where('id', $alertId)
+                    ->update(['audio_path' => $finalPath]);
+            }
+
+            Log::info('DV audio saved', ['alert_id' => $alertId, 'path' => $finalPath]);
+
+            return response()->json([
+                'success'  => true,
+                'mp3_path' => $finalPath,
+            ]);
+
+        } catch (\Throwable $e) {
+            Log::error('DVAudioController error', [
+                'message' => $e->getMessage(),
+                'trace'   => $e->getTraceAsString(),
+            ]);
+            return response()->json(['error' => $e->getMessage()], 500);
         }
-
-        // Only update if no larger file already exists (server stream may have arrived first)
-        $existing = EmergencyAlert::find($alertId);
-        $existingSize = $existing?->audio_path
-            ? @filesize(storage_path("app/{$existing->audio_path}")) : 0;
-        $newSize = @filesize(storage_path("app/{$storedPath}"));
-
-        if ($newSize > $existingSize) {
-            EmergencyAlert::where('id', $alertId)
-                ->update(['audio_path' => $storedPath]);
-        }
-
-        return response()->json(['success' => true, 'mp3_path' => $storedPath]);
     }
+
  
     // ── Called by Node.js server (internal) ───────────────────
     // Node.js calls this via HTTP after finalising the WAV file,
