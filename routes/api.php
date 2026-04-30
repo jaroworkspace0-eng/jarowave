@@ -186,7 +186,6 @@ Route::middleware('auth:sanctum')->prefix('household')->group(function () {
     // ---------------------------------------------------------------
 
     // MUST be outside — standalone, no middleware
-    Route::post('/dv-audio-upload', [DvRecordingController::class, 'store']);
 
     Route::post('/payments/subscription/cancel', [PaymentRecoveryController::class, 'cancelSubscription']);
 
@@ -210,6 +209,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         return $request->user();
     });
 
+
+    Route::post('/dv-audio-upload', [DvRecordingController::class, 'store']);
 
     // DV recording endpoints
     Route::get('/dv-recording-list', [DvRecordingController::class, 'index']);
