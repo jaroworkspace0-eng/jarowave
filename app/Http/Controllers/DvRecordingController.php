@@ -161,7 +161,7 @@ class DvRecordingController extends Controller
             }
 
             $file = $request->file('audio');
-            $dir  = storage_path('app/dv-recordings');
+            $dir  = storage_path('app/dv_recordings');
 
             if (!is_dir($dir)) {
                 mkdir($dir, 0775, true);
@@ -182,10 +182,10 @@ class DvRecordingController extends Controller
                     'alert_id' => $alertId,
                     'output'   => implode("\n", $output),
                 ]);
-                $finalPath = "dv-recordings/{$m4aName}";
+                $finalPath = "dv_recordings/{$m4aName}";
             } else {
                 @unlink($m4aPath);
-                $finalPath = "dv-recordings/{$mp3Name}";
+                $finalPath = "dv_recordings/{$mp3Name}";
             }
 
             // Only update if no larger file already exists (server stream may have arrived first)
