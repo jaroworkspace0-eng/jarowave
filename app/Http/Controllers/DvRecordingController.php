@@ -161,7 +161,9 @@ class DvRecordingController extends Controller
             }
 
             $file = $request->file('audio');
-            $dir  = storage_path('app/dv_recordings');
+            // $dir  = storage_path('app/dv_recordings');
+            $dir  = '/var/www/radio.server/dv_recordings';
+
 
             if (!is_dir($dir)) {
                 mkdir($dir, 0775, true);
