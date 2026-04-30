@@ -149,6 +149,42 @@ class DvRecordingController extends Controller
             'Content-Disposition' => "attachment; filename=\"dv_alert_{$alertId}.wav\"",
         ]);
     }
+
+
+    public function store(Request $request)
+    {
+        $alertId  = preg_replace('/[^a-zA-Z0-9_\-]/', '', $request->input('alert_id'));
+        $m4aPath  = storage_path("app/dv-recordings/dv_alert_{$alertId}_upload.m4a");
+        $mp3Path  = storage_path("app/dv-recordings/dv_alert_{$alertId}.mp3");
+
+        $request->file('audio')->move(dirname($m4aPath), basename($m4aPath));
+
+        // Convert to mp3 via ffmpeg
+        $cmd = "ffmpeg -y -i {$m4aPath} -q:a 4 {$mp3Path} 2>&1";
+        exec($cmd, $output, $exitCode);
+
+        if ($exitCode !== 0 || !file_exists($mp3Path)) {
+            // ffmpeg failed — store the m4a as fallback
+            Log::error('DV ffmpeg conversion failed', ['alert_id' => $alertId, 'output' => $output]);
+            $storedPath = "dv-recordings/dv_alert_{$alertId}_upload.m4a";
+        } else {
+            @unlink($m4aPath); // remove intermediate m4a
+            $storedPath = "dv-recordings/dv_alert_{$alertId}.mp3";
+        }
+
+        // Only update if no larger file already exists (server stream may have arrived first)
+        $existing = EmergencyAlert::find($alertId);
+        $existingSize = $existing?->audio_path
+            ? @filesize(storage_path("app/{$existing->audio_path}")) : 0;
+        $newSize = @filesize(storage_path("app/{$storedPath}"));
+
+        if ($newSize > $existingSize) {
+            EmergencyAlert::where('id', $alertId)
+                ->update(['audio_path' => $storedPath]);
+        }
+
+        return response()->json(['success' => true, 'mp3_path' => $storedPath]);
+    }
  
     // ── Called by Node.js server (internal) ───────────────────
     // Node.js calls this via HTTP after finalising the WAV file,
