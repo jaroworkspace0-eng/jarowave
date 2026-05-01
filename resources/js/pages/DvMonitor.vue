@@ -163,25 +163,36 @@ function connectSocket() {
         waveTimer = setInterval(animateWaveform, 130);
     });
 
-    socket.on('dv-audio-chunk', ({ chunk }: { chunk: string }) => {
+    let nextPlayAt = 0;
+    let currentFormat = 'adts-aac'; // ✅ default to Android
+
+    // ✅ Add this — store format when it arrives
+    socket.on('dv-audio-format', ({ format }: { format: string }) => {
+        currentFormat = format;
+        console.log('[DvMonitor] format:', format);
+    });
+
+    socket.on('dv-audio-chunk', async ({ chunk }: { chunk: string }) => {
         if (!audioCtx || isMuted.value) return;
+
+        // ✅ Skip live decode for iOS — m4a chunks are not self-contained
+        if (currentFormat === 'm4a') return;
+
         try {
             const raw = atob(chunk);
-            const pcm = new Int16Array(raw.length / 2);
-            for (let i = 0; i < pcm.length; i++)
-                pcm[i] =
-                    raw.charCodeAt(i * 2) | (raw.charCodeAt(i * 2 + 1) << 8);
-            const f32 = new Float32Array(pcm.length);
-            for (let i = 0; i < pcm.length; i++) f32[i] = pcm[i] / 32768;
-            const buf = audioCtx.createBuffer(1, f32.length, 16000);
-            buf.getChannelData(0).set(f32);
-            const source = audioCtx.createBufferSource();
-            source.buffer = buf;
-            source.connect(audioCtx.destination);
+            const bytes = new Uint8Array(raw.length);
+            for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+
+            const decoded = await audioCtx.decodeAudioData(bytes.buffer);
+
             const now = audioCtx.currentTime;
             if (nextPlayAt < now) nextPlayAt = now + 0.05;
+
+            const source = audioCtx.createBufferSource();
+            source.buffer = decoded;
+            source.connect(audioCtx.destination);
             source.start(nextPlayAt);
-            nextPlayAt += buf.duration;
+            nextPlayAt += decoded.duration;
         } catch (e) {
             console.warn('[DvMonitor] decode error:', e);
         }
@@ -198,6 +209,7 @@ function connectSocket() {
         }) => {
             isStreaming.value = false;
             hasEnded.value = true;
+            currentFormat = 'adts-aac'; // ✅ reset for next recording
             if (elapsedTimer) {
                 clearInterval(elapsedTimer);
                 elapsedTimer = null;
@@ -217,7 +229,6 @@ function connectSocket() {
             } catch {
                 recordingMeta.value = { duration_secs: durationSecs };
             }
-            // Refresh history list
             loadHistory();
         },
     );
@@ -515,7 +526,7 @@ onBeforeUnmount(() => {
                             <a
                                 v-if="hasEnded && streamUrl"
                                 :href="streamUrl"
-                                :download="`dv_alert_${currentAlertId}.wav`"
+                                :download="`dv_alert_${currentAlertId}.mp3`"
                                 class="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-semibold text-indigo-700 shadow-sm transition hover:bg-indigo-100 active:scale-95"
                             >
                                 ⬇ Download Recording
@@ -768,7 +779,7 @@ onBeforeUnmount(() => {
                                 <!-- Download -->
                                 <a
                                     :href="streamUri(rec.alert_id)"
-                                    :download="`dv_alert_${rec.alert_id}.wav`"
+                                    :download="`dv_alert_${rec.alert_id}.mp3`"
                                     class="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-50 text-gray-400 ring-1 ring-gray-200/80 transition-all duration-150 hover:bg-indigo-600 hover:text-white hover:shadow-md hover:shadow-indigo-200"
                                     title="Download"
                                 >
