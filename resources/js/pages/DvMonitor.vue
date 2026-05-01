@@ -20,7 +20,14 @@ import { useAuthStore } from '@/stores/auth';
 import { type BreadcrumbItem } from '@/types';
 import axios from 'axios';
 import { io, type Socket } from 'socket.io-client';
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import {
+    computed,
+    onBeforeUnmount,
+    onMounted,
+    onUnmounted,
+    ref,
+    watch,
+} from 'vue';
 
 const auth = useAuthStore();
 
@@ -164,18 +171,15 @@ function connectSocket() {
     });
 
     let nextPlayAt = 0;
-    let currentFormat = 'adts-aac'; // ✅ default to Android
+    let currentFormat = 'adts-aac';
+    const activeSources: AudioBufferSourceNode[] = []; // ✅ track all sources
 
-    // ✅ Add this — store format when it arrives
     socket.on('dv-audio-format', ({ format }: { format: string }) => {
         currentFormat = format;
-        console.log('[DvMonitor] format:', format);
     });
 
     socket.on('dv-audio-chunk', async ({ chunk }: { chunk: string }) => {
         if (!audioCtx || isMuted.value) return;
-
-        // ✅ Skip live decode for iOS — m4a chunks are not self-contained
         if (currentFormat === 'm4a') return;
 
         try {
@@ -193,6 +197,13 @@ function connectSocket() {
             source.connect(audioCtx.destination);
             source.start(nextPlayAt);
             nextPlayAt += decoded.duration;
+
+            // ✅ Track source, remove it from array when it finishes naturally
+            activeSources.push(source);
+            source.onended = () => {
+                const idx = activeSources.indexOf(source);
+                if (idx !== -1) activeSources.splice(idx, 1);
+            };
         } catch (e) {
             console.warn('[DvMonitor] decode error:', e);
         }
@@ -209,7 +220,29 @@ function connectSocket() {
         }) => {
             isStreaming.value = false;
             hasEnded.value = true;
-            currentFormat = 'adts-aac'; // ✅ reset for next recording
+            currentFormat = 'adts-aac';
+            nextPlayAt = 0; // ✅ reset scheduling
+
+            // ✅ Kill all in-flight audio sources immediately
+            // for (const source of activeSources) {
+            //     try {
+            //         source.stop();
+            //     } catch (_) {}
+            // }
+
+            onUnmounted(() => {
+                for (const source of activeSources) {
+                    try {
+                        source.stop();
+                    } catch (_) {}
+                }
+                activeSources.length = 0;
+                nextPlayAt = 0;
+                audioCtx?.close();
+            });
+
+            activeSources.length = 0;
+
             if (elapsedTimer) {
                 clearInterval(elapsedTimer);
                 elapsedTimer = null;
@@ -219,6 +252,7 @@ function connectSocket() {
                 waveTimer = null;
             }
             waveformBars.value = Array(32).fill(10);
+
             streamUrl.value = `${import.meta.env.VITE_APP_URL}/api/dv-recordings/${alertId}/stream`;
             try {
                 const { data } = await axios.get(
