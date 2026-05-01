@@ -172,41 +172,56 @@ function connectSocket() {
 
     let nextPlayAt = 0;
     let currentFormat = 'adts-aac';
-    const activeSources: AudioBufferSourceNode[] = []; // ✅ track all sources
+    const activeSources: AudioBufferSourceNode[] = [];
+    let _decodeQueue: Promise<void> = Promise.resolve(); // ✅ serialise decodes
 
     socket.on('dv-audio-format', ({ format }: { format: string }) => {
         currentFormat = format;
+        console.log('[DvMonitor] format:', format);
     });
 
-    socket.on('dv-audio-chunk', async ({ chunk }: { chunk: string }) => {
+    socket.on('dv-audio-chunk', ({ chunk }: { chunk: string }) => {
         if (!audioCtx || isMuted.value) return;
         if (currentFormat === 'm4a') return;
 
-        try {
-            const raw = atob(chunk);
-            const bytes = new Uint8Array(raw.length);
-            for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+        // ✅ Chain onto previous decode — never decode two chunks concurrently
+        _decodeQueue = _decodeQueue.then(async () => {
+            try {
+                const raw = atob(chunk);
+                const bytes = new Uint8Array(raw.length);
+                for (let i = 0; i < raw.length; i++)
+                    bytes[i] = raw.charCodeAt(i);
 
-            const decoded = await audioCtx.decodeAudioData(bytes.buffer);
+                const decoded = await audioCtx.decodeAudioData(bytes.buffer);
 
-            const now = audioCtx.currentTime;
-            if (nextPlayAt < now) nextPlayAt = now + 0.05;
+                const now = audioCtx.currentTime;
 
-            const source = audioCtx.createBufferSource();
-            source.buffer = decoded;
-            source.connect(audioCtx.destination);
-            source.start(nextPlayAt);
-            nextPlayAt += decoded.duration;
+                // ✅ If we've fallen behind (gap/silence), resync to now + small buffer
+                if (nextPlayAt < now) {
+                    console.warn(
+                        '[DvMonitor] Resync — was behind by',
+                        (now - nextPlayAt).toFixed(2),
+                        's',
+                    );
+                    nextPlayAt = now + 0.1;
+                }
 
-            // ✅ Track source, remove it from array when it finishes naturally
-            activeSources.push(source);
-            source.onended = () => {
-                const idx = activeSources.indexOf(source);
-                if (idx !== -1) activeSources.splice(idx, 1);
-            };
-        } catch (e) {
-            console.warn('[DvMonitor] decode error:', e);
-        }
+                const source = audioCtx.createBufferSource();
+                source.buffer = decoded;
+                source.connect(audioCtx.destination);
+                source.start(nextPlayAt);
+                nextPlayAt += decoded.duration;
+
+                activeSources.push(source);
+                source.onended = () => {
+                    const idx = activeSources.indexOf(source);
+                    if (idx !== -1) activeSources.splice(idx, 1);
+                };
+            } catch (e) {
+                console.warn('[DvMonitor] decode error — skipping chunk:', e);
+                // ✅ Don't break the chain on bad chunk — just skip it
+            }
+        });
     });
 
     socket.on(
