@@ -172,6 +172,20 @@ function connectSocket() {
             screen.elapsedSecs++;
         }, 1000);
         screen.waveTimer = setInterval(() => animateWaveform(screen), 120);
+
+        // ── fetch caller identity shortly after stream starts ──
+        setTimeout(async () => {
+            try {
+                const { data } = await axios.get(
+                    `${import.meta.env.VITE_APP_URL}/api/dv-recordings/${alertId}`,
+                    { headers: { Authorization: `Bearer ${token.value}` } },
+                );
+                const s = screens.value.find((s) => s.alertId === alertId);
+                if (s && s.isStreaming) s.recordingMeta = data;
+            } catch {
+                /* record may not exist yet — silently ignore */
+            }
+        }, 1500);
     });
 
     socket.on(
