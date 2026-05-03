@@ -383,7 +383,7 @@ class HouseholdController extends Controller
 
 
         $query = Employee::with(['channels', 'client.user', 'user', 'user.subscription'])
-            ->when($is_active, fn($q) => $q->whereHas('user', fn($u) => $u->where('status', $is_active)))
+            ->when($is_active, fn($q) => $q->whereHas('user', fn($u) => $u->where('is_active', $is_active)))
             ->when($role, fn($q) => $q->whereHas('user', fn($u) => $u->where('role', $role)))
             ->when($search, fn($q) => $q->whereHas('user', fn($u) => $u->where('name', 'like', "%$search%")
                 ->orWhere('email', 'like', "%$search%")
