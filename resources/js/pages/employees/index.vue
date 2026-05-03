@@ -519,7 +519,7 @@ const reloadEmployees = async (
             {
                 params: {
                     status,
-                    search: searchQuery.value || undefined, // ← ADD THIS
+                    search: searchQuery.value || undefined,
                 },
                 ...getHeaders(),
             },

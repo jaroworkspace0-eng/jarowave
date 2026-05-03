@@ -35,6 +35,7 @@ class EmployeeController extends Controller
             : null;
     }
 
+
     private function baseQuery(Request $request)
     {
         $user   = Auth::user();
@@ -355,5 +356,25 @@ class EmployeeController extends Controller
         //     adminAdded:       true,
         //     tempPassword:     $plainPassword,
         // ));
+    }
+
+    public function searchHouseholdToPair(Request $request)
+    {
+
+        $search = $request->query('keyword');
+        $role = $request->query('role'); // 'household' or 'resident'
+        $is_active = true;
+
+        $query = Employee::with(['channels', 'client.user', 'user', 'user.subscription'])
+            ->when($is_active, fn($q) => $q->whereHas('user', fn($u) => $u->where('status', $is_active)))
+            ->when($role, fn($q) => $q->whereHas('user', fn($u) => $u->where('role', $role)))
+            ->when($search, fn($q) => $q->whereHas('user', fn($u) => $u->where('name', 'like', "%$search%")
+                ->orWhere('email', 'like', "%$search%")
+                ->orWhere('phone', 'like', "%$search%")
+            ))
+            ->orderBy('created_at', 'desc');
+
+
+        return $query;
     }
 }
