@@ -14,6 +14,8 @@ class Announcement extends Model
     protected $casts = [
         'target_user_ids' => 'array',
         'sent_at'         => 'datetime',
+        'target_client_ids'   => 'array',
+        'target_employee_ids' => 'array',
     ];
 
     public function sender()

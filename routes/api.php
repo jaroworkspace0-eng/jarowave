@@ -13,6 +13,10 @@ use App\Http\Controllers\EmergencyAlertController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\HouseholdController;
 use App\Http\Controllers\Admin\IncidentReportExportController;
+use App\Http\Controllers\Api\GuardianReportController;
+use App\Http\Controllers\Api\GuardianResponseController;
+use App\Http\Controllers\Api\HouseholdPairingController;
+use App\Http\Controllers\Api\UserNotificationController;
 use App\Http\Controllers\DvRecordingController;
 use App\Http\Controllers\InviteController;
 use App\Http\Controllers\LiveKitController;
@@ -210,6 +214,33 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
 
+    // ── Pairings ────────────────────────────────────────────────
+    Route::prefix('household-pairings')->group(function () {
+        Route::get('/',                         [HouseholdPairingController::class, 'index']);
+        Route::post('/',                        [HouseholdPairingController::class, 'store']);
+        Route::put('/{pairing}/accept',         [HouseholdPairingController::class, 'accept']);
+        Route::put('/{pairing}/decline',        [HouseholdPairingController::class, 'decline']);
+        Route::delete('/{pairing}',             [HouseholdPairingController::class, 'destroy']);
+    });
+
+    Route::get('households/{household}/pairings',   [HouseholdPairingController::class, 'forHousehold']);
+    Route::get('households/{household}/guardians',  [HouseholdPairingController::class, 'guardians']);
+
+    // ── Guardian responses ──────────────────────────────────────
+    Route::prefix('alerts/{alertId}')->group(function () {
+        Route::get('guardians',                     [GuardianResponseController::class, 'index']);
+        Route::post('guardian-response',            [GuardianResponseController::class, 'store']);
+    });
+
+    // ── Guardian reports ────────────────────────────────────────
+    Route::prefix('guardian-reports')->group(function () {
+        Route::get('/',                             [GuardianReportController::class, 'index']);
+        Route::post('/',                            [GuardianReportController::class, 'store']);
+        Route::get('/{report}',                     [GuardianReportController::class, 'show']);
+        Route::put('/{report}/review',              [GuardianReportController::class, 'review']);
+        Route::put('/{report}/escalate',            [GuardianReportController::class, 'escalate']);
+    });
+
     Route::post('/dv-audio-upload', [DvRecordingController::class, 'store']);
 
     // DV recording endpoints
@@ -344,6 +375,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
 
     Route::resource('channels', ChannelController::class);
+
+
+    // ── Notifications ───────────────────────────────────────
+    Route::prefix('notifications')->group(function () {
+        Route::get('/',                  [UserNotificationController::class, 'index']);
+        Route::get('/unread-count',      [UserNotificationController::class, 'unreadCount']);
+        Route::put('/{id}/read',         [UserNotificationController::class, 'markRead']);
+        Route::put('/read-all',          [UserNotificationController::class, 'markAllRead']);
+        Route::delete('/{id}',           [UserNotificationController::class, 'destroy']);
+    });
 
     // Route::post('/livekit/token', [LiveKitController::class, 'generateToken']);
 });

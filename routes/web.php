@@ -13,6 +13,7 @@ use Laravel\Fortify\Features;
 //     ]);
 // })->name('home');
 
+
 Route::get('/', function () { 
     return Inertia::render('auth/Login'); 
 })->name('home');
@@ -73,6 +74,26 @@ return inertia('Admin/IncidentReports');
 Route::get('/dv-recordings', function() {
     return inertia('DvMonitor');
 });
+
+
+// ── Guardian Reports (admin) ──────────────────────────────
+
+Route::get('/guardian-reports', function() {
+    return inertia('Guardian/Reports');
+});
+
+Route::get('/guardian-reports/{id}', function() {
+    return inertia('Guardian/ReportDetail');
+});
+
+Route::get('/households/{id}/pairings', function() {
+    return inertia('Households/Pairings');
+});
+
+
+Route::get('/{any}', function () {
+    return view('app');
+})->where('any', '.*');
 
 
 Route::resource("users", UserController::class);
