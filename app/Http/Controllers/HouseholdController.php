@@ -12,6 +12,7 @@ use App\Services\BillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use App\Services\PayFastService;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class HouseholdController extends Controller
@@ -371,8 +372,15 @@ class HouseholdController extends Controller
     {
 
         $search = $request->query('keyword');
-        $role = $request->query('role'); // 'household' or 'resident'
-        $is_active = true;
+        $role   = $request->query('role');
+        $is_active = 1;
+
+        Log::info('SearchHouseholdToPair params', [
+            'keyword' => $search,
+            'role'    => $role,
+            'is_active' => $is_active,
+        ]);
+
 
         $query = Employee::with(['channels', 'client.user', 'user', 'user.subscription'])
             ->when($is_active, fn($q) => $q->whereHas('user', fn($u) => $u->where('status', $is_active)))
