@@ -384,7 +384,10 @@ class HouseholdController extends Controller
             ->orderBy('created_at', 'desc');
 
 
-        return $query;
+        return response()->json(
+            $query->get()
+        );
+
     }
 
     
