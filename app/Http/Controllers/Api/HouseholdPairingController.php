@@ -28,10 +28,15 @@ class HouseholdPairingController extends Controller
             return response()->json(['message' => 'A household cannot pair with itself.'], 422);
         }
 
+        // In store() — replace the $exists check with this:
         $exists = HouseholdPairing::where(function ($q) use ($requesterId, $receiverId) {
-            $q->where('requester_id', $requesterId)->where('receiver_id', $receiverId);
-        })->orWhere(function ($q) use ($requesterId, $receiverId) {
-            $q->where('requester_id', $receiverId)->where('receiver_id', $requesterId);
+            $q->where(function ($inner) use ($requesterId, $receiverId) {
+                $inner->where('requester_id', $requesterId)
+                    ->where('receiver_id', $receiverId);
+            })->orWhere(function ($inner) use ($requesterId, $receiverId) {
+                $inner->where('requester_id', $receiverId)
+                    ->where('receiver_id', $requesterId);
+            });
         })->whereIn('status', ['pending', 'active'])->exists();
 
         if ($exists) {
@@ -231,5 +236,71 @@ class HouseholdPairingController extends Controller
             'dissolved_at'  => $pairing->dissolved_at,
             'household'     => $other,
         ];
+    }
+
+    // GET /api/users/search-community?q=John&suburb=Tembisa&complex=...
+    public function searchCommunity(Request $request): JsonResponse
+    {
+        $request->validate([
+            'q'       => 'required|string|min:2|max:100',
+            'suburb'  => 'nullable|string',
+            'complex' => 'nullable|string',
+            'address' => 'nullable|string',
+        ]);
+
+        $q       = $request->input('q');
+        $suburb  = $request->input('suburb');
+        $complex = $request->input('complex');
+        $address = $request->input('address');
+        $selfId  = $request->user()->id;
+
+        // At least one location field must be present to scope the search
+        if (!$suburb && !$complex && !$address) {
+            return response()->json([
+                'message' => 'Your address is not set. Please update your profile before searching for guardians.',
+            ], 422);
+        }
+
+        $query = User::where('id', '!=', $selfId)
+            ->whereIn('role', ['household', 'resident'])
+            ->where('is_active', true)
+            ->where(function ($nameQ) use ($q) {
+                $nameQ->where('name', 'like', "%{$q}%")
+                    ->orWhere('phone', 'like', "%{$q}%");
+            });
+
+        // ── Community scope — match on suburb OR complex ──────
+        // Suburb is the strongest signal (Tembisa vs Cape Town)
+        // Complex narrows further within a suburb
+        $query->where(function ($locQ) use ($suburb, $complex, $address) {
+            if ($suburb) {
+                $locQ->orWhere('suburb', 'like', "%{$suburb}%");
+            }
+            if ($complex) {
+                $locQ->orWhere('complex_name', 'like', "%{$complex}%");
+            }
+            if ($address) {
+                // Match on street name part only (first word or two)
+                $streetPart = explode(' ', trim($address))[0] ?? $address;
+                if (strlen($streetPart) > 3) {
+                    $locQ->orWhere('address_line_1', 'like', "%{$streetPart}%");
+                }
+            }
+        });
+
+        $results = $query
+            ->select('id', 'name', 'suburb', 'complex_name', 'address_line_1', 'unit_number')
+            ->limit(20)
+            ->get()
+            ->map(fn($u) => [
+                'id'      => $u->id,
+                'name'    => $u->name,
+                'suburb'  => $u->suburb,
+                'complex' => $u->complex_name,
+                'address' => $u->address_line_1,
+                'unit'    => $u->unit_number,
+            ]);
+
+        return response()->json($results);
     }
 }

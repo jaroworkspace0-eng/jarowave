@@ -368,35 +368,35 @@ class HouseholdController extends Controller
         ]);
     }
 
-    public function searchHouseholdToPair(Request $request)
-    {
+    // public function searchHouseholdToPair(Request $request)
+    // {
 
-        $search = $request->query('keyword');
-        $role   = $request->query('role');
-        $is_active = 1;
+    //     $search = $request->query('keyword');
+    //     $role   = $request->query('role');
+    //     $is_active = 1;
 
-        Log::info('SearchHouseholdToPair params', [
-            'keyword' => $search,
-            'role'    => $role,
-            'is_active' => $is_active,
-        ]);
-
-
-        $query = Employee::with(['channels', 'client.user', 'user', 'user.subscription'])
-            ->when($is_active, fn($q) => $q->whereHas('user', fn($u) => $u->where('is_active', $is_active)))
-            ->when($role, fn($q) => $q->whereHas('user', fn($u) => $u->where('role', $role)))
-            ->when($search, fn($q) => $q->whereHas('user', fn($u) => $u->where('name', 'like', "%$search%")
-                ->orWhere('email', 'like', "%$search%")
-                ->orWhere('phone', 'like', "%$search%")
-            ))
-            ->orderBy('created_at', 'desc');
+    //     Log::info('SearchHouseholdToPair params', [
+    //         'keyword' => $search,
+    //         'role'    => $role,
+    //         'is_active' => $is_active,
+    //     ]);
 
 
-        return response()->json(
-            $query->get()
-        );
+    //     $query = Employee::with(['channels', 'client.user', 'user', 'user.subscription'])
+    //         ->when($is_active, fn($q) => $q->whereHas('user', fn($u) => $u->where('is_active', $is_active)))
+    //         ->when($role, fn($q) => $q->whereHas('user', fn($u) => $u->where('role', $role)))
+    //         ->when($search, fn($q) => $q->whereHas('user', fn($u) => $u->where('name', 'like', "%$search%")
+    //             ->orWhere('email', 'like', "%$search%")
+    //             ->orWhere('phone', 'like', "%$search%")
+    //         ))
+    //         ->orderBy('created_at', 'desc');
 
-    }
+
+    //     return response()->json(
+    //         $query->get()
+    //     );
+
+    // }
 
     
 }

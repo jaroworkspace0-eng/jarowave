@@ -214,6 +214,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
 
+    Route::get('users/search-community', [HouseholdPairingController::class, 'searchCommunity']);
+
     // ── Pairings ────────────────────────────────────────────────
     Route::prefix('household-pairings')->group(function () {
         Route::get('/',                         [HouseholdPairingController::class, 'index']);
@@ -225,7 +227,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::get('households/{household}/pairings',   [HouseholdPairingController::class, 'forHousehold']);
     Route::get('households/{household}/guardians',  [HouseholdPairingController::class, 'guardians']);
-    Route::get('/households/search', [HouseholdController::class, 'searchHouseholdToPair']);
+    // Route::get('/households/search', [HouseholdController::class, 'searchHouseholdToPair']);
 
     // ── Guardian responses ──────────────────────────────────────
     Route::prefix('alerts/{alertId}')->group(function () {
