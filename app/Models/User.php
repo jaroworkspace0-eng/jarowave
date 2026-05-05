@@ -9,8 +9,8 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Collection as EloquentCollection;
-
+// use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection;
 
 class User extends Authenticatable
 {
@@ -98,22 +98,22 @@ class User extends Authenticatable
     }
 
     // All active guardians (both directions merged)
-    public function activeGuardians(): EloquentCollection
-{
-    $asRequester = $this->sentPairings()
-        ->active()
-        ->with('receiver')
-        ->get()
-        ->map->receiver; // keeps models
+    public function activeGuardians(): Collection
+    {
+        $asRequester = $this->sentPairings()
+            ->active()
+            ->with('receiver')
+            ->get()
+            ->pluck('receiver');
 
-    $asReceiver = $this->receivedPairings()
-        ->active()
-        ->with('requester')
-        ->get()
-        ->map->requester;
+        $asReceiver = $this->receivedPairings()
+            ->active()
+            ->with('requester')
+            ->get()
+            ->pluck('requester');
 
-    return new EloquentCollection($asRequester->merge($asReceiver)->all());
-}
+        return $asRequester->merge($asReceiver); // ← pluck() + merge() = Support\Collection
+    }
 
     // Pending incoming pair requests
     public function pendingPairingRequests(): HasMany
