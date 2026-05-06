@@ -123,7 +123,12 @@ class UserController extends Controller
             'fcm_token_updated_at' => now(),
         ]);
 
-        return response()->json(['success' => true, 'response' => $fcm_data]);
+        return response()->json([
+            'success' => true, 
+            'message' => 'FCM token updated successfully.',
+            'fcm_token' => $request->input('fcm_token'),
+            'device_id' => $request->input('device_id'),
+        ]);
     }
 
 
