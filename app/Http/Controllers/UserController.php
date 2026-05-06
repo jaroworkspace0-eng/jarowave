@@ -117,7 +117,7 @@ class UserController extends Controller
             'device_id' => 'nullable|string',
         ]);
 
-       $fcm_data = $request->user()->update([
+       $request->user()->update([
             'fcm_token'            => $request->input('fcm_token'),
             'fcm_device_id'        => $request->input('device_id'),
             'fcm_token_updated_at' => now(),
@@ -126,8 +126,8 @@ class UserController extends Controller
         return response()->json([
             'success' => true, 
             'message' => 'FCM token updated successfully.',
-            'fcm_token' => $request->input('fcm_token'),
-            'device_id' => $request->input('device_id'),
+            // 'fcm_token' => $request->input('fcm_token'),
+            // 'device_id' => $request->input('device_id'),
         ]);
     }
 

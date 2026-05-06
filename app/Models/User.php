@@ -38,6 +38,9 @@ class User extends Authenticatable
         'unit_number',
         'latitude',
         'longitude',
+        'fcm_token',
+        'fcm_device_id',
+        'fcm_token_updated_at',
     ];
 
     protected $hidden = [
@@ -53,6 +56,7 @@ class User extends Authenticatable
             'email_verified_at'       => 'datetime',
             'password'                => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
+            'fcm_token_updated_at'    => 'datetime',
         ];
     }
 
