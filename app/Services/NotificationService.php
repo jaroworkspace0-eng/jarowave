@@ -15,8 +15,8 @@ class NotificationService
 
     public function __construct()
     {
-        $this->socketUrl = config('services.socket.url', 'https://radio.server.jaroworkspace.com');
-        $this->secret    = config('services.ptt.secret', env('ASSIGN_SECRET', ''));
+        $this->socketUrl = env('PTT_SERVER_URL', 'https://radio.server.jaroworkspace.com');
+        $this->secret    = env('ASSIGN_SECRET', '');
     }
 
     public function send(
