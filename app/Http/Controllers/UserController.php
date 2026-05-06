@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -107,5 +108,42 @@ class UserController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name', 'email'])
         );
+    }
+
+    public function updateFcmToken(Request $request): JsonResponse
+    {
+        $request->validate([
+            'fcm_token' => 'required|string',
+            'device_id' => 'nullable|string',
+        ]);
+
+        $request->user()->update([
+            'fcm_token'            => $request->input('fcm_token'),
+            'fcm_device_id'        => $request->input('device_id'),
+            'fcm_token_updated_at' => now(),
+        ]);
+
+        return response()->json(['success' => true]);
+    }
+
+
+    public function getFcmToken(Request $request, int $userId): JsonResponse
+    {
+
+        // Internal only — verify PTT secret
+        if ($request->header('X-PTT-Secret') !== env('ASSIGN_SECRET')) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $user = User::find($userId);
+
+        if (!$user) {
+            return response()->json(['message' => 'User not found.'], 404);
+        }
+
+        return response()->json([
+            'fcm_token' => $user->fcm_token,
+            'device_id' => $user->fcm_device_id,
+        ]);
     }
 }

@@ -184,6 +184,12 @@ Route::patch('/internal/emergency-alerts/{alert}/set-cancel-pin', [EmergencyAler
 Route::get('/dv-recordings/{alertId}/stream', [DvRecordingController::class, 'stream']);
 
 
+// ── Internal endpoints (Node server only, protected by PTT secret) ──────────
+Route::get('internal/users/{userId}/fcm-token', [UserController::class, 'getFcmToken']);
+// Route::get('users/{user}/fcm-token', [UserController::class, 'getFcmToken']);
+
+
+
 // Household routes (require auth)
 Route::middleware('auth:sanctum')->prefix('household')->group(function () {
 
@@ -213,6 +219,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         return $request->user();
     });
 
+    // fcm token management for push notifications
+    Route::post('users/fcm-token', [UserController::class, 'updateFcmToken']);
 
     Route::get('users/search-community', [HouseholdPairingController::class, 'searchCommunity']);
 
