@@ -65,7 +65,7 @@ class HouseholdPairingController extends Controller
         $this->notifications->send(
             recipient: $receiver,
             type:      'pairing_request',
-            title:     '🤝 New Guardian Request',
+            title:     'New Guardian Request',
             body:      "{$requester->name} wants to pair with you as a mutual guardian.",
             data:      [
                 'pairing_id'    => $pairing->id,
