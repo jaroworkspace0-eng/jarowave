@@ -117,13 +117,13 @@ class UserController extends Controller
             'device_id' => 'nullable|string',
         ]);
 
-        $request->user()->update([
+       $fcm_data = $request->user()->update([
             'fcm_token'            => $request->input('fcm_token'),
             'fcm_device_id'        => $request->input('device_id'),
             'fcm_token_updated_at' => now(),
         ]);
 
-        return response()->json(['success' => true]);
+        return response()->json(['success' => true, 'response' => $fcm_data]);
     }
 
 
