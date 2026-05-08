@@ -9,7 +9,7 @@ class HouseholdSettingController extends Controller
 {
      public function show(Request $request)
     {
-        $householdId = $request->user()->user_id;
+        $householdId = $request->user()->id;
 
         $settings = HouseholdSetting::firstOrCreate(
             ['user_id' => $householdId],
@@ -35,7 +35,7 @@ class HouseholdSettingController extends Controller
 
     public function update(Request $request)
     {
-        $householdId = $request->user()->user_id;
+        $householdId = $request->user()->id;
 
         // map camelCase from app → snake_case in DB
         $keyMap = [
