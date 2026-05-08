@@ -9,7 +9,7 @@ class HouseholdSettingController extends Controller
 {
      public function show(Request $request)
     {
-        $householdId = $request->user()->household_id;
+        $householdId = $request->user()->user_id;
 
         $settings = HouseholdSetting::firstOrCreate(
             ['user_id' => $householdId],
