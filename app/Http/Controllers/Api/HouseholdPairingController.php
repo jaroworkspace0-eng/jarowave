@@ -30,6 +30,19 @@ class HouseholdPairingController extends Controller
             return response()->json(['message' => 'A household cannot pair with itself.'], 422);
         }
 
+        // ── block check — neither side can request the other ──
+        $isBlocked = BlockedHousehold::where(function ($q) use ($requesterId, $receiverId) {
+            $q->where('user_id', $requesterId)
+            ->where('blocked_user_id', $receiverId);
+        })->orWhere(function ($q) use ($requesterId, $receiverId) {
+            $q->where('user_id', $receiverId)
+            ->where('blocked_user_id', $requesterId);
+        })->exists();
+
+        if ($isBlocked) {
+            return response()->json(['message' => 'You cannot send a request to this household.'], 422);
+        }
+
         $exists = HouseholdPairing::where(function ($q) use ($requesterId, $receiverId) {
             $q->where(function ($inner) use ($requesterId, $receiverId) {
                 $inner->where('requester_id', $requesterId)
@@ -68,7 +81,6 @@ class HouseholdPairingController extends Controller
         $requester = $request->user();
 
         if ($autoAccept) {
-            // tell requester they're instantly paired
             $this->notifications->send(
                 recipient: $requester,
                 type:      'pairing_accepted',
@@ -81,7 +93,6 @@ class HouseholdPairingController extends Controller
                 ],
             );
 
-            // tell receiver a new guardian was added silently
             $this->notifications->send(
                 recipient: $receiver,
                 type:      'pairing_accepted',
@@ -94,7 +105,6 @@ class HouseholdPairingController extends Controller
                 ],
             );
         } else {
-            // normal pending flow
             $this->notifications->send(
                 recipient: $receiver,
                 type:      'pairing_request',
@@ -109,7 +119,7 @@ class HouseholdPairingController extends Controller
         }
 
         return response()->json([
-            'pairing'      => $pairing->load(['requester', 'receiver']),
+            'pairing'       => $pairing->load(['requester', 'receiver']),
             'auto_accepted' => $autoAccept,
         ], 201);
     }
