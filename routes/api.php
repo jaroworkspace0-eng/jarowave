@@ -221,7 +221,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
         return $request->user();
     });
 
-    Route::get('/blocked-households',            [BlockedHouseholdController::class, 'index']);
+    Route::post('/blocked-households',            [BlockedHouseholdController::class, 'store']);
+    Route::get('/blocked-households',             [BlockedHouseholdController::class, 'index']);
     Route::delete('/blocked-households/{userId}', [BlockedHouseholdController::class, 'destroy']);
 
     // fcm token management for push notifications
