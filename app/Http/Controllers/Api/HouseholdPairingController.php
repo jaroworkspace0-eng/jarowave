@@ -22,10 +22,6 @@ class HouseholdPairingController extends Controller
             'receiver_id' => 'required|exists:users,id',
         ]);
 
-        $receiverSettings = HouseholdSetting::where('user_id', $request->receiver_id)->first();
-
-        $status = $receiverSettings?->auto_accept ? 'active' : 'pending';
-
         $requesterId = $request->user()->id;
         $receiverId  = $request->integer('receiver_id');
 
@@ -33,7 +29,6 @@ class HouseholdPairingController extends Controller
             return response()->json(['message' => 'A household cannot pair with itself.'], 422);
         }
 
-        // In store() — replace the $exists check with this:
         $exists = HouseholdPairing::where(function ($q) use ($requesterId, $receiverId) {
             $q->where(function ($inner) use ($requesterId, $receiverId) {
                 $inner->where('requester_id', $requesterId)
@@ -56,30 +51,66 @@ class HouseholdPairingController extends Controller
             return response()->json(['message' => 'Maximum of 10 active pairings reached.'], 422);
         }
 
+        // ── check receiver's autoAccept setting ──
+        $receiverSettings = HouseholdSetting::where('user_id', $receiverId)->first();
+        $autoAccept       = $receiverSettings?->auto_accept ?? false;
+
         $pairing = HouseholdPairing::create([
             'requester_id' => $requesterId,
             'receiver_id'  => $receiverId,
-            'status'       => $status,
+            'status'       => $autoAccept ? 'active' : 'pending',
             'requested_at' => now(),
+            'responded_at' => $autoAccept ? now() : null,
         ]);
 
-        // ── Notify receiver ───────────────────────────────────
-        $receiver = User::findOrFail($receiverId);
+        $receiver  = User::findOrFail($receiverId);
         $requester = $request->user();
 
-        $this->notifications->send(
-            recipient: $receiver,
-            type:      'pairing_request',
-            title:     'New Guardian Request',
-            body:      "{$requester->name} wants to pair with you as a mutual guardian.",
-            data:      [
-                'pairing_id'    => $pairing->id,
-                'requester_id'  => $requesterId,
-                'requester_name' => $requester->name,
-            ],
-        );
+        if ($autoAccept) {
+            // tell requester they're instantly paired
+            $this->notifications->send(
+                recipient: $requester,
+                type:      'pairing_accepted',
+                title:     'Guardian Request Accepted',
+                body:      "{$receiver->name} automatically accepted your guardian request.",
+                data:      [
+                    'pairing_id'    => $pairing->id,
+                    'accepter_id'   => $receiverId,
+                    'accepter_name' => $receiver->name,
+                ],
+            );
 
-        return response()->json($pairing->load(['requester', 'receiver']), 201);
+            // tell receiver a new guardian was added silently
+            $this->notifications->send(
+                recipient: $receiver,
+                type:      'pairing_accepted',
+                title:     'New Guardian Added',
+                body:      "{$requester->name} has been added as your mutual guardian.",
+                data:      [
+                    'pairing_id'    => $pairing->id,
+                    'accepter_id'   => $requesterId,
+                    'accepter_name' => $requester->name,
+                ],
+            );
+        } else {
+            // normal pending flow
+            $this->notifications->send(
+                recipient: $receiver,
+                type:      'pairing_request',
+                title:     'New Guardian Request',
+                body:      "{$requester->name} wants to pair with you as a mutual guardian.",
+                data:      [
+                    'pairing_id'     => $pairing->id,
+                    'requester_id'   => $requesterId,
+                    'requester_name' => $requester->name,
+                ],
+            );
+        }
+
+        return response()->json([
+            'pairing'      => $pairing->load(['requester', 'receiver']),
+            'auto_accepted' => $autoAccept,
+        ], 201);
     }
 
     // PUT /api/household-pairings/{pairing}/accept
@@ -103,7 +134,7 @@ class HouseholdPairingController extends Controller
         $this->notifications->send(
             recipient: $requester,
             type:      'pairing_accepted',
-            title:     '✅ Guardian Request Accepted',
+            title:     'Guardian Request Accepted',
             body:      "{$accepter->name} accepted your guardian pairing request.",
             data:      [
                 'pairing_id'   => $pairing->id,
