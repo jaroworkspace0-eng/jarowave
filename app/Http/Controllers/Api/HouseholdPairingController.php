@@ -4,6 +4,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\BlockedHousehold;
 use App\Models\HouseholdPairing;
 use App\Models\HouseholdSetting;
 use App\Models\User;
@@ -169,7 +170,7 @@ class HouseholdPairingController extends Controller
         $this->notifications->send(
             recipient: $requester,
             type:      'pairing_declined',
-            title:     '❌ Guardian Request Declined',
+            title:     'Guardian Request Declined',
             body:      "{$decliner->name} declined your guardian pairing request.",
             data:      [
                 'pairing_id'   => $pairing->id,
@@ -177,6 +178,14 @@ class HouseholdPairingController extends Controller
                 'decliner_name' => $decliner->name,
             ],
         );
+
+        // ── save block if requested ──
+        if ($request->boolean('block')) {
+            BlockedHousehold::firstOrCreate([
+                'user_id'         => $request->user()->id,
+                'blocked_user_id' => $pairing->requester_id,
+            ]);
+        }
 
         return response()->json(['message' => 'Pairing request declined.']);
     }
@@ -304,7 +313,14 @@ class HouseholdPairingController extends Controller
                 $q->whereHas('householdSetting', function ($s) {
                     $s->where('appear_in_search', true);
                 })
-                ->orWhereDoesntHave('householdSetting'); // no row = default true
+                ->orWhereDoesntHave('householdSetting');
+            })
+            // ── filter out blocked users (both directions) ──
+            ->whereDoesntHave('blockedByHouseholds', function ($b) use ($selfId) {
+                $b->where('user_id', $selfId);         // people I have blocked
+            })
+            ->whereDoesntHave('blockedHouseholds', function ($b) use ($selfId) {
+                $b->where('blocked_user_id', $selfId); // people who have blocked me
             })
             ->where(function ($nameQ) use ($q) {
                 $nameQ->where('name', 'like', "%{$q}%")
@@ -328,13 +344,12 @@ class HouseholdPairingController extends Controller
 
         $results = $query
             ->select('id', 'name', 'suburb', 'complex_name', 'address_line_1', 'unit_number')
-            ->with('householdSetting') // eager load to avoid N+1
+            ->with(['householdSetting', 'blockedHouseholds', 'blockedByHouseholds'])
             ->limit(20)
             ->get()
             ->map(fn($u) => [
                 'id'      => $u->id,
                 'name'    => $u->name,
-                // ── mask suburb if show_suburb is off ──
                 'suburb'  => ($u->householdSetting?->show_suburb ?? true) ? $u->suburb : null,
                 'complex' => $u->complex_name,
                 'address' => $u->address_line_1,

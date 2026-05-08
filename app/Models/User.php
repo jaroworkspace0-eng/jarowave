@@ -152,4 +152,14 @@ class User extends Authenticatable
     {
         return $this->hasOne(HouseholdSetting::class, 'user_id');
     }
+
+    public function blockedHouseholds(): HasMany
+    {
+        return $this->hasMany(BlockedHousehold::class);
+    }
+
+    public function blockedByHouseholds(): HasMany
+    {
+        return $this->hasMany(BlockedHousehold::class, 'blocked_user_id');
+    }
 }

@@ -17,6 +17,7 @@ use App\Http\Controllers\Api\GuardianReportController;
 use App\Http\Controllers\Api\GuardianResponseController;
 use App\Http\Controllers\Api\HouseholdPairingController;
 use App\Http\Controllers\Api\UserNotificationController;
+use App\Http\Controllers\BlockedHouseholdController;
 use App\Http\Controllers\DvRecordingController;
 use App\Http\Controllers\HouseholdSettingController;
 use App\Http\Controllers\InviteController;
@@ -219,6 +220,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/user', function (Request $request) {
         return $request->user();
     });
+
+    Route::get('/blocked-households',            [BlockedHouseholdController::class, 'index']);
+    Route::delete('/blocked-households/{userId}', [BlockedHouseholdController::class, 'destroy']);
 
     // fcm token management for push notifications
     Route::post('users/fcm-token', [UserController::class, 'updateFcmToken']);
