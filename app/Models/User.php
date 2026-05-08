@@ -9,6 +9,7 @@ use Illuminate\Notifications\Notifiable;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 // use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Collection;
 
@@ -145,5 +146,10 @@ class User extends Authenticatable
     public function unreadNotifications(): HasMany
     {
         return $this->hasMany(UserNotification::class)->where('is_read', false);
+    }
+
+    public function householdSetting(): HasOne
+    {
+        return $this->hasOne(HouseholdSetting::class, 'user_id');
     }
 }

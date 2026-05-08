@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 
 class HouseholdSettingController extends Controller
 {
-     public function show(Request $request)
+    public function show(Request $request)
     {
         $householdId = $request->user()->id;
 

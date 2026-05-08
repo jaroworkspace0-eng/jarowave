@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\HouseholdPairing;
+use App\Models\HouseholdSetting;
 use App\Models\User;
 use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
@@ -20,6 +21,10 @@ class HouseholdPairingController extends Controller
         $request->validate([
             'receiver_id' => 'required|exists:users,id',
         ]);
+
+        $receiverSettings = HouseholdSetting::where('user_id', $request->receiver_id)->first();
+
+        $status = $receiverSettings?->auto_accept ? 'active' : 'pending';
 
         $requesterId = $request->user()->id;
         $receiverId  = $request->integer('receiver_id');
@@ -54,7 +59,7 @@ class HouseholdPairingController extends Controller
         $pairing = HouseholdPairing::create([
             'requester_id' => $requesterId,
             'receiver_id'  => $receiverId,
-            'status'       => 'pending',
+            'status'       => $status,
             'requested_at' => now(),
         ]);
 
@@ -254,7 +259,6 @@ class HouseholdPairingController extends Controller
         $address = $request->input('address');
         $selfId  = $request->user()->id;
 
-        // At least one location field must be present to scope the search
         if (!$suburb && !$complex && !$address) {
             return response()->json([
                 'message' => 'Your address is not set. Please update your profile before searching for guardians.',
@@ -264,14 +268,18 @@ class HouseholdPairingController extends Controller
         $query = User::where('id', '!=', $selfId)
             ->whereIn('role', ['household', 'resident'])
             ->where('is_active', true)
+            // ── only show users who want to appear in search ──
+            ->where(function ($q) {
+                $q->whereHas('householdSetting', function ($s) {
+                    $s->where('appear_in_search', true);
+                })
+                ->orWhereDoesntHave('householdSetting'); // no row = default true
+            })
             ->where(function ($nameQ) use ($q) {
                 $nameQ->where('name', 'like', "%{$q}%")
                     ->orWhere('phone', 'like', "%{$q}%");
             });
 
-        // ── Community scope — match on suburb OR complex ──────
-        // Suburb is the strongest signal (Tembisa vs Cape Town)
-        // Complex narrows further within a suburb
         $query->where(function ($locQ) use ($suburb, $complex, $address) {
             if ($suburb) {
                 $locQ->orWhere('suburb', 'like', "%{$suburb}%");
@@ -280,7 +288,6 @@ class HouseholdPairingController extends Controller
                 $locQ->orWhere('complex_name', 'like', "%{$complex}%");
             }
             if ($address) {
-                // Match on street name part only (first word or two)
                 $streetPart = explode(' ', trim($address))[0] ?? $address;
                 if (strlen($streetPart) > 3) {
                     $locQ->orWhere('address_line_1', 'like', "%{$streetPart}%");
@@ -290,12 +297,14 @@ class HouseholdPairingController extends Controller
 
         $results = $query
             ->select('id', 'name', 'suburb', 'complex_name', 'address_line_1', 'unit_number')
+            ->with('householdSetting') // eager load to avoid N+1
             ->limit(20)
             ->get()
             ->map(fn($u) => [
                 'id'      => $u->id,
                 'name'    => $u->name,
-                'suburb'  => $u->suburb,
+                // ── mask suburb if show_suburb is off ──
+                'suburb'  => ($u->householdSetting?->show_suburb ?? true) ? $u->suburb : null,
                 'complex' => $u->complex_name,
                 'address' => $u->address_line_1,
                 'unit'    => $u->unit_number,
