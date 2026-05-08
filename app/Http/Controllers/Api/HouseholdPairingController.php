@@ -170,7 +170,7 @@ class HouseholdPairingController extends Controller
         $this->notifications->send(
             recipient: $other,
             type:      'pairing_dissolved',
-            title:     '🔓 Guardian Pairing Ended',
+            title:     'Guardian Pairing Ended',
             body:      "{$request->user()->name} has dissolved your guardian pairing.",
             data:      [
                 'pairing_id' => $pairing->id,

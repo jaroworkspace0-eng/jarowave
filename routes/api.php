@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\GuardianResponseController;
 use App\Http\Controllers\Api\HouseholdPairingController;
 use App\Http\Controllers\Api\UserNotificationController;
 use App\Http\Controllers\DvRecordingController;
+use App\Http\Controllers\HouseholdSettingController;
 use App\Http\Controllers\InviteController;
 use App\Http\Controllers\LiveKitController;
 use App\Http\Controllers\Payments\EarningController;
@@ -223,6 +224,11 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('users/fcm-token', [UserController::class, 'updateFcmToken']);
 
     Route::get('users/search-community', [HouseholdPairingController::class, 'searchCommunity']);
+
+
+    // ── Household settings ───────────────────────────────────────
+    Route::get('/household-settings',   [HouseholdSettingController::class, 'show']);
+    Route::patch('/household-settings', [HouseholdSettingController::class, 'update']);
 
     // ── Pairings ────────────────────────────────────────────────
     Route::prefix('household-pairings')->group(function () {
