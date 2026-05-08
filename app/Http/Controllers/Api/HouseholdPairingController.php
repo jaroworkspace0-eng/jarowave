@@ -30,7 +30,7 @@ class HouseholdPairingController extends Controller
             return response()->json(['message' => 'A household cannot pair with itself.'], 422);
         }
 
-        // ── block check — neither side can request the other ──
+        // ── block check ──
         $isBlocked = BlockedHousehold::where(function ($q) use ($requesterId, $receiverId) {
             $q->where('user_id', $requesterId)
             ->where('blocked_user_id', $receiverId);
@@ -40,10 +40,11 @@ class HouseholdPairingController extends Controller
         })->exists();
 
         if ($isBlocked) {
-            return response()->json(['message' => 'You cannot send a request to this household.'], 422);
+            return response()->json(['message' => 'You cannot send a request to this household. Either you have blocked them, or they have blocked you.'], 422);
         }
 
-        $exists = HouseholdPairing::where(function ($q) use ($requesterId, $receiverId) {
+        // ── find any existing pairing row regardless of status ──
+        $existingPairing = HouseholdPairing::where(function ($q) use ($requesterId, $receiverId) {
             $q->where(function ($inner) use ($requesterId, $receiverId) {
                 $inner->where('requester_id', $requesterId)
                     ->where('receiver_id', $receiverId);
@@ -51,9 +52,10 @@ class HouseholdPairingController extends Controller
                 $inner->where('requester_id', $receiverId)
                     ->where('receiver_id', $requesterId);
             });
-        })->whereIn('status', ['pending', 'active'])->exists();
+        })->first();
 
-        if ($exists) {
+        // ── block if already pending or active ──
+        if ($existingPairing && in_array($existingPairing->status, ['pending', 'active'])) {
             return response()->json(['message' => 'A pairing already exists between these households.'], 422);
         }
 
@@ -69,13 +71,25 @@ class HouseholdPairingController extends Controller
         $receiverSettings = HouseholdSetting::where('user_id', $receiverId)->first();
         $autoAccept       = $receiverSettings?->auto_accept ?? false;
 
-        $pairing = HouseholdPairing::create([
-            'requester_id' => $requesterId,
-            'receiver_id'  => $receiverId,
-            'status'       => $autoAccept ? 'active' : 'pending',
-            'requested_at' => now(),
-            'responded_at' => $autoAccept ? now() : null,
-        ]);
+        // ── reuse existing dissolved/declined row, or create fresh ──
+        if ($existingPairing) {
+            $existingPairing->update([
+                'requester_id' => $requesterId,
+                'receiver_id'  => $receiverId,
+                'status'       => $autoAccept ? 'active' : 'pending',
+                'requested_at' => now(),
+                'responded_at' => $autoAccept ? now() : null,
+            ]);
+            $pairing = $existingPairing;
+        } else {
+            $pairing = HouseholdPairing::create([
+                'requester_id' => $requesterId,
+                'receiver_id'  => $receiverId,
+                'status'       => $autoAccept ? 'active' : 'pending',
+                'requested_at' => now(),
+                'responded_at' => $autoAccept ? now() : null,
+            ]);
+        }
 
         $receiver  = User::findOrFail($receiverId);
         $requester = $request->user();
