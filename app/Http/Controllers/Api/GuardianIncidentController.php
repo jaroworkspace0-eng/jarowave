@@ -12,6 +12,8 @@ use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class GuardianIncidentController extends Controller
 {
@@ -54,7 +56,7 @@ class GuardianIncidentController extends Controller
         $this->notifications->send(
             recipient: User::findOrFail($alert->user_id),
             type:      'guardian_responding',
-            title:     '🚗 Guardian On The Way',
+            title:     'Guardian On The Way',
             body:      "{$guardian->name} is responding to your alert.",
             data:      ['alert_id' => $alertId, 'guardian_id' => $guardianId],
         );
@@ -66,6 +68,8 @@ class GuardianIncidentController extends Controller
             'Guardian Responding',
             "{$guardian->name} is responding to the alert.",
         );
+
+        $this->notifyVictimSocket($alertId, $guardian->name, 'on_my_way');
 
         return response()->json(['message' => 'Claimed successfully.', 'claim' => $claim], 201);
     }
@@ -89,6 +93,8 @@ class GuardianIncidentController extends Controller
                 'responded_at' => now(),
             ]
         );
+
+        $this->notifyVictimSocket($alertId, $request->user()->name, $request->action);
 
         if ($request->action === 'called_police') {
             $alert    = EmergencyAlert::findOrFail($alertId);
@@ -126,6 +132,8 @@ class GuardianIncidentController extends Controller
         $alert    = EmergencyAlert::findOrFail($alertId);
         $guardian = $request->user();
 
+        $this->notifyVictimSocket($alertId, $guardian->name, 'resolved');
+        
         $this->notifyOtherGuardians(
             $alert,
             $request->user()->id,
@@ -190,6 +198,28 @@ class GuardianIncidentController extends Controller
                 body:      $body,
                 data:      ['alert_id' => $alert->id],
             );
+        }
+    }
+
+
+    private function notifyVictimSocket(int $alertId, string $guardianName, string $action): void
+    {
+        $alert = EmergencyAlert::findOrFail($alertId);
+
+        try {
+            Http::withHeaders([
+                'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
+                'Content-Type'  => 'application/json',
+            ])
+            ->timeout(5)
+            ->post(env('PTT_SERVER_URL') . '/guardian-incident-update', [
+                'victimUserId' => $alert->user_id,
+                'guardianName' => $guardianName,
+                'action'       => $action,
+                'alertId'      => $alertId,
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning("notifyVictimSocket failed: {$e->getMessage()}");
         }
     }
 }
