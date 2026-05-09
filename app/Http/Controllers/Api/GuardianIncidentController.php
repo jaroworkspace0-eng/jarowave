@@ -1,0 +1,195 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\EmergencyAlert;
+use App\Models\GuardianIncidentClaim;
+use App\Models\GuardianIncidentResponse;
+use App\Models\HouseholdPairing;
+use App\Models\User;
+use App\Services\NotificationService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+class GuardianIncidentController extends Controller
+{
+    public function __construct(protected NotificationService $notifications) {}
+
+    // POST /api/guardian-incidents/{alertId}/claim
+    public function claim(Request $request, int $alertId): JsonResponse
+    {
+        $guardianId = $request->user()->id;
+
+        try {
+            $claim = DB::transaction(function () use ($alertId, $guardianId) {
+                $existing = GuardianIncidentClaim::where('emergency_alert_id', $alertId)
+                    ->lockForUpdate()
+                    ->first();
+
+                if ($existing) {
+                    throw new \Exception('Already claimed by another guardian.');
+                }
+
+                return GuardianIncidentClaim::create([
+                    'emergency_alert_id' => $alertId,
+                    'claimed_by_user_id' => $guardianId,
+                    'status'             => 'claimed',
+                    'claimed_at'         => now(),
+                ]);
+            });
+        } catch (\Exception $e) {
+            return response()->json(['message' => $e->getMessage()], 422);
+        }
+
+        GuardianIncidentResponse::updateOrCreate(
+            ['emergency_alert_id' => $alertId, 'user_id' => $guardianId],
+            ['action' => 'on_my_way', 'responded_at' => now()]
+        );
+
+        $alert    = EmergencyAlert::findOrFail($alertId);
+        $guardian = $request->user();
+
+        $this->notifications->send(
+            recipient: User::findOrFail($alert->user_id),
+            type:      'guardian_responding',
+            title:     '🚗 Guardian On The Way',
+            body:      "{$guardian->name} is responding to your alert.",
+            data:      ['alert_id' => $alertId, 'guardian_id' => $guardianId],
+        );
+
+        $this->notifyOtherGuardians(
+            $alert,
+            $guardianId,
+            'incident_claimed',
+            'Guardian Responding',
+            "{$guardian->name} is responding to the alert.",
+        );
+
+        return response()->json(['message' => 'Claimed successfully.', 'claim' => $claim], 201);
+    }
+
+    // POST /api/guardian-incidents/{alertId}/respond
+    public function respond(Request $request, int $alertId): JsonResponse
+    {
+        $request->validate([
+            'action' => 'required|in:acknowledged,called_police,safe_confirmed',
+            'note'   => 'nullable|string',
+        ]);
+
+        $response = GuardianIncidentResponse::updateOrCreate(
+            [
+                'emergency_alert_id' => $alertId,
+                'user_id'            => $request->user()->id,
+            ],
+            [
+                'action'       => $request->action,
+                'note'         => $request->note,
+                'responded_at' => now(),
+            ]
+        );
+
+        if ($request->action === 'called_police') {
+            $alert    = EmergencyAlert::findOrFail($alertId);
+            $guardian = $request->user();
+
+            $this->notifications->send(
+                recipient: User::findOrFail($alert->user_id),
+                type:      'guardian_called_police',
+                title:     'Police Called',
+                body:      "{$guardian->name} has called the police for your alert.",
+                data:      ['alert_id' => $alertId],
+            );
+        }
+
+        return response()->json(['message' => 'Response recorded.', 'response' => $response]);
+    }
+
+    // POST /api/guardian-incidents/{alertId}/resolve
+    public function resolve(Request $request, int $alertId): JsonResponse
+    {
+        $request->validate([
+            'resolution_note' => 'nullable|string',
+        ]);
+
+        $claim = GuardianIncidentClaim::where('emergency_alert_id', $alertId)
+            ->where('claimed_by_user_id', $request->user()->id)
+            ->firstOrFail();
+
+        $claim->update([
+            'status'          => 'resolved',
+            'resolved_at'     => now(),
+            'resolution_note' => $request->resolution_note,
+        ]);
+
+        $alert    = EmergencyAlert::findOrFail($alertId);
+        $guardian = $request->user();
+
+        $this->notifyOtherGuardians(
+            $alert,
+            $request->user()->id,
+            'incident_resolved',
+            'Incident Resolved',
+            "{$guardian->name} has marked the incident as resolved.",
+        );
+
+        $this->notifications->send(
+            recipient: User::findOrFail($alert->user_id),
+            type:      'incident_resolved',
+            title:     'Guardian Resolved Incident',
+            body:      "{$guardian->name} has marked your incident as resolved.",
+            data:      ['alert_id' => $alertId],
+        );
+
+        return response()->json(['message' => 'Incident resolved.']);
+    }
+
+    // GET /api/guardian-incidents/{alertId}/status
+    public function status(Request $request, int $alertId): JsonResponse
+    {
+        $claim = GuardianIncidentClaim::with('claimer:id,name')
+            ->where('emergency_alert_id', $alertId)
+            ->first();
+
+        $responses = GuardianIncidentResponse::with('user:id,name')
+            ->where('emergency_alert_id', $alertId)
+            ->latest('responded_at')
+            ->get();
+
+        return response()->json([
+            'claimed'   => !!$claim,
+            'claim'     => $claim,
+            'responses' => $responses,
+        ]);
+    }
+
+    private function notifyOtherGuardians(
+        EmergencyAlert $alert,
+        int $excludeUserId,
+        string $type,
+        string $title,
+        string $body,
+    ): void {
+        $guardianIds = HouseholdPairing::where(function ($q) use ($alert) {
+            $q->where('requester_id', $alert->user_id)
+              ->orWhere('receiver_id', $alert->user_id);
+        })
+        ->where('status', 'active')
+        ->get()
+        ->map(fn($p) => $p->requester_id === $alert->user_id
+            ? $p->receiver_id
+            : $p->requester_id)
+        ->filter(fn($id) => $id !== $excludeUserId);
+
+        foreach ($guardianIds as $id) {
+            $this->notifications->send(
+                recipient: User::findOrFail($id),
+                type:      $type,
+                title:     $title,
+                body:      $body,
+                data:      ['alert_id' => $alert->id],
+            );
+        }
+    }
+}

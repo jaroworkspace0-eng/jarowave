@@ -8,6 +8,7 @@ use App\Models\EmergencyResolution;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class EmergencyAlertController extends Controller
 {
@@ -409,7 +410,7 @@ class EmergencyAlertController extends Controller
         ]);
 
         if (!$resolution->wasChanged()) {
-            \Log::info('Resolution was NOT changed', [
+            Log::info('Resolution was NOT changed', [
                 'original' => $resolution->getOriginal(),
                 'request' => $request->all()
             ]);

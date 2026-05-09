@@ -60,13 +60,13 @@ const mainNavItems: NavItem[] = [
     ...(auth.user?.role === 'admin'
         ? [
               {
-                  title: 'Announcements',
-                  href: '/announcements',
-                  icon: Megaphone,
-              },
-              {
                   title: 'Incident Reports',
                   href: '/admin/incident-reports',
+                  icon: Newspaper,
+              },
+              {
+                  title: 'Guardian Reports',
+                  href: '/guardian-reports',
                   icon: Newspaper,
               },
 
@@ -77,6 +77,11 @@ const mainNavItems: NavItem[] = [
               },
           ]
         : []),
+    {
+        title: 'Announcements',
+        href: '/announcements',
+        icon: Megaphone,
+    },
     {
         title: 'DV Recordings',
         href: '/dv-recordings',
