@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\HouseholdPairingController;
 use App\Http\Controllers\Api\UserNotificationController;
 use App\Http\Controllers\BlockedHouseholdController;
 use App\Http\Controllers\DvRecordingController;
+use App\Http\Controllers\GuardianIncidentController;
 use App\Http\Controllers\HouseholdSettingController;
 use App\Http\Controllers\InviteController;
 use App\Http\Controllers\LiveKitController;
@@ -219,6 +220,13 @@ Route::middleware('auth:sanctum')->prefix('household')->group(function () {
 Route::middleware(['auth:sanctum'])->group(function () { 
         Route::get('/user', function (Request $request) {
         return $request->user();
+    });
+
+    Route::prefix('guardian-incidents')->group(function () {
+        Route::post('/{alertId}/claim',   [GuardianIncidentController::class, 'claim']);
+        Route::post('/{alertId}/respond', [GuardianIncidentController::class, 'respond']);
+        Route::post('/{alertId}/resolve', [GuardianIncidentController::class, 'resolve']);
+        Route::get('/{alertId}/status',   [GuardianIncidentController::class, 'status']);
     });
 
     Route::post('/blocked-households',            [BlockedHouseholdController::class, 'store']);
