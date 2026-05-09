@@ -9,7 +9,7 @@ class GuardianIncidentResponse extends Model
 {
     protected $fillable = [
         'emergency_alert_id',
-        'guardian_user_id',
+        'user_id',
         'action',
         'note',
         'responded_at',
@@ -24,8 +24,8 @@ class GuardianIncidentResponse extends Model
         return $this->belongsTo(EmergencyAlert::class, 'emergency_alert_id');
     }
 
-    public function guardian(): BelongsTo
+    public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'guardian_user_id');
+        return $this->belongsTo(User::class, 'user_id');
     }
 }
