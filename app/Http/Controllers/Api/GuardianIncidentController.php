@@ -134,6 +134,18 @@ class GuardianIncidentController extends Controller
             'resolution_note' => $request->resolution_note,
         ]);
 
+        // ── update response row to safe_confirmed ──
+        GuardianIncidentResponse::updateOrCreate(
+            [
+                'emergency_alert_id' => $alertId,
+                'user_id'            => $request->user()->id,
+            ],
+            [
+                'action'       => 'safe_confirmed',
+                'responded_at' => now(),
+            ]
+        );
+
         $alert    = EmergencyAlert::findOrFail($alertId);
         $guardian = $request->user();
 
