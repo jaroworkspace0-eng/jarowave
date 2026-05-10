@@ -342,6 +342,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/emergency-resolutions', [EmergencyAlertController::class, 'emergencyResolutionUpdate']);
     Route::post('/emergency/accept', [EmergencyAlertController::class, 'alertAccept']);
 
+    Route::get('/emergency-alerts/latest/{channelId}', [EmergencyAlertController::class, 'latestForChannel']);
+
     // get emergency resolution details for a specific alert
     Route::patch('/emergency-resolutions/arrived', [EmergencyAlertController::class, 'recordArrival']);
 

@@ -6,6 +6,7 @@ use App\Models\Channel;
 use App\Models\EmergencyAlert;
 use App\Models\EmergencyResolution;
 use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -460,6 +461,21 @@ class EmergencyAlertController extends Controller
                 'message' => $e->getMessage()
             ], 500);
         }
+    }
+
+    
+    public function latestForChannel(int $channelId): JsonResponse
+    {
+        $alert = EmergencyAlert::where('channel_id', $channelId)
+            ->where('is_resolved', false)
+            ->latest()
+            ->first();
+
+        if (!$alert) {
+            return response()->json(['message' => 'No active alert found.'], 404);
+        }
+
+        return response()->json(['id' => $alert->id]);
     }
 
 

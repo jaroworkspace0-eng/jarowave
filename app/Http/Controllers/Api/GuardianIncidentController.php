@@ -222,9 +222,14 @@ class GuardianIncidentController extends Controller
 
     private function notifyVictimSocket(int $alertId, string $guardianName, string $action): void
     {
-        $alert = EmergencyAlert::findOrFail($alertId);
+        // ── if alertId is 0 it means temp client ID was passed — skip ──
+        if ($alertId === 0) {
+            Log::warning("notifyVictimSocket: alertId is 0 — skipping");
+            return;
+        }
 
         try {
+            $alert = EmergencyAlert::findOrFail($alertId);
             Http::withHeaders([
                 'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
                 'Content-Type'  => 'application/json',
