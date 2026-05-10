@@ -418,10 +418,10 @@ class EmergencyAlertController extends Controller
         }
 
         // Also mark the parent emergency alert as fully resolved
-        // EmergencyAlert::where('id', $resolution->emergency_alert_id)->update([
-        //     'is_resolved' => true,
-        //     'resolved_at' => now(),
-        // ]);
+        EmergencyAlert::where('id', $resolution->emergency_alert_id)->update([
+            'is_resolved' => true,
+            'resolved_at' => now(),
+        ]);
 
         return response()->json([
             'success' => true,
@@ -430,7 +430,7 @@ class EmergencyAlertController extends Controller
         ]);
     }
 
-     public function cancelPin(Request $request, $id)
+    public function cancelPin(Request $request, $id)
     {
         $secret = $request->header('X-PTT-Secret');
         if ($secret !== env('ASSIGN_SECRET')) {
@@ -448,6 +448,8 @@ class EmergencyAlertController extends Controller
             }
             
             $alert->cancel_pin_used = $request->cancel_pin_used ?? $alert->cancel_pin_used; // Only update if provided
+            $alert->is_resolved     = true;
+            $alert->resolved_at     = now(); 
             $alert->save();
 
             return response()->json([
