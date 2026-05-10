@@ -78,7 +78,7 @@ class GuardianIncidentController extends Controller
     public function respond(Request $request, int $alertId): JsonResponse
     {
         $request->validate([
-            'action' => 'required|in:acknowledged,called_police,safe_confirmed',
+            'action' => 'required|in:acknowledged,called_police,safe_confirmed,on_scene',
             'note'   => 'nullable|string',
         ]);
 
@@ -133,7 +133,7 @@ class GuardianIncidentController extends Controller
         $guardian = $request->user();
 
         $this->notifyVictimSocket($alertId, $guardian->name, 'resolved');
-        
+
         $this->notifyOtherGuardians(
             $alert,
             $request->user()->id,
