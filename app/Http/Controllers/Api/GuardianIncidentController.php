@@ -20,8 +20,9 @@ class GuardianIncidentController extends Controller
     public function __construct(protected NotificationService $notifications) {}
 
     // POST /api/guardian-incidents/{alertId}/claim
-    public function claim(Request $request, int $alertId): JsonResponse
+    public function claim(Request $request, string $alertId): JsonResponse
     {
+        $alertId    = (int) $alertId;
         $guardianId = $request->user()->id;
 
         try {
@@ -75,12 +76,14 @@ class GuardianIncidentController extends Controller
     }
 
     // POST /api/guardian-incidents/{alertId}/respond
-    public function respond(Request $request, int $alertId): JsonResponse
+    public function respond(Request $request, string $alertId): JsonResponse
     {
         $request->validate([
             'action' => 'required|in:acknowledged,called_police,safe_confirmed,on_scene',
             'note'   => 'nullable|string',
         ]);
+
+        $alertId    = (int) $alertId;
 
         $response = GuardianIncidentResponse::updateOrCreate(
             [
@@ -113,11 +116,13 @@ class GuardianIncidentController extends Controller
     }
 
     // POST /api/guardian-incidents/{alertId}/resolve
-    public function resolve(Request $request, int $alertId): JsonResponse
+    public function resolve(Request $request, string $alertId): JsonResponse
     {
         $request->validate([
             'resolution_note' => 'nullable|string',
         ]);
+
+        $alertId    = (int) $alertId;
 
         $claim = GuardianIncidentClaim::where('emergency_alert_id', $alertId)
             ->where('claimed_by_user_id', $request->user()->id)
@@ -154,12 +159,13 @@ class GuardianIncidentController extends Controller
     }
 
     // GET /api/guardian-incidents/{alertId}/status
-    public function status(Request $request, int $alertId): JsonResponse
+    public function status(Request $request, string $alertId): JsonResponse
     {
         $claim = GuardianIncidentClaim::with('claimer:id,name')
             ->where('emergency_alert_id', $alertId)
             ->first();
 
+        $alertId    = (int) $alertId;
         $responses = GuardianIncidentResponse::with('user:id,name')
             ->where('emergency_alert_id', $alertId)
             ->latest('responded_at')
