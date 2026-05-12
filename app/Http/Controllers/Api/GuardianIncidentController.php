@@ -70,7 +70,7 @@ class GuardianIncidentController extends Controller
             "{$guardian->name} is responding to the alert.",
         );
 
-        $this->notifyVictimSocket($alertId, $guardian->name, 'on_my_way');
+        $this->notifyVictimSocket($alertId, $guardian->name, 'on_my_way', $guardian->id);
 
         return response()->json(['message' => 'Claimed successfully.', 'claim' => $claim], 201);
     }
@@ -149,7 +149,7 @@ class GuardianIncidentController extends Controller
         $alert    = EmergencyAlert::findOrFail($alertId);
         $guardian = $request->user();
 
-        $this->notifyVictimSocket($alertId, $guardian->name, 'resolved');
+        $this->notifyVictimSocket($alertId, $guardian->name, 'resolved', $guardian->id);
 
         $this->notifyOtherGuardians(
             $alert,
@@ -220,7 +220,7 @@ class GuardianIncidentController extends Controller
     }
 
 
-    private function notifyVictimSocket(int $alertId, string $guardianName, string $action): void
+    private function notifyVictimSocket(int $alertId, string $guardianName, string $action, ?int $guardianUserId = null): void
     {
         // ── if alertId is 0 it means temp client ID was passed — skip ──
         if ($alertId === 0) {
@@ -238,11 +238,50 @@ class GuardianIncidentController extends Controller
             ->post(env('PTT_SERVER_URL') . '/guardian-incident-update', [
                 'victimUserId' => $alert->user_id,
                 'guardianName' => $guardianName,
+                'guardianUserId'   => $guardianUserId,
                 'action'       => $action,
                 'alertId'      => $alertId,
             ]);
         } catch (\Throwable $e) {
             Log::warning("notifyVictimSocket failed: {$e->getMessage()}");
         }
+    }
+
+    // POST /api/guardian-incidents/{alertId}/household-confirm
+    public function householdConfirm(Request $request, string $alertId): JsonResponse
+    {
+        $alertId  = (int) $alertId;
+        $household = $request->user();
+
+        // Find the resolved guardian claim for this alert
+        $claim = GuardianIncidentClaim::where('emergency_alert_id', $alertId)
+            ->where('status', 'resolved')
+            ->first();
+
+        // Mark the alert as fully resolved on our side
+        EmergencyAlert::where('id', $alertId)->update([
+            'is_resolved' => true,
+            'resolved_at' => now(),
+        ]);
+
+        // Notify the guardian's socket that household confirmed safe
+        if ($claim) {
+            try {
+                Http::withHeaders([
+                    'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
+                    'Content-Type'  => 'application/json',
+                ])
+                ->timeout(5)
+                ->post(env('PTT_SERVER_URL') . '/guardian-incident-confirmed-safe', [
+                    'guardianUserId' => $claim->claimed_by_user_id,
+                    'alertId'        => $alertId,
+                    'victimName'     => $household->name,
+                ]);
+            } catch (\Throwable $e) {
+                Log::warning("guardian-incident-confirmed-safe notify failed: {$e->getMessage()}");
+            }
+        }
+
+        return response()->json(['success' => true, 'message' => 'Household confirmed safe.']);
     }
 }
