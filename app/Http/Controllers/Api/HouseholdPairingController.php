@@ -11,6 +11,8 @@ use App\Models\User;
 use App\Services\NotificationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class HouseholdPairingController extends Controller
 {
@@ -131,6 +133,25 @@ class HouseholdPairingController extends Controller
                 ],
             );
         }
+
+        // ── invalidate guardian cache on Node.js for both users ──
+        if ($pairing->status === 'active') {
+            foreach ([$requesterId, $receiverId] as $uid) {
+                try {
+                    Http::withHeaders([
+                        'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
+                        'Content-Type'  => 'application/json',
+                    ])
+                    ->timeout(3)
+                    ->post(env('PTT_SERVER_URL') . '/invalidate-guardian-cache', [
+                        'userId' => $uid,
+                    ]);
+                } catch (\Throwable $e) {
+                    Log::warning("Guardian cache invalidation failed for userId={$uid}: {$e->getMessage()}");
+                }
+            }
+        }
+
 
         return response()->json([
             'pairing'       => $pairing->load(['requester', 'receiver']),
