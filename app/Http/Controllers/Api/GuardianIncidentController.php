@@ -62,12 +62,18 @@ class GuardianIncidentController extends Controller
             data:      ['alert_id' => $alertId, 'guardian_id' => $guardianId],
         );
 
+
         $this->notifyOtherGuardians(
             $alert,
             $guardianId,
             'incident_claimed',
             'Guardian Responding',
             "{$guardian->name} is responding to the alert.",
+            [
+                'alertId'         => $alertId,
+                'claimedByName'   => $guardian->name,
+                'claimedByUserId' => $guardianId,
+            ],
         );
 
         $this->notifyVictimSocket($alertId, $guardian->name, 'on_my_way', $guardian->id);
@@ -191,33 +197,51 @@ class GuardianIncidentController extends Controller
     }
 
     private function notifyOtherGuardians(
-        EmergencyAlert $alert,
-        int $excludeUserId,
-        string $type,
-        string $title,
-        string $body,
-    ): void {
-        $guardianIds = HouseholdPairing::where(function ($q) use ($alert) {
-            $q->where('requester_id', $alert->user_id)
-              ->orWhere('receiver_id', $alert->user_id);
-        })
-        ->where('status', 'active')
-        ->get()
-        ->map(fn($p) => $p->requester_id === $alert->user_id
-            ? $p->receiver_id
-            : $p->requester_id)
-        ->filter(fn($id) => $id !== $excludeUserId);
+    EmergencyAlert $alert,
+    int $excludeUserId,
+    string $type,
+    string $title,
+    string $body,
+    ?array $socketPayload = null,
+): void {
+    $guardianIds = HouseholdPairing::where(function ($q) use ($alert) {
+        $q->where('requester_id', $alert->user_id)
+          ->orWhere('receiver_id', $alert->user_id);
+    })
+    ->where('status', 'active')
+    ->get()
+    ->map(fn($p) => $p->requester_id === $alert->user_id
+        ? $p->receiver_id
+        : $p->requester_id)
+    ->filter(fn($id) => $id !== $excludeUserId)
+    ->values();
 
-        foreach ($guardianIds as $id) {
-            $this->notifications->send(
-                recipient: User::findOrFail($id),
-                type:      $type,
-                title:     $title,
-                body:      $body,
-                data:      ['alert_id' => $alert->id],
-            );
+    foreach ($guardianIds as $id) {
+        $this->notifications->send(
+            recipient: User::findOrFail($id),
+            type:      $type,
+            title:     $title,
+            body:      $body,
+            data:      ['alert_id' => $alert->id],
+        );
+    }
+
+    // ── socket notify if payload provided ──
+    if ($socketPayload && $guardianIds->isNotEmpty()) {
+        try {
+            Http::withHeaders([
+                'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
+                'Content-Type'  => 'application/json',
+            ])
+            ->timeout(5)
+            ->post(env('PTT_SERVER_URL') . '/notify-guardian-claimed', array_merge($socketPayload, [
+                'guardianUserIds' => $guardianIds->toArray(),
+            ]));
+        } catch (\Throwable $e) {
+            Log::warning("notify-guardian-claimed socket failed: {$e->getMessage()}");
         }
     }
+}
 
 
     private function notifyVictimSocket(int $alertId, string $guardianName, string $action, ?int $guardianUserId = null): void
