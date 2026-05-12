@@ -227,7 +227,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/{alertId}/respond', [GuardianIncidentController::class, 'respond']);
         Route::post('/{alertId}/resolve', [GuardianIncidentController::class, 'resolve']);
         Route::get('/{alertId}/status',   [GuardianIncidentController::class, 'status']);
-        Route::get('/{alertId}/household-confirm',   [GuardianIncidentController::class, 'householdConfirm']);
+        Route::post('/{alertId}/household-confirm',   [GuardianIncidentController::class, 'householdConfirm']);
         
     });
 
