@@ -247,27 +247,27 @@ class GuardianIncidentController extends Controller
         }
     }
 
-    // POST /api/guardian-incidents/{alertId}/household-confirm
     public function householdConfirm(Request $request, string $alertId): JsonResponse
     {
         $alertId  = (int) $alertId;
         $household = $request->user();
 
-        // Find the resolved guardian claim for this alert
+        Log::info("householdConfirm: alertId={$alertId} household={$household->id}");
+
         $claim = GuardianIncidentClaim::where('emergency_alert_id', $alertId)
             ->where('status', 'resolved')
             ->first();
 
-        // Mark the alert as fully resolved on our side
+        Log::info("householdConfirm: claim found=" . ($claim ? "YES guardianId={$claim->claimed_by_user_id}" : "NO"));
+
         EmergencyAlert::where('id', $alertId)->update([
             'is_resolved' => true,
             'resolved_at' => now(),
         ]);
 
-        // Notify the guardian's socket that household confirmed safe
         if ($claim) {
             try {
-                Http::withHeaders([
+                $response = Http::withHeaders([
                     'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
                     'Content-Type'  => 'application/json',
                 ])
@@ -277,6 +277,8 @@ class GuardianIncidentController extends Controller
                     'alertId'        => $alertId,
                     'victimName'     => $household->name,
                 ]);
+
+                Log::info("householdConfirm: Node response status={$response->status()} body={$response->body()}");
             } catch (\Throwable $e) {
                 Log::warning("guardian-incident-confirmed-safe notify failed: {$e->getMessage()}");
             }
