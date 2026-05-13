@@ -126,6 +126,8 @@ class GuardianIncidentController extends Controller
     {
         $request->validate([
             'resolution_note' => 'nullable|string',
+            'outcome'          => 'nullable|string|in:false_alarm,victim_safe_threat_gone,medical_needed,suspect_fled,ongoing_situation',
+            'police_responded' => 'nullable|boolean',
         ]);
 
         $alertId    = (int) $alertId;
@@ -134,10 +136,13 @@ class GuardianIncidentController extends Controller
             ->where('claimed_by_user_id', $request->user()->id)
             ->firstOrFail();
 
+
         $claim->update([
-            'status'          => 'resolved',
-            'resolved_at'     => now(),
-            'resolution_note' => $request->resolution_note,
+            'status'           => 'resolved',
+            'resolved_at'      => now(),
+            'resolution_note'  => $request->resolution_note,
+            'outcome'          => $request->outcome,
+            'police_responded' => $request->boolean('police_responded'),
         ]);
 
         // ── update response row to safe_confirmed ──
