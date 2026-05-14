@@ -45,6 +45,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::dropIfExists('guardian_responses');
+        Schema::dropIfExists('guardian_reports');
     }
 };

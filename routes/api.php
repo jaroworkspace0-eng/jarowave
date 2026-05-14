@@ -222,6 +222,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         return $request->user();
     });
 
+
     Route::prefix('guardian-incidents')->group(function () {
         Route::post('/{alertId}/claim',   [GuardianIncidentController::class, 'claim']);
         Route::post('/{alertId}/respond', [GuardianIncidentController::class, 'respond']);

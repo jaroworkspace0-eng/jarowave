@@ -13,11 +13,9 @@ class GuardianReportController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = GuardianReport::with(['reportingHousehold', 'reviewedBy'])
+            ->where('reporting_household_id', $request->user()->id)
             ->orderByDesc('submitted_at');
 
-        if ($request->filled('alert_id')) {
-            $query->where('alert_id', $request->input('alert_id'));
-        }
         if ($request->filled('review_status')) {
             $query->where('review_status', $request->input('review_status'));
         }
@@ -43,8 +41,7 @@ class GuardianReportController extends Controller
     public function store(Request $request): JsonResponse
     {
         $request->validate([
-            'alert_id'          => 'required|string',
-            'alert_type'        => 'sometimes|in:dv,sos',
+            'alert_type'        => 'required|in:dv,sos',
             'description'       => 'required|string|min:10',
             'seen_perpetrator'  => 'boolean',
             'heard_disturbance' => 'boolean',
@@ -52,15 +49,15 @@ class GuardianReportController extends Controller
         ]);
 
         $report = GuardianReport::create([
-            'alert_id'              => $request->input('alert_id'),
-            'alert_type'            => $request->input('alert_type', 'dv'),
-            'reporting_household_id' => $request->user()->household_id,
-            'description'           => $request->input('description'),
-            'seen_perpetrator'      => $request->boolean('seen_perpetrator'),
-            'heard_disturbance'     => $request->boolean('heard_disturbance'),
-            'severity'              => $request->input('severity'),
-            'submitted_at'          => now(),
-            'review_status'         => 'pending',
+            'alert_id'               => null, // standalone report, not tied to an alert
+            'alert_type'             => $request->input('alert_type'),
+            'reporting_household_id' => $request->user()->id, // ← fixed
+            'description'            => $request->input('description'),
+            'seen_perpetrator'       => $request->boolean('seen_perpetrator'),
+            'heard_disturbance'      => $request->boolean('heard_disturbance'),
+            'severity'               => $request->input('severity'),
+            'submitted_at'           => now(),
+            'review_status'          => 'pending',
         ]);
 
         return response()->json($report->load('reportingHousehold'), 201);
