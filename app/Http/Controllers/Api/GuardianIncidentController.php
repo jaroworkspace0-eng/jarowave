@@ -188,16 +188,20 @@ class GuardianIncidentController extends Controller
             ->where('emergency_alert_id', $alertId)
             ->first();
 
-        $alertId    = (int) $alertId;
+        $alertId   = (int) $alertId;
+
         $responses = GuardianIncidentResponse::with('user:id,name')
             ->where('emergency_alert_id', $alertId)
             ->latest('responded_at')
             ->get();
 
+        $alert = EmergencyAlert::find($alertId);
+
         return response()->json([
-            'claimed'   => !!$claim,
-            'claim'     => $claim,
-            'responses' => $responses,
+            'claimed'             => !!$claim,
+            'claim'               => $claim,
+            'responses'           => $responses,
+            'household_confirmed' => $alert?->is_resolved ?? false,
         ]);
     }
 
