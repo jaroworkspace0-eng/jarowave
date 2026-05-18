@@ -319,4 +319,20 @@ class GuardianIncidentController extends Controller
 
         return response()->json(['success' => true, 'message' => 'Household confirmed safe.']);
     }
+
+    // POST /api/guardian-incidents/{alertId}/still-needs-help
+    public function stillNeedsHelp(Request $request, string $alertId): JsonResponse
+    {
+        $alertId = (int) $alertId;
+
+        $claim = GuardianIncidentClaim::where('emergency_alert_id', $alertId)
+            ->where('status', 'resolved')
+            ->first();
+
+        if ($claim) {
+            $claim->increment('still_needs_help_count');
+        }
+
+        return response()->json(['success' => true]);
+    }
 }

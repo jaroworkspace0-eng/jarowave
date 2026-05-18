@@ -18,6 +18,7 @@ class GuardianIncidentClaim extends Model
         'resolution_note',
         'outcome',
         'police_responded',
+        'still_needs_help_count',
     ];
 
     protected $casts = [
