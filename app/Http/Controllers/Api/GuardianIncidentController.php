@@ -125,17 +125,16 @@ class GuardianIncidentController extends Controller
     public function resolve(Request $request, string $alertId): JsonResponse
     {
         $request->validate([
-            'resolution_note' => 'nullable|string',
+            'resolution_note'  => 'nullable|string',
             'outcome'          => 'nullable|string|in:false_alarm,victim_safe_threat_gone,medical_needed,suspect_fled,ongoing_situation',
             'police_responded' => 'nullable|boolean',
         ]);
 
-        $alertId    = (int) $alertId;
+        $alertId = (int) $alertId;
 
         $claim = GuardianIncidentClaim::where('emergency_alert_id', $alertId)
             ->where('claimed_by_user_id', $request->user()->id)
             ->firstOrFail();
-
 
         $claim->update([
             'status'           => 'resolved',
@@ -145,7 +144,6 @@ class GuardianIncidentController extends Controller
             'police_responded' => $request->boolean('police_responded'),
         ]);
 
-        // ── update response row to safe_confirmed ──
         GuardianIncidentResponse::updateOrCreate(
             [
                 'emergency_alert_id' => $alertId,
@@ -162,12 +160,15 @@ class GuardianIncidentController extends Controller
 
         $this->notifyVictimSocket($alertId, $guardian->name, 'resolved', $guardian->id);
 
+        // ── updated call — isResolved = true ──
         $this->notifyOtherGuardians(
             $alert,
             $request->user()->id,
             'incident_resolved',
             'Incident Resolved',
             "{$guardian->name} has marked the incident as resolved.",
+            ['claimedByName' => $guardian->name],
+            true,
         );
 
         $this->notifications->send(
@@ -205,13 +206,14 @@ class GuardianIncidentController extends Controller
         ]);
     }
 
-    private function notifyOtherGuardians(
+ private function notifyOtherGuardians(
     EmergencyAlert $alert,
     int $excludeUserId,
     string $type,
     string $title,
     string $body,
     ?array $socketPayload = null,
+    bool $isResolved = false,
 ): void {
     $guardianIds = HouseholdPairing::where(function ($q) use ($alert) {
         $q->where('requester_id', $alert->user_id)
@@ -236,22 +238,32 @@ class GuardianIncidentController extends Controller
     }
 
     // ── socket notify if payload provided ──
-    if ($socketPayload && $guardianIds->isNotEmpty()) {
-        try {
-            Http::withHeaders([
-                'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
-                'Content-Type'  => 'application/json',
-            ])
-            ->timeout(5)
-            ->post(env('PTT_SERVER_URL') . '/notify-guardian-claimed', array_merge($socketPayload, [
+    if ($guardianIds->isNotEmpty()) {
+        $endpoint = $isResolved ? '/notify-guardian-resolved' : '/notify-guardian-claimed';
+        $payload  = $isResolved
+            ? [
                 'guardianUserIds' => $guardianIds->toArray(),
-            ]));
-        } catch (\Throwable $e) {
-            Log::warning("notify-guardian-claimed socket failed: {$e->getMessage()}");
+                'alertId'         => $alert->id,
+                'resolvedByName'  => $socketPayload['claimedByName'] ?? '',
+              ]
+            : array_merge($socketPayload ?? [], [
+                'guardianUserIds' => $guardianIds->toArray(),
+              ]);
+
+        if ($socketPayload || $isResolved) {
+            try {
+                Http::withHeaders([
+                    'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
+                    'Content-Type'  => 'application/json',
+                ])
+                ->timeout(5)
+                ->post(env('PTT_SERVER_URL') . $endpoint, $payload);
+            } catch (\Throwable $e) {
+                Log::warning("notifyOtherGuardians socket failed ({$endpoint}): {$e->getMessage()}");
+            }
         }
     }
 }
-
 
     private function notifyVictimSocket(int $alertId, string $guardianName, string $action, ?int $guardianUserId = null): void
     {
