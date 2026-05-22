@@ -41,10 +41,6 @@ class EmployeeController extends Controller
         $user   = Auth::user();
         $status = $request->query('status');
 
-        // $query = Employee::with(['channels', 'client.user', 'user', 'user.subscription'])
-        //     ->when($status, fn($q) => $q->whereHas('user', fn($u) => $u->where('status', $status)))
-        //     ->orderBy('created_at', 'desc');
-
         $search = $request->query('search');
 
         $query = Employee::with(['channels', 'client.user', 'user', 'user.subscription'])
@@ -95,6 +91,23 @@ class EmployeeController extends Controller
             'personnel_total' => $personnel->total(),
             'household_total' => $households->total(),
         ]);
+    }
+
+
+    public function householdList(Request $request)
+    {
+        $query = Employee::with(['user', 'client.user'])
+            ->whereHas('user', fn($q) => $q->whereIn('occupation', ['household', 'resident']));
+
+        if ($request->filled('search')) {
+            $search = '%' . $request->search . '%';
+            $query->whereHas('user', function ($q) use ($search) {
+                $q->where('name', 'like', $search)
+                ->orWhere('email', 'like', $search);
+            });
+        }
+
+        return response()->json($query->get());
     }
 
     // ── Store ─────────────────────────────────────────────────────────────────

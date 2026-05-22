@@ -17,6 +17,8 @@ export default {
 
     data() {
         return {
+            householdSearchLoading: false,
+            householdSearchTimer: null,
             showCompose: false,
             sending: false,
             loading: true,
@@ -480,21 +482,33 @@ export default {
             }
         },
 
-        async loadHouseholds() {
+        async loadHouseholds(search = '') {
+            this.householdSearchLoading = true;
             try {
+                const params = {};
+                if (search) params.search = search;
                 const { data } = await axios.get(
-                    `${import.meta.env.VITE_APP_URL}/api/employees`,
-                    { headers: authHeaders() },
+                    `${import.meta.env.VITE_APP_URL}/api/households/list`,
+                    { headers: authHeaders(), params },
                 );
-                // unwrap { personnel: { data: [...] } } or { data: [...] } or flat array
-                this.households =
-                    data.personnel?.data ||
-                    data.employees?.data ||
-                    (Array.isArray(data) ? data : data.data) ||
-                    [];
+                this.households = Array.isArray(data) ? data : data.data || [];
             } catch (e) {
-                console.error('[Employees]', e?.response?.status, e?.message);
+                console.error('[Households]', e?.response?.status, e?.message);
+            } finally {
+                this.householdSearchLoading = false;
             }
+        },
+
+        watch: {
+            householdSearch(val) {
+                clearTimeout(this.householdSearchTimer);
+                this.householdSearchTimer = setTimeout(() => {
+                    this.loadHouseholds(val);
+                }, 350);
+            },
+        },
+        filteredHouseholds() {
+            return this.households;
         },
 
         async send() {

@@ -342,6 +342,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/channels/{channel}/toggle-status', [ChannelController::class, 'toggleStatus']);
     Route::patch('/clients/{client}/toggle-status', [ClientController::class, 'toggleStatus']);
     Route::resource('employees', EmployeeController::class);
+    Route::get('/households/list', [EmployeeController::class, 'householdList']);
     Route::get('clients/list', [ClientController::class, 'clients']);
     Route::get('/channels-list', [ChannelController::class, 'getChannels']);
     Route::post('/emergency-alerts', [EmergencyAlertController::class, 'store']);
