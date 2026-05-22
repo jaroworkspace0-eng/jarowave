@@ -78,7 +78,7 @@ class AnnouncementController extends Controller
         }
 
         Log::info('send payload', $request->all());
-        
+
         $announcement = Announcement::create([
             'title'                => $validated['title'],
             'message'              => $validated['message'],
@@ -137,7 +137,7 @@ class AnnouncementController extends Controller
         return response()->json(['success' => true]);
     }
 
-    public function appConfig(): JsonResponse
+    public function appConfig()
     {
         $announcement = Announcement::where('type', 'update_app')
             ->where('force_update', true)
