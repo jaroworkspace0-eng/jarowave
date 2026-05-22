@@ -39,7 +39,7 @@ class AnnouncementController extends Controller
             'target_user_ids'      => 'nullable|array',
             'target_user_ids.*'    => 'integer|exists:users,id',
             'target_household_ids' => 'nullable|array',
-            'target_household_ids.*'=> 'integer|exists:households,id',
+            'target_household_ids.*'=> 'integer|exists:users,id',
             'payment_subtype'      => 'nullable|string',
             'app_version'          => 'nullable|string',
             'playstore_url'        => 'nullable|url',
