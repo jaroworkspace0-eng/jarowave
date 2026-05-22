@@ -77,6 +77,8 @@ class AnnouncementController extends Controller
             ->toArray();
         }
 
+        Log::info('send payload', $request->all());
+        
         $announcement = Announcement::create([
             'title'                => $validated['title'],
             'message'              => $validated['message'],
