@@ -141,8 +141,6 @@ Route::post('/login', function (Request $request) {
     ]);
 });
 
-// Public endpoint to fetch app configuration, including forced update announcements
-Route::get('/app-config', [AnnouncementController::class, 'appConfig']);
 
 
 // These endpoints are called by payment gateways, so they must be publicly accessible and should not require authentication.
@@ -226,6 +224,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
 
+
+    Route::get('/app-config', [AnnouncementController::class, 'appConfig']);
+    
     Route::prefix('guardian-incidents')->group(function () {
         Route::post('/{alertId}/claim',   [GuardianIncidentController::class, 'claim']);
         Route::post('/{alertId}/respond', [GuardianIncidentController::class, 'respond']);
@@ -342,7 +343,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/channels/{channel}/toggle-status', [ChannelController::class, 'toggleStatus']);
     Route::patch('/clients/{client}/toggle-status', [ClientController::class, 'toggleStatus']);
     Route::resource('employees', EmployeeController::class);
-    Route::get('/households/list', [EmployeeController::class, 'householdList']);
     Route::get('clients/list', [ClientController::class, 'clients']);
     Route::get('/channels-list', [ChannelController::class, 'getChannels']);
     Route::post('/emergency-alerts', [EmergencyAlertController::class, 'store']);

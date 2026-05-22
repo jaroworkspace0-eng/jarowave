@@ -137,13 +137,41 @@ class AnnouncementController extends Controller
         return response()->json(['success' => true]);
     }
 
-    public function appConfig()
+   public function appConfig(Request $request)
     {
-        $announcement = Announcement::where('type', 'update_app')
+        $user = auth()->user();
+
+        $query = Announcement::where('type', 'update_app')
             ->where('force_update', true)
             ->whereNotNull('min_version_code')
-            ->latest('sent_at')
-            ->first();
+            ->latest('sent_at');
+
+        $announcement = $query->get()->first(function ($a) use ($user) {
+            // sent to all
+            if ($a->target === 'all') return true;
+
+            // sent to specific households (employee IDs)
+            if ($a->target === 'household') {
+                $employeeIds = $a->target_employee_ids ?? [];
+                $userEmployeeId = \App\Models\Employee::where('user_id', $user->id)->value('id');
+                return in_array($userEmployeeId, $employeeIds);
+            }
+
+            // sent to specific clients
+            if ($a->target === 'client') {
+                $clientIds = $a->target_client_ids ?? [];
+                $userClientId = \App\Models\Employee::where('user_id', $user->id)->value('client_id');
+                return in_array($userClientId, $clientIds);
+            }
+
+            // sent to specific users
+            if ($a->target === 'users') {
+                $userIds = $a->target_user_ids ?? [];
+                return in_array($user->id, $userIds);
+            }
+
+            return false;
+        });
 
         if (!$announcement) {
             return response()->json(['force_update' => false]);
