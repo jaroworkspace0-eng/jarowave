@@ -13,7 +13,7 @@ class Announcement extends Model
         'target',
         'target_client_ids',
         'target_user_ids',
-        'target_household_ids',
+        'target_employee_ids',
         'payment_subtype',
         'app_version',
         'playstore_url',
@@ -26,11 +26,11 @@ class Announcement extends Model
     protected $casts = [
         'target_client_ids'    => 'array',
         'target_user_ids'      => 'array',
-        'target_household_ids' => 'array',
+        'target_employee_ids' => 'array',
         'force_update'         => 'boolean',
         'sent_at'              => 'datetime',
     ];
-    
+
     public function sender()
     {
         return $this->belongsTo(User::class, 'sent_by');

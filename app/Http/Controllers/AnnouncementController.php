@@ -84,7 +84,7 @@ class AnnouncementController extends Controller
             'target'               => $validated['target'],
             'target_client_ids'    => $validated['target_client_ids'] ?? null,
             'target_user_ids'      => $targetUserIds ? $targetUserIds : null,
-            'target_household_ids' => $validated['target_household_ids'] ?? null,
+            'target_employee_ids'  => $validated['target_household_ids'] ?? null,
             'payment_subtype'      => $validated['payment_subtype'] ?? null,
             'app_version'          => $validated['app_version'] ?? null,
             'playstore_url'        => $validated['playstore_url'] ?? null,
