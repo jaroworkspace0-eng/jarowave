@@ -62,6 +62,8 @@ export default {
                 target_household_ids: [],
                 app_version: '',
                 playstore_url: '',
+                min_version_code: null,
+                force_update: false,
             },
 
             types: [
@@ -260,12 +262,19 @@ export default {
 
         isAppUpdateValid() {
             if (this.form.type !== 'update_app') return true;
-            return (
+            const base =
                 this.form.title.trim() !== '' &&
                 this.form.message.trim() !== '' &&
                 this.form.app_version.trim() !== '' &&
-                this.form.playstore_url.trim() !== ''
-            );
+                this.form.playstore_url.trim() !== '';
+            if (this.form.force_update) {
+                return (
+                    base &&
+                    !!this.form.min_version_code &&
+                    this.form.min_version_code > 0
+                );
+            }
+            return base;
         },
 
         appUpdateMissingFields() {
@@ -274,9 +283,11 @@ export default {
             if (!this.form.playstore_url.trim()) missing.push('Play Store URL');
             if (!this.form.title.trim()) missing.push('Title');
             if (!this.form.message.trim()) missing.push('Message');
+            if (this.form.force_update && !this.form.min_version_code) {
+                missing.push('Min Version Code');
+            }
             return missing;
         },
-
         // Clients who have made at least one announcement
         clientsWithAnnouncements() {
             const map = {};
@@ -543,6 +554,8 @@ export default {
                 target_household_ids: [],
                 app_version: '',
                 playstore_url: '',
+                min_version_code: null,
+                force_update: false,
             };
         },
 
@@ -1062,6 +1075,64 @@ export default {
                                         >Play Store URL is required for App
                                         Updates</span
                                     >
+                                </div>
+
+                                <!-- Min Version Code -->
+                                <div class="field" style="margin-bottom: 14px">
+                                    <label class="field__label">
+                                        Min Version Code
+                                        <span class="field__hint"
+                                            >Android versionCode integer e.g.
+                                            9</span
+                                        >
+                                    </label>
+                                    <input
+                                        v-model.number="form.min_version_code"
+                                        type="number"
+                                        min="1"
+                                        class="field__input"
+                                        placeholder="e.g. 9"
+                                    />
+                                </div>
+
+                                <!-- Force Update toggle -->
+                                <div class="field" style="margin-bottom: 0">
+                                    <label class="field__label"
+                                        >Force Update</label
+                                    >
+                                    <div class="toggle-row">
+                                        <button
+                                            type="button"
+                                            class="toggle-btn"
+                                            :class="{
+                                                'toggle-btn--on':
+                                                    form.force_update,
+                                            }"
+                                            @click="
+                                                form.force_update =
+                                                    !form.force_update
+                                            "
+                                        >
+                                            {{
+                                                form.force_update
+                                                    ? '🔒 Forced - users cannot dismiss'
+                                                    : 'Soft - dismissible'
+                                            }}
+                                        </button>
+                                    </div>
+                                    <span
+                                        class="field__hint"
+                                        style="
+                                            margin-top: 6px;
+                                            display: block;
+                                            color: #94a3b8;
+                                            font-size: 12px;
+                                        "
+                                    >
+                                        When forced, users on versions below the
+                                        min version code will see a blocking
+                                        screen with no dismiss option.
+                                    </span>
                                 </div>
                                 <!-- On-device preview -->
                                 <div class="update-screen-preview">

@@ -141,6 +141,9 @@ Route::post('/login', function (Request $request) {
     ]);
 });
 
+// Public endpoint to fetch app configuration, including forced update announcements
+Route::get('/app-config', [AnnouncementController::class, 'appConfig']);
+
 
 // These endpoints are called by payment gateways, so they must be publicly accessible and should not require authentication.
 Route::post('/webhooks/payfast', [PayfastWebhookController::class, 'handle']);
