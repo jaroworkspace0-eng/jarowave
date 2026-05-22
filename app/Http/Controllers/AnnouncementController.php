@@ -72,9 +72,9 @@ class AnnouncementController extends Controller
         } elseif ($validated['target'] === 'users' && !empty($validated['target_user_ids'])) {
             $targetUserIds = $validated['target_user_ids'];
         } elseif ($validated['target'] === 'household' && !empty($validated['target_household_ids'])) {
-            $targetUserIds = User::whereIn('id', $validated['target_household_ids'])
-                ->pluck('user_id')
-                ->toArray();
+            $targetUserIds = \App\Models\Employee::whereIn('id', $validated['target_household_ids'])
+            ->pluck('user_id')
+            ->toArray();
         }
 
         $announcement = Announcement::create([
