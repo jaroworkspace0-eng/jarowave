@@ -42,7 +42,7 @@ class PayFastService
             'm_payment_id'      => $params['m_payment_id'] ?? '',
             'item_name'         => $params['item_name'] ?? '',
             'item_description'  => $params['item_description'] ?? '',
-            'amount'            => '80.00',
+            'amount'            => '0.00',
             // subscription fields last
             'subscription_type' => '1',
             'billing_date'      => $params['billing_date'],
