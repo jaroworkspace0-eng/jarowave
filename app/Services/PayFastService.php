@@ -54,6 +54,8 @@ class PayFastService
 
         $data['signature'] = $this->generateSignature($data);
 
+        \Log::debug('PayFast payload: ', $data);
+
         return $this->baseUrl . '?' . http_build_query($data, '', '&', PHP_QUERY_RFC3986);
     }
 
@@ -69,6 +71,9 @@ class PayFastService
         if ($includePassphrase && $this->passphrase) {
             $queryString .= '&passphrase=' . rawurlencode($this->passphrase); // was: urlencode()
         }
+
+        \Log::debug('PayFast signature string: ' . $queryString);
+        \Log::debug('PayFast signature hash: ' . md5($queryString));
 
         return md5($queryString);
     }
