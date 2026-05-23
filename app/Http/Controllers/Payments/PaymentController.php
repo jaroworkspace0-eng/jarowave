@@ -203,9 +203,27 @@ class PaymentController extends Controller
         }
 
         // Guard: skip if still within trial period
-        $subscription = $user->subscription; // or however you access it
+        $subscription = $user->subscription;
+
+        // Always save token and billing date when present
+        if ($subscription) {
+            $update = [];
+            if (!empty($data['token'])) {
+                $update['payfast_token'] = $data['token'];
+            }
+            if (!empty($data['billing_date'])) {
+                $update['current_period_start'] = now();
+                $update['current_period_end']   = \Carbon\Carbon::parse($data['billing_date']);
+            }
+            if (!empty($update)) {
+                $subscription->update($update);
+                Log::info("PayFast webhook: saved token/billing for userId={$userId}");
+            }
+        }
+
+        // Guard: skip payment status handling if still within trial
         if ($subscription && $subscription->trial_ends_at && $subscription->trial_ends_at->isFuture()) {
-            Log::info("PayFast webhook: userId={$userId} still on trial until {$subscription->trial_ends_at} — skipping payment failure");
+            Log::info("PayFast webhook: userId={$userId} still on trial — skipping payment status handling");
             return response('OK', 200);
         }
 
