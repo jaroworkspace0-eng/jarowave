@@ -36,6 +36,7 @@ class PayFastService
         $data = array_filter($data, fn($v) => $v !== '' && $v !== null);
         $data['signature'] = $this->generateSignature($data);
 
+        
         Log::debug('PayFast payload: ', $data);
 
         return $this->baseUrl . '?' . http_build_query($data);
@@ -119,6 +120,8 @@ class PayFastService
         }
 
         Log::debug('PayFast signature string: ' . $queryString);
+
+        Log::debug('PayFast credentials: id=' . $this->merchantId . ' key=' . $this->merchantKey . ' pass=' . $this->passphrase);
 
         return md5($queryString);
     }
