@@ -257,12 +257,20 @@ class HouseholdController extends Controller
             return response()->json(['message' => 'No active subscription found.'], 404);
         }
 
+        // Cancel on PayFast
+        if ($subscription->payfast_token) {
+            try {
+                $payfastService = app(\App\Services\PayFastService::class);
+                $payfastService->cancelSubscription($subscription->payfast_token);
+            } catch (\Exception $e) {
+                Log::warning('PayFast cancellation failed: ' . $e->getMessage());
+            }
+        }
+
         $subscription->update([
             'status'  => 'cancelled',
             'ends_at' => $subscription->current_period_end,
         ]);
-
-        // TODO: cancel recurring billing on PayFast/Ozow
 
         return response()->json(['message' => 'Subscription cancelled successfully.']);
     }

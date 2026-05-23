@@ -163,14 +163,26 @@ class PayFastService
 
     public function cancelSubscription(string $token): bool
     {
-        $response = Http::withBasicAuth(
-            config('payfast.merchant_id'),
-            config('payfast.merchant_key'),
-        )->put("https://api.payfast.co.za/subscriptions/{$token}/cancel", [
-            'version'     => 'v1',
-            'merchant-id' => config('payfast.merchant_id'),
-            'timestamp'   => now()->toIso8601String(),
-        ]);
+        $timestamp = now()->toIso8601String();
+        $version   = 'v1';
+
+        $parts = [
+            'merchant-id=' . urlencode($this->merchantId),
+            'passphrase='  . urlencode($this->passphrase),
+            'timestamp='   . urlencode($timestamp),
+            'version='     . urlencode($version),
+        ];
+        $signature = md5(implode('&', $parts));
+
+        $response = Http::withHeaders([
+            'merchant-id' => $this->merchantId,
+            'passphrase'  => $this->passphrase,
+            'timestamp'   => $timestamp,
+            'version'     => $version,
+            'signature'   => $signature,
+        ])->put("https://api.payfast.co.za/subscriptions/{$token}/cancel");
+
+        Log::debug('PayFast cancel response: ' . $response->status() . ' ' . $response->body());
 
         return $response->successful();
     }
