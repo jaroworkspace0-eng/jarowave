@@ -525,6 +525,7 @@ export default {
             try {
                 const params = {};
                 if (search) params.search = search;
+                if (!this.isAdmin) params.scoped = 1; // tells Laravel to scope to client
                 const { data } = await axios.get(
                     `${import.meta.env.VITE_APP_URL}/api/household/list`,
                     { headers: authHeaders(), params },
@@ -542,6 +543,7 @@ export default {
             try {
                 const params = {};
                 if (search) params.search = search;
+                if (!this.isAdmin) params.scoped = 1;
                 const { data } = await axios.get(
                     `${import.meta.env.VITE_APP_URL}/api/patrollers/list`,
                     { headers: authHeaders(), params },

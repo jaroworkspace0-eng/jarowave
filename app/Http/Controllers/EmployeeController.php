@@ -99,6 +99,12 @@ class EmployeeController extends Controller
         $query = Employee::with(['user', 'client.user'])
             ->whereHas('user', fn($q) => $q->whereIn('occupation', ['household', 'resident']));
 
+        // Scope to client's own employees if not admin
+        if ($request->boolean('scoped')) {
+            $clientId = \App\Models\Client::where('user_id', auth()->id())->value('id');
+            if ($clientId) $query->where('client_id', $clientId);
+        }
+
         if ($request->filled('search')) {
             $search = '%' . $request->search . '%';
             $query->whereHas('user', function ($q) use ($search) {
@@ -115,6 +121,12 @@ class EmployeeController extends Controller
         $query = Employee::with(['user', 'client.user'])
             ->whereHas('user', fn($q) => $q->whereNotIn('occupation', ['household', 'resident']));
 
+        // Scope to client's own employees if not admin
+        if ($request->boolean('scoped')) {
+            $clientId = \App\Models\Client::where('user_id', auth()->id())->value('id');
+            if ($clientId) $query->where('client_id', $clientId);
+        }
+
         if ($request->filled('search')) {
             $search = '%' . $request->search . '%';
             $query->whereHas('user', function ($q) use ($search) {
@@ -125,6 +137,8 @@ class EmployeeController extends Controller
 
         return response()->json($query->get());
     }
+
+
 
     // ── Store ─────────────────────────────────────────────────────────────────
 
