@@ -32,7 +32,7 @@ class PayFastService
 
     public function buildSubscriptionUrl(array $params): string
     {
-        $data = $this->basePayload($params, '0.00');
+        $data = $this->basePayload($params, '1.00');
         $data = array_filter($data, fn($v) => $v !== '' && $v !== null);
         $data['signature'] = $this->generateSignature($data);
 
@@ -44,7 +44,7 @@ class PayFastService
 
     public function buildSubscriptionForm(array $params): string
     {
-        $data = $this->basePayload($params, '0.00');
+        $data = $this->basePayload($params, '1.00');
         $data = array_filter($data, fn($v) => $v !== '' && $v !== null);
         $data['signature'] = $this->generateSignature($data);
 
@@ -63,7 +63,7 @@ class PayFastService
 
     public function buildSubscriptionFields(array $params): array
     {
-        $data = $this->basePayload($params, '0.00');
+        $data = $this->basePayload($params, '1.00');
         $data = array_filter($data, fn($v) => $v !== '' && $v !== null);
         $data['signature'] = $this->generateSignature($data);
 
