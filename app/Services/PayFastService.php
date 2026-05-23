@@ -20,7 +20,7 @@ class PayFastService
 
     /**
      * Generate a PayFast subscription payment URL for a household trial.
-     * Initial amount = 0.00 (free trial), recurring = R80/month after 30 days.
+     * Initial amount = 0.00 (free trial), recurring = R80/month after 14 days.
      */
     public function buildSubscriptionUrl(array $params): string
     {
@@ -33,7 +33,6 @@ class PayFastService
 
             // Subscription settings
             'subscription_type'   => '1',                          // recurring subscription
-            'billing_date'        => now()->addDays(30)->format('Y-m-d'), // first charge after trial
             'recurring_amount'    => '80.00',                      // R80 every cycle
             'frequency'           => '3',                          // monthly
             'cycles'              => '0',                          // 0 = unlimited

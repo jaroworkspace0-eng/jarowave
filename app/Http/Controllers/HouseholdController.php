@@ -325,7 +325,7 @@ class HouseholdController extends Controller
     }
 
 
-     public function paymentUrl(Request $request)
+    public function paymentUrl(Request $request)
     {
         $user         = $request->user();
         $subscription = Subscription::where('user_id', $user->id)->latest()->first();
@@ -354,50 +354,38 @@ class HouseholdController extends Controller
         }
 
         $url = $payfast->buildSubscriptionUrl([
+            'billing_date'     => $subscription->trial_ends_at->format('Y-m-d'),
             'name_first'       => explode(' ', $user->name)[0],
             'name_last'        => explode(' ', $user->name, 2)[1] ?? '',
             'email_address'    => $user->email,
-            'cell_number'      => $user->phone ?? '',
+            'cell_number'      => $this->formatPhone($user->phone ?? ''),
             'm_payment_id'     => $merchantReference,
             'item_name'        => 'Echo Link Community Protection',
-            'item_description' => '30-day free trial then R80/month neighbourhood watch subscription',
+            'item_description' => '14-day free trial then R80/month neighbourhood watch subscription',
         ]);
 
         return response()->json([
             'url'  => $url,
             'type' => 'new',
         ]);
+    }    
+
+    // ── Private: format phone number for PayFast (10 digits, starting with 0) ─────
+    private function formatPhone(string $phone): string
+    {
+        // Strip everything except digits
+        $digits = preg_replace('/\D/', '', $phone);
+
+        // Convert +27 or 27 prefix → 0
+        if (str_starts_with($digits, '27') && strlen($digits) === 11) {
+            $digits = '0' . substr($digits, 2);
+        }
+
+        // Must be exactly 10 digits starting with 0
+        if (strlen($digits) !== 10 || !str_starts_with($digits, '0')) {
+            return ''; // return empty rather than send invalid — PayFast ignores blank cell_number
+        }
+
+        return $digits;
     }
-
-    // public function searchHouseholdToPair(Request $request)
-    // {
-
-    //     $search = $request->query('keyword');
-    //     $role   = $request->query('role');
-    //     $is_active = 1;
-
-    //     Log::info('SearchHouseholdToPair params', [
-    //         'keyword' => $search,
-    //         'role'    => $role,
-    //         'is_active' => $is_active,
-    //     ]);
-
-
-    //     $query = Employee::with(['channels', 'client.user', 'user', 'user.subscription'])
-    //         ->when($is_active, fn($q) => $q->whereHas('user', fn($u) => $u->where('is_active', $is_active)))
-    //         ->when($role, fn($q) => $q->whereHas('user', fn($u) => $u->where('role', $role)))
-    //         ->when($search, fn($q) => $q->whereHas('user', fn($u) => $u->where('name', 'like', "%$search%")
-    //             ->orWhere('email', 'like', "%$search%")
-    //             ->orWhere('phone', 'like', "%$search%")
-    //         ))
-    //         ->orderBy('created_at', 'desc');
-
-
-    //     return response()->json(
-    //         $query->get()
-    //     );
-
-    // }
-
-    
 }
