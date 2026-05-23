@@ -334,9 +334,6 @@ class HouseholdController extends Controller
             return response()->json(['message' => 'No subscription found.'], 404);
         }
 
-        $payfast = new \App\Services\PayFastService();
-
-        // If they already have a PayFast token — send them to update their card
         if ($subscription->payfast_token) {
             return response()->json([
                 'url'  => 'https://www.payfast.co.za/eng/recurring/update/' . $subscription->payfast_token,
@@ -344,16 +341,15 @@ class HouseholdController extends Controller
             ]);
         }
 
-        // No token yet (admin-added household) — initiate a fresh PayFast subscription
-        $merchantReference = $subscription->merchant_reference
-            ?? ('HH-' . $user->id . '-' . time());
+        $merchantReference = $subscription->merchant_reference ?? ('HH-' . $user->id . '-' . time());
 
-        // Save merchant reference if it was missing
         if (!$subscription->merchant_reference) {
             $subscription->update(['merchant_reference' => $merchantReference]);
         }
 
-        $url = $payfast->buildSubscriptionUrl([
+        $payfast = new \App\Services\PayFastService();
+
+        $form = $payfast->buildSubscriptionForm([
             'billing_date'     => $subscription->trial_ends_at->format('Y-m-d'),
             'name_first'       => explode(' ', $user->name)[0],
             'name_last'        => explode(' ', $user->name, 2)[1] ?? '',
@@ -364,11 +360,8 @@ class HouseholdController extends Controller
             'item_description' => '14-day free trial then R80 per month neighbourhood watch subscription',
         ]);
 
-        return response()->json([
-            'url'  => $url,
-            'type' => 'new',
-        ]);
-    }    
+        return response($form);
+    }   
 
     // ── Private: format phone number for PayFast (10 digits, starting with 0) ─────
     private function formatPhone(string $phone): string
