@@ -36,7 +36,6 @@ class PayFastService
         $data = array_filter($data, fn($v) => $v !== '' && $v !== null);
         $data['signature'] = $this->generateSignature($data);
 
-        
         Log::debug('PayFast payload: ', $data);
 
         return $this->baseUrl . '?' . http_build_query($data);
@@ -75,24 +74,24 @@ class PayFastService
     private function basePayload(array $params, string $amount): array
     {
         return [
-            'merchant_id'      => $this->merchantId,
-            'merchant_key'     => $this->merchantKey,
-            'return_url'       => config('payfast.return_url'),
-            'cancel_url'       => config('payfast.cancel_url'),
-            'notify_url'       => config('payfast.notify_url'),
-            'name_first'       => $params['name_first'] ?? '',
-            'name_last'        => $params['name_last'] ?? '',
-            'email_address'    => $params['email_address'] ?? '',
-            'cell_number'      => $params['cell_number'] ?? '',
-            'm_payment_id'     => $params['m_payment_id'] ?? '',
-            'amount'           => $amount,
-            'item_name'        => $params['item_name'] ?? '',
-            'item_description' => $params['item_description'] ?? '',
+            'merchant_id'       => $this->merchantId,
+            'merchant_key'      => $this->merchantKey,
+            'return_url'        => config('payfast.return_url'),
+            'cancel_url'        => config('payfast.cancel_url'),
+            'notify_url'        => config('payfast.notify_url'),
+            'name_first'        => $params['name_first'] ?? '',
+            'name_last'         => $params['name_last'] ?? '',
+            'email_address'     => $params['email_address'] ?? '',
+            'cell_number'       => $params['cell_number'] ?? '',
+            'm_payment_id'      => $params['m_payment_id'] ?? '',
+            'amount'            => $amount,
+            'item_name'         => $params['item_name'] ?? '',
+            'item_description'  => $params['item_description'] ?? '',
             'subscription_type' => '1',
-            'billing_date'     => $params['billing_date'],
-            'recurring_amount' => '80.00',
-            'frequency'        => '3',
-            'cycles'           => '0',
+            'billing_date'      => $params['billing_date'],
+            'recurring_amount'  => '80.00',
+            'frequency'         => '3',
+            'cycles'            => '0',
         ];
     }
 
@@ -110,18 +109,16 @@ class PayFastService
 
         $parts = [];
         foreach ($sorted as $key => $value) {
-            $parts[] = $key . '=' . rawurlencode(trim((string) $value));
+            $parts[] = $key . '=' . urlencode(trim((string) $value));
         }
 
         $queryString = implode('&', $parts);
 
         if ($includePassphrase && $this->passphrase) {
-            $queryString .= '&passphrase=' . rawurlencode(trim($this->passphrase));
+            $queryString .= '&passphrase=' . urlencode(trim($this->passphrase));
         }
 
         Log::debug('PayFast signature string: ' . $queryString);
-
-        Log::debug('PayFast credentials: id=' . $this->merchantId . ' key=' . $this->merchantKey . ' pass=' . $this->passphrase);
 
         return md5($queryString);
     }
