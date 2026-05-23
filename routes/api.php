@@ -216,6 +216,7 @@ Route::middleware('auth:sanctum')->prefix('household')->group(function () {
     Route::get('/invoices/{id}/print', [HouseholdController::class, 'invoicePrint']);
     Route::post('/invoices/{id}/send', [HouseholdController::class, 'invoiceSend']);
     Route::get('/list', [EmployeeController::class, 'householdList']);
+    Route::post('/reactivate', [HouseholdController::class, 'reactivate']);
 });
 
 

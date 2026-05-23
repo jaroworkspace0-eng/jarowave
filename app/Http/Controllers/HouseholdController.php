@@ -389,4 +389,49 @@ class HouseholdController extends Controller
 
         return $digits;
     }
+
+    public function reactivate(Request $request)
+    {
+        $user         = $request->user();
+        $subscription = Subscription::where('user_id', $user->id)->latest()->first();
+
+        if (!$subscription) {
+            return response()->json(['message' => 'No subscription found.'], 404);
+        }
+
+        if ($subscription->status !== 'cancelled') {
+            return response()->json(['message' => 'Subscription is not cancelled.'], 400);
+        }
+
+        // Reset subscription
+        $merchantReference = 'HH-' . $user->id . '-' . time();
+        $subscription->update([
+            'status'            => 'trialing',
+            'payfast_token'     => null,
+            'merchant_reference'=> $merchantReference,
+            'gateway_status'    => null,
+            'cancelled_at'      => null,
+            'ends_at'           => null,
+            'trial_ends_at'     => now()->addDays(14),
+        ]);
+
+        $payfast = new \App\Services\PayFastService();
+        $fields  = $payfast->buildSubscriptionFields([
+            'billing_date'     => now()->addDays(14)->format('Y-m-d'),
+            'name_first'       => explode(' ', $user->name)[0],
+            'name_last'        => explode(' ', $user->name, 2)[1] ?? '',
+            'email_address'    => $user->email,
+            'cell_number'      => $this->formatPhone($user->phone ?? ''),
+            'm_payment_id'     => $merchantReference,
+            'item_name'        => 'Echo Link Community Protection',
+            'item_description' => '14-day free trial then R80 per month neighbourhood watch subscription',
+            'custom_str1'      => (string) $user->id,
+        ]);
+
+        return response()->json([
+            'type'   => 'new',
+            'fields' => $fields,
+            'action' => 'https://www.payfast.co.za/eng/process',
+        ]);
+    }
 }
