@@ -357,6 +357,7 @@ class HouseholdController extends Controller
             'm_payment_id'     => $merchantReference,
             'item_name'        => 'Echo Link Community Protection',
             'item_description' => '14-day free trial then R80 per month neighbourhood watch subscription',
+            'custom_str1'      => (string) $user->id,
         ]);
 
         return response()->json(['type' => 'new', 'fields' => $fields, 'action' => 'https://www.payfast.co.za/eng/process']);

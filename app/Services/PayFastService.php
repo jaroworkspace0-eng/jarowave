@@ -87,6 +87,7 @@ class PayFastService
             'amount'            => $amount,
             'item_name'         => $params['item_name'] ?? '',
             'item_description'  => $params['item_description'] ?? '',
+            'custom_str1'       => $params['custom_str1'] ?? '',
             'subscription_type' => '1',
             'billing_date'      => $params['billing_date'],
             'recurring_amount'  => '80.00',
