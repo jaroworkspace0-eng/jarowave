@@ -57,7 +57,7 @@ class PayFastService
 
         Log::debug('PayFast payload: ', $data);
 
-        return $this->baseUrl . '?' . http_build_query($data, '', '&', PHP_QUERY_RFC3986);
+        return $this->baseUrl . '?' . http_build_query($data);
     }
 
     /**
@@ -67,14 +67,18 @@ class PayFastService
     {
         unset($data['signature']);
 
-        $queryString = http_build_query($data, '', '&', PHP_QUERY_RFC3986); // was: http_build_query($data)
+        $parts = [];
+        foreach ($data as $key => $value) {
+            $parts[] = $key . '=' . urlencode(trim((string) $value));
+        }
+
+        $queryString = implode('&', $parts);
 
         if ($includePassphrase && $this->passphrase) {
-            $queryString .= '&passphrase=' . rawurlencode($this->passphrase); // was: urlencode()
+            $queryString .= '&passphrase=' . urlencode(trim($this->passphrase));
         }
 
         Log::debug('PayFast signature string: ' . $queryString);
-        Log::debug('PayFast signature hash: ' . md5($queryString));
 
         return md5($queryString);
     }
