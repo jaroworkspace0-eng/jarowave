@@ -109,13 +109,13 @@ class PayFastService
 
         $parts = [];
         foreach ($data as $key => $value) {
-            $parts[] = $key . '=' . urlencode(trim((string) $value));
+            $parts[] = $key . '=' . rawurlencode(trim((string) $value));
         }
 
         $queryString = implode('&', $parts);
 
         if ($includePassphrase && $this->passphrase) {
-            $queryString .= '&passphrase=' . urlencode(trim($this->passphrase));
+            $queryString .= '&passphrase=' . rawurlencode(trim($this->passphrase));
         }
 
         Log::debug('PayFast signature string: ' . $queryString);
