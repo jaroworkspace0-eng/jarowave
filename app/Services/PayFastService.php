@@ -12,6 +12,17 @@ class PayFastService
     private string $passphrase;
     private string $baseUrl = 'https://www.payfast.co.za/eng/process';
 
+    // PayFast-mandated field order for signature generation
+    private array $fieldOrder = [
+        'merchant_id', 'merchant_key', 'return_url', 'cancel_url', 'notify_url',
+        'name_first', 'name_last', 'email_address', 'cell_number',
+        'm_payment_id', 'amount', 'item_name', 'item_description',
+        'custom_int1', 'custom_int2', 'custom_int3', 'custom_int4', 'custom_int5',
+        'custom_str1', 'custom_str2', 'custom_str3', 'custom_str4', 'custom_str5',
+        'email_confirmation', 'confirmation_address', 'payment_method',
+        'subscription_type', 'billing_date', 'recurring_amount', 'frequency', 'cycles',
+    ];
+
     public function __construct()
     {
         $this->merchantId  = config('payfast.merchant_id');
@@ -19,40 +30,10 @@ class PayFastService
         $this->passphrase  = config('payfast.passphrase');
     }
 
-    /**
-     * Generate a PayFast subscription payment URL for a household trial.
-     * Initial amount = 0.00 (free trial), recurring = R80/month after 14 days.
-     */
-   
     public function buildSubscriptionUrl(array $params): string
     {
-        // Build in PayFast's expected order
-        $data = [
-            'merchant_id'       => $this->merchantId,
-            'merchant_key'      => $this->merchantKey,
-            'return_url'        => config('payfast.return_url'),
-            'cancel_url'        => config('payfast.cancel_url'),
-            'notify_url'        => config('payfast.notify_url'),
-            // buyer details come here
-            'name_first'        => $params['name_first'] ?? '',
-            'name_last'         => $params['name_last'] ?? '',
-            'email_address'     => $params['email_address'] ?? '',
-            'cell_number'       => $params['cell_number'] ?? '',
-            // transaction details
-            'm_payment_id'      => $params['m_payment_id'] ?? '',
-            'item_name'         => $params['item_name'] ?? '',
-            'item_description'  => $params['item_description'] ?? '',
-            'amount'            => '0.00',
-            // subscription fields last
-            'subscription_type' => '1',
-            'billing_date'      => $params['billing_date'],
-            'recurring_amount'  => '80.00',
-            'frequency'         => '3',
-            'cycles'            => '0',
-        ];
-
+        $data = $this->basePayload($params, '0.00');
         $data = array_filter($data, fn($v) => $v !== '' && $v !== null);
-
         $data['signature'] = $this->generateSignature($data);
 
         Log::debug('PayFast payload: ', $data);
@@ -60,55 +41,74 @@ class PayFastService
         return $this->baseUrl . '?' . http_build_query($data);
     }
 
-
     public function buildSubscriptionForm(array $params): string
-{
-    $data = [
-        'merchant_id'       => $this->merchantId,
-        'merchant_key'      => $this->merchantKey,
-        'return_url'        => config('payfast.return_url'),
-        'cancel_url'        => config('payfast.cancel_url'),
-        'notify_url'        => config('payfast.notify_url'),
-        'name_first'        => $params['name_first'] ?? '',
-        'name_last'         => $params['name_last'] ?? '',
-        'email_address'     => $params['email_address'] ?? '',
-        'cell_number'       => $params['cell_number'] ?? '',
-        'm_payment_id'      => $params['m_payment_id'] ?? '',
-        'item_name'         => $params['item_name'] ?? '',
-        'item_description'  => $params['item_description'] ?? '',
-        'amount'            => '0.00',
-        'subscription_type' => '1',
-        'billing_date'      => $params['billing_date'],
-        'recurring_amount'  => '80.00',
-        'frequency'         => '3',
-        'cycles'            => '0',
-    ];
+    {
+        $data = $this->basePayload($params, '0.00');
+        $data = array_filter($data, fn($v) => $v !== '' && $v !== null);
+        $data['signature'] = $this->generateSignature($data);
 
-    $data = array_filter($data, fn($v) => $v !== '' && $v !== null);
-    $data['signature'] = $this->generateSignature($data);
+        $inputs = '';
+        foreach ($data as $key => $value) {
+            $inputs .= '<input type="hidden" name="' . $key . '" value="' . htmlspecialchars($value) . '">';
+        }
 
-    $inputs = '';
-    foreach ($data as $key => $value) {
-        $inputs .= '<input type="hidden" name="' . $key . '" value="' . htmlspecialchars($value) . '">';
+        return '
+            <form id="payfast-form" method="POST" action="' . $this->baseUrl . '">
+                ' . $inputs . '
+            </form>
+            <script>document.getElementById("payfast-form").submit();</script>
+        ';
     }
 
-    return '
-        <form id="payfast-form" method="POST" action="' . $this->baseUrl . '">
-            ' . $inputs . '
-        </form>
-        <script>document.getElementById("payfast-form").submit();</script>
-    ';
-}
+    public function buildSubscriptionFields(array $params): array
+    {
+        $data = $this->basePayload($params, '0.00');
+        $data = array_filter($data, fn($v) => $v !== '' && $v !== null);
+        $data['signature'] = $this->generateSignature($data);
 
-    /**
-     * Generate PayFast MD5 signature.
-     */
+        Log::debug('PayFast signature: ' . $data['signature']);
+
+        return $data;
+    }
+
+    private function basePayload(array $params, string $amount): array
+    {
+        return [
+            'merchant_id'      => $this->merchantId,
+            'merchant_key'     => $this->merchantKey,
+            'return_url'       => config('payfast.return_url'),
+            'cancel_url'       => config('payfast.cancel_url'),
+            'notify_url'       => config('payfast.notify_url'),
+            'name_first'       => $params['name_first'] ?? '',
+            'name_last'        => $params['name_last'] ?? '',
+            'email_address'    => $params['email_address'] ?? '',
+            'cell_number'      => $params['cell_number'] ?? '',
+            'm_payment_id'     => $params['m_payment_id'] ?? '',
+            'amount'           => $amount,
+            'item_name'        => $params['item_name'] ?? '',
+            'item_description' => $params['item_description'] ?? '',
+            'subscription_type' => '1',
+            'billing_date'     => $params['billing_date'],
+            'recurring_amount' => '80.00',
+            'frequency'        => '3',
+            'cycles'           => '0',
+        ];
+    }
+
     public function generateSignature(array $data, bool $includePassphrase = true): string
     {
         unset($data['signature']);
 
+        // Sort by PayFast-mandated field order
+        $sorted = [];
+        foreach ($this->fieldOrder as $key) {
+            if (array_key_exists($key, $data)) {
+                $sorted[$key] = $data[$key];
+            }
+        }
+
         $parts = [];
-        foreach ($data as $key => $value) {
+        foreach ($sorted as $key => $value) {
             $parts[] = $key . '=' . rawurlencode(trim((string) $value));
         }
 
@@ -122,9 +122,7 @@ class PayFastService
 
         return md5($queryString);
     }
-    /**
-     * Verify ITN signature from PayFast webhook.
-     */
+
     public function verifySignature(array $data): bool
     {
         $receivedSignature = $data['signature'] ?? '';
@@ -135,28 +133,16 @@ class PayFastService
         return hash_equals($expectedSignature, $receivedSignature);
     }
 
-    /**
-     * Verify the ITN came from a valid PayFast IP.
-     */
     public function isValidIp(string $ip): bool
     {
         $validIps = [
-            '197.97.145.144',
-            '197.97.145.145',
-            '197.97.145.146',
-            '197.97.145.147',
-            '41.74.179.194',
-            '41.74.179.195',
-            '41.74.179.196',
-            '41.74.179.197',
+            '197.97.145.144', '197.97.145.145', '197.97.145.146', '197.97.145.147',
+            '41.74.179.194',  '41.74.179.195',  '41.74.179.196',  '41.74.179.197',
         ];
 
         return in_array($ip, $validIps);
     }
 
-    /**
-     * Verify ITN by sending the data back to PayFast for validation.
-     */
     public function verifyItn(array $data): bool
     {
         $response = file_get_contents(
@@ -187,35 +173,4 @@ class PayFastService
 
         return $response->successful();
     }
-
-    public function buildSubscriptionFields(array $params): array
-{
-    $data = [
-        'merchant_id'       => $this->merchantId,
-        'merchant_key'      => $this->merchantKey,
-        'return_url'        => config('payfast.return_url'),
-        'cancel_url'        => config('payfast.cancel_url'),
-        'notify_url'        => config('payfast.notify_url'),
-        'name_first'        => $params['name_first'] ?? '',
-        'name_last'         => $params['name_last'] ?? '',
-        'email_address'     => $params['email_address'] ?? '',
-        'cell_number'       => $params['cell_number'] ?? '',
-        'm_payment_id'      => $params['m_payment_id'] ?? '',
-        'item_name'         => $params['item_name'] ?? '',
-        'item_description'  => $params['item_description'] ?? '',
-        'amount'            => '0.00',
-        'subscription_type' => '1',
-        'billing_date'      => $params['billing_date'],
-        'recurring_amount'  => '80.00',
-        'frequency'         => '3',
-        'cycles'            => '0',
-    ];
-
-    $data = array_filter($data, fn($v) => $v !== '' && $v !== null);
-    $data['signature'] = $this->generateSignature($data);
-
-        Log::debug('PayFast signature: ' . $data['signature']);
-
-    return $data;
-}
 }
