@@ -122,11 +122,11 @@ class HouseholdController extends Controller
             'client_id'          => $invite->client_id,
             'client_type'        => $orgType,
             'status'             => 'trialing',
-            'gateway'            => $request->gateway,
+            // 'gateway'            => $request->gateway,
             'plan'               => null,
             'billing_cycle'      => 'monthly',
             'price'              => BillingService::UNIT_PRICE / 100, // 80.00
-            'trial_ends_at'      => now()->addDays(30),
+            'trial_ends_at'      => now()->addDays(14), // 14-day trial
             'merchant_reference' => $merchantReference,
         ]);
 
@@ -144,7 +144,7 @@ class HouseholdController extends Controller
         // ));
 
         // Build PayFast payment URL
-        $redirectUrl = $this->initiatePayment($user, $request->gateway, $merchantReference);
+        // $redirectUrl = $this->initiatePayment($user, $request->gateway, $merchantReference);
 
         return response()->json([
             'token'        => $token,
@@ -153,7 +153,8 @@ class HouseholdController extends Controller
                 'name'  => $user->name,
                 'email' => $user->email,
             ],
-            'redirect_url' => $redirectUrl,
+            'redirect_url' => 'dashboard.html',
+            // 'redirect_url' => $redirectUrl,
         ]);
     }
  
@@ -170,7 +171,7 @@ class HouseholdController extends Controller
                 'cell_number'   => $user->phone ?? '',
                 'm_payment_id'  => $merchantReference,
                 'item_name'     => 'Echo Link Community Protection',
-                'item_description' => '30-day free trial then R80/month neighbourhood watch subscription',
+                'item_description' => '14-day free trial then R80/month neighbourhood watch subscription',
             ]);
         }
  
