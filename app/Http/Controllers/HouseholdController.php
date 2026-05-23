@@ -171,7 +171,7 @@ class HouseholdController extends Controller
                 'cell_number'   => $user->phone ?? '',
                 'm_payment_id'  => $merchantReference,
                 'item_name'     => 'Echo Link Community Protection',
-                'item_description' => '14-day free trial then R80/month neighbourhood watch subscription',
+                'item_description' => '14-day free trial then R80 per month neighbourhood watch subscription',
             ]);
         }
  
@@ -361,7 +361,7 @@ class HouseholdController extends Controller
             'cell_number'      => $this->formatPhone($user->phone ?? ''),
             'm_payment_id'     => $merchantReference,
             'item_name'        => 'Echo Link Community Protection',
-            'item_description' => '14-day free trial then R80/month neighbourhood watch subscription',
+            'item_description' => '14-day free trial then R80 per month neighbourhood watch subscription',
         ]);
 
         return response()->json([
