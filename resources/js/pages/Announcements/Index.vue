@@ -17,6 +17,10 @@ export default {
 
     data() {
         return {
+            patrollerSearch: '',
+            patrollerSearchTimer: null,
+            patrollerSearchLoading: false,
+            patrollers: [],
             householdSearchLoading: false,
             householdSearchTimer: null,
             showCompose: false,
@@ -66,6 +70,7 @@ export default {
                 playstore_url: '',
                 min_version_code: null,
                 force_update: false,
+                target_patroller_ids: [],
             },
 
             types: [
@@ -150,6 +155,7 @@ export default {
         this.load();
         this.loadClients();
         this.loadHouseholds();
+        this.loadPatrollers();
     },
 
     computed: {
@@ -176,10 +182,14 @@ export default {
                     { value: 'all', label: 'All Operators' },
                     { value: 'client', label: 'Specific Client' },
                     { value: 'household', label: 'Household' },
+                    { value: 'field_unit', label: 'Field Unit' },
                 ];
             }
             // clients can only target their own household/personnel
-            return [{ value: 'household', label: 'Household' }];
+            return [
+                { value: 'household', label: 'Household' },
+                { value: 'field_unit', label: 'Field Unit' },
+            ];
         },
 
         filteredList() {
@@ -229,6 +239,9 @@ export default {
                     (h.client?.user?.name || '').toLowerCase().includes(q),
             );
         },
+        filteredPatrollers() {
+            return this.patrollers;
+        },
 
         allClientsSelected() {
             return (
@@ -262,6 +275,21 @@ export default {
             );
         },
 
+        allPatrollersSelected() {
+            return (
+                this.filteredPatrollers.length > 0 &&
+                this.filteredPatrollers.every((p) =>
+                    this.form.target_patroller_ids.includes(p.id),
+                )
+            );
+        },
+
+        somePatrollersSelected() {
+            return (
+                this.form.target_patroller_ids.length > 0 &&
+                !this.allPatrollersSelected
+            );
+        },
         isAppUpdateValid() {
             if (this.form.type !== 'update_app') return true;
             const base =
@@ -402,6 +430,24 @@ export default {
                 this.form.target_household_ids = merged;
             }
         },
+        toggleAllPatrollers() {
+            if (this.allPatrollersSelected) {
+                const visibleIds = this.filteredPatrollers.map((p) => p.id);
+                this.form.target_patroller_ids =
+                    this.form.target_patroller_ids.filter(
+                        (id) => !visibleIds.includes(id),
+                    );
+            } else {
+                const visibleIds = this.filteredPatrollers.map((p) => p.id);
+                const merged = [
+                    ...new Set([
+                        ...this.form.target_patroller_ids,
+                        ...visibleIds,
+                    ]),
+                ];
+                this.form.target_patroller_ids = merged;
+            }
+        },
 
         openCompose() {
             this.form.target = this.isAdmin ? 'all' : 'household';
@@ -482,13 +528,36 @@ export default {
             }
         },
 
+        togglePatroller(id) {
+            const idx = this.form.target_patroller_ids.indexOf(id);
+            if (idx === -1) this.form.target_patroller_ids.push(id);
+            else this.form.target_patroller_ids.splice(idx, 1);
+        },
+
+        async loadPatrollers(search = '') {
+            this.patrollerSearchLoading = true;
+            try {
+                const params = {};
+                if (search) params.search = search;
+                const { data } = await axios.get(
+                    `${import.meta.env.VITE_APP_URL}/api/patrollers/list`,
+                    { headers: authHeaders(), params },
+                );
+                this.patrollers = Array.isArray(data) ? data : data.data || [];
+            } catch (e) {
+                console.error('[Patrollers]', e);
+            } finally {
+                this.patrollerSearchLoading = false;
+            }
+        },
+
         async loadHouseholds(search = '') {
             this.householdSearchLoading = true;
             try {
                 const params = {};
                 if (search) params.search = search;
                 const { data } = await axios.get(
-                    `${import.meta.env.VITE_APP_URL}/api/households/list`,
+                    `${import.meta.env.VITE_APP_URL}/api/household/list`,
                     { headers: authHeaders(), params },
                 );
                 this.households = Array.isArray(data) ? data : data.data || [];
@@ -504,6 +573,12 @@ export default {
                 clearTimeout(this.householdSearchTimer);
                 this.householdSearchTimer = setTimeout(() => {
                     this.loadHouseholds(val);
+                }, 350);
+            },
+            patrollerSearch(val) {
+                clearTimeout(this.patrollerSearchTimer);
+                this.patrollerSearchTimer = setTimeout(() => {
+                    this.loadPatrollers(val);
                 }, 350);
             },
         },
@@ -570,6 +645,7 @@ export default {
                 playstore_url: '',
                 min_version_code: null,
                 force_update: false,
+                target_patroller_ids: [],
             };
         },
 
@@ -1644,6 +1720,172 @@ export default {
                                                         ''
                                                     }}
                                                 </span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </transition>
+
+                        <transition name="slide-down">
+                            <div
+                                class="field"
+                                v-if="form.target === 'field_unit'"
+                            >
+                                <label class="field__label">
+                                    Select Patrollers
+                                    <span
+                                        class="field__count"
+                                        v-if="form.target_patroller_ids.length"
+                                    >
+                                        {{ form.target_patroller_ids.length }}
+                                        selected
+                                    </span>
+                                </label>
+                                <div class="search-select-wrapper">
+                                    <div class="search-input-row">
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            class="search-icon"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                                            />
+                                        </svg>
+                                        <input
+                                            v-model="patrollerSearch"
+                                            type="text"
+                                            class="search-input"
+                                            placeholder="Search by name or email…"
+                                        />
+                                        <span
+                                            v-if="patrollerSearch"
+                                            class="search-clear"
+                                            @click="patrollerSearch = ''"
+                                            >×</span
+                                        >
+                                    </div>
+
+                                    <div
+                                        class="select-all-row"
+                                        @click="toggleAllPatrollers"
+                                    >
+                                        <span
+                                            class="multi-checkbox"
+                                            :class="{
+                                                'multi-checkbox--checked':
+                                                    allPatrollersSelected,
+                                                'multi-checkbox--indeterminate':
+                                                    somePatrollersSelected,
+                                            }"
+                                        >
+                                            <svg
+                                                v-if="allPatrollersSelected"
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                class="h-3 w-3"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="3"
+                                            >
+                                                <path
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    d="M5 13l4 4L19 7"
+                                                />
+                                            </svg>
+                                            <svg
+                                                v-else-if="
+                                                    somePatrollersSelected
+                                                "
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                class="h-3 w-3"
+                                                viewBox="0 0 24 24"
+                                                fill="currentColor"
+                                            >
+                                                <rect
+                                                    x="4"
+                                                    y="11"
+                                                    width="16"
+                                                    height="2"
+                                                    rx="1"
+                                                />
+                                            </svg>
+                                        </span>
+                                        <span class="select-all-label">{{
+                                            allPatrollersSelected
+                                                ? 'Deselect All'
+                                                : 'Select All'
+                                        }}</span>
+                                    </div>
+
+                                    <div class="search-list">
+                                        <div
+                                            v-if="
+                                                filteredPatrollers.length === 0
+                                            "
+                                            class="search-list__empty"
+                                        >
+                                            No patrollers found
+                                        </div>
+                                        <div
+                                            v-for="p in filteredPatrollers"
+                                            :key="p.id"
+                                            class="search-list__item"
+                                            :class="{
+                                                'search-list__item--active':
+                                                    form.target_patroller_ids.includes(
+                                                        p.id,
+                                                    ),
+                                            }"
+                                            @click="togglePatroller(p.id)"
+                                        >
+                                            <span
+                                                class="multi-checkbox"
+                                                :class="{
+                                                    'multi-checkbox--checked':
+                                                        form.target_patroller_ids.includes(
+                                                            p.id,
+                                                        ),
+                                                }"
+                                            >
+                                                <svg
+                                                    v-if="
+                                                        form.target_patroller_ids.includes(
+                                                            p.id,
+                                                        )
+                                                    "
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    class="h-3 w-3"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="3"
+                                                >
+                                                    <path
+                                                        stroke-linecap="round"
+                                                        stroke-linejoin="round"
+                                                        d="M5 13l4 4L19 7"
+                                                    />
+                                                </svg>
+                                            </span>
+                                            <span class="search-list__name">
+                                                {{
+                                                    p.user?.name ||
+                                                    `Patroller #${p.id}`
+                                                }}
+                                                <span
+                                                    class="search-list__email"
+                                                    >{{
+                                                        p.user?.email || ''
+                                                    }}</span
+                                                >
                                             </span>
                                         </div>
                                     </div>

@@ -215,6 +215,7 @@ Route::middleware('auth:sanctum')->prefix('household')->group(function () {
     Route::get('/invoices/{id}/pdf', [HouseholdController::class, 'invoicePdf']);
     Route::get('/invoices/{id}/print', [HouseholdController::class, 'invoicePrint']);
     Route::post('/invoices/{id}/send', [HouseholdController::class, 'invoiceSend']);
+    Route::get('/list', [EmployeeController::class, 'householdList']);
 });
 
 
@@ -226,7 +227,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
 
     Route::get('/app-config', [AnnouncementController::class, 'appConfig']);
-    
+    Route::get('/patrollers/list', [EmployeeController::class, 'patrollerList']);
+
     Route::prefix('guardian-incidents')->group(function () {
         Route::post('/{alertId}/claim',   [GuardianIncidentController::class, 'claim']);
         Route::post('/{alertId}/respond', [GuardianIncidentController::class, 'respond']);

@@ -110,6 +110,22 @@ class EmployeeController extends Controller
         return response()->json($query->get());
     }
 
+    public function patrollerList(Request $request)
+    {
+        $query = Employee::with(['user', 'client.user'])
+            ->whereHas('user', fn($q) => $q->whereNotIn('occupation', ['household', 'resident']));
+
+        if ($request->filled('search')) {
+            $search = '%' . $request->search . '%';
+            $query->whereHas('user', function ($q) use ($search) {
+                $q->where('name', 'like', $search)
+                ->orWhere('email', 'like', $search);
+            });
+        }
+
+        return response()->json($query->get());
+    }
+
     // ── Store ─────────────────────────────────────────────────────────────────
 
     public function store(Request $request)

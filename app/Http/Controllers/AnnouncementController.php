@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Announcement;
+use App\Models\Employee;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -33,7 +34,7 @@ class AnnouncementController extends Controller
             'title'                => 'required|string|max:100',
             'message'              => 'required|string|max:1000',
             'type'                 => 'required|in:general,urgent,update,policy,payment,update_app',
-            'target'               => 'required|in:all,client,users,household',
+            'target' => 'required|in:all,client,users,household,field_unit',
             'target_client_ids'    => 'nullable|array',
             'target_client_ids.*'  => 'integer|exists:clients,id',
             'target_user_ids'      => 'nullable|array',
@@ -45,6 +46,8 @@ class AnnouncementController extends Controller
             'playstore_url'        => 'nullable|url',
             'min_version_code'     => 'nullable|integer|min:1',
             'force_update'         => 'nullable|boolean',
+            'target_patroller_ids'   => 'nullable|array',
+            'target_patroller_ids.*' => 'integer|exists:employees,id',
         ]);
 
         // Extra validation: update_app requires app_version + playstore_url
@@ -66,15 +69,19 @@ class AnnouncementController extends Controller
         // Resolve target user IDs for socket delivery
         $targetUserIds = null;
         if ($validated['target'] === 'client' && !empty($validated['target_client_ids'])) {
-            $targetUserIds = \App\Models\Employee::whereIn('client_id', $validated['target_client_ids'])
+            $targetUserIds = Employee::whereIn('client_id', $validated['target_client_ids'])
                 ->pluck('user_id')
                 ->toArray();
         } elseif ($validated['target'] === 'users' && !empty($validated['target_user_ids'])) {
             $targetUserIds = $validated['target_user_ids'];
         } elseif ($validated['target'] === 'household' && !empty($validated['target_household_ids'])) {
-            $targetUserIds = \App\Models\Employee::whereIn('id', $validated['target_household_ids'])
-            ->pluck('user_id')
-            ->toArray();
+            $targetUserIds = Employee::whereIn('id', $validated['target_household_ids'])
+                ->pluck('user_id')
+                ->toArray();
+        } elseif ($validated['target'] === 'field_unit' && !empty($validated['target_patroller_ids'])) {
+            $targetUserIds = Employee::whereIn('id', $validated['target_patroller_ids'])
+                ->pluck('user_id')
+                ->toArray();
         }
 
         Log::info('send payload', $request->all());
