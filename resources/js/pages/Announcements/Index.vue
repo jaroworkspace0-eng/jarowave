@@ -34,8 +34,6 @@ export default {
             households: [],
             deleteTargetId: null,
             showDeleteModal: false,
-
-            // Client announcements modal
             showClientAnnouncements: false,
             clientAnnouncements: [],
             clientAnnouncementsLoading: false,
@@ -44,11 +42,9 @@ export default {
             clientAnnouncementsDateFrom: '',
             clientAnnouncementsDateTo: '',
             clientAnnouncementsSearch: '',
-            allClientAnnouncements: [], // flat list of all client-made announcements
-
+            allClientAnnouncements: [],
             clientSearch: '',
             householdSearch: '',
-
             pagination: {
                 current_page: 1,
                 last_page: 1,
@@ -57,7 +53,6 @@ export default {
                 to: 0,
                 links: [],
             },
-
             form: {
                 title: '',
                 message: '',
@@ -66,13 +61,12 @@ export default {
                 target: 'all',
                 target_client_ids: [],
                 target_household_ids: [],
+                target_patroller_ids: [],
                 app_version: '',
                 playstore_url: '',
                 min_version_code: null,
                 force_update: false,
-                target_patroller_ids: [],
             },
-
             types: [
                 {
                     value: 'general',
@@ -105,7 +99,6 @@ export default {
                     badge: 'bg-blue-50 text-blue-700',
                 },
             ],
-
             paymentSubtypes: [
                 {
                     value: 'missed_payment',
@@ -158,6 +151,21 @@ export default {
         this.loadPatrollers();
     },
 
+    watch: {
+        householdSearch(val) {
+            clearTimeout(this.householdSearchTimer);
+            this.householdSearchTimer = setTimeout(() => {
+                this.loadHouseholds(val);
+            }, 350);
+        },
+        patrollerSearch(val) {
+            clearTimeout(this.patrollerSearchTimer);
+            this.patrollerSearchTimer = setTimeout(() => {
+                this.loadPatrollers(val);
+            }, 350);
+        },
+    },
+
     computed: {
         currentType() {
             return (
@@ -172,7 +180,6 @@ export default {
 
         availableTypes() {
             if (this.isAdmin) return this.types;
-            // clients cannot send app updates
             return this.types.filter((t) => t.value !== 'update_app');
         },
 
@@ -185,7 +192,6 @@ export default {
                     { value: 'field_unit', label: 'Field Unit' },
                 ];
             }
-            // clients can only target their own household/personnel
             return [
                 { value: 'household', label: 'Household' },
                 { value: 'field_unit', label: 'Field Unit' },
@@ -227,18 +233,9 @@ export default {
         },
 
         filteredHouseholds() {
-            const q = this.householdSearch.toLowerCase().trim();
-            if (!q) return this.households;
-            return this.households.filter(
-                (h) =>
-                    (h.user?.name || '').toLowerCase().includes(q) ||
-                    (h.user?.email || '').toLowerCase().includes(q) ||
-                    (h.client?.user?.organisation_name || '')
-                        .toLowerCase()
-                        .includes(q) ||
-                    (h.client?.user?.name || '').toLowerCase().includes(q),
-            );
+            return this.households;
         },
+
         filteredPatrollers() {
             return this.patrollers;
         },
@@ -251,14 +248,12 @@ export default {
                 )
             );
         },
-
         someClientsSelected() {
             return (
                 this.form.target_client_ids.length > 0 &&
                 !this.allClientsSelected
             );
         },
-
         allHouseholdsSelected() {
             return (
                 this.filteredHouseholds.length > 0 &&
@@ -267,14 +262,12 @@ export default {
                 )
             );
         },
-
         someHouseholdsSelected() {
             return (
                 this.form.target_household_ids.length > 0 &&
                 !this.allHouseholdsSelected
             );
         },
-
         allPatrollersSelected() {
             return (
                 this.filteredPatrollers.length > 0 &&
@@ -283,13 +276,13 @@ export default {
                 )
             );
         },
-
         somePatrollersSelected() {
             return (
                 this.form.target_patroller_ids.length > 0 &&
                 !this.allPatrollersSelected
             );
         },
+
         isAppUpdateValid() {
             if (this.form.type !== 'update_app') return true;
             const base =
@@ -313,12 +306,11 @@ export default {
             if (!this.form.playstore_url.trim()) missing.push('Play Store URL');
             if (!this.form.title.trim()) missing.push('Title');
             if (!this.form.message.trim()) missing.push('Message');
-            if (this.form.force_update && !this.form.min_version_code) {
+            if (this.form.force_update && !this.form.min_version_code)
                 missing.push('Min Version Code');
-            }
             return missing;
         },
-        // Clients who have made at least one announcement
+
         clientsWithAnnouncements() {
             const map = {};
             this.allClientAnnouncements.forEach((a) => {
@@ -346,7 +338,6 @@ export default {
             return Object.values(map);
         },
 
-        // Announcements for the selected client, with filters applied
         selectedClientAnnouncements() {
             if (!this.selectedClient) return [];
             return this.allClientAnnouncements.filter((a) => {
@@ -390,19 +381,16 @@ export default {
 
         toggleAllClients() {
             if (this.allClientsSelected) {
-                // deselect all visible
                 const visibleIds = this.filteredClients.map((c) => c.id);
                 this.form.target_client_ids =
                     this.form.target_client_ids.filter(
                         (id) => !visibleIds.includes(id),
                     );
             } else {
-                // select all visible, merge without duplicates
                 const visibleIds = this.filteredClients.map((c) => c.id);
-                const merged = [
+                this.form.target_client_ids = [
                     ...new Set([...this.form.target_client_ids, ...visibleIds]),
                 ];
-                this.form.target_client_ids = merged;
             }
         },
 
@@ -421,15 +409,21 @@ export default {
                     );
             } else {
                 const visibleIds = this.filteredHouseholds.map((h) => h.id);
-                const merged = [
+                this.form.target_household_ids = [
                     ...new Set([
                         ...this.form.target_household_ids,
                         ...visibleIds,
                     ]),
                 ];
-                this.form.target_household_ids = merged;
             }
         },
+
+        togglePatroller(id) {
+            const idx = this.form.target_patroller_ids.indexOf(id);
+            if (idx === -1) this.form.target_patroller_ids.push(id);
+            else this.form.target_patroller_ids.splice(idx, 1);
+        },
+
         toggleAllPatrollers() {
             if (this.allPatrollersSelected) {
                 const visibleIds = this.filteredPatrollers.map((p) => p.id);
@@ -439,13 +433,12 @@ export default {
                     );
             } else {
                 const visibleIds = this.filteredPatrollers.map((p) => p.id);
-                const merged = [
+                this.form.target_patroller_ids = [
                     ...new Set([
                         ...this.form.target_patroller_ids,
                         ...visibleIds,
                     ]),
                 ];
-                this.form.target_patroller_ids = merged;
             }
         },
 
@@ -521,33 +514,9 @@ export default {
                     `${import.meta.env.VITE_APP_URL}/api/clients/list`,
                     { headers: authHeaders() },
                 );
-                const raw = Array.isArray(data) ? data : data.data || [];
-                this.clients = raw;
+                this.clients = Array.isArray(data) ? data : data.data || [];
             } catch (e) {
                 console.error('clients:', e);
-            }
-        },
-
-        togglePatroller(id) {
-            const idx = this.form.target_patroller_ids.indexOf(id);
-            if (idx === -1) this.form.target_patroller_ids.push(id);
-            else this.form.target_patroller_ids.splice(idx, 1);
-        },
-
-        async loadPatrollers(search = '') {
-            this.patrollerSearchLoading = true;
-            try {
-                const params = {};
-                if (search) params.search = search;
-                const { data } = await axios.get(
-                    `${import.meta.env.VITE_APP_URL}/api/patrollers/list`,
-                    { headers: authHeaders(), params },
-                );
-                this.patrollers = Array.isArray(data) ? data : data.data || [];
-            } catch (e) {
-                console.error('[Patrollers]', e);
-            } finally {
-                this.patrollerSearchLoading = false;
             }
         },
 
@@ -568,22 +537,21 @@ export default {
             }
         },
 
-        watch: {
-            householdSearch(val) {
-                clearTimeout(this.householdSearchTimer);
-                this.householdSearchTimer = setTimeout(() => {
-                    this.loadHouseholds(val);
-                }, 350);
-            },
-            patrollerSearch(val) {
-                clearTimeout(this.patrollerSearchTimer);
-                this.patrollerSearchTimer = setTimeout(() => {
-                    this.loadPatrollers(val);
-                }, 350);
-            },
-        },
-        filteredHouseholds() {
-            return this.households;
+        async loadPatrollers(search = '') {
+            this.patrollerSearchLoading = true;
+            try {
+                const params = {};
+                if (search) params.search = search;
+                const { data } = await axios.get(
+                    `${import.meta.env.VITE_APP_URL}/api/patrollers/list`,
+                    { headers: authHeaders(), params },
+                );
+                this.patrollers = Array.isArray(data) ? data : data.data || [];
+            } catch (e) {
+                console.error('[Patrollers]', e);
+            } finally {
+                this.patrollerSearchLoading = false;
+            }
         },
 
         async send() {
@@ -633,6 +601,7 @@ export default {
             this.showCompose = false;
             this.clientSearch = '';
             this.householdSearch = '';
+            this.patrollerSearch = '';
             this.form = {
                 title: '',
                 message: '',
@@ -641,11 +610,11 @@ export default {
                 target: 'all',
                 target_client_ids: [],
                 target_household_ids: [],
+                target_patroller_ids: [],
                 app_version: '',
                 playstore_url: '',
                 min_version_code: null,
                 force_update: false,
-                target_patroller_ids: [],
             };
         },
 
@@ -699,9 +668,13 @@ export default {
                 }
                 return `${ids.length} Households`;
             }
-            if (a.target === 'email') {
-                return a.target_email || 'Email';
+            if (a.target === 'field_unit') {
+                const ids = a.target_patroller_ids || [];
+                if (!ids.length) return 'Field Units';
+                if (ids.length === 1) return `Field Unit #${ids[0]}`;
+                return `${ids.length} Field Units`;
             }
+            if (a.target === 'email') return a.target_email || 'Email';
             return 'All Operators';
         },
 
