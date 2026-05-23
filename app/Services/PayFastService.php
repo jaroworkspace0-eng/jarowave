@@ -47,7 +47,7 @@ class PayFastService
         // Generate signature
         $data['signature'] = $this->generateSignature($data);
 
-        return $this->baseUrl . '?' . http_build_query($data);
+        return $this->baseUrl . '?' . http_build_query($data, '', '&', PHP_QUERY_RFC3986);
     }
 
     /**
@@ -55,19 +55,16 @@ class PayFastService
      */
     public function generateSignature(array $data, bool $includePassphrase = true): string
     {
-        // Remove signature if present
         unset($data['signature']);
 
-        // Build query string
-        $queryString = http_build_query($data);
+        $queryString = http_build_query($data, '', '&', PHP_QUERY_RFC3986); // was: http_build_query($data)
 
         if ($includePassphrase && $this->passphrase) {
-            $queryString .= '&passphrase=' . urlencode($this->passphrase);
+            $queryString .= '&passphrase=' . rawurlencode($this->passphrase); // was: urlencode()
         }
 
         return md5($queryString);
     }
-
     /**
      * Verify ITN signature from PayFast webhook.
      */
