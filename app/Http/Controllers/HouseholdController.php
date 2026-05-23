@@ -348,8 +348,7 @@ class HouseholdController extends Controller
         }
 
         $payfast = new \App\Services\PayFastService();
-
-        $form = $payfast->buildSubscriptionForm([
+        $fields  = $payfast->buildSubscriptionFields([
             'billing_date'     => $subscription->trial_ends_at->format('Y-m-d'),
             'name_first'       => explode(' ', $user->name)[0],
             'name_last'        => explode(' ', $user->name, 2)[1] ?? '',
@@ -360,8 +359,8 @@ class HouseholdController extends Controller
             'item_description' => '14-day free trial then R80 per month neighbourhood watch subscription',
         ]);
 
-        return response($form);
-    }   
+        return response()->json(['type' => 'new', 'fields' => $fields, 'action' => 'https://www.payfast.co.za/eng/process']);
+    } 
 
     // ── Private: format phone number for PayFast (10 digits, starting with 0) ─────
     private function formatPhone(string $phone): string

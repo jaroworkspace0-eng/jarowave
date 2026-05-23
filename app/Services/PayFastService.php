@@ -187,4 +187,33 @@ class PayFastService
 
         return $response->successful();
     }
+
+    public function buildSubscriptionFields(array $params): array
+{
+    $data = [
+        'merchant_id'       => $this->merchantId,
+        'merchant_key'      => $this->merchantKey,
+        'return_url'        => config('payfast.return_url'),
+        'cancel_url'        => config('payfast.cancel_url'),
+        'notify_url'        => config('payfast.notify_url'),
+        'name_first'        => $params['name_first'] ?? '',
+        'name_last'         => $params['name_last'] ?? '',
+        'email_address'     => $params['email_address'] ?? '',
+        'cell_number'       => $params['cell_number'] ?? '',
+        'm_payment_id'      => $params['m_payment_id'] ?? '',
+        'item_name'         => $params['item_name'] ?? '',
+        'item_description'  => $params['item_description'] ?? '',
+        'amount'            => '1.00',
+        'subscription_type' => '1',
+        'billing_date'      => $params['billing_date'],
+        'recurring_amount'  => '80.00',
+        'frequency'         => '3',
+        'cycles'            => '0',
+    ];
+
+    $data = array_filter($data, fn($v) => $v !== '' && $v !== null);
+    $data['signature'] = $this->generateSignature($data);
+
+    return $data;
+}
 }
