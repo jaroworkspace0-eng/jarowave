@@ -62,7 +62,7 @@ class HouseholdController extends Controller
             'email'        => 'required|email|unique:users,email',
             'phone'        => 'nullable|string|max:20|unique:users,phone',
             'password'     => 'required|string|min:8|confirmed',
-            'gateway'      => 'required|in:payfast,ozow',
+            // 'gateway'      => 'required|in:payfast,ozow',
         ]);
 
         $invite = HouseholdInvite::where('token', $request->invite_token)
