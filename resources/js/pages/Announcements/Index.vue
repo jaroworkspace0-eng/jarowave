@@ -8,15 +8,15 @@ const authHeaders = () => ({
     Authorization: `Bearer ${localStorage.getItem('token')}`,
 });
 
-const auth = useAuthStore();
-const role = auth.user?.role || 'user';
-
 export default {
     name: 'AnnouncementsPage',
     components: { AppLayout },
 
     data() {
+        const auth = useAuthStore();
+        const role = auth.user?.role || 'user';
         return {
+            role,
             patrollerSearch: '',
             patrollerSearchTimer: null,
             patrollerSearchLoading: false,
@@ -148,7 +148,7 @@ export default {
     },
 
     mounted() {
-        if (role !== 'admin' && role !== 'client') {
+        if (this.role !== 'admin' && this.role !== 'client') {
             router.visit('/dashboard');
             return;
         }
@@ -167,7 +167,7 @@ export default {
         },
 
         isAdmin() {
-            return role === 'admin';
+            return this.role === 'admin';
         },
 
         availableTypes() {
