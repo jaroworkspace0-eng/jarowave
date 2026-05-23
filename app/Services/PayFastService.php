@@ -214,6 +214,8 @@ class PayFastService
     $data = array_filter($data, fn($v) => $v !== '' && $v !== null);
     $data['signature'] = $this->generateSignature($data);
 
+        Log::debug('PayFast signature: ' . $data['signature']);
+
     return $data;
 }
 }
