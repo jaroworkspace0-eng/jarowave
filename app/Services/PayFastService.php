@@ -22,29 +22,36 @@ class PayFastService
      * Generate a PayFast subscription payment URL for a household trial.
      * Initial amount = 0.00 (free trial), recurring = R80/month after 14 days.
      */
+   
     public function buildSubscriptionUrl(array $params): string
     {
-        $data = array_merge([
-            'merchant_id'         => $this->merchantId,
-            'merchant_key'        => $this->merchantKey,
-            'return_url'          => config('payfast.return_url'),
-            'cancel_url'          => config('payfast.cancel_url'),
-            'notify_url'          => config('payfast.notify_url'),
+        // Build in PayFast's expected order
+        $data = [
+            'merchant_id'       => $this->merchantId,
+            'merchant_key'      => $this->merchantKey,
+            'return_url'        => config('payfast.return_url'),
+            'cancel_url'        => config('payfast.cancel_url'),
+            'notify_url'        => config('payfast.notify_url'),
+            // buyer details come here
+            'name_first'        => $params['name_first'] ?? '',
+            'name_last'         => $params['name_last'] ?? '',
+            'email_address'     => $params['email_address'] ?? '',
+            'cell_number'       => $params['cell_number'] ?? '',
+            // transaction details
+            'm_payment_id'      => $params['m_payment_id'] ?? '',
+            'item_name'         => $params['item_name'] ?? '',
+            'item_description'  => $params['item_description'] ?? '',
+            'amount'            => '0.00',
+            // subscription fields last
+            'subscription_type' => '1',
+            'billing_date'      => $params['billing_date'],
+            'recurring_amount'  => '80.00',
+            'frequency'         => '3',
+            'cycles'            => '0',
+        ];
 
-            // Subscription settings
-            'subscription_type'   => '1',                          // recurring subscription
-            'recurring_amount'    => '80.00',                      // R80 every cycle
-            'frequency'           => '3',                          // monthly
-            'cycles'              => '0',                          // 0 = unlimited
-
-            // Initial payment during trial = R0
-            'amount'              => '0.00',
-        ], $params);
-
-        // Remove empty values
         $data = array_filter($data, fn($v) => $v !== '' && $v !== null);
 
-        // Generate signature
         $data['signature'] = $this->generateSignature($data);
 
         return $this->baseUrl . '?' . http_build_query($data, '', '&', PHP_QUERY_RFC3986);
