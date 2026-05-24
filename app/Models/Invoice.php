@@ -85,7 +85,7 @@ class Invoice extends Model
         return self::create([
             'subscription_id'         => $subscription->id,
             'subscription_payment_id' => $payment->id,
-            'client_id'               => $subscription->client->user_id, // users.id of the watch group admin
+            'client_id' => $subscription->user_id, // household resident
             'invoice_number'          => self::generateNumber(),
             'status'                  => 'paid',
             'subtotal'                => $subscription->original_price ?? $payment->amount_gross,
