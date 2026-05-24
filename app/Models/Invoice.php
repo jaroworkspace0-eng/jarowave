@@ -84,10 +84,10 @@ class Invoice extends Model
         return self::create([
             'subscription_id'         => $subscription->id,
             'subscription_payment_id' => $payment->id,
-            'client_id'               => $subscription->client->user_id,
+            'client_id'               => $subscription->client_id,
             'invoice_number'          => self::generateNumber(),
             'status'                  => 'paid',
-            'subtotal'                => $subscription->original_price ?? ($payment->amount_gross * 100),
+            'subtotal'                => $subscription->original_price ?? $payment->amount_gross,
             'discount_amount'         => $subscription->discount_amount ?? 0,
             'total'                   => $payment->amount,
             'currency'                => 'ZAR',
