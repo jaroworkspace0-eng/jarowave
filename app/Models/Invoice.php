@@ -38,9 +38,10 @@ class Invoice extends Model
         return $this->belongsTo(SubscriptionPayment::class, 'subscription_payment_id');
     }
 
+    // client_id references users.id (the watch group admin/client user)
     public function client(): BelongsTo
     {
-        return $this->belongsTo(Client::class);
+        return $this->belongsTo(User::class, 'client_id');
     }
 
     // ── Helpers ──
@@ -84,7 +85,7 @@ class Invoice extends Model
         return self::create([
             'subscription_id'         => $subscription->id,
             'subscription_payment_id' => $payment->id,
-            'client_id'               => $subscription->client_id,
+            'client_id'               => $subscription->client->user_id, // users.id of the watch group admin
             'invoice_number'          => self::generateNumber(),
             'status'                  => 'paid',
             'subtotal'                => $subscription->original_price ?? $payment->amount_gross,

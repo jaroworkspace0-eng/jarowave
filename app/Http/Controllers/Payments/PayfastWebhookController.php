@@ -102,10 +102,10 @@ class PayfastWebhookController extends Controller
                     'paid_at'                   => now(),
                 ]);
 
-                Earning::createFromPayment($payment, $subscription->client);
+               Earning::createFromPayment($payment, $subscription->client);
 
                 $invoice = Invoice::createFromPayment($payment);
-                $invoice->load('payment.subscription', 'client.user');
+                $invoice->load('payment.subscription', 'client');
 
                 Mail::to($user->email)->queue(new PaymentSuccessMail(
                     userName:  $user->name,
@@ -113,7 +113,6 @@ class PayfastWebhookController extends Controller
                     periodEnd: now()->addDays(30)->format('d M Y'),
                     invoice:   $invoice,
                 ));
-
                 Log::info('PayFast subscription activated', [
                     'subscription_id' => $subscription->id,
                     'token'           => $tokenId,

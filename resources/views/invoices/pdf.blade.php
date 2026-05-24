@@ -334,11 +334,10 @@
         </div>
         <div class="party-to">
             <div class="party-lbl">Bill To</div>
-            <div class="party-name">{{ $invoice->client->user->name }}</div>
-            <div class="party-detail">
-                {{ $invoice->client->user->email }}<br>
-                @if($invoice->client->user->phone)
-                    {{ $invoice->client->user->phone }}<br>
+                <div class="party-name">{{ $invoice->client->name }}</div>
+                {{ $invoice->client->email }}<br>
+                @if($invoice->client->phone)
+                    {{ $invoice->client->phone }}<br>
                 @endif
                 South Africa
             </div>
