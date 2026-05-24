@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Payments;
 use App\Http\Controllers\Controller;
 use App\Mail\PaymentFailedMail;
 use App\Models\Client;
+use App\Models\Invoice;
 use App\Models\Subscription;
 use App\Models\SubscriptionPayment;
 use App\Models\User;
@@ -181,92 +182,140 @@ class PaymentController extends Controller
 
 
     // ── PayFast Webhook Handler ──────────────────────────────────────────────
-    public function handlePayfastWebhook(Request $request)
-    {
-        $data = $request->all();
-        Log::info('PayFast webhook received', $data);
+    // public function handlePayfastWebhook(Request $request)
+    // {
+    //     $data = $request->all();
+    //     Log::info('PayFast webhook received', $data);
 
-        // Verify PayFast signature (important for security)
-        // See: https://developers.payfast.co.za/docs#step_4_confirm_payment
-        $paymentStatus = $data['payment_status'] ?? '';
-        $userId        = $data['custom_str1']     ?? null; // store userId in custom_str1 when creating payment
+    //     // Verify PayFast signature (important for security)
+    //     // See: https://developers.payfast.co.za/docs#step_4_confirm_payment
+    //     $paymentStatus = $data['payment_status'] ?? '';
+    //     $userId        = $data['custom_str1']     ?? null; // store userId in custom_str1 when creating payment
 
-        if (!$userId) {
-            Log::warning('PayFast webhook: no user_id in custom_str1');
-            return response('OK', 200);
-        }
+    //     if (!$userId) {
+    //         Log::warning('PayFast webhook: no user_id in custom_str1');
+    //         return response('OK', 200);
+    //     }
 
-        $user = User::find($userId);
-        if (!$user) {
-            Log::warning("PayFast webhook: user {$userId} not found");
-            return response('OK', 200);
-        }
+    //     $user = User::find($userId);
+    //     if (!$user) {
+    //         Log::warning("PayFast webhook: user {$userId} not found");
+    //         return response('OK', 200);
+    //     }
 
-        // Guard: skip if still within trial period
-        $subscription = $user->subscription;
+    //     // Guard: skip if still within trial period
+    //     $subscription = $user->subscription;
 
-        // Always save token and billing date when present
-        if ($subscription) {
-            $update = [];
-            if (!empty($data['token'])) {
-                $update['payfast_token'] = $data['token'];
-            }
-            if (!empty($data['billing_date'])) {
-                $update['current_period_start'] = now();
-                $update['current_period_end']   = \Carbon\Carbon::parse($data['billing_date']);
-            }
-            if (!empty($update)) {
-                $subscription->update($update);
-                Log::info("PayFast webhook: saved token/billing for userId={$userId}");
-            }
-        }
+    //     // Always save token and billing date when present
+    //     if ($subscription) {
+    //         $update = [];
+    //         if (!empty($data['token'])) {
+    //             $update['payfast_token'] = $data['token'];
+    //         }
+    //         if (!empty($data['billing_date'])) {
+    //             $update['current_period_start'] = now();
+    //             $update['current_period_end']   = \Carbon\Carbon::parse($data['billing_date']);
+    //         }
+    //         if (!empty($update)) {
+    //             $subscription->update($update);
+    //             Log::info("PayFast webhook: saved token/billing for userId={$userId}");
+    //         }
+    //     }
 
-        // Guard: skip payment status handling if still within trial
-        if ($subscription && $subscription->trial_ends_at && $subscription->trial_ends_at->isFuture()) {
-            Log::info("PayFast webhook: userId={$userId} still on trial — skipping payment status handling");
-            return response('OK', 200);
-        }
+    //     // Guard: skip payment status handling if still within trial
+    //     if ($subscription && $subscription->trial_ends_at && $subscription->trial_ends_at->isFuture()) {
+    //         Log::info("PayFast webhook: userId={$userId} still on trial — skipping payment status handling");
+    //         return response('OK', 200);
+    //     }
 
-        if (in_array($paymentStatus, ['FAILED', 'CANCELLED'])) {
-            // Update subscription status in DB
-            $user->subscription_status    = 'payment_failed';
-            $user->payment_failed_at      = now();
-            $user->sos_suspended_at       = null; // will be set after grace period
-            $user->save();
+    //     if (in_array($paymentStatus, ['FAILED', 'CANCELLED'])) {
+    //         // If user cancelled (not a payment failure), mark as cancelled not past_due
+    //         if ($paymentStatus === 'CANCELLED') {
+    //             if ($subscription) {
+    //                 $subscription->update([
+    //                     'status'       => 'cancelled',
+    //                     'cancelled_at' => now(),
+    //                     'payfast_token'=> null,
+    //                 ]);
+    //             }
+    //             Log::info("Subscription cancelled for userId={$userId}");
+    //             return response('OK', 200);
+    //         }
 
-            // Tell Node.js server — it handles push + socket
-            Http::withHeaders([
-                'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
-            ])->post(env('PTT_SERVER_URL') . '/payment-failed', [
-                'userId'    => $userId,
-                'userEmail' => $user->email,
-                'userName'  => $user->name,
-                'amount'    => $data['amount_gross'] ?? null,
-                'reason'    => $paymentStatus,
-                'trialEndsAt'  => $subscription->trial_ends_at?->toISOString(),
-            ]);
+    //         // FAILED — payment failure
+    //         $user->subscription_status = 'payment_failed';
+    //         $user->payment_failed_at   = now();
+    //         $user->sos_suspended_at    = null;
+    //         $user->save();
 
-            Log::info("Payment failed for userId={$userId}");
-        }
+    //         if ($subscription) {
+    //             $subscription->update(['status' => 'past_due']);
+    //         }
 
-        if ($paymentStatus === 'COMPLETE') {
-            // Payment resolved — clear the block
-            $user->subscription_status = 'active';
-            $user->payment_failed_at   = null;
-            $user->sos_suspended_at    = null;
-            $user->save();
+    //         Http::withHeaders([
+    //             'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
+    //         ])->post(env('PTT_SERVER_URL') . '/payment-failed', [
+    //             'userId'      => $userId,
+    //             'userEmail'   => $user->email,
+    //             'userName'    => $user->name,
+    //             'amount'      => $data['amount_gross'] ?? null,
+    //             'reason'      => $paymentStatus,
+    //             'trialEndsAt' => $subscription->trial_ends_at?->toISOString(),
+    //         ]);
 
-            Http::withHeaders([
-                'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
-            ])->post(env('PTT_SERVER_URL') . '/payment-resolved', [
-                'userId' => $userId,
-            ]);
+    //         Log::info("Payment failed for userId={$userId}");
+    //     }
 
-            Log::info("Payment resolved for userId={$userId}");
-        }
+    //     if ($paymentStatus === 'COMPLETE') {
+    //         $user->subscription_status = 'active';
+    //         $user->payment_failed_at   = null;
+    //         $user->sos_suspended_at    = null;
+    //         $user->save();
 
-        return response('OK', 200);
-    }
+    //         if ($subscription) {
+    //             $subscription->update([
+    //                 'status'               => 'active',
+    //                 'current_period_start' => now(),
+    //                 'current_period_end'   => now()->addMonth(),
+    //             ]);
+
+    //             $payment = SubscriptionPayment::create([
+    //                 'subscription_id'           => $subscription->id,
+    //                 'gateway'                   => 'payfast',
+    //                 'gateway_transaction_id'    => $data['pf_payment_id'] ?? null,
+    //                 'gateway_payment_reference' => $data['m_payment_id'] ?? null,
+    //                 'merchant_reference'        => $data['m_payment_id'] ?? null,
+    //                 'gateway_status'            => $paymentStatus,
+    //                 'amount'                    => (int)(($data['amount_gross'] ?? 80.00) * 100),
+    //                 'amount_gross'              => (int)(($data['amount_gross'] ?? 80.00) * 100),
+    //                 'amount_fee'                => (int)(($data['amount_fee'] ?? 0) * 100),
+    //                 'amount_net'                => (int)(($data['amount_net'] ?? 80.00) * 100),
+    //                 'currency'                  => 'ZAR',
+    //                 'payer_name'                => trim(($data['name_first'] ?? '') . ' ' . ($data['name_last'] ?? '')),
+    //                 'payer_email'               => $data['email_address'] ?? null,
+    //                 'status'                    => 'completed',
+    //                 'gateway_payload'           => $data,
+    //                 'billing_period_start'      => now(),
+    //                 'billing_period_end'        => now()->addMonth(),
+    //                 'paid_at'                   => now(),
+    //             ]);
+
+    //             Invoice::createFromPayment($payment);
+
+    //             Log::info("Payment recorded and invoice created for userId={$userId}, payment={$payment->id}");
+    //         }
+
+    //         Http::withHeaders([
+    //             'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
+    //         ])->post(env('PTT_SERVER_URL') . '/payment-resolved', [
+    //             'userId' => $userId,
+    //         ]);
+
+    //         Log::info("Payment resolved for userId={$userId}");
+    //     }
+
+    //     return response('OK', 200);
+    // }
 
 
     // ── Ozow Webhook Handler ───────────────────────────────────────────────

@@ -8,6 +8,7 @@ use App\Models\Invoice;
 use App\Models\Subscription;
 use App\Models\SubscriptionPayment;
 use App\Models\User;
+use App\Services\BillingService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
 
@@ -185,7 +186,7 @@ class PaymentSeeder extends Seeder
                 'status'                    => 'paid',
                 'gateway_payload'           => [
                     'payment_status' => 'COMPLETE',
-                    'amount_gross'   => '80.00',
+                    'amount_gross'   => number_format(BillingService::UNIT_PRICE / 100, 2, '.', ''),
                 ],
                 'billing_period_start' => $periodStart,
                 'billing_period_end'   => $periodEnd,

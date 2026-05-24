@@ -90,7 +90,7 @@ class PayFastService
             'custom_str1'       => $params['custom_str1'] ?? '',
             'subscription_type' => '1',
             'billing_date'      => $params['billing_date'],
-            'recurring_amount'  => '80.00',
+            'recurring_amount'  => number_format(BillingService::UNIT_PRICE / 100, 2, '.', ''),
             'frequency'         => '3',
             'cycles'            => '0',
         ];
@@ -185,5 +185,59 @@ class PayFastService
         Log::debug('PayFast cancel response: ' . $response->status() . ' ' . $response->body());
 
         return $response->successful();
+    }
+
+    public function chargeAdhoc(string $token, float $amount): bool
+    {
+        $timestamp = now()->toIso8601String();
+        $version   = 'v1';
+
+        $parts = [
+            'merchant-id=' . urlencode($this->merchantId),
+            'passphrase='  . urlencode($this->passphrase),
+            'timestamp='   . urlencode($timestamp),
+            'version='     . urlencode($version),
+        ];
+        $signature = md5(implode('&', $parts));
+
+        $response = Http::withHeaders([
+            'merchant-id' => $this->merchantId,
+            'passphrase'  => $this->passphrase,
+            'timestamp'   => $timestamp,
+            'version'     => $version,
+            'signature'   => $signature,
+        ])->post("https://api.payfast.co.za/subscriptions/{$token}/adhoc", [
+            'amount'    => (int)($amount * 100), // in cents
+            'item_name' => 'Echo Link Community Protection',
+        ]);
+
+        Log::debug('PayFast adhoc response: ' . $response->status() . ' ' . $response->body());
+
+        return $response->successful();
+    }
+
+    public function buildOneTimeFields(array $params): array
+    {
+        $data = [
+            'merchant_id'      => $this->merchantId,
+            'merchant_key'     => $this->merchantKey,
+            'return_url'       => config('payfast.return_url'),
+            'cancel_url'       => config('payfast.cancel_url'),
+            'notify_url'       => config('payfast.notify_url'),
+            'name_first'       => $params['name_first'] ?? '',
+            'name_last'        => $params['name_last'] ?? '',
+            'email_address'    => $params['email_address'] ?? '',
+            'cell_number'      => $params['cell_number'] ?? '',
+            'm_payment_id'     => $params['m_payment_id'] ?? '',
+            'amount'           => number_format(BillingService::UNIT_PRICE / 100, 2, '.', ''),
+            'item_name'        => $params['item_name'] ?? '',
+            'item_description' => $params['item_description'] ?? '',
+            'custom_str1'      => $params['custom_str1'] ?? '',
+        ];
+
+        $data = array_filter($data, fn($v) => $v !== '' && $v !== null);
+        $data['signature'] = $this->generateSignature($data);
+
+        return $data;
     }
 }

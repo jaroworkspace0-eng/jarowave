@@ -168,7 +168,7 @@ Route::get('/household/invite/{token}', [HouseholdController::class, 'validateIn
 Route::post('/notifications/payment-failed', [PaymentController::class, 'notifyPaymentFailed']);
 
 // PayFast webhook — no auth middleware, PayFast signs the payload
-Route::post('/webhooks/payfast', [PaymentController::class, 'handlePayfastWebhook']);
+// Route::post('/webhooks/payfast', [PaymentController::class, 'handlePayfastWebhook']);
 Route::post('/webhooks/ozow', [PaymentController::class, 'handleOzowWebhook']);
 
 // Recovery webhooks — no auth, verified by signature/hash inside controller
@@ -217,6 +217,7 @@ Route::middleware('auth:sanctum')->prefix('household')->group(function () {
     Route::post('/invoices/{id}/send', [HouseholdController::class, 'invoiceSend']);
     Route::get('/list', [EmployeeController::class, 'householdList']);
     Route::post('/reactivate', [HouseholdController::class, 'reactivate']);
+    Route::post('/pay-now-onetime', [HouseholdController::class, 'payNowOnetime']);
 });
 
 
@@ -226,6 +227,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
 
+    Route::post('/household/pay-now', [HouseholdController::class, 'payNow']);
 
     Route::get('/app-config', [AnnouncementController::class, 'appConfig']);
     Route::get('/patrollers/list', [EmployeeController::class, 'patrollerList']);

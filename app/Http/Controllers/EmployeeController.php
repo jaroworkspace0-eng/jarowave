@@ -371,17 +371,16 @@ class EmployeeController extends Controller
             'client_id'            => $clientId,
             'client_type'          => $orgType,
             'status'               => 'trialing',
-            'gateway'              => 'payfast',
-            'plan'                 => null,
+            // 'gateway'              => 'payfast',
             'billing_cycle'        => 'monthly',
-            'price'                => BillingService::UNIT_PRICE / 100,
+            'price'                => BillingService::UNIT_PRICE,
             'trial_ends_at'        => now()->addDays(30),
             'merchant_reference'   => 'HH-' . $user->id . '-' . time(),
             'activation_fee_paid'    => $activationFeePaid,
             'activation_fee_paid_at' => $activationFeePaid ? now() : null,
-            'price'                  => $activationFeePaid 
-                ? BillingService::UNIT_PRICE / 100 
-                : (BillingService::UNIT_PRICE + 5000) / 100, // R130 if fee unpaid
+            // 'price'                  => $activationFeePaid 
+            //     ? BillingService::UNIT_PRICE / 100 
+            //     : (BillingService::UNIT_PRICE + 5000) / 100, // R130 if fee unpaid
         ]);
     }
 

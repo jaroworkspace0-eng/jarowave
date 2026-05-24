@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Mail\PaymentFailedMail;
 use App\Mail\PaymentSuccessMail;
 use App\Mail\SubscriptionCancelledMail;
+use App\Services\BillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -80,7 +81,7 @@ class PaymentSimulatorController extends Controller
 
                 Mail::to($user->email)->queue(new PaymentSuccessMail(
                     userName:  $user->name,
-                    amount:    '80.00',
+                    amount:    number_format(BillingService::UNIT_PRICE / 100, 2, '.', ''),
                     periodEnd: now()->addDays(30)->format('d M Y'),
                 ));
 
@@ -113,7 +114,7 @@ class PaymentSimulatorController extends Controller
 
                 Mail::to($user->email)->queue(new PaymentFailedMail(
                     userName: $user->name,
-                    amount:   '80.00',
+                    amount:   number_format(BillingService::UNIT_PRICE / 100, 2, '.', ''),
                     reason:   'Simulated payment failure',
                 ));
 
@@ -122,7 +123,7 @@ class PaymentSimulatorController extends Controller
                     'userId'      => $user->id,
                     'userEmail'   => $user->email,
                     'userName'    => $user->name,
-                    'amount'      => '80.00',
+                    'amount'      => number_format(BillingService::UNIT_PRICE / 100, 2, '.', ''),
                     'reason'      => 'Simulated payment failure',
                     'trialEndsAt' => $subscription->trial_ends_at?->toISOString(),
                 ]);
@@ -139,7 +140,7 @@ class PaymentSimulatorController extends Controller
                     'userId'       => $user->id,
                     'userEmail'    => $user->email,
                     'userName'     => $user->name,
-                    'amount'       => '80.00',
+                    'amount'       => number_format(BillingService::UNIT_PRICE / 100, 2, '.', ''),
                     'reason'       => 'Simulated suspension (grace period expired)',
                     'forceSuspend' => true,
                 ]);

@@ -55,14 +55,28 @@ class PayfastWebhookController extends Controller
         $user          = $subscription->user;
 
         switch ($paymentStatus) {
-
             case 'COMPLETE':
+                // Always save token
+                $subscription->update([
+                    'payfast_token'  => $tokenId,
+                    'gateway_status' => 'COMPLETE',
+                ]);
+
+                // Trial setup (R0.00) — just save token, don't activate or create payment record
+                if ($subscription->trial_ends_at && $subscription->trial_ends_at->isFuture()
+                    && (float)($data['amount_gross'] ?? 0) == 0) {
+                    Log::info('PayFast trial setup complete, token saved', [
+                        'subscription_id' => $subscription->id,
+                        'token'           => $tokenId,
+                    ]);
+                    break;
+                }
+
+                // Real payment — activate subscription
                 $subscription->update([
                     'status'               => 'active',
-                    'payfast_token'        => $tokenId,
                     'current_period_start' => now(),
                     'current_period_end'   => now()->addDays(30),
-                    'gateway_status'       => 'COMPLETE',
                 ]);
 
                 $payment = $subscription->payments()->create([
@@ -89,12 +103,15 @@ class PayfastWebhookController extends Controller
                 ]);
 
                 Earning::createFromPayment($payment, $subscription->client);
-                Invoice::createFromPayment($payment);
+
+                $invoice = Invoice::createFromPayment($payment);
+                $invoice->load('payment.subscription', 'client.user');
 
                 Mail::to($user->email)->queue(new PaymentSuccessMail(
                     userName:  $user->name,
                     amount:    $data['amount_gross'] ?? null,
                     periodEnd: now()->addDays(30)->format('d M Y'),
+                    invoice:   $invoice,
                 ));
 
                 Log::info('PayFast subscription activated', [

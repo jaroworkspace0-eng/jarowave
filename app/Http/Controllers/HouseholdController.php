@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Mail\HouseholdWelcomeMail;
+use App\Mail\InvoiceMail;
 use App\Models\Employee;
 use App\Models\HouseholdInvite;
 use App\Models\Invoice;
@@ -125,7 +126,7 @@ class HouseholdController extends Controller
             // 'gateway'            => $request->gateway,
             'plan'               => null,
             'billing_cycle'      => 'monthly',
-            'price'              => BillingService::UNIT_PRICE / 100, // 80.00
+            'price'              => BillingService::UNIT_PRICE, // 80.00
             'trial_ends_at'      => now()->addDays(14), // 14-day trial
             'merchant_reference' => $merchantReference,
         ]);
@@ -133,15 +134,15 @@ class HouseholdController extends Controller
         $token = $user->createToken('household-token')->plainTextToken;
 
 
-        // Mail::to($user->email)->queue(new HouseholdWelcomeMail(
-        //     user: $user,
-        //     organisationName: $invite->client->user->organisation_name
-        //                 ?? $invite->client->user->name
-        //                 ?? 'Echo Link Community',
-        //     gateway: $request->gateway,
-        //     adminAdded: false,
-        //     tempPassword: null,
-        // ));
+        Mail::to($user->email)->queue(new HouseholdWelcomeMail(
+            user: $user,
+            organisationName: $invite->client->user->organisation_name
+                        ?? $invite->client->user->name
+                        ?? 'Echo Link Community',
+            gateway: $request->gateway,
+            adminAdded: false,
+            tempPassword: null,
+        ));
 
         // Build PayFast payment URL
         // $redirectUrl = $this->initiatePayment($user, $request->gateway, $merchantReference);
@@ -327,7 +328,7 @@ class HouseholdController extends Controller
         $invoice = Invoice::where('id', $id)
             ->where('subscription_id', $subscription?->id)
             ->firstOrFail();
-        // TODO: Mail::to($request->user()->email)->send(new InvoiceMail($invoice));
+        TODO: Mail::to($request->user()->email)->send(new InvoiceMail($invoice));
 
         return response()->json(['message' => 'Invoice sent to ' . $request->user()->email]);
     }
@@ -430,6 +431,76 @@ class HouseholdController extends Controller
 
         return response()->json([
             'type'   => 'new',
+            'fields' => $fields,
+            'action' => 'https://www.payfast.co.za/eng/process',
+        ]);
+    }
+
+    public function payNow(Request $request)
+    {
+        $user         = $request->user();
+        $subscription = Subscription::where('user_id', $user->id)
+            ->where('status', 'past_due')
+            ->latest()
+            ->first();
+
+        if (!$subscription) {
+            return response()->json(['message' => 'No overdue subscription found.'], 404);
+        }
+
+        if (!$subscription->payfast_token) {
+            return response()->json(['message' => 'No payment method on file.'], 400);
+        }
+
+        // Prevent double charge with DB lock
+        $locked = \Cache::lock('pay_now_' . $user->id, 30);
+        if (!$locked->get()) {
+            return response()->json(['message' => 'Payment already in progress.'], 429);
+        }
+
+        try {
+            $payfast = new \App\Services\PayFastService();
+            $success = $payfast->chargeAdhoc($subscription->payfast_token, 80.00);
+
+            if (!$success) {
+                return response()->json(['message' => 'Payment failed. Please update your card details.'], 400);
+            }
+
+            return response()->json(['message' => 'Payment successful.']);
+        } finally {
+            $locked->release();
+        }
+    }
+
+
+    public function payNowOnetime(Request $request)
+    {
+        $user         = $request->user();
+        $subscription = Subscription::where('user_id', $user->id)
+            ->whereIn('status', ['past_due', 'trialing'])
+            ->latest()
+            ->first();
+
+        if (!$subscription) {
+            return response()->json(['message' => 'No subscription found.'], 404);
+        }
+
+        $merchantReference = 'OT-' . $user->id . '-' . time();
+
+        $payfast = new \App\Services\PayFastService();
+        $fields  = $payfast->buildOneTimeFields([
+            'name_first'       => explode(' ', $user->name)[0],
+            'name_last'        => explode(' ', $user->name, 2)[1] ?? '',
+            'email_address'    => $user->email,
+            'cell_number'      => $this->formatPhone($user->phone ?? ''),
+            'm_payment_id'     => $merchantReference,
+            'item_name'        => 'Echo Link Community Protection',
+            'item_description' => 'Monthly neighbourhood watch subscription',
+            'custom_str1'      => (string) $user->id,
+        ]);
+
+        return response()->json([
+            'type'   => 'onetime',
             'fields' => $fields,
             'action' => 'https://www.payfast.co.za/eng/process',
         ]);
