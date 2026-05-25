@@ -19,10 +19,10 @@
         }
 
         .page {
-            padding: 44px 52px;
+            padding: 10px 10px;
         }
 
-        
+
         /* ── HEADER ── */
         .header-inner {
             display: table;
