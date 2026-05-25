@@ -1,9 +1,66 @@
+There are a couple of structural bugs in the template that will mess up the layout and padding, especially when rendering via DomPDF or Snappy/wkhtmltopdf.
+
+Here are the issues found and how to clean them up:
+
+### 1. The Broken HTML Tag (`.party-to`)
+
+Look at the bottom of your `{{-- PARTIES --}}` section. You have a stray closing `</div>` tag that is prematurely closing the `.page` container.
+
+```html
+<!-- CURRENT -->
+<div class="party-to">
+    <div class="party-lbl">Bill To</div>
+        <div class="party-name">{{ $invoice->client->name }}</div>
+        ...
+    </div> <!-- Closes .party-to -->
+</div> <!-- WARNING: This accidentally closes .page early! -->
+
+```
+
+Because `.page` gets closed right there, the Meta Strip, Table, Totals, and Footer fall *outside* the page padding rules completely.
+
+### 2. Typo Spaces in Blade CSS Classes
+
+There are multiple places where a space slipped inside inline styles or class names, which prevents those elements from rendering structural styles (like paddings and alignments) correctly:
+
+* `class="meta- val"` (Should be `class="meta-val"`)
+* `class="meta -val"` (Should be `class="meta-val"`)
+* `class="meta-val- mono"` (Should be `class="meta-val-mono"`)
+* `class="total-row- label"` (Should be `class="total-row-label"`)
+* `class="total-row-valu"` (Missing the 'e' at the end)
+
+### 3. PDF Engine Tip: Use Margins over Page Padding
+
+PDF generation engines (like DomPDF) can sometimes calculate container padding unpredictably at page break thresholds. It's safer to leave the root `.page` with small padding and set an absolute margin rule inside `@page`:
+
+```css
+@page {
+    margin: 44px 72px; /* Pulls everything neatly inside the printable bounds */
+}
+body {
+    margin: 0;
+    padding: 0;
+}
+
+```
+
+---
+
+### Cleaned-up Code
+
+Here is the fully corrected template code with the class names fixed, the broken wrapper tags resolved, and structural stability added for PDF generation:
+
+```html
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="utf-8" />
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: DejaVu Sans, sans-serif !important; }
+
+        @page {
+            margin: 44px 72px; /* Standard professional invoice boundaries */
+        }
 
         body {
             font-family: DejaVu Sans, sans-serif !important;
@@ -16,12 +73,12 @@
             height: 5px;
             background: #f97316;
             width: 100%;
+            margin-bottom: 20px;
         }
 
         .page {
-            padding: 10px 10px;
+            width: 100%;
         }
-
 
         /* ── HEADER ── */
         .header-inner {
@@ -94,7 +151,6 @@
             font-weight: 700;
             color: #111;
             margin-bottom: 10px;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
         }
 
         .status-pill {
@@ -112,7 +168,7 @@
         .status-void   { background: #f5f5f5; color: #888;    border: 1px solid #e5e5e5; }
         .status-draft  { background: #f5f5f5; color: #aaa;    border: 1px solid #e5e5e5; }
 
-        .divider { height: 1px; background: #f0f0f0; margin-bottom: 28px; }
+        .divider { height: 1px; background: #f0f0f0; margin-bottom: 28px; width: 100%; }
 
         /* ── PARTIES ── */
         .parties {
@@ -163,10 +219,6 @@
             vertical-align: top;
         }
 
-        .meta-item div {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
-        }
-
         .meta-item:last-child { border-right: none; }
 
         .meta-lbl {
@@ -183,14 +235,12 @@
             font-weight: 600;
             color: #111;
             line-height: 1.4;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
         }
 
         .meta-val-mono {
             font-size: 10px;
             font-weight: 600;
             color: #999999;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
         }
 
         /* ── TABLE ── */
@@ -235,14 +285,14 @@
             border-bottom: 1px solid #f5f5f5;
         }
 
-        .total-row-label { display: table-cell; font-family: 'DejaVu Sans, sans-serif' }
-        .total-row-value { display: table-cell; text-align: right; font-family: 'DejaVu Sans, sans-serif';}
+        .total-row-label { display: table-cell; }
+        .total-row-value { display: table-cell; text-align: right; }
 
         .total-row.discount .total-row-label,
-        .total-row.discount .total-row-value { color: #16a34a; font-weight: 600; font-family: 'DejaVu Sans, sans-serif';}
+        .total-row.discount .total-row-value { color: #16a34a; font-weight: 600; }
 
         .total-row.vat .total-row-label,
-        .total-row.vat .total-row-value { color: #999999; font-size: 10px; font-family: 'DejaVu Sans, sans-serif'; }
+        .total-row.vat .total-row-value { color: #999999; font-size: 10px; }
 
         .grand-block {
             background: #111;
@@ -335,7 +385,8 @@
         </div>
         <div class="party-to">
             <div class="party-lbl">Bill To</div>
-                <div class="party-name">{{ $invoice->client->name }}</div>
+            <div class="party-name">{{ $invoice->client->name }}</div>
+            <div class="party-detail">
                 {{ $invoice->client->email }}<br>
                 @if($invoice->client->phone)
                     {{ $invoice->client->phone }}<br>
@@ -349,11 +400,11 @@
     <div class="meta-strip">
         <div class="meta-item">
             <div class="meta-lbl">Issue Date</div>
-            <div class="meta- val" style="font-family: DejaVu Sans, sans-serif;">{{ $invoice->issued_at?->format('d M Y') ?? '—' }}</div>
+            <div class="meta-val">{{ $invoice->issued_at?->format('d M Y') ?? '—' }}</div>
         </div>
         <div class="meta-item">
             <div class="meta-lbl">Billing Period</div>
-            <div class="meta -val" style="font-family: DejaVu Sans, sans-serif; font-size: 12px;">
+            <div class="meta-val" style="font-size: 12px;">
                 {{ $invoice->payment->billing_period_start?->format('d M Y') }}
                 –
                 {{ $invoice->payment->billing_period_end?->format('d M Y') }}
@@ -361,15 +412,15 @@
         </div>
         <div class="meta-item">
             <div class="meta-lbl">Gateway</div>
-            <div class="meta- val" style="font-family: DejaVu Sans, sans-serif; font-size: 12px;">{{ ucfirst($invoice->payment->gateway) }}</div>
+            <div class="meta-val" style="font-size: 12px;">{{ ucfirst($invoice->payment->gateway) }}</div>
         </div>
         <div class="meta-item">
             <div class="meta-lbl">Transaction ID</div>
-            <div class="meta-val- mono">{{ $invoice->payment->gateway_transaction_id ?? '—' }}</div>
+            <div class="meta-val-mono">{{ $invoice->payment->gateway_transaction_id ?? '—' }}</div>
         </div>
         <div class="meta-item">
             <div class="meta-lbl">Currency</div>
-            <div class="meta- val" style="font-family: DejaVu Sans, sans-serif; font-size: 12px;">{{ $invoice->currency }}</div>
+            <div class="meta-val" style="font-size: 12px;">{{ $invoice->currency }}</div>
         </div>
     </div>
 
@@ -411,10 +462,10 @@
 
             @if($invoice->discount_amount > 0)
             <div class="total-row discount">
-                <div class="total-row- label" style="color:green;font-family: DejaVu Sans, sans-serif !important;">
+                <div class="total-row-label">
                     Annual discount ({{ $invoice->payment->subscription->discount_percentage }}% off)
                 </div>
-                <div class="total-row-valu" style="color:green;display: table-cell; text-align: right; font-family: 'DejaVu Sans, sans-serif';">− {{ $invoice->discount_in_rands }}</div>
+                <div class="total-row-value">− {{ $invoice->discount_in_rands }}</div>
             </div>
             @endif
 
