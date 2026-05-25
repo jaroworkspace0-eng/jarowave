@@ -19,11 +19,11 @@
         }
 
         @page {
-            margin: 44px 72px; /* Pulls everything neatly inside the printable bounds */
+            margin: 44px 44px; /* Pulls everything neatly inside the printable bounds */
         }
 
         .page {
-            padding: 44px 72px;
+            padding: 44px 44px;
         }
 
 
@@ -281,7 +281,7 @@
             padding-top: 18px;
             display: table;
             width: 100%;
-            padding: 44px 72px 18px; /* Extra top padding to push footer content inside printable area */
+            padding: 44px 44px 18px; /* Extra top padding to push footer content inside printable area */
         }
 
         .footer-left  { display: table-cell; vertical-align: bottom; }
