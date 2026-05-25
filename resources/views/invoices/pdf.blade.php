@@ -161,6 +161,9 @@
             padding-left 15px;
             padding-right 15px;
         }
+       .meta-strip div {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+        }
 
         .meta-item {
             display: table-cell;
@@ -283,7 +286,7 @@
             padding-top: 18px;
             display: table;
             width: 100%;
-            padding: 44px 44px 7px /* Extra top padding to push footer content inside printable area */
+            padding: 15px 15px /* Extra top padding to push footer content inside printable area */
         }
 
         .footer-left  { display: table-cell; vertical-align: bottom; }
