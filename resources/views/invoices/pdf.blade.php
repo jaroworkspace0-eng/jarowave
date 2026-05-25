@@ -154,10 +154,11 @@
         .meta-strip {
             background: #fafafa;
             border: 1px solid #f0f0f0;
-            border-radius: 10px;
+            border-radius: 0px;
             margin-bottom: 28px;
             display: table;
             width: 100%;
+            padding: 44px 44px;
         }
 
         .meta-item {
@@ -227,7 +228,7 @@
         .td-sub   { font-size: 10px; color: #999999; }
 
         /* ── TOTALS ── */
-        .totals-outer  { text-align: right; margin-bottom: 36px; }
+        .totals-outer  { text-align: right; margin-bottom: 36px; padding-right:15px }
         .totals-inner  { display: inline-block; width: 240px; text-align: left; }
 
         .total-row {
@@ -281,7 +282,7 @@
             padding-top: 18px;
             display: table;
             width: 100%;
-            padding: 44px 44px 18px; /* Extra top padding to push footer content inside printable area */
+            padding: 44px 44px 7px /* Extra top padding to push footer content inside printable area */
         }
 
         .footer-left  { display: table-cell; vertical-align: bottom; }
