@@ -91,13 +91,14 @@ Route::get('/households/{id}/pairings', function() {
 });
 
 
-Route::get('/{any}', function () {
-    return view('app');
-})->where('any', '.*');
+// DELETE THIS:
+// Route::get('/{any}', function () {
+//     return view('app');
+// })->where('any', '.*');
 
+require __DIR__.'/settings.php';
 
 Route::resource("users", UserController::class);
 Route::get('/search', [SearchController::class, 'index'])->name('search.index');
 // });
 
-require __DIR__.'/settings.php';
