@@ -360,11 +360,11 @@
     <div class="meta-strip">
         <div class="meta-item">
             <div class="meta-lbl">Issue Date</div>
-            <div class="meta-val" style="font-family: DejaVu Sans, sans-serif;">{{ $invoice->issued_at?->format('d M Y') ?? '—' }}</div>
+            <div class="meta-val">{{ $invoice->issued_at?->format('d M Y') ?? '—' }}</div>
         </div>
         <div class="meta-item">
             <div class="meta-lbl">Billing Period</div>
-            <div class="meta -val" style="font-family: DejaVu Sans, sans-serif; font-size: 12px;">
+            <div class="meta -val" style="font-size: 12px;">
                 {{ $invoice->payment->billing_period_start?->format('d M Y') }}
                 –
                 {{ $invoice->payment->billing_period_end?->format('d M Y') }}
@@ -372,7 +372,7 @@
         </div>
         <div class="meta-item">
             <div class="meta-lbl">Gateway</div>
-            <div class="meta-val" style="font-family: DejaVu Sans, sans-serif; font-size: 12px;">{{ ucfirst($invoice->payment->gateway) }}</div>
+            <div class="meta-val" style="font-size: 12px;">{{ ucfirst($invoice->payment->gateway) }}</div>
         </div>
         <div class="meta-item">
             <div class="meta-lbl">Transaction ID</div>
@@ -380,7 +380,7 @@
         </div>
         <div class="meta-item">
             <div class="meta-lbl">Currency</div>
-            <div class="meta-val" style="font-family: DejaVu Sans, sans-serif; font-size: 12px;">{{ $invoice->currency }}</div>
+            <div class="meta-val" style="font-size: 12px;">{{ $invoice->currency }}</div>
         </div>
     </div>
 
