@@ -158,7 +158,8 @@
             margin-bottom: 28px;
             display: table;
             width: 100%;
-            padding: 44px 44px;
+            padding-left 15px;
+            padding-right 15px;
         }
 
         .meta-item {
