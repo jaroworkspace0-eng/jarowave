@@ -98,7 +98,7 @@
             font-weight: 700;
             color: #111;
             margin-bottom: 10px;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+            font-family: 'DejaVu Sans, sans-serif' !important;
         }
 
         .status-pill {
@@ -162,7 +162,7 @@
             padding-right 15px;
         }
        .meta-strip div {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+            font-family: 'DejaVu Sans, sans-serif' !important;
         }
 
         .meta-item {
@@ -173,7 +173,7 @@
         }
 
         .meta-item div {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+            font-family: 'DejaVu Sans, sans-serif' !important;
         }
 
         .meta-item:last-child { border-right: none; }
@@ -185,6 +185,7 @@
             text-transform: uppercase;
             letter-spacing: 1.5px;
             margin-bottom: 5px;
+            font-family: 'DejaVu Sans, sans-serif' !important;
         }
 
         .meta-val {
@@ -192,14 +193,14 @@
             font-weight: 600;
             color: #111;
             line-height: 1.4;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+            font-family: 'DejaVu Sans, sans-serif' !important;
         }
 
         .meta-val-mono {
             font-size: 10px;
             font-weight: 600;
             color: #999999;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+            font-family: 'DejaVu Sans, sans-serif' !important;
         }
 
         /* ── TABLE ── */
