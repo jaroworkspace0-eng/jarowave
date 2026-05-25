@@ -36,6 +36,7 @@ use App\Http\Controllers\Payments\SubscriptionPaymentController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\StatusController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\VisitorCodeController;
 use App\Models\Channel;
 use App\Models\User;
 // use Illuminate\Container\Attributes\Auth;
@@ -163,6 +164,15 @@ Route::post('/household/register', [HouseholdController::class, 'register']);
 Route::get('/household/invite/{token}', [HouseholdController::class, 'validateInvite']);
 
 
+// MUST be outside — standalone, no middleware
+
+Route::post('/household/payments/subscription/cancel', [PaymentRecoveryController::class, 'cancelSubscription']);
+Route::post('/household//payments/recovery/update-url', [PaymentRecoveryController::class, 'getUpdateUrl']);
+// Generate recovery payment link (called by the app)
+Route::post('/household/payments/recovery/generate', [PaymentRecoveryController::class, 'generateLink']);
+
+
+
 
 // Payment notifications (public, called by payment gateways, but we can add a secret token for security if needed)
 Route::post('/notifications/payment-failed', [PaymentController::class, 'notifyPaymentFailed']);
@@ -192,21 +202,11 @@ Route::get('/dv-recordings/{alertId}/stream', [DvRecordingController::class, 'st
 Route::get('internal/users/{userId}/fcm-token', [UserController::class, 'getFcmToken']);
 // Route::get('users/{user}/fcm-token', [UserController::class, 'getFcmToken']);
 
-
-
 // Household routes (require auth)
 Route::middleware('auth:sanctum')->prefix('household')->group(function () {
 
     // ---------------------------------------------------------------
 
-    // MUST be outside — standalone, no middleware
-
-    Route::post('/payments/subscription/cancel', [PaymentRecoveryController::class, 'cancelSubscription']);
-
-    Route::post('/payments/recovery/update-url', [PaymentRecoveryController::class, 'getUpdateUrl']);
-
-    // Generate recovery payment link (called by the app)
-    Route::post('/payments/recovery/generate', [PaymentRecoveryController::class, 'generateLink']);
 
     Route::get('/payment-url', [HouseholdController::class, 'paymentUrl']);
     Route::get('/subscription', [HouseholdController::class, 'subscription']);
@@ -218,6 +218,15 @@ Route::middleware('auth:sanctum')->prefix('household')->group(function () {
     Route::get('/list', [EmployeeController::class, 'householdList']);
     Route::post('/reactivate', [HouseholdController::class, 'reactivate']);
     Route::post('/pay-now-onetime', [HouseholdController::class, 'payNowOnetime']);
+
+    // Household routes
+    Route::post('/pay-now', [HouseholdController::class, 'payNow']);
+    Route::post('/visitor-codes', [VisitorCodeController::class, 'generate']);
+    Route::get('/visitor-codes', [VisitorCodeController::class, 'index']);
+    Route::delete('/visitor-codes/{id}', [VisitorCodeController::class, 'revoke']);
+
+    // Guard routes
+    Route::post('/guard/visitor-codes/verify', [VisitorCodeController::class, 'verify']);
 });
 
 
@@ -226,8 +235,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
         return $request->user();
     });
 
-
-    Route::post('/household/pay-now', [HouseholdController::class, 'payNow']);
 
     Route::get('/app-config', [AnnouncementController::class, 'appConfig']);
     Route::get('/patrollers/list', [EmployeeController::class, 'patrollerList']);
