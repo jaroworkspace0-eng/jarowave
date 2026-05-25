@@ -23,7 +23,7 @@
         }
 
         .page {
-            padding: 10px 10px;
+            padding: 44px 72px;
         }
 
 
@@ -281,6 +281,7 @@
             padding-top: 18px;
             display: table;
             width: 100%;
+            padding: 44px 72px 18px; /* Extra top padding to push footer content inside printable area */
         }
 
         .footer-left  { display: table-cell; vertical-align: bottom; }
