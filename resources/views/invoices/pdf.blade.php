@@ -22,6 +22,7 @@
             padding: 44px 52px;
         }
 
+        
         /* ── HEADER ── */
         .header-inner {
             display: table;
@@ -223,7 +224,7 @@
 
         /* ── TOTALS ── */
         .totals-outer  { text-align: right; margin-bottom: 36px; }
-        .totals-inner  { display: inline-block; width: 260px; text-align: left; }
+        .totals-inner  { display: inline-block; width: 240px; text-align: left; }
 
         .total-row {
             display: table;
