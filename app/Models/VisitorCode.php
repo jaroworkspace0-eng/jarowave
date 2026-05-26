@@ -27,6 +27,13 @@ class VisitorCode extends Model
         'departed_at',
         'arrived_verified_by',
         'departed_verified_by',
+        'licence_raw',
+        'licence_scanned_at',
+        'licence_id_number',
+        'licence_name',
+        'licence_surname',
+        'licence_expiry',
+        'licence_codes',
     ];
 
     protected $casts = [

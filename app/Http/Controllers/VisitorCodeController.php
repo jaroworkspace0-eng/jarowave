@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Client;
 use App\Models\VisitorCode;
 use App\Models\Subscription;
 use Illuminate\Http\Request;
@@ -76,7 +77,7 @@ class VisitorCodeController extends Controller
     {
         $code = VisitorCode::where('id', $id)
             ->where('user_id', $request->user()->id)
-            ->whereIn('status', ['pending'])
+            ->where('status', 'pending')
             ->first();
 
         if (!$code) {
@@ -92,9 +93,11 @@ class VisitorCodeController extends Controller
     public function verify(Request $request)
     {
         $request->validate([
-            'code'      => 'required_without:qr_token|string',
-            'qr_token'  => 'required_without:code|string',
-            'action'    => 'required|in:arrive,depart',
+            'code'                => 'required_without:qr_token|string',
+            'qr_token'            => 'required_without:code|string',
+            'action'              => 'required|in:arrive,depart',
+            'licence_raw'         => 'nullable|string',
+            'licence_scanned_at'  => 'nullable|date',
         ]);
 
         $guard = $request->user();
@@ -108,6 +111,14 @@ class VisitorCodeController extends Controller
             return response()->json(['message' => 'Invalid code.'], 404);
         }
 
+        // ── Estate scope check ────────────────────────────────────────────────────
+        $guardClient = Client::where('user_id', $guard->id)->first();
+
+        if (!$guardClient || (string) $visitorCode->client_id !== (string) $guardClient->id) {
+            return response()->json(['message' => 'Invalid code.'], 404);
+        }
+        // ─────────────────────────────────────────────────────────────────────────
+
         // Check expiry
         if ($visitorCode->isExpired()) {
             $visitorCode->update(['status' => 'expired']);
@@ -120,19 +131,34 @@ class VisitorCodeController extends Controller
                 return response()->json(['message' => 'Code already used or invalid.'], 400);
             }
 
+            $licenceParsed = [];
+
+            if ($request->filled('licence_raw')) {
+                $licenceParsed = $this->parseSALicence($request->licence_raw);
+            }
+
             $visitorCode->update([
                 'status'              => 'arrived',
                 'arrived_at'          => now(),
                 'arrived_verified_by' => $guard->id,
                 'day_expires_at'      => now()->endOfDay(),
+
+                // Licence fields — all nullable, won't break if not scanned
+                'licence_raw'         => $request->licence_raw ?? null,
+                'licence_scanned_at'  => $request->licence_scanned_at ?? null,
+                'licence_id_number'   => $licenceParsed['id_number']    ?? null,
+                'licence_name'        => $licenceParsed['first_names']  ?? null,
+                'licence_surname'     => $licenceParsed['surname']      ?? null,
+                'licence_expiry'      => $licenceParsed['expiry_date']  ?? null,
+                'licence_codes'       => $licenceParsed['licence_codes'] ?? null,
             ]);
 
-            // Notify tenant via Socket.IO
             $this->notifyTenant($visitorCode, 'visitor_arrived');
 
             return response()->json([
-                'message'      => 'Visitor marked as arrived.',
-                'visitor_code' => $this->formatCode($visitorCode),
+                'message'         => 'Visitor marked as arrived.',
+                'visitor_code'    => $this->formatCode($visitorCode),
+                'licence_scanned' => $request->filled('licence_raw'),
             ]);
         }
 
@@ -148,7 +174,6 @@ class VisitorCodeController extends Controller
                 'departed_verified_by' => $guard->id,
             ]);
 
-            // Notify tenant via Socket.IO
             $this->notifyTenant($visitorCode, 'visitor_departed');
 
             return response()->json([
@@ -156,6 +181,54 @@ class VisitorCodeController extends Controller
                 'visitor_code' => $this->formatCode($visitorCode),
             ]);
         }
+    }
+
+    // ── SA Driver's Licence Parser ────────────────────────────────────────────────
+
+    private function parseSALicence(string $raw): array
+    {
+        try {
+            // PDF-417 data may come base64-encoded from the mobile scanner
+            $data = base64_decode($raw, strict: true);
+            if ($data === false) {
+                $data = $raw; // not base64, use as-is
+            }
+
+            return [
+                'id_number'    => $this->extractField($data, 0,  13),
+                'surname'      => trim($this->extractField($data, 13, 25)),
+                'first_names'  => trim($this->extractField($data, 38, 25)),
+                'birth_date'   => $this->parseLicenceDate($this->extractField($data, 63, 8)),
+                'gender'       => $this->extractField($data, 71, 1),
+                'licence_codes'=> trim($this->extractField($data, 72, 10)),
+                'issue_date'   => $this->parseLicenceDate($this->extractField($data, 82, 8)),
+                'expiry_date'  => $this->parseLicenceDate($this->extractField($data, 90, 8)),
+            ];
+        } catch (\Throwable $e) {
+            // Store raw anyway — can be re-parsed later if offsets were wrong
+            Log::warning('SA licence parse failed', [
+                'error'     => $e->getMessage(),
+                'raw_length' => strlen($raw),
+            ]);
+            return [];
+        }
+    }
+
+    private function extractField(string $data, int $offset, int $length): string
+    {
+        return substr($data, $offset, $length);
+    }
+
+    private function parseLicenceDate(string $raw): ?string
+    {
+        // SA licence dates are stored as CCYYMMDD e.g. "19900101"
+        $clean = preg_replace('/[^0-9]/', '', $raw);
+        if (strlen($clean) !== 8) return null;
+
+        return \Carbon\Carbon::createFromFormat(
+            'Ymd',
+            $clean
+        )?->toDateString(); // returns "1990-01-01"
     }
 
     // ── Private helpers ───────────────────────────────────────────────────
@@ -185,15 +258,17 @@ class VisitorCodeController extends Controller
 
     private function notifyTenant(VisitorCode $code, string $event): void
     {
+        $endpoint = $event === 'visitor_arrived' ? '/visitor-arrived' : '/visitor-departed';
+
         try {
             Http::withHeaders([
                 'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
-            ])->post(env('PTT_SERVER_URL') . '/visitor-' . ($event === 'visitor_arrived' ? 'arrived' : 'departed'), [
-                'userId'       => $code->user_id,
-                'visitorName'  => $code->visitor_name,
-                'visitType'    => $code->visit_type,
-                'arrivedAt'    => $code->arrived_at?->toIso8601String(),
-                'departedAt'   => $code->departed_at?->toIso8601String(),
+            ])->post(env('PTT_SERVER_URL') . $endpoint, [
+                'userId'      => $code->user_id,
+                'visitorName' => $code->visitor_name,
+                'visitType'   => $code->visit_type,
+                'arrivedAt'   => $code->arrived_at?->toIso8601String(),
+                'departedAt'  => $code->departed_at?->toIso8601String(),
             ]);
         } catch (\Exception $e) {
             Log::warning("Failed to notify tenant of {$event}: " . $e->getMessage());

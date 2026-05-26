@@ -225,8 +225,12 @@ Route::middleware('auth:sanctum')->prefix('household')->group(function () {
     Route::get('/visitor-codes', [VisitorCodeController::class, 'index']);
     Route::delete('/visitor-codes/{id}', [VisitorCodeController::class, 'revoke']);
 
+    
+});
+
+Route::middleware('auth:sanctum')->prefix('guard')->group(function () {
     // Guard routes
-    Route::post('/guard/visitor-codes/verify', [VisitorCodeController::class, 'verify']);
+    Route::post('/visitor-codes/verify', [VisitorCodeController::class, 'verify']);
 });
 
 
