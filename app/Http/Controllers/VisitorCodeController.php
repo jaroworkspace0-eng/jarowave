@@ -188,49 +188,109 @@ class VisitorCodeController extends Controller
     private function parseSALicence(string $raw): array
     {
         try {
-            // PDF-417 data may come base64-encoded from the mobile scanner
+            // Decode from base64 (app should always send base64)
             $data = base64_decode($raw, strict: true);
             if ($data === false) {
-                $data = $raw; // not base64, use as-is
+                $data = $raw;
             }
 
-            return [
-                'id_number'    => $this->extractField($data, 0,  13),
-                'surname'      => trim($this->extractField($data, 13, 25)),
-                'first_names'  => trim($this->extractField($data, 38, 25)),
-                'birth_date'   => $this->parseLicenceDate($this->extractField($data, 63, 8)),
-                'gender'       => $this->extractField($data, 71, 1),
-                'licence_codes'=> trim($this->extractField($data, 72, 10)),
-                'issue_date'   => $this->parseLicenceDate($this->extractField($data, 82, 8)),
-                'expiry_date'  => $this->parseLicenceDate($this->extractField($data, 90, 8)),
-            ];
+            $totalLen = strlen($data);
+
+            Log::info('SA licence raw', [
+                'total_length' => $totalLen,
+                'hex_preview'  => bin2hex(substr($data, 0, 20)),
+            ]);
+
+            if ($totalLen < 138) {
+                Log::warning('SA licence data too short', ['length' => $totalLen]);
+                return [];
+            }
+
+            // SA eNaTIS PDF-417 binary layout:
+            // Bytes 0–9   : header / cert number
+            // Bytes 10–137: RSA-1024 signature (128 bytes)
+            // Bytes 138+  : zlib-compressed field data
+            $compressed = substr($data, 138);
+
+            $decompressed = @gzuncompress($compressed);
+
+            if ($decompressed === false) {
+                $decompressed = @gzinflate($compressed);
+            }
+
+            if ($decompressed === false) {
+                Log::warning('SA licence decompression failed', [
+                    'compressed_length' => strlen($compressed),
+                    'hex_preview'       => bin2hex(substr($compressed, 0, 20)),
+                ]);
+                return [];
+            }
+
+            Log::info('SA licence decompressed', [
+                'length'      => strlen($decompressed),
+                'hex_preview' => bin2hex(substr($decompressed, 0, 40)),
+                'ascii'       => preg_replace('/[^\x20-\x7E]/', '.', substr($decompressed, 0, 80)),
+            ]);
+
+            return $this->parseLicenceFields($decompressed);
+
         } catch (\Throwable $e) {
-            // Store raw anyway — can be re-parsed later if offsets were wrong
             Log::warning('SA licence parse failed', [
-                'error'     => $e->getMessage(),
+                'error'      => $e->getMessage(),
                 'raw_length' => strlen($raw),
             ]);
             return [];
         }
     }
 
+    private function parseLicenceFields(string $data): array
+    {
+        // Fixed-offset ASCII layout after decompression (SA eNaTIS spec):
+        // 0   - 13 : ID number
+        // 13  - 25 : surname (space-padded)
+        // 38  - 25 : first names (space-padded)
+        // 63  - 8  : birth date (CCYYMMDD)
+        // 71  - 1  : gender (M/F)
+        // 72  - 4  : licence issue number
+        // 76  - 2  : vehicle codes (e.g. "B ")
+        // 78  - 4  : prdp codes
+        // 82  - 8  : issue date (CCYYMMDD)
+        // 90  - 8  : expiry date (CCYYMMDD)
+        // 98  - 4  : ID country code
+        // 102 - 4  : licence country code
+        // 106 - 2  : driver restrictions
+
+        return [
+            'id_number'     => trim($this->extractField($data, 0,   13)),
+            'surname'       => trim($this->extractField($data, 13,  25)),
+            'first_names'   => trim($this->extractField($data, 38,  25)),
+            'birth_date'    => $this->parseLicenceDate($this->extractField($data, 63, 8)),
+            'gender'        => trim($this->extractField($data, 71,  1)),
+            'licence_codes' => trim($this->extractField($data, 76,  2)),
+            'issue_date'    => $this->parseLicenceDate($this->extractField($data, 82, 8)),
+            'expiry_date'   => $this->parseLicenceDate($this->extractField($data, 90, 8)),
+        ];
+    }
+
     private function extractField(string $data, int $offset, int $length): string
     {
+        if (strlen($data) < $offset + $length) {
+            return '';
+        }
         return substr($data, $offset, $length);
     }
 
     private function parseLicenceDate(string $raw): ?string
     {
-        // SA licence dates are stored as CCYYMMDD e.g. "19900101"
         $clean = preg_replace('/[^0-9]/', '', $raw);
         if (strlen($clean) !== 8) return null;
 
-        return \Carbon\Carbon::createFromFormat(
-            'Ymd',
-            $clean
-        )?->toDateString(); // returns "1990-01-01"
+        try {
+            return \Carbon\Carbon::createFromFormat('Ymd', $clean)?->toDateString();
+        } catch (\Throwable) {
+            return null;
+        }
     }
-
     // ── Private helpers ───────────────────────────────────────────────────
 
     private function formatCode(VisitorCode $code): array
