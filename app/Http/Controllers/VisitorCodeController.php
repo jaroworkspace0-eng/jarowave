@@ -114,11 +114,11 @@ class VisitorCodeController extends Controller
         // ── Estate scope check ────────────────────────────────────────────────────
         $guardClient = Client::where('user_id', $guard->id)->first();
 
-        if (!$guardClient || (string) $visitorCode->client_id !== (string) $guardClient->id) {
-            return response()->json([
-                'message' => 'Invalid code 2. ' . $guardClient ? $guardClient->id : null . ' vs ' . $visitorCode->client_id,
-                ], 404);
-        }
+if (!$guardClient || (string) $visitorCode->client_id !== (string) $guardClient->id) {
+    return response()->json([
+        'message' => 'Invalid code 2. ' . ($guardClient ? $guardClient->id : 'no_client') . ' vs ' . $visitorCode->client_id,
+    ], 404);
+}
         // ─────────────────────────────────────────────────────────────────────────
 
         // Check expiry
