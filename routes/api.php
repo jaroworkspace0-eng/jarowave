@@ -143,51 +143,6 @@ Route::post('/login', function (Request $request) {
 });
 
 
-// TEMPORARY — remove after testing
-Route::post('/debug/licence', function (\Illuminate\Http\Request $request) {
-    $raw = $request->input('licence_raw');
-    $data = base64_decode($raw, strict: true);
-    if ($data === false) $data = $raw;
-
-    $totalLen = strlen($data);
-    $fullHex = bin2hex($data);
-    
-    // Search for zlib magic bytes
-    $zlibOffset = null;
-    $markers = ['789c', '7801', '78da', '785e'];
-    foreach ($markers as $marker) {
-        $pos = strpos($fullHex, $marker);
-        if ($pos !== false) {
-            $zlibOffset = $pos / 2; // hex chars to bytes
-            break;
-        }
-    }
-
-    $decompressed = false;
-    if ($zlibOffset !== null) {
-        $compressed = substr($data, $zlibOffset);
-        $decompressed = @gzuncompress($compressed) ?: @gzinflate($compressed);
-    }
-
-    return response()->json([
-        'total_length'        => $totalLen,
-        'full_hex'            => $fullHex,
-        'zlib_offset_found'   => $zlibOffset,
-        'decompressed'        => $decompressed !== false,
-        'decompressed_length' => $decompressed ? strlen($decompressed) : null,
-        'ascii_preview'       => $decompressed
-            ? preg_replace('/[^\x20-\x7E]/', '.', substr($decompressed, 0, 80))
-            : null,
-        'fields'              => $decompressed ? [
-            'id_number'   => trim(substr($decompressed, 0,  13)),
-            'surname'     => trim(substr($decompressed, 13, 25)),
-            'first_names' => trim(substr($decompressed, 38, 25)),
-            'expiry_date' => trim(substr($decompressed, 90,  8)),
-        ] : null,
-    ]);
-});
-
-
 
 // These endpoints are called by payment gateways, so they must be publicly accessible and should not require authentication.
 Route::post('/webhooks/payfast', [PayfastWebhookController::class, 'handle']);
