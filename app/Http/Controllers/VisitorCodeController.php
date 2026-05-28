@@ -117,8 +117,7 @@ class VisitorCodeController extends Controller
         if (!$guardClient || (string) $visitorCode->client_id !== (string) $guardClient->id) {
             return response()->json([
                 'message' => 'Invalid code 2. ' . $guardClient ? $guardClient->id : null . ' vs ' . $visitorCode->client_id,
-                ]
-                , 404);
+                ], 404);
         }
         // ─────────────────────────────────────────────────────────────────────────
 
