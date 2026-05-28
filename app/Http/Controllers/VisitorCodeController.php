@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Client;
+use App\Models\Employee;
 use App\Models\VisitorCode;
 use App\Models\Subscription;
 use Illuminate\Http\Request;
@@ -112,13 +113,11 @@ class VisitorCodeController extends Controller
         }
 
         // ── Estate scope check ────────────────────────────────────────────────────
-        $guardClient = Client::where('user_id', $guard->id)->first();
+        $guardEmployee = Employee::where('id', $guard->id)->first();
 
-if (!$guardClient || (string) $visitorCode->client_id !== (string) $guardClient->id) {
-    return response()->json([
-        'message' => 'Invalid code 2. ' . ($guardClient ? $guardClient->id : 'no_client') . ' vs ' . $visitorCode->client_id,
-    ], 404);
-}
+        if (!$guardEmployee || (string) $visitorCode->client_id !== (string) $guardEmployee->client_id) {
+            return response()->json(['message' => 'Invalid code.'], 404);
+        }
         // ─────────────────────────────────────────────────────────────────────────
 
         // Check expiry
