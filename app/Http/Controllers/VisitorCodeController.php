@@ -115,7 +115,10 @@ class VisitorCodeController extends Controller
         $guardClient = Client::where('user_id', $guard->id)->first();
 
         if (!$guardClient || (string) $visitorCode->client_id !== (string) $guardClient->id) {
-            return response()->json(['message' => 'Invalid code 2.'], 404);
+            return response()->json([
+                'message' => 'Invalid code 2. ' . $guardClient ? $guardClient->id : null . ' vs ' . $visitorCode->client_id,
+                ]
+                , 404);
         }
         // ─────────────────────────────────────────────────────────────────────────
 
