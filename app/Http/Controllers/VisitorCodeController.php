@@ -166,24 +166,29 @@ class VisitorCodeController extends Controller
         }
 
         // Handle depart
-        if ($request->action === 'depart') {
-            if (!$visitorCode->isArrived()) {
-                return response()->json(['message' => 'Visitor has not arrived yet.'], 400);
-            }
-
-            $visitorCode->update([
-                'status'               => 'departed',
-                'departed_at'          => now(),
-                'departed_verified_by' => $guard->id,
-            ]);
-
-            $this->notifyTenant($visitorCode, 'visitor_departed');
-
-            return response()->json([
-                'message'      => 'Visitor marked as departed.',
-                'visitor_code' => $this->formatCode($visitorCode),
-            ]);
+        // Handle depart
+    if ($request->action === 'depart') {
+        if ($visitorCode->status === 'departed') {
+            return response()->json(['message' => 'Visitor has already departed.'], 400);
         }
+
+        if (!$visitorCode->isArrived()) {
+            return response()->json(['message' => 'Visitor has not arrived yet.'], 400);
+        }
+
+        $visitorCode->update([
+            'status'               => 'departed',
+            'departed_at'          => now(),
+            'departed_verified_by' => $guard->id,
+        ]);
+
+        $this->notifyTenant($visitorCode, 'visitor_departed');
+
+        return response()->json([
+            'message'      => 'Visitor marked as departed.',
+            'visitor_code' => $this->formatCode($visitorCode),
+        ]);
+    }
     }
 
     // ── SA Driver's Licence Parser ────────────────────────────────────────────────
