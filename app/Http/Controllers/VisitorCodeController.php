@@ -108,14 +108,14 @@ class VisitorCodeController extends Controller
             : VisitorCode::where('qr_token', $request->qr_token)->first();
 
         if (!$visitorCode) {
-            return response()->json(['message' => 'Invalid code.'], 404);
+            return response()->json(['message' => 'Invalid code 1.'], 404);
         }
 
         // ── Estate scope check ────────────────────────────────────────────────────
         $guardClient = Client::where('user_id', $guard->id)->first();
 
         if (!$guardClient || (string) $visitorCode->client_id !== (string) $guardClient->id) {
-            return response()->json(['message' => 'Invalid code.'], 404);
+            return response()->json(['message' => 'Invalid code 2.'], 404);
         }
         // ─────────────────────────────────────────────────────────────────────────
 
