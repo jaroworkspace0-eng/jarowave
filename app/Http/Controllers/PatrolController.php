@@ -38,7 +38,7 @@ class PatrolController extends Controller
         // Log the scan
         $scan = CheckpointScan::create([
             'checkpoint_id' => $checkpoint->id,
-            'guard_id'      => $guard->id,
+            'guard_id'      => auth()->id(),
             'note'          => $request->note,
             'scanned_at'    => $request->scanned_at ?? now(),
         ]);
