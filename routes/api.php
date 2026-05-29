@@ -256,6 +256,20 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
 
+    // ── Checkpoint routes (admin only) ────────────────────────────────────────────
+    // Add these inside your existing auth middleware group in routes/api.php
+
+    Route::prefix('clients/{clientId}/checkpoints')->group(function () {
+        Route::get('/',                         [CheckpointController::class, 'index']);
+        Route::post('/',                        [CheckpointController::class, 'store']);
+        Route::patch('/{checkpointId}',         [CheckpointController::class, 'update']);
+        Route::delete('/{checkpointId}',        [CheckpointController::class, 'destroy']);
+        Route::get('/{checkpointId}/scans',     [CheckpointController::class, 'scans']);
+        Route::get('/{checkpointId}/qr',        [CheckpointController::class, 'qrImage']);
+    });
+
+    Route::get('clients/{clientId}/all-scans', [CheckpointController::class, 'allScans']);
+
     Route::get('/app-config', [AnnouncementController::class, 'appConfig']);
     Route::get('/patrollers/list', [EmployeeController::class, 'patrollerList']);
 

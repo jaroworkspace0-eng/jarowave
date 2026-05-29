@@ -13,6 +13,7 @@ class Checkpoint extends Model
         'client_id',
         'name',
         'token',
+        'description',
         'is_active',
     ];
 
@@ -36,5 +37,10 @@ class Checkpoint extends Model
     public function scans(): HasMany
     {
         return $this->hasMany(CheckpointScan::class);
+    }
+
+    public function latestScan()
+    {
+        return $this->hasOne(CheckpointScan::class)->latest('scanned_at');
     }
 }
