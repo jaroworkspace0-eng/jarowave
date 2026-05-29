@@ -249,7 +249,7 @@ Route::middleware('auth:sanctum')->prefix('guard')->group(function () {
     // Guard routes
     Route::post('/visitor-codes/verify', [VisitorCodeController::class, 'verify']);
     Route::post('/patrol/scan', [PatrolController::class, 'scan']);
-    Route::post('/patrol/history', [PatrolController::class, 'history']);
+    Route::get('/patrol/history', [PatrolController::class, 'history']);
 });
 
 
