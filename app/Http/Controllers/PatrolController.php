@@ -36,17 +36,17 @@ class PatrolController extends Controller
         }
  
         // Log the scan
-        $scan = CheckpointScan::create([
-            'checkpoint_id' => $checkpoint->id,
-            'guard_id'      => $employee->id,
-            'note'          => $request->note,
-            'scanned_at'    => $request->scanned_at ?? now(),
-        ]);
+        // $scan = CheckpointScan::create([
+        //     'checkpoint_id' => $checkpoint->id,
+        //     'guard_id'      => $employee->id,
+        //     'note'          => $request->note,
+        //     'scanned_at'    => $request->scanned_at ?? now(),
+        // ]);
  
         return response()->json([
             'message'         => 'Checkpoint logged.',
-            'checkpoint_name' => $checkpoint->name,
-            'scanned_at'      => $scan->scanned_at,
+            // 'checkpoint_name' => $checkpoint->name,
+            // 'scanned_at'      => $scan->scanned_at,
         ]);
     }
  
