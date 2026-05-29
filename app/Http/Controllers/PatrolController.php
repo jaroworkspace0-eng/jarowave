@@ -58,10 +58,10 @@ class PatrolController extends Controller
             'to'   => 'nullable|date',
         ]);
  
-        $guard    = $request->user();
-        $employee = Employee::where('id', $guard->id)->firstOrFail();
+        $guard    = auth()->user();
+        // $employee = Employee::where('user_id', $guard->id)->firstOrFail();
  
-        $query = CheckpointScan::where('guard_id', $employee->id)
+        $query = CheckpointScan::where('guard_id', $guard->id)
             ->with('checkpoint')
             ->orderBy('scanned_at', 'desc');
  
