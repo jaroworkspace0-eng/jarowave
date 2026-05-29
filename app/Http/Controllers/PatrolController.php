@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Checkpoint;
 use App\Models\CheckpointScan;
 use App\Models\Employee;
-use App\Models\User;
 use Illuminate\Http\Request;
 
 class PatrolController extends Controller
@@ -22,7 +21,7 @@ class PatrolController extends Controller
         $guard = $request->user(); // authenticated guard
  
         // Find the guard's employee record
-        $employee = User::where('id', $guard->id)->firstOrFail();
+        $employee = Employee::where('user_id', $guard->id)->firstOrFail();
  
         // Find checkpoint by token — must belong to the guard's estate
         $checkpoint = Checkpoint::where('token', $request->token)
