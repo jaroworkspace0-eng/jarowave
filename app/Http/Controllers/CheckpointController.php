@@ -17,7 +17,7 @@ class CheckpointController extends Controller
 
         $checkpoints = Checkpoint::where('client_id', $clientId)
             ->withCount('scans')
-            ->with('latestScan.guard.user')
+            ->with('latestScan.securityGuard')
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -87,7 +87,7 @@ class CheckpointController extends Controller
             ->findOrFail($checkpointId);
 
         $scans = CheckpointScan::where('checkpoint_id', $checkpoint->id)
-            ->with('guard.user')
+            ->with('securityGuard')
             ->orderBy('scanned_at', 'desc')
             ->paginate(20);
 
@@ -105,7 +105,7 @@ class CheckpointController extends Controller
         $checkpointIds = Checkpoint::where('client_id', $clientId)->pluck('id');
 
         $scans = CheckpointScan::whereIn('checkpoint_id', $checkpointIds)
-            ->with(['checkpoint', 'guard.user'])
+            ->with(['checkpoint', 'securityGuard'])
             ->orderBy('scanned_at', 'desc')
             ->paginate(20);
 
