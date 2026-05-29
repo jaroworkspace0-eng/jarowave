@@ -24,6 +24,7 @@ use App\Http\Controllers\DvRecordingController;
 use App\Http\Controllers\HouseholdSettingController;
 use App\Http\Controllers\InviteController;
 use App\Http\Controllers\LiveKitController;
+use App\Http\Controllers\PatrolController;
 use App\Http\Controllers\Payments\EarningController;
 use App\Http\Controllers\Payments\InvoiceController;
 use App\Http\Controllers\Payments\OzowRecoveryWebhookController;
@@ -247,6 +248,7 @@ Route::middleware('auth:sanctum')->prefix('checkpoints')->group(function () {
 Route::middleware('auth:sanctum')->prefix('guard')->group(function () {
     // Guard routes
     Route::post('/visitor-codes/verify', [VisitorCodeController::class, 'verify']);
+    Route::post('/patrol/scan', [PatrolController::class, 'scan']);
 });
 
 
