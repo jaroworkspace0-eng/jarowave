@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\GuardianResponseController;
 use App\Http\Controllers\Api\HouseholdPairingController;
 use App\Http\Controllers\Api\UserNotificationController;
 use App\Http\Controllers\BlockedHouseholdController;
+use App\Http\Controllers\CheckpointController;
 use App\Http\Controllers\DvRecordingController;
 use App\Http\Controllers\HouseholdSettingController;
 use App\Http\Controllers\InviteController;
@@ -227,6 +228,21 @@ Route::middleware('auth:sanctum')->prefix('household')->group(function () {
 
     
 });
+
+
+// Checkpoint routes (require auth, and client-specific prefix to ensure guards can only access checkpoints for their own client)
+Route::middleware('auth:sanctum')->prefix('clients')->group(function () {
+    Route::get('/{clientId}/checkpoints', [CheckpointController::class, 'index']);
+    Route::post('/{clientId}/checkpoints', [CheckpointController::class, 'store']);
+});
+
+
+// Checkpoint routes (require auth, but not client-specific prefix since guards need to access them by ID without knowing the client)
+Route::middleware('auth:sanctum')->prefix('checkpoints')->group(function () {
+    Route::delete('/{id}', [CheckpointController::class, 'destroy']);
+    Route::get('/{id}/scans', [CheckpointController::class, 'scans']);
+});
+
 
 Route::middleware('auth:sanctum')->prefix('guard')->group(function () {
     // Guard routes

@@ -827,6 +827,36 @@ const annualSummary = computed(() => {
                                         </svg>
                                     </span>
                                 </button>
+                                <button
+                                    v-if="auth.user?.role === 'admin'"
+                                    @click="
+                                        router.visit(
+                                            `/clients/${client.id}/checkpoints`,
+                                        )
+                                    "
+                                    class="relative h-10 w-10 rounded-lg text-orange-600 transition-all hover:bg-orange-50"
+                                    type="button"
+                                    title="View Checkpoints"
+                                >
+                                    <span
+                                        class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+                                    >
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            class="h-4 w-4"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                        >
+                                            <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                stroke-width="2"
+                                                d="M12 4v1m0 14v1M4.22 4.22l.707.707m12.728 12.728l.707.707M1 12h1m18 0h1M4.22 19.78l.707-.707M18.364 5.636l.707-.707M9 12a3 3 0 106 0 3 3 0 00-6 0z"
+                                            />
+                                        </svg>
+                                    </span>
+                                </button>
                             </div>
                         </td>
                     </tr>

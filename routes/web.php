@@ -90,6 +90,11 @@ Route::get('/households/{id}/pairings', function() {
     return inertia('Households/Pairings');
 });
 
+// Add this with your other client routes
+Route::get('/clients/{id}/checkpoints', function () {
+    return inertia('Clients/Checkpoints');
+});
+
 
 // DELETE THIS:
 // Route::get('/{any}', function () {
