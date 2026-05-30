@@ -690,7 +690,7 @@ function formatDate(date: string) {
                                 <td
                                     class="border-b border-gray-100 p-3 font-medium text-gray-900"
                                 >
-                                    {{ scan.guard?.user?.name ?? '—' }}
+                                    {{ scan.security_guard?.name ?? '—' }}
                                 </td>
                                 <td
                                     class="border-b border-gray-100 p-3 text-gray-600"
