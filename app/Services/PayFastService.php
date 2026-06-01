@@ -133,12 +133,11 @@ class PayFastService
         $receivedSignature = $data['signature'] ?? '';
         unset($data['signature']);
 
-        // For ITN, use the order PayFast sends fields, not our checkout order
-        $filtered = array_filter($data, fn($v) => $v !== null && $v !== '');
-
+        // Keep field order from PayFast, but convert nulls to empty strings
+        // Only exclude fields that are truly absent, not just null
         $parts = [];
-        foreach ($filtered as $key => $value) {
-            $parts[] = $key . '=' . urlencode(trim((string) $value));
+        foreach ($data as $key => $value) {
+            $parts[] = $key . '=' . urlencode(trim((string) ($value ?? '')));
         }
 
         $queryString = implode('&', $parts);
@@ -148,7 +147,6 @@ class PayFastService
 
         return hash_equals(md5($queryString), $receivedSignature);
     }
-
     public function isValidIp(string $ip): bool
 {
     $validRanges = [
