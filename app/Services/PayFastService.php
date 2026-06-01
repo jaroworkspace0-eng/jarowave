@@ -118,7 +118,9 @@ class PayFastService
             $queryString .= '&passphrase=' . urlencode(trim($this->passphrase));
         }
 
-        Log::debug('PayFast signature string: ' . urldecode($queryString));
+
+        Log::debug('PayFast signature string: ' . urldecode($queryString)); // decode for readability only
+        Log::debug('PayFast signature string raw: ' . $queryString);
 
         return md5($queryString);
     }
