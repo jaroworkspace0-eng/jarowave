@@ -413,12 +413,14 @@ class HouseholdController extends Controller
             'gateway_status'    => null,
             'cancelled_at'      => null,
             'ends_at'           => null,
-            'trial_ends_at'     => now()->addDays(14),
+            // 'trial_ends_at'     => now()->addDays(14),
+            'trial_ends_at' => now()->endOfDay(),
         ]);
 
         $payfast = new \App\Services\PayFastService();
         $fields  = $payfast->buildSubscriptionFields([
-            'billing_date'     => now()->addDays(14)->format('Y-m-d'),
+            // 'billing_date'     => now()->addDays(14)->format('Y-m-d'),
+            'billing_date'  => now()->addDay()->format('Y-m-d'),
             'name_first'       => explode(' ', $user->name)[0],
             'name_last'        => explode(' ', $user->name, 2)[1] ?? '',
             'email_address'    => $user->email,

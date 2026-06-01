@@ -374,7 +374,7 @@ class EmployeeController extends Controller
             // 'gateway'              => 'payfast',
             'billing_cycle'        => 'monthly',
             'price'                => BillingService::UNIT_PRICE,
-            'trial_ends_at'        => now()->addDays(30),
+            'trial_ends_at'        => now()->addDays(14), // 14-day trial for households
             'merchant_reference'   => 'HH-' . $user->id . '-' . time(),
             'activation_fee_paid'    => $activationFeePaid,
             'activation_fee_paid_at' => $activationFeePaid ? now() : null,
