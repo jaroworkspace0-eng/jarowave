@@ -135,30 +135,32 @@ class PayFastService
     }
 
     public function isValidIp(string $ip): bool
-    {
-        $validRanges = [
-            '197.97.145.144/28',
-            '41.74.179.192/27',
-            '102.216.32.0/23',
-            '102.216.36.0/22',
-        ];
+{
+    $validRanges = [
+        '3.163.232.0/21',       // PayFast primary AWS (Cape Town)
+        '197.97.145.144/28',    // Legacy
+        '41.74.179.192/27',     // Legacy
+        '102.216.36.0/28',      // Legacy
+        '102.216.36.128/28',    // Legacy
+        '144.126.193.139/32',   // Legacy single IP
+    ];
 
-        foreach ($validRanges as $range) {
-            if ($this->ipInCidr($ip, $range)) {
-                return true;
-            }
+    foreach ($validRanges as $range) {
+        if ($this->ipInCidr($ip, $range)) {
+            return true;
         }
-
-        return false;
     }
 
-    private function ipInCidr(string $ip, string $cidr): bool
-    {
-        [$subnet, $bits] = explode('/', $cidr);
-        $mask = ~((1 << (32 - (int)$bits)) - 1);
+    return false;
+}
 
-        return (ip2long($ip) & $mask) === (ip2long($subnet) & $mask);
-    }
+private function ipInCidr(string $ip, string $cidr): bool
+{
+    [$subnet, $bits] = explode('/', $cidr);
+    $mask = ~((1 << (32 - (int)$bits)) - 1);
+
+    return (ip2long($ip) & $mask) === (ip2long($subnet) & $mask);
+}
 
     public function verifyItn(array $data): bool
     {
