@@ -100,7 +100,7 @@ class Earning extends Model
     public static function createFromPayment(
         SubscriptionPayment $payment,
         Client $client,
-        int $commissionPct = 65
+        int $commissionPct = 60
     ): self {
         $residentAmount  = $payment->amount;
         $earnedAmount    = (int) round($residentAmount * ($commissionPct / 100));
@@ -113,7 +113,7 @@ class Earning extends Model
             'resident_id' => $payment->subscription->user_id,
             'resident_amount'         => $residentAmount,
             'commission_percentage'          => $commissionPct,
-            'earned_amount'           => $earnedAmount,
+            'earned_amount'           => $earnedAmount, // amount that goes to the resident/watch group
             'platform_amount'         => $platformAmount,
             'status'                  => 'pending',
             'period_start'            => $payment->billing_period_start,
