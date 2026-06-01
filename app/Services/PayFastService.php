@@ -136,12 +136,28 @@ class PayFastService
 
     public function isValidIp(string $ip): bool
     {
-        $validIps = [
-            '197.97.145.144', '197.97.145.145', '197.97.145.146', '197.97.145.147',
-            '41.74.179.194',  '41.74.179.195',  '41.74.179.196',  '41.74.179.197',
+        $validRanges = [
+            '197.97.145.144/28',
+            '41.74.179.192/27',
+            '102.216.32.0/23',
+            '102.216.36.0/22',
         ];
 
-        return in_array($ip, $validIps);
+        foreach ($validRanges as $range) {
+            if ($this->ipInCidr($ip, $range)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function ipInCidr(string $ip, string $cidr): bool
+    {
+        [$subnet, $bits] = explode('/', $cidr);
+        $mask = ~((1 << (32 - (int)$bits)) - 1);
+
+        return (ip2long($ip) & $mask) === (ip2long($subnet) & $mask);
     }
 
     public function verifyItn(array $data): bool
