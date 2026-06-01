@@ -100,10 +100,9 @@ class PayFastService
     {
         unset($data['signature']);
 
-        // Sort by PayFast-mandated field order
         $sorted = [];
         foreach ($this->fieldOrder as $key) {
-            if (array_key_exists($key, $data)) {
+            if (array_key_exists($key, $data) && $data[$key] !== null && $data[$key] !== '') {
                 $sorted[$key] = $data[$key];
             }
         }
@@ -119,7 +118,7 @@ class PayFastService
             $queryString .= '&passphrase=' . urlencode(trim($this->passphrase));
         }
 
-        Log::debug('PayFast signature string: ' . $queryString);
+        Log::debug('PayFast signature string: ' . urldecode($queryString));
 
         return md5($queryString);
     }
