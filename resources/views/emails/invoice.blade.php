@@ -11,7 +11,7 @@
 </h1>
 
 <p style="text-align:center; font-size:14px; color:#888; margin:0 0 28px;">
-    Hi {{ $invoice->client->user->name }}, thank you for your payment.
+    Hi {{ $invoice->client?->name ?? 'there' }}, thank you for your payment.
 </p>
 
 ---

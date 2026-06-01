@@ -328,7 +328,7 @@ class HouseholdController extends Controller
         $invoice = Invoice::where('id', $id)
             ->where('subscription_id', $subscription?->id)
             ->firstOrFail();
-        TODO: Mail::to($request->user()->email)->send(new InvoiceMail($invoice));
+        Mail::to($request->user()->email)->send(new InvoiceMail($invoice));
 
         return response()->json(['message' => 'Invoice sent to ' . $request->user()->email]);
     }
