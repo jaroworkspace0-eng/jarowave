@@ -13,6 +13,7 @@ use App\Services\BillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use App\Services\PayFastService;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -301,10 +302,9 @@ class HouseholdController extends Controller
             ->where('subscription_id', $subscription?->id)
             ->firstOrFail();
 
-        // TODO: $pdf = PDF::loadView('invoices.pdf', compact('invoice'));
-        // return $pdf->download("invoice-{$invoice->invoice_number}.pdf");
+        $pdf = Pdf::loadView('invoices.pdf', compact('invoice'));
+        return $pdf->download("invoice-{$invoice->invoice_number}.pdf");
 
-        return response()->json(['message' => 'PDF generation not yet implemented.'], 501);
     }
 
     // ── GET /api/household/invoices/{id}/print ────────────────────────────────
