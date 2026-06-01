@@ -28,6 +28,8 @@ class PayfastWebhookController extends Controller
             return response('Invalid IP', 403);
         }
 
+        Log::debug('PayFast ITN raw field order: ' . implode(', ', array_keys($request->all())));
+        
         if (!$payfast->verifySignature($data)) {
             Log::warning('PayFast ITN signature mismatch', $data);
             return response('Invalid signature', 400);
