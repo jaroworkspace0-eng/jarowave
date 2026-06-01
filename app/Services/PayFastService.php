@@ -21,6 +21,9 @@ class PayFastService
         'custom_str1', 'custom_str2', 'custom_str3', 'custom_str4', 'custom_str5',
         'email_confirmation', 'confirmation_address', 'payment_method',
         'subscription_type', 'billing_date', 'recurring_amount', 'frequency', 'cycles',
+        // ITN response fields
+        'pf_payment_id', 'payment_status', 'item_name', 'item_description',
+        'amount_gross', 'amount_fee', 'amount_net', 'token',
     ];
 
     public function __construct()
@@ -130,9 +133,20 @@ class PayFastService
         $receivedSignature = $data['signature'] ?? '';
         unset($data['signature']);
 
-        $expectedSignature = $this->generateSignature($data);
+        // For ITN, use the order PayFast sends fields, not our checkout order
+        $filtered = array_filter($data, fn($v) => $v !== null && $v !== '');
 
-        return hash_equals($expectedSignature, $receivedSignature);
+        $parts = [];
+        foreach ($filtered as $key => $value) {
+            $parts[] = $key . '=' . urlencode(trim((string) $value));
+        }
+
+        $queryString = implode('&', $parts);
+        $queryString .= '&passphrase=' . urlencode(trim($this->passphrase));
+
+        Log::debug('PayFast ITN signature string raw: ' . $queryString);
+
+        return hash_equals(md5($queryString), $receivedSignature);
     }
 
     public function isValidIp(string $ip): bool
