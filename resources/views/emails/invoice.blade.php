@@ -58,7 +58,7 @@
     Your invoice PDF is attached to this email.<br>You can also view and download it from your billing dashboard.
 </p>
 
-@component('mail::button', ['url' => config('app.url') . '/billing', 'color' => 'primary'])
+@component('mail::button', ['url' => 'https://account.jaroworkspace.com/dashboard.html', 'color' => 'primary'])
 View Billing Dashboard
 @endcomponent
 
