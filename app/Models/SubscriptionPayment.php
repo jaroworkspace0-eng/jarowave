@@ -13,6 +13,7 @@ class SubscriptionPayment extends Model
         'gateway',
         'gateway_transaction_id',
         'gateway_payment_reference',
+        'merchant_reference',
         'gateway_status',
         'amount',
         'amount_gross',
@@ -25,11 +26,14 @@ class SubscriptionPayment extends Model
         'status',
         'failure_reason',
         'gateway_payload',
+        'signature',
+        'ip_address',
         'billing_period_start',
         'billing_period_end',
         'paid_at',
         'notes',
         'proof_of_payment',
+        'refunded_at',
     ];
 
     protected $casts = [
