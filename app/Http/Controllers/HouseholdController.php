@@ -148,12 +148,16 @@ class HouseholdController extends Controller
         // Build PayFast payment URL
         // $redirectUrl = $this->initiatePayment($user, $request->gateway, $merchantReference);
 
+
+
         return response()->json([
             'token'        => $token,
             'user'         => [
                 'id'    => $user->id,
                 'name'  => $user->name,
                 'email' => $user->email,
+                'phone' => $user->phone,
+                'role'  => $user->role,
             ],
             'redirect_url' => 'dashboard.html',
             // 'redirect_url' => $redirectUrl,
