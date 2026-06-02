@@ -1177,16 +1177,16 @@ const hideSuggestions = () => {
                 <!-- INVITE LINKS CARD -->
                 <div
                     class="mb-6 rounded-xl border border-orange-200 bg-orange-50 p-5"
-                    style="display: none"
                 >
                     <div class="mb-4 flex items-center justify-between">
                         <div>
                             <div class="text-sm font-bold text-gray-900">
-                                🔗 Household Invite Links
+                                Invitation Links
                             </div>
                             <div class="mt-0.5 text-xs text-gray-500">
-                                One permanent link per channel — share with
-                                households to join for R80/month
+                                One permanent link per channel - share with
+                                households to join your neighbourhood watch on
+                                Echo Link.
                             </div>
                         </div>
                     </div>
@@ -1408,7 +1408,7 @@ const hideSuggestions = () => {
                 <div
                     class="mb-4 rounded-lg border border-amber-100 bg-amber-50 px-4 py-2.5 text-xs text-amber-700"
                 >
-                    ⚠ Earnings below reflect
+                    Earnings below reflect
                     <strong>all registered households</strong>. Actual payouts
                     will only include households with an active paid
                     subscription after their 30-day trial ends.

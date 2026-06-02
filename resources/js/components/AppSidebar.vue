@@ -53,8 +53,8 @@ const mainNavItems: NavItem[] = [
     //     : []),
 
     // Watch groups see Payouts
-    // ...(auth.user?.organisation_type === 'watch'
-    //     ? [{ title: 'Payouts', href: '/payouts', icon: ReceiptText }]
+    // ...(auth.user?.role === 'admin'
+    //     ? [{ title: 'Payouts', href: '/payouts', icon: DollarSign }]
     //     : []),
 
     ...(auth.user?.role === 'admin'

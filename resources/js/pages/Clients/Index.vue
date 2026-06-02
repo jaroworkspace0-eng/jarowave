@@ -412,9 +412,6 @@ const annualSummary = computed(() => {
                                                                 : 'border-gray-200 hover:border-orange-300',
                                                         ]"
                                                     >
-                                                        <span class="text-lg"
-                                                            >🏘️</span
-                                                        >
                                                         <span
                                                             class="text-sm font-bold text-gray-900"
                                                             >Neighbourhood
@@ -448,9 +445,6 @@ const annualSummary = computed(() => {
                                                                 : 'border-gray-200 hover:border-orange-300',
                                                         ]"
                                                     >
-                                                        <span class="text-lg"
-                                                            >🏢</span
-                                                        >
                                                         <span
                                                             class="text-sm font-bold text-gray-900"
                                                             >Estate /
