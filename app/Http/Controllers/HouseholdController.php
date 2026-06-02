@@ -119,7 +119,7 @@ class HouseholdController extends Controller
         $merchantReference = 'HH-' . $user->id . '-' . time();
 
         // Create subscription with correct split based on org type
-        $subscription = Subscription::create([
+        Subscription::create([
             'user_id'            => $user->id,
             'client_id'          => $invite->client_id,
             'client_type'        => $orgType,
@@ -413,19 +413,19 @@ class HouseholdController extends Controller
             'gateway_status'    => null,
             'cancelled_at'      => null,
             'ends_at'           => null,
-            'trial_ends_at'     => now()->addDays(14),
+            'trial_ends_at'     => $subscription->trial_ends_at,
         ]);
 
         $payfast = new \App\Services\PayFastService();
         $fields  = $payfast->buildSubscriptionFields([
-            'billing_date'     => now()->addDays(14)->format('Y-m-d'),
+            'billing_date'     => now()->format('Y-m-d'),
             'name_first'       => explode(' ', $user->name)[0],
             'name_last'        => explode(' ', $user->name, 2)[1] ?? '',
             'email_address'    => $user->email,
             'cell_number'      => $this->formatPhone($user->phone ?? ''),
             'm_payment_id'     => $merchantReference,
             'item_name'        => 'Echo Link Community Protection',
-            'item_description' => '14-day free trial then R80 per month neighbourhood watch subscription',
+            'item_description' => 'R80 per month neighbourhood watch reactivation',
             'custom_str1'      => (string) $user->id,
         ]);
 
