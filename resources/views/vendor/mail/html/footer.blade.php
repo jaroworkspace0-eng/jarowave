@@ -9,7 +9,7 @@
     <p style="font-size:11px; color:#ccc; margin:0;">
         <a href="https://policy.jaroworkspace.com" style="color:#ccc;">Privacy Policy</a>
         &nbsp;·&nbsp;
-        <a href="{{ config('app.url') }}/billing" style="color:#ccc;">Billing</a>
+        <a href="https://account.jaroworkspace.com/dashboard.html" style="color:#ccc;">Billing</a>
     </p>
 </td>
 </tr>

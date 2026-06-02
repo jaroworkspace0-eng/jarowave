@@ -62,15 +62,15 @@
 <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 24px;">
     <tr>
         <td style="padding:6px 0; font-size:13px; color:#888;">Monthly fee</td>
-        <td style="padding:6px 0; font-size:18px; font-weight:800; color:#f97316; text-align:right;">R80/month</td>
+        <td style="padding:6px 0; font-size:13px; font-weight:700; color:#f97316; text-align:right;">R80/month</td>
     </tr>
     <tr>
         <td style="padding:6px 0; font-size:13px; color:#888;">Free trial</td>
-        <td style="padding:6px 0; font-size:13px; font-weight:700; color:#1a1a2e; text-align:right;">30 days — no charge</td>
+        <td style="padding:6px 0; font-size:13px; font-weight:700; color:#1a1a2e; text-align:right;">14 days - no charge</td>
     </tr>
     <tr>
         <td style="padding:6px 0; font-size:13px; color:#888;">First charge</td>
-        <td style="padding:6px 0; font-size:13px; font-weight:700; color:#1a1a2e; text-align:right;">{{ now()->addDays(30)->format('d M Y') }}</td>
+        <td style="padding:6px 0; font-size:13px; font-weight:700; color:#1a1a2e; text-align:right;">{{ now()->addDays(14)->format('d M Y') }}</td>
     </tr>
     @if(!$adminAdded)
     <tr>
@@ -131,7 +131,7 @@
 </table>
 
 {{-- ── APP DOWNLOAD BUTTON ── --}}
-@component('mail::button', ['url' => 'https://play.google.com/store/apps/details?id=com.echolink', 'color' => 'primary'])
+@component('mail::button', ['url' => 'https://play.google.com/store/apps/details?id=com.jaro.wave&hl=en', 'color' => 'primary'])
 Download Echo Link on Google Play
 @endcomponent
 
