@@ -408,7 +408,7 @@
                 </td>
                 <td>{{ ucfirst($invoice->payment->subscription->plan ?? 'Watch Group') }}</td>
                 <td>{{ ucfirst($invoice->payment->subscription->billing_cycle ?? 'Monthly') }}</td>
-                <td class="right">{{ $invoice->subtotal }}</td>
+                <td class="right">R{{ number_format($invoice->subtotal, 2) }}</td>
             </tr>
         </tbody>
     </table>
@@ -419,7 +419,7 @@
 
             <div class="total-row">
                 <div class="total-row-label">Subtotal</div>
-                <div class="total-row-value">{{ $invoice->subtotal }}</div>
+                <div class="total-row-value">R{{ number_format($invoice->subtotal, 2) }}</div>
             </div>
 
             @if($invoice->discount_amount > 0)
@@ -441,7 +441,7 @@
                     <div class="grand-lbl">Total Due</div>
                 </div>
                 <div class="grand-right">
-                    <div class="grand-amt">{{ $invoice->total }}</div>
+                    <div class="grand-amt">R{{ number_format($invoice->total, 2) }}</div>
                 </div>
             </div>
 
