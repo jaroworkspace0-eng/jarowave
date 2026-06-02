@@ -441,7 +441,7 @@
                     <div class="grand-lbl">Total Due</div>
                 </div>
                 <div class="grand-right">
-                    <div class="grand-amt">R{{ number_format($invoice->total, 2) }}</div>
+                    <div class="grand-amt">R{{ number_format($invoice->total/100, 2) }}</div>
                 </div>
             </div>
 
