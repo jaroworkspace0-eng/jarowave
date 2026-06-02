@@ -124,7 +124,7 @@ class HouseholdController extends Controller
             'client_id'          => $invite->client_id,
             'client_type'        => $orgType,
             'status'             => 'trialing',
-            // 'gateway'            => $request->gateway,
+            'gateway'            => $request->gateway ?? 'payfast',
             'plan'               => null,
             'billing_cycle'      => 'monthly',
             'price'              => BillingService::UNIT_PRICE, // 80.00
@@ -140,7 +140,7 @@ class HouseholdController extends Controller
             organisationName: $invite->client->user->organisation_name
                         ?? $invite->client->user->name
                         ?? 'Echo Link Community',
-            gateway: $request->gateway,
+            gateway: $request->gateway ?? 'payfast',
             adminAdded: false,
             tempPassword: null,
         ));
