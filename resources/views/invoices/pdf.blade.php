@@ -19,11 +19,11 @@
         }
 
         @page {
-            margin: 44px 44px; /* Pulls everything neatly inside the printable bounds */
+            margin: 35px 35px; /* Pulls everything neatly inside the printable bounds */
         }
 
         .page {
-            padding: 44px 44px;
+            padding: 35px 35px; 
         }
 
 
@@ -351,7 +351,9 @@
                 @if($invoice->client->phone)
                     {{ $invoice->client->phone }}<br>
                 @endif
-                South Africa
+                @if($invoice->client->addres_line_1)
+                    {{ trim(Str::replace(', South Africa', '', $invoice->client->addres_line_1), ', ') }}<br>
+                @endif
             </div>
         </div>
     </div>
@@ -360,7 +362,7 @@
     <div class="meta-strip">
         <div class="meta-item">
             <div class="meta-lbl">Issue Date</div>
-            <div class="meta-val">{{ $invoice->issued_at?->format('d M Y') ?? '—' }}</div>
+            <div class="meta -val">{{ $invoice->issued_at?->format('d M Y') ?? '—' }}</div>
         </div>
         <div class="meta-item">
             <div class="meta-lbl">Billing Period</div>
@@ -372,15 +374,15 @@
         </div>
         <div class="meta-item">
             <div class="meta-lbl">Gateway</div>
-            <div class="meta-val" style="font-size: 12px;">{{ ucfirst($invoice->payment->gateway) }}</div>
+            <div class="meta -val" style="font-size: 12px;">{{ ucfirst($invoice->payment->gateway) }}</div>
         </div>
         <div class="meta-item">
             <div class="meta-lbl">Transaction ID</div>
-            <div class="meta-val-mono">{{ $invoice->payment->gateway_transaction_id ?? '—' }}</div>
+            <div class="meta -val">{{ $invoice->payment->gateway_transaction_id ?? '—' }}</div>
         </div>
         <div class="meta-item">
             <div class="meta-lbl">Currency</div>
-            <div class="meta-val" style="font-size: 12px;">{{ $invoice->currency }}</div>
+            <div class="meta -val" style="font-size: 12px;">{{ $invoice->currency }}</div>
         </div>
     </div>
 
@@ -406,7 +408,7 @@
                 </td>
                 <td>{{ ucfirst($invoice->payment->subscription->plan ?? 'Watch Group') }}</td>
                 <td>{{ ucfirst($invoice->payment->subscription->billing_cycle ?? 'Monthly') }}</td>
-                <td class="right">{{ $invoice->subtotal_in_rands }}</td>
+                <td class="right">{{ $invoice->subtotal }}</td>
             </tr>
         </tbody>
     </table>
@@ -417,7 +419,7 @@
 
             <div class="total-row">
                 <div class="total-row-label">Subtotal</div>
-                <div class="total-row-value">{{ $invoice->subtotal_in_rands }}</div>
+                <div class="total-row-value">{{ $invoice->subtotal }}</div>
             </div>
 
             @if($invoice->discount_amount > 0)
@@ -439,7 +441,7 @@
                     <div class="grand-lbl">Total Due</div>
                 </div>
                 <div class="grand-right">
-                    <div class="grand-amt">{{ $invoice->total_in_rands }}</div>
+                    <div class="grand-amt">{{ $invoice->total }}</div>
                 </div>
             </div>
 
