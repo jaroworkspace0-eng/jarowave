@@ -3,16 +3,20 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import {
+    BadgeCheck,
+    Banknote,
     Calendar,
-    DollarSignIcon,
+    CircleDollarSign,
     FileWarning,
     Hourglass,
     House,
     HouseIcon,
+    Percent,
+    TrendingUp,
 } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
 
-// ── State ──
+// ── State ──────────────────────────────────────────────────────────────────
 const summary = ref<any>(null);
 const payouts = ref<any[]>([]);
 const households = ref<any[]>([]);
@@ -30,7 +34,7 @@ const bankForm = ref({
     branch_code: '',
 });
 
-// ── Helpers ──
+// ── Helpers ─────────────────────────────────────────────────────────────────
 const getHeaders = () => ({
     headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
 });
@@ -44,17 +48,18 @@ const formatDate = (d: string) =>
     d
         ? new Date(d).toLocaleDateString('en-ZA', {
               day: 'numeric',
-              month: 'long',
+              month: 'short',
               year: 'numeric',
           })
         : '—';
 
-const formatRands = (val: number | string) =>
-    val !== null && val !== undefined
-        ? `R${Number(val).toLocaleString('en-ZA')}`
+// Server already returns rands (after /100). Just format with R prefix.
+const fmt = (val: number | string | null | undefined) =>
+    val != null
+        ? `R${Number(val).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         : '—';
 
-// ── Computed ──
+// ── Computed ─────────────────────────────────────────────────────────────────
 const nextPayoutDate = computed(() => {
     const now = new Date();
     const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -75,7 +80,13 @@ const failedHouseholds = computed(() =>
     households.value.filter((h) => h.status === 'failed'),
 );
 
-// ── Data Fetching ──
+const commissionRate = computed(() => summary.value?.commission_rate ?? 60);
+const perHouseholdEarning = computed(() => {
+    // R80 * commission_rate / 100
+    return ((80 * commissionRate.value) / 100).toFixed(2);
+});
+
+// ── Data Fetching ─────────────────────────────────────────────────────────────
 onMounted(async () => {
     try {
         const [summaryRes, payoutsRes, householdsRes, bankRes] =
@@ -99,8 +110,8 @@ onMounted(async () => {
             ]);
 
         summary.value = summaryRes.data.summary;
-        payouts.value = payoutsRes.data.payouts.data ?? [];
-        households.value = householdsRes.data.households.data ?? [];
+        payouts.value = payoutsRes.data.payouts?.data ?? [];
+        households.value = householdsRes.data.households?.data ?? [];
         bankDetails.value = bankRes.data.bank_details ?? null;
 
         if (bankDetails.value) {
@@ -123,7 +134,7 @@ onMounted(async () => {
     }
 });
 
-// ── Save Bank Details ──
+// ── Save Bank Details ─────────────────────────────────────────────────────────
 const saveBankDetails = async () => {
     try {
         isSavingBank.value = true;
@@ -145,12 +156,9 @@ const saveBankDetails = async () => {
     }
 };
 
-const payoutStatusColour = (status: string) => {
-    if (status === 'paid') return 'green';
-    if (status === 'pending') return 'orange';
-    if (status === 'failed') return 'red';
-    return 'gray';
-};
+const statusColour = (s: string) =>
+    ({ paid: 'green', pending: 'orange', failed: 'red', active: 'green' })[s] ??
+    'gray';
 </script>
 
 <template>
@@ -160,16 +168,17 @@ const payoutStatusColour = (status: string) => {
             <!-- LOADING -->
             <div v-if="isLoading" class="po-loading">
                 <div class="spinner"></div>
-                <p>Loading payout data...</p>
+                <p>Loading payout data…</p>
             </div>
 
             <template v-else>
+                <!-- PAGE HEADER -->
                 <div class="po-header">
                     <div>
                         <h1 class="po-title">Payouts</h1>
                         <p class="po-sub">
-                            Your earnings from active households, paid on the
-                            1st of every month
+                            Monthly earnings from active households · paid on
+                            the 1st
                         </p>
                     </div>
                 </div>
@@ -179,133 +188,161 @@ const payoutStatusColour = (status: string) => {
                     {{ flash.type === 'success' ? '✓' : '⚠' }} {{ flash.msg }}
                 </div>
 
-                <!-- PENDING PAYOUT BANNER -->
-                <div v-if="summary?.pending_amount" class="payout-banner">
-                    <div class="pb-left">
-                        <div class="pb-label">Pending Payout</div>
-                        <div class="pb-amount">
-                            {{ formatRands(summary.pending_amount) }}
+                <!-- ── HERO BANNER ───────────────────────────────────────── -->
+                <div class="hero-banner">
+                    <div class="hero-left">
+                        <div class="hero-eyebrow">
+                            <span class="dot-pulse"></span>
+                            Pending Payout
                         </div>
-                        <div class="pb-date">
-                            Pays out on {{ nextPayoutDate }}
+                        <div class="hero-amount">
+                            {{
+                                summary?.pending_amount
+                                    ? fmt(summary.pending_amount)
+                                    : 'R0.00'
+                            }}
+                        </div>
+                        <div class="hero-sub">
+                            Disbursed on <strong>{{ nextPayoutDate }}</strong> ·
+                            {{ summary?.pending_count ?? 0 }} earning{{
+                                summary?.pending_count !== 1 ? 's' : ''
+                            }}
+                            pending
+                        </div>
+
+                        <!-- mini earning formula -->
+                        <div class="hero-formula">
+                            <span class="formula-pill">R80 / household</span>
+                            <span class="formula-op">×</span>
+                            <span class="formula-pill accent"
+                                >{{ commissionRate }}% your share</span
+                            >
+                            <span class="formula-op">=</span>
+                            <span class="formula-pill green"
+                                >R{{ perHouseholdEarning }} each</span
+                            >
                         </div>
                     </div>
-                    <div class="pb-right">
-                        <div class="pb-stat">
-                            <div class="pbs-val">
+
+                    <div class="hero-right">
+                        <div class="hero-stat">
+                            <div class="hs-val">
+                                {{ fmt(summary?.total_earned) }}
+                            </div>
+                            <div class="hs-lbl">Lifetime earned</div>
+                        </div>
+                        <div class="hero-divider"></div>
+                        <div class="hero-stat">
+                            <div class="hs-val">
+                                {{ fmt(summary?.paid_amount) }}
+                            </div>
+                            <div class="hs-lbl">Total paid out</div>
+                        </div>
+                        <div class="hero-divider"></div>
+                        <div class="hero-stat">
+                            <div class="hs-val">
                                 {{ activeHouseholds.length }}
                             </div>
-                            <div class="pbs-lbl">Active households</div>
-                        </div>
-                        <div class="pb-divider"></div>
-                        <div class="pb-stat">
-                            <div class="pbs-val">
-                                {{ formatRands(summary.total_earned) }}
-                            </div>
-                            <div class="pbs-lbl">Total earned</div>
-                        </div>
-                        <div class="pb-divider"></div>
-                        <div class="pb-stat">
-                            <div class="pbs-val">
-                                {{ formatRands(summary.paid_amount) }}
-                            </div>
-                            <div class="pbs-lbl">Total paid out</div>
+                            <div class="hs-lbl">Active households</div>
                         </div>
                     </div>
                 </div>
 
-                <!-- NO PENDING -->
-                <div v-else class="card card-flat">
-                    <div class="no-pending">
-                        <div class="np-title">No pending payout</div>
-                        <div class="np-desc">
-                            Payouts are calculated on the last day of each month
-                            and disbursed on the 1st. Onboard more households to
-                            start earning.
-                        </div>
-                    </div>
-                </div>
-
-                <!-- SUMMARY STATS -->
-                <div class="stats-grid">
+                <!-- ── STAT CARDS ────────────────────────────────────────── -->
+                <div class="stat-row">
                     <div class="stat-card">
-                        <div class="sc-icon">
-                            <House :size="32" stroke-width="1.5" color="#333" />
+                        <div class="sc-top">
+                            <House :size="18" stroke-width="2" />
+                            <span class="sc-badge green">active</span>
                         </div>
                         <div class="sc-val">{{ activeHouseholds.length }}</div>
                         <div class="sc-lbl">Active Households</div>
                     </div>
                     <div class="stat-card">
-                        <div class="sc-icon">
-                            <Hourglass
-                                :size="32"
-                                color="#333"
-                                stroke-width="1.5"
-                            />
+                        <div class="sc-top">
+                            <Hourglass :size="18" stroke-width="2" />
+                            <span class="sc-badge orange">pending</span>
                         </div>
                         <div class="sc-val">{{ pendingHouseholds.length }}</div>
                         <div class="sc-lbl">Pending Payment</div>
                     </div>
                     <div class="stat-card">
-                        <div class="sc-icon">
-                            <FileWarning
-                                :size="32"
-                                color="#333"
-                                stroke-width="1.5"
-                            />
+                        <div class="sc-top">
+                            <FileWarning :size="18" stroke-width="2" />
+                            <span class="sc-badge red">failed</span>
                         </div>
                         <div class="sc-val">{{ failedHouseholds.length }}</div>
                         <div class="sc-lbl">Failed Payment</div>
                     </div>
                     <div class="stat-card">
-                        <div class="sc-icon">
-                            <Calendar
-                                :size="32"
-                                color="#333"
-                                stroke-width="1.5"
-                            />
+                        <div class="sc-top">
+                            <Percent :size="18" stroke-width="2" />
                         </div>
-                        <div class="sc-val">{{ nextPayoutDate }}</div>
+                        <div class="sc-val">{{ commissionRate }}%</div>
+                        <div class="sc-lbl">Your Commission</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="sc-top">
+                            <TrendingUp :size="18" stroke-width="2" />
+                        </div>
+                        <div class="sc-val">
+                            {{ fmt(summary?.platform_collected) }}
+                        </div>
+                        <div class="sc-lbl">Platform Fee Collected</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="sc-top">
+                            <Calendar :size="18" stroke-width="2" />
+                        </div>
+                        <div class="sc-val next-date">{{ nextPayoutDate }}</div>
                         <div class="sc-lbl">Next Payout Date</div>
                     </div>
                 </div>
 
-                <!-- HOUSEHOLD BREAKDOWN -->
+                <!-- ── HOUSEHOLD BREAKDOWN ───────────────────────────────── -->
                 <div class="card" v-if="households.length">
                     <div class="card-head">
-                        <div class="card-title">Household Breakdown</div>
-                        <div class="hh-legend">
-                            <span class="leg-dot green"></span> Active
-                            <span class="leg-dot orange"></span> Pending
-                            <span class="leg-dot red"></span> Failed
+                        <div class="card-title">
+                            <House :size="16" stroke-width="2" />
+                            Household Breakdown
+                        </div>
+                        <div class="legend">
+                            <span class="leg green">● Active</span>
+                            <span class="leg orange">● Pending</span>
+                            <span class="leg red">● Failed</span>
                         </div>
                     </div>
-                    <div class="hh-table-wrap">
-                        <table class="hh-table">
+                    <div class="table-wrap">
+                        <table class="data-table">
                             <thead>
                                 <tr>
                                     <th>Household</th>
                                     <th>Address</th>
                                     <th>Monthly Fee</th>
-                                    <th>Your Share (65%)</th>
+                                    <th>Your Share ({{ commissionRate }}%)</th>
                                     <th>Joined</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr v-for="hh in households" :key="hh.id">
-                                    <td class="hh-name">{{ hh.name }}</td>
-                                    <td class="hh-addr">
-                                        {{ hh.address ?? '—' }}
+                                    <td class="fw6">{{ hh.name }}</td>
+                                    <td class="muted small">
+                                        {{ hh.address || '—' }}
                                     </td>
-                                    <td>R80</td>
-                                    <td class="bold green-text">R52</td>
-                                    <td class="date-col">
+                                    <td>R80.00</td>
+                                    <td class="fw7 green-text">
+                                        R{{ perHouseholdEarning }}
+                                    </td>
+                                    <td class="muted small">
                                         {{ formatDate(hh.created_at) }}
                                     </td>
                                     <td>
                                         <span
-                                            :class="['hh-status', hh.status]"
+                                            :class="[
+                                                'badge',
+                                                statusColour(hh.status),
+                                            ]"
                                             >{{ hh.status }}</span
                                         >
                                     </td>
@@ -315,76 +352,79 @@ const payoutStatusColour = (status: string) => {
                     </div>
                 </div>
 
-                <div v-else class="card card-flat empty-state">
-                    <div class="empty-icon">
-                        <HouseIcon :size="32" stroke-width="1.5" color="#000" />
-                    </div>
+                <div v-else class="card empty-card">
+                    <HouseIcon :size="28" stroke-width="1.5" color="#bbb" />
                     <div class="empty-title">No households yet</div>
                     <div class="empty-desc">
-                        Share your invite link with households in your area to
-                        start earning.
+                        Share your invite link to start earning from households
+                        in your area.
                     </div>
                 </div>
 
-                <!-- PAYOUT HISTORY -->
+                <!-- ── PAYOUT HISTORY ────────────────────────────────────── -->
                 <div class="card" v-if="payouts.length">
-                    <div class="card-title" style="margin-bottom: 16px">
-                        Payout History
+                    <div class="card-head">
+                        <div class="card-title">
+                            <CircleDollarSign :size="16" stroke-width="2" />
+                            Payout History
+                        </div>
                     </div>
-                    <table class="po-table">
-                        <thead>
-                            <tr>
-                                <th>Reference</th>
-                                <th>Period</th>
-                                <th>Households</th>
-                                <th>Gross</th>
-                                <th>Platform Fee</th>
-                                <th>Your Payout</th>
-                                <th>Date</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="p in payouts" :key="p.id">
-                                <td class="mono">{{ p.reference ?? '—' }}</td>
-                                <td class="date-col">
-                                    {{ formatDate(p.period_start) }}
-                                    <span class="period-arrow">→</span>
-                                    {{ formatDate(p.period_end) }}
-                                </td>
-                                <td>{{ p.household_count ?? '—' }}</td>
-                                <td>{{ formatRands(p.gross_amount) }}</td>
-                                <td class="red-text">
-                                    {{ formatRands(p.platform_fee) }}
-                                </td>
-                                <td class="bold green-text">
-                                    {{ formatRands(p.net_amount) }}
-                                </td>
-                                <td class="date-col">
-                                    {{ formatDate(p.paid_at) }}
-                                </td>
-                                <td>
-                                    <span
-                                        :class="[
-                                            'po-status',
-                                            payoutStatusColour(p.status),
-                                        ]"
-                                        >{{ p.status }}</span
-                                    >
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <div class="table-wrap">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Reference</th>
+                                    <th>Period</th>
+                                    <th>Households</th>
+                                    <th>Gross</th>
+                                    <th>Platform Fee</th>
+                                    <th>Your Payout</th>
+                                    <th>Paid On</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="p in payouts" :key="p.id">
+                                    <td class="mono small">
+                                        {{ p.reference ?? '—' }}
+                                    </td>
+                                    <td class="muted small">
+                                        {{ formatDate(p.period_start) }}
+                                        <span class="arrow">→</span>
+                                        {{ formatDate(p.period_end) }}
+                                    </td>
+                                    <td>{{ p.household_count ?? '—' }}</td>
+                                    <td>{{ fmt(p.gross_amount) }}</td>
+                                    <td class="red-text">
+                                        {{ fmt(p.platform_fee) }}
+                                    </td>
+                                    <td class="fw7 green-text">
+                                        {{ fmt(p.net_amount) }}
+                                    </td>
+                                    <td class="muted small">
+                                        {{ formatDate(p.paid_at) }}
+                                    </td>
+                                    <td>
+                                        <span
+                                            :class="[
+                                                'badge',
+                                                statusColour(p.status),
+                                            ]"
+                                            >{{ p.status }}</span
+                                        >
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
-                <div v-else class="card card-flat empty-state">
-                    <div class="empty-icon">
-                        <DollarSignIcon
-                            :size="32"
-                            stroke-width="1.5"
-                            color="#000"
-                        />
-                    </div>
+                <div v-else class="card empty-card">
+                    <CircleDollarSign
+                        :size="28"
+                        stroke-width="1.5"
+                        color="#bbb"
+                    />
                     <div class="empty-title">No payout history yet</div>
                     <div class="empty-desc">
                         Your first payout will appear here after the 1st of next
@@ -392,10 +432,13 @@ const payoutStatusColour = (status: string) => {
                     </div>
                 </div>
 
-                <!-- BANK DETAILS -->
+                <!-- ── BANK DETAILS ──────────────────────────────────────── -->
                 <div class="card">
                     <div class="card-head">
-                        <div class="card-title">Bank Details</div>
+                        <div class="card-title">
+                            <Banknote :size="16" stroke-width="2" />
+                            Bank Details
+                        </div>
                         <button
                             class="btn-secondary"
                             @click="showBankModal = true"
@@ -409,53 +452,50 @@ const payoutStatusColour = (status: string) => {
                     </div>
 
                     <div v-if="bankDetails" class="bank-grid">
-                        <div class="bank-item">
-                            <div class="bank-lbl">Bank</div>
-                            <div class="bank-val">
-                                {{ bankDetails.bank_name }}
+                        <div
+                            class="bank-item"
+                            v-for="(val, lbl) in {
+                                Bank: bankDetails.bank_name,
+                                'Account Holder': bankDetails.account_holder,
+                                'Account Number': bankDetails.account_number,
+                                'Account Type': bankDetails.account_type,
+                                'Branch Code': bankDetails.branch_code,
+                            }"
+                            :key="lbl"
+                        >
+                            <div class="bank-lbl">{{ lbl }}</div>
+                            <div
+                                class="bank-val"
+                                :class="{
+                                    mono:
+                                        lbl === 'Account Number' ||
+                                        lbl === 'Branch Code',
+                                }"
+                            >
+                                {{ val }}
                             </div>
                         </div>
-                        <div class="bank-item">
-                            <div class="bank-lbl">Account Holder</div>
-                            <div class="bank-val">
-                                {{ bankDetails.account_holder }}
-                            </div>
-                        </div>
-                        <div class="bank-item">
-                            <div class="bank-lbl">Account Number</div>
-                            <div class="bank-val mono">
-                                {{ bankDetails.account_number }}
-                            </div>
-                        </div>
-                        <div class="bank-item">
-                            <div class="bank-lbl">Account Type</div>
-                            <div class="bank-val">
-                                {{ bankDetails.account_type }}
-                            </div>
-                        </div>
-                        <div class="bank-item">
-                            <div class="bank-lbl">Branch Code</div>
-                            <div class="bank-val mono">
-                                {{ bankDetails.branch_code }}
-                            </div>
+                        <div class="bank-item verified">
+                            <BadgeCheck :size="16" color="#16a34a" />
+                            <span>Banking details on file</span>
                         </div>
                     </div>
 
-                    <div v-else class="bank-empty">
-                        <!-- <span>⚠️</span> -->
+                    <div v-else class="bank-missing">
+                        <div class="bm-icon">⚠</div>
                         <div>
-                            <div class="be-title">No bank details on file</div>
-                            <div class="be-desc">
+                            <div class="bm-title">No bank details on file</div>
+                            <div class="bm-desc">
                                 Add your banking details to receive monthly
-                                payouts. Without this, payouts will be held
-                                until details are provided.
+                                payouts. Payouts are held until details are
+                                provided.
                             </div>
                         </div>
                     </div>
                 </div>
             </template>
 
-            <!-- BANK MODAL -->
+            <!-- ── BANK MODAL ────────────────────────────────────────────── -->
             <div
                 v-if="showBankModal"
                 class="modal-overlay"
@@ -470,59 +510,60 @@ const payoutStatusColour = (status: string) => {
                         1st of each month.
                     </p>
 
-                    <div class="modal-field">
-                        <label class="modal-label">Bank Name</label>
-                        <select
-                            class="modal-input"
-                            v-model="bankForm.bank_name"
-                        >
+                    <div class="mf">
+                        <label class="ml">Bank Name</label>
+                        <select class="mi" v-model="bankForm.bank_name">
                             <option value="">Select bank</option>
-                            <option>ABSA</option>
-                            <option>Capitec</option>
-                            <option>FNB</option>
-                            <option>Nedbank</option>
-                            <option>Standard Bank</option>
-                            <option>TymeBank</option>
-                            <option>African Bank</option>
-                            <option>Investec</option>
-                            <option>Discovery Bank</option>
-                            <option>Other</option>
+                            <option
+                                v-for="b in [
+                                    'ABSA',
+                                    'Capitec',
+                                    'FNB',
+                                    'Nedbank',
+                                    'Standard Bank',
+                                    'TymeBank',
+                                    'African Bank',
+                                    'Investec',
+                                    'Discovery Bank',
+                                    'Other',
+                                ]"
+                                :key="b"
+                            >
+                                {{ b }}
+                            </option>
                         </select>
                     </div>
-
-                    <div class="modal-field">
-                        <label class="modal-label">Account Holder Name</label>
+                    <div class="mf">
+                        <label class="ml">Account Holder Name</label>
                         <input
-                            class="modal-input"
+                            class="mi"
                             type="text"
                             v-model="bankForm.account_holder"
                             placeholder="Full name as on account"
                         />
                     </div>
-
-                    <div class="modal-row">
-                        <div class="modal-field">
-                            <label class="modal-label">Account Number</label>
+                    <div class="mr">
+                        <div class="mf">
+                            <label class="ml">Account Number</label>
                             <input
-                                class="modal-input mono"
+                                class="mi mono"
                                 type="text"
                                 v-model="bankForm.account_number"
                                 placeholder="e.g. 1234567890"
                             />
                         </div>
-                        <div class="modal-field">
-                            <label class="modal-label">Branch Code</label>
+                        <div class="mf">
+                            <label class="ml">Branch Code</label>
                             <input
-                                class="modal-input mono"
+                                class="mi mono"
                                 type="text"
                                 v-model="bankForm.branch_code"
                                 placeholder="e.g. 632005"
                             />
                         </div>
                     </div>
-
-                    <div class="modal-field">
-                        <label class="modal-label">Account Type</label>
+                    <div class="mf">
+                        <label class="ml">Account Type</label>
                         <div class="type-toggle">
                             <button
                                 v-for="t in [
@@ -542,7 +583,6 @@ const payoutStatusColour = (status: string) => {
                             </button>
                         </div>
                     </div>
-
                     <div class="modal-actions">
                         <button
                             class="btn-ghost"
@@ -569,42 +609,44 @@ const payoutStatusColour = (status: string) => {
 </template>
 
 <style scoped>
+/* ── Root ───────────────────────────────────────────────────── */
 .po-root {
-    max-width: 1000px;
+    max-width: 1060px;
     margin: 0 auto;
-    padding: 40px 24px;
+    padding: 36px 24px 64px;
     font-family: 'Segoe UI', sans-serif;
+    color: #111;
 }
 .po-loading {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 16px;
+    gap: 14px;
     padding: 80px 0;
-    color: #888;
+    color: #999;
 }
 .po-header {
-    margin-bottom: 28px;
+    margin-bottom: 24px;
 }
 .po-title {
-    font-size: 24px;
+    font-size: 22px;
     font-weight: 800;
-    color: #111;
     letter-spacing: -0.5px;
     margin: 0 0 4px;
 }
 .po-sub {
-    font-size: 14px;
+    font-size: 13px;
     color: #888;
     margin: 0;
 }
 
+/* ── Flash ──────────────────────────────────────────────────── */
 .flash {
-    padding: 12px 16px;
+    padding: 11px 16px;
     border-radius: 10px;
     font-size: 13px;
     font-weight: 600;
-    margin-bottom: 20px;
+    margin-bottom: 18px;
 }
 .flash.success {
     background: #dcfce7;
@@ -617,292 +659,294 @@ const payoutStatusColour = (status: string) => {
     color: #dc2626;
 }
 
-/* PENDING PAYOUT BANNER */
-.payout-banner {
-    background: linear-gradient(135deg, #1c2333, #243047);
-    border-radius: 18px;
-    padding: 28px 32px;
+/* ── Hero Banner ────────────────────────────────────────────── */
+.hero-banner {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f172a 100%);
+    border-radius: 20px;
+    padding: 32px 36px;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 24px;
-    margin-bottom: 24px;
+    gap: 32px;
+    margin-bottom: 20px;
     flex-wrap: wrap;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
 }
-.pb-left {
-}
-.pb-label {
+.hero-eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-size: 11px;
     font-weight: 700;
     color: #f97316;
     text-transform: uppercase;
     letter-spacing: 1.5px;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
 }
-.pb-amount {
-    font-size: 48px;
+.dot-pulse {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #f97316;
+    box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.6);
+    animation: pulse 1.8s ease-out infinite;
+}
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.6);
+    }
+    70% {
+        box-shadow: 0 0 0 8px rgba(249, 115, 22, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(249, 115, 22, 0);
+    }
+}
+.hero-amount {
+    font-size: 52px;
     font-weight: 800;
     color: #fff;
-    letter-spacing: -2px;
+    letter-spacing: -2.5px;
     line-height: 1;
-    margin-bottom: 6px;
+    margin-bottom: 8px;
 }
-.pb-date {
+.hero-sub {
     font-size: 13px;
-    color: #4a5e7a;
+    color: #64748b;
+    margin-bottom: 18px;
 }
-.pb-right {
+.hero-sub strong {
+    color: #94a3b8;
+}
+
+.hero-formula {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.formula-pill {
+    padding: 4px 10px;
+    border-radius: 100px;
+    background: rgba(255, 255, 255, 0.07);
+    color: #cbd5e1;
+    font-size: 12px;
+    font-weight: 600;
+}
+.formula-pill.accent {
+    background: rgba(249, 115, 22, 0.15);
+    color: #fb923c;
+}
+.formula-pill.green {
+    background: rgba(22, 163, 74, 0.15);
+    color: #4ade80;
+}
+.formula-op {
+    color: #334155;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.hero-right {
     display: flex;
     align-items: center;
     gap: 28px;
     flex-wrap: wrap;
 }
-.pb-stat {
+.hero-stat {
     text-align: center;
 }
-.pbs-val {
-    font-size: 20px;
+.hs-val {
+    font-size: 22px;
     font-weight: 800;
     color: #fff;
     margin-bottom: 4px;
+    letter-spacing: -0.5px;
 }
-.pbs-lbl {
+.hs-lbl {
     font-size: 11px;
-    color: #4a5e7a;
+    color: #475569;
     font-weight: 500;
+    white-space: nowrap;
 }
-.pb-divider {
+.hero-divider {
     width: 1px;
-    height: 40px;
-    background: #2d3d5a;
+    height: 44px;
+    background: rgba(255, 255, 255, 0.07);
 }
 
-/* STATS GRID */
-.stats-grid {
+/* ── Stat Row ───────────────────────────────────────────────── */
+.stat-row {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 16px;
-    margin-bottom: 24px;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
 }
 .stat-card {
     background: #fff;
-    border: 1.5px solid #e5e5e5;
+    border: 1.5px solid #ebebeb;
     border-radius: 14px;
-    padding: 20px;
+    padding: 16px 18px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    align-items: center;
+    gap: 6px;
 }
-.sc-icon {
-    font-size: 20px;
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
+.sc-top {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
+    color: #999;
     margin-bottom: 4px;
-    text-align: center;
 }
-.sc-icon.green {
-    background: rgba(22, 163, 74, 0.08);
+.sc-badge {
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 100px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
-.sc-icon.orange {
-    background: rgba(249, 115, 22, 0.08);
+.sc-badge.green {
+    background: rgba(22, 163, 74, 0.1);
+    color: #16a34a;
 }
-.sc-icon.red {
-    background: rgba(220, 38, 38, 0.08);
+.sc-badge.orange {
+    background: rgba(249, 115, 22, 0.1);
+    color: #f97316;
 }
-.sc-icon.blue {
-    background: rgba(37, 99, 235, 0.08);
+.sc-badge.red {
+    background: rgba(220, 38, 38, 0.1);
+    color: #dc2626;
 }
 .sc-val {
-    font-size: 17px;
-    font-weight: 600;
+    font-size: 20px;
+    font-weight: 800;
     color: #111;
     letter-spacing: -0.5px;
 }
+.sc-val.next-date {
+    font-size: 13px;
+    font-weight: 700;
+}
 .sc-lbl {
     font-size: 11px;
-    color: #999;
+    color: #aaa;
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
 
-/* CARDS */
+/* ── Cards ──────────────────────────────────────────────────── */
 .card {
     background: #fff;
-    border: 1.5px solid #e5e5e5;
+    border: 1.5px solid #ebebeb;
     border-radius: 16px;
     padding: 24px;
-    margin-bottom: 20px;
-}
-.card-flat {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 120px;
+    margin-bottom: 16px;
 }
 .card-head {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 20px;
+    margin-bottom: 18px;
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 10px;
 }
 .card-title {
-    font-size: 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
     font-weight: 800;
     color: #111;
 }
-
-/* HOUSEHOLD TABLE */
-.hh-legend {
+.legend {
     display: flex;
-    align-items: center;
-    gap: 12px;
+    gap: 14px;
     font-size: 12px;
-    color: #888;
 }
-.leg-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    display: inline-block;
-    margin-right: 4px;
+.leg.green {
+    color: #16a34a;
 }
-.leg-dot.green {
-    background: #16a34a;
+.leg.orange {
+    color: #f97316;
 }
-.leg-dot.orange {
-    background: #f97316;
+.leg.red {
+    color: #dc2626;
 }
-.leg-dot.red {
-    background: #dc2626;
-}
-.hh-table-wrap {
+
+/* ── Tables ─────────────────────────────────────────────────── */
+.table-wrap {
     overflow-x: auto;
 }
-.hh-table {
+.data-table {
     width: 100%;
     border-collapse: collapse;
     font-size: 13px;
 }
-.hh-table th {
+.data-table th {
     text-align: left;
     font-size: 11px;
     font-weight: 700;
-    color: #999;
+    color: #aaa;
     text-transform: uppercase;
     letter-spacing: 0.5px;
-    padding: 0 16px 10px 0;
+    padding: 0 14px 10px 0;
     border-bottom: 1.5px solid #f0f0f0;
     white-space: nowrap;
 }
-.hh-table td {
-    padding: 12px 16px 12px 0;
+.data-table td {
+    padding: 11px 14px 11px 0;
     color: #333;
-    border-bottom: 1px solid #f9f9f9;
+    border-bottom: 1px solid #f7f7f7;
 }
-.hh-table tr:last-child td {
+.data-table tr:last-child td {
     border-bottom: none;
-}
-.hh-name {
-    font-weight: 600;
-    color: #111;
-}
-.hh-addr {
-    font-size: 12px;
-    color: #888;
-    max-width: 200px;
-}
-.hh-status {
-    font-size: 11px;
-    font-weight: 700;
-    padding: 3px 8px;
-    border-radius: 100px;
-    text-transform: capitalize;
-}
-.hh-status.active {
-    background: rgba(22, 163, 74, 0.1);
-    color: #16a34a;
-}
-.hh-status.pending {
-    background: rgba(249, 115, 22, 0.1);
-    color: #f97316;
-}
-.hh-status.failed {
-    background: rgba(220, 38, 38, 0.1);
-    color: #dc2626;
 }
 
-/* PAYOUT HISTORY TABLE */
-.po-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-}
-.po-table th {
-    text-align: left;
+/* ── Badges ─────────────────────────────────────────────────── */
+.badge {
     font-size: 11px;
     font-weight: 700;
-    color: #999;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    padding: 0 16px 10px 0;
-    border-bottom: 1.5px solid #f0f0f0;
-    white-space: nowrap;
-}
-.po-table td {
-    padding: 12px 16px 12px 0;
-    color: #333;
-    border-bottom: 1px solid #f9f9f9;
-}
-.po-table tr:last-child td {
-    border-bottom: none;
-}
-.po-status {
-    font-size: 11px;
-    font-weight: 700;
-    padding: 3px 8px;
+    padding: 3px 9px;
     border-radius: 100px;
     text-transform: capitalize;
 }
-.po-status.green {
+.badge.green {
     background: rgba(22, 163, 74, 0.1);
     color: #16a34a;
 }
-.po-status.orange {
+.badge.orange {
     background: rgba(249, 115, 22, 0.1);
     color: #f97316;
 }
-.po-status.red {
+.badge.red {
     background: rgba(220, 38, 38, 0.1);
     color: #dc2626;
 }
-.po-status.gray {
+.badge.gray {
     background: #f5f5f5;
     color: #888;
 }
 
+/* ── Utility ────────────────────────────────────────────────── */
+.fw6 {
+    font-weight: 600;
+    color: #111;
+}
+.fw7 {
+    font-weight: 700;
+}
+.muted {
+    color: #888;
+}
+.small {
+    font-size: 12px;
+}
 .mono {
     font-family: monospace;
     font-size: 12px;
-}
-.bold {
-    font-weight: 700;
-}
-.date-col {
-    font-size: 12px;
-    color: #666;
-    white-space: nowrap;
-}
-.period-arrow {
-    color: #ccc;
-    margin: 0 4px;
 }
 .green-text {
     color: #16a34a;
@@ -910,8 +954,33 @@ const payoutStatusColour = (status: string) => {
 .red-text {
     color: #dc2626;
 }
+.arrow {
+    color: #ddd;
+    margin: 0 4px;
+}
 
-/* BANK DETAILS */
+/* ── Empty state ────────────────────────────────────────────── */
+.empty-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 48px 24px;
+    text-align: center;
+}
+.empty-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #111;
+}
+.empty-desc {
+    font-size: 13px;
+    color: #999;
+    max-width: 340px;
+    line-height: 1.6;
+}
+
+/* ── Bank Details ────────────────────────────────────────────── */
 .bank-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -925,7 +994,7 @@ const payoutStatusColour = (status: string) => {
 .bank-lbl {
     font-size: 11px;
     font-weight: 700;
-    color: #999;
+    color: #aaa;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
@@ -934,76 +1003,47 @@ const payoutStatusColour = (status: string) => {
     font-weight: 600;
     color: #111;
 }
-.bank-empty {
+.bank-item.verified {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: #16a34a;
+    font-weight: 600;
+    grid-column: 1/-1;
+}
+
+.bank-missing {
     display: flex;
     align-items: flex-start;
-    gap: 12px;
+    gap: 14px;
     background: rgba(249, 115, 22, 0.04);
     border: 1.5px solid rgba(249, 115, 22, 0.15);
     border-radius: 12px;
     padding: 16px;
-    font-size: 22px;
 }
-.be-title {
+.bm-icon {
+    font-size: 20px;
+    color: #f97316;
+    flex-shrink: 0;
+}
+.bm-title {
     font-size: 14px;
     font-weight: 700;
     color: #111;
     margin-bottom: 4px;
 }
-.be-desc {
+.bm-desc {
     font-size: 13px;
     color: #888;
     line-height: 1.5;
 }
 
-/* EMPTY STATE */
-.no-pending {
-    text-align: center;
-    padding: 16px;
-}
-.np-icon {
-    font-size: 36px;
-    display: block;
-    margin-bottom: 12px;
-}
-.np-title {
-    font-size: 15px;
-    font-weight: 700;
-    color: #111;
-    margin-bottom: 6px;
-}
-.np-desc {
-    font-size: 13px;
-    color: #888;
-    max-width: 360px;
-    margin: 0 auto;
-    line-height: 1.6;
-}
-.empty-state {
-    flex-direction: column;
-    gap: 8px;
-    padding: 48px 24px;
-}
-.empty-icon {
-    font-size: 36px;
-}
-.empty-title {
-    font-size: 15px;
-    font-weight: 700;
-    color: #111;
-}
-.empty-desc {
-    font-size: 13px;
-    color: #888;
-    text-align: center;
-    max-width: 360px;
-}
-
-/* MODAL */
+/* ── Modal ──────────────────────────────────────────────────── */
 .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.4);
+    background: rgba(0, 0, 0, 0.45);
     z-index: 500;
     display: flex;
     align-items: center;
@@ -1016,7 +1056,7 @@ const payoutStatusColour = (status: string) => {
     padding: 32px;
     width: 100%;
     max-width: 500px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.18);
     max-height: 90vh;
     overflow-y: auto;
 }
@@ -1029,20 +1069,14 @@ const payoutStatusColour = (status: string) => {
 .modal-note {
     font-size: 13px;
     color: #888;
-    margin-bottom: 24px;
+    margin-bottom: 22px;
     line-height: 1.5;
 }
-.modal-field {
-    margin-bottom: 16px;
+.mf {
+    margin-bottom: 14px;
 }
-.modal-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 16px;
-}
-.modal-label {
-    font-size: 12px;
+.ml {
+    font-size: 11px;
     font-weight: 700;
     color: #555;
     text-transform: uppercase;
@@ -1050,7 +1084,7 @@ const payoutStatusColour = (status: string) => {
     display: block;
     margin-bottom: 6px;
 }
-.modal-input {
+.mi {
     width: 100%;
     padding: 10px 14px;
     border: 1.5px solid #e5e5e5;
@@ -1062,21 +1096,26 @@ const payoutStatusColour = (status: string) => {
     transition: all 0.15s;
     box-sizing: border-box;
 }
-.modal-input:focus {
+.mi:focus {
     border-color: #f97316;
     box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
 }
-.modal-input.mono {
+.mi.mono {
     font-family: monospace;
     letter-spacing: 1px;
+}
+.mr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 14px;
 }
 .modal-actions {
     display: flex;
     gap: 10px;
     justify-content: flex-end;
-    margin-top: 24px;
+    margin-top: 22px;
 }
-
 .type-toggle {
     display: flex;
     gap: 8px;
@@ -1104,7 +1143,7 @@ const payoutStatusColour = (status: string) => {
     color: #f97316;
 }
 
-/* BUTTONS */
+/* ── Buttons ────────────────────────────────────────────────── */
 .btn-primary {
     padding: 10px 20px;
     background: #f97316;
@@ -1161,17 +1200,18 @@ const payoutStatusColour = (status: string) => {
     background: rgba(249, 115, 22, 0.04);
 }
 
+/* ── Spinners ───────────────────────────────────────────────── */
 .spinner {
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
     border: 3px solid #f0f0f0;
     border-top-color: #f97316;
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
 }
 .btn-spinner {
-    width: 16px;
-    height: 16px;
+    width: 15px;
+    height: 15px;
     border: 2px solid rgba(255, 255, 255, 0.3);
     border-top-color: #fff;
     border-radius: 50%;
@@ -1184,42 +1224,44 @@ const payoutStatusColour = (status: string) => {
     }
 }
 
-@media (max-width: 768px) {
-    .payout-banner {
+/* ── Responsive ─────────────────────────────────────────────── */
+@media (max-width: 900px) {
+    .stat-row {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+@media (max-width: 640px) {
+    .hero-banner {
         flex-direction: column;
     }
-    .pb-amount {
-        font-size: 36px;
+    .hero-amount {
+        font-size: 38px;
     }
-    .pb-right {
+    .hero-right {
         justify-content: flex-start;
     }
-    .stats-grid {
+    .stat-row {
         grid-template-columns: 1fr 1fr;
     }
     .bank-grid {
         grid-template-columns: 1fr 1fr;
     }
-    .modal-row {
+    .mr {
         grid-template-columns: 1fr;
     }
     .type-toggle {
         flex-wrap: wrap;
     }
 }
-
-@media (max-width: 480px) {
-    .stats-grid {
-        grid-template-columns: 1fr 1fr;
-    }
+@media (max-width: 400px) {
     .bank-grid {
         grid-template-columns: 1fr;
     }
-    .pb-right {
+    .hero-right {
         flex-direction: column;
-        gap: 16px;
+        gap: 14px;
     }
-    .pb-divider {
+    .hero-divider {
         display: none;
     }
 }

@@ -4,42 +4,35 @@ namespace App\Http\Controllers\Payments;
 
 use App\Http\Controllers\Controller;
 use App\Models\BankDetail;
-use App\Models\Client;
 use App\Models\User;
 use Illuminate\Http\Request;
 
 class HouseholdPayoutController extends Controller
 {
     // GET /api/households
-    // Returns all households that belong to the logged-in client's watch group.
-    // The Vue page uses this to show the household breakdown table and active/pending/failed counts.
     public function households(Request $request)
     {
-        $user   = $request->user();
-        $client = Client::where('user_id', $user->id)->firstOrFail();
+        $user = $request->user();
 
-        // Households are users with role='household' scoped to this client.
-        // We join through subscriptions so we can surface payment status per household.
+        // Households belong to this client via subscriptions.client_id = user.id
         $households = User::where('role', 'household')
-            ->whereHas('subscription', function ($q) use ($client) {
-                $q->where('client_id', $client->id);
+            ->whereHas('subscription', function ($q) use ($user) {
+                $q->where('client_id', $user->id);
             })
             ->with([
-                'subscription' => fn($q) => $q->where('client_id', $client->id)->latest(),
+                'subscription' => fn($q) => $q->where('client_id', $user->id)->latest(),
             ])
             ->orderBy('created_at', 'desc')
             ->paginate(50);
 
-        // Shape the response to match what the Vue table expects:
-        // { id, name, address, status, created_at }
         $mapped = $households->through(function (User $hh) {
             $sub    = $hh->subscription;
             $status = match (true) {
-                $sub === null                        => 'pending',
-                $sub->status === 'active'            => 'active',
-                $sub->status === 'past_due'          => 'failed',
-                $sub->status === 'cancelled'         => 'failed',
-                default                              => 'pending',
+                $sub === null                 => 'pending',
+                $sub->status === 'active'     => 'active',
+                $sub->status === 'past_due'   => 'failed',
+                $sub->status === 'cancelled'  => 'failed',
+                default                       => 'pending',
             };
 
             return [
@@ -61,20 +54,15 @@ class HouseholdPayoutController extends Controller
     // GET /api/bank-details
     public function show(Request $request)
     {
-        $user   = $request->user();
-        $client = Client::where('user_id', $user->id)->firstOrFail();
-
-        $bankDetails = BankDetail::where('client_id', $client->id)->first();
-
+        $user        = $request->user();
+        $bankDetails = BankDetail::where('client_id', $user->id)->first();
         return response()->json(['bank_details' => $bankDetails]);
     }
 
     // POST /api/bank-details
-    // Creates or updates (upserts) bank details for the logged-in client.
     public function store(Request $request)
     {
-        $user   = $request->user();
-        $client = Client::where('user_id', $user->id)->firstOrFail();
+        $user = $request->user();
 
         $validated = $request->validate([
             'bank_name'      => 'required|string|max:100',
@@ -85,7 +73,7 @@ class HouseholdPayoutController extends Controller
         ]);
 
         $bankDetails = BankDetail::updateOrCreate(
-            ['client_id' => $client->id],
+            ['client_id' => $user->id],
             $validated,
         );
 

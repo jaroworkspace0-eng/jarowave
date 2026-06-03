@@ -15,14 +15,13 @@ class EarningController extends Controller
         $user = $request->user();
 
         if ($user->role === 'admin') {
-            $earnings = Earning::with(['client.user', 'resident', 'payment'])
+            $earnings = Earning::with(['client', 'resident', 'payment'])
                 ->orderBy('created_at', 'desc')
                 ->paginate(20);
         } else {
-            $client = Client::where('user_id', $user->id)->firstOrFail();
-
+            // earnings.client_id = users.id (the watch group owner's user id directly)
             $earnings = Earning::with(['resident', 'payment'])
-                ->where('client_id', $client->id)
+                ->where('client_id', $user->id)
                 ->orderBy('created_at', 'desc')
                 ->paginate(20);
         }
@@ -33,19 +32,22 @@ class EarningController extends Controller
     // GET /api/earnings/summary
     public function summary(Request $request)
     {
-        $user   = $request->user();
-        $client = Client::where('user_id', $user->id)->firstOrFail();
+        $user = $request->user();
 
-        $earnings = Earning::where('client_id', $client->id);
+        // earnings.client_id stores the user.id of the watch group owner directly
+        $q = Earning::where('client_id', $user->id);
 
+        // Amounts stored in cents (8000 = R80.00) — divide by 100 for rands
         return response()->json([
             'summary' => [
-                // Raw numeric values — Vue's formatRands() adds the R prefix
-                'pending_amount'  => (float) $earnings->clone()->where('status', 'pending')->sum('earned_amount'),
-                'paid_amount'     => (float) $earnings->clone()->where('status', 'paid')->sum('earned_amount'),
-                'total_earned'    => (float) $earnings->clone()->sum('earned_amount'),
-                'total_residents' => $earnings->clone()->distinct('resident_id')->count('resident_id'),
-                'pending_count'   => $earnings->clone()->where('status', 'pending')->count(),
+                'pending_amount'     => round($q->clone()->where('status', 'pending')->sum('earned_amount') / 100, 2),
+                'paid_amount'        => round($q->clone()->where('status', 'paid')->sum('earned_amount') / 100, 2),
+                'total_earned'       => round($q->clone()->sum('earned_amount') / 100, 2),
+                'platform_collected' => round($q->clone()->sum('platform_amount') / 100, 2),
+                'total_residents'    => $q->clone()->distinct('resident_id')->count('resident_id'),
+                'pending_count'      => $q->clone()->where('status', 'pending')->count(),
+                'paid_count'         => $q->clone()->where('status', 'paid')->count(),
+                'commission_rate'    => (int) ($q->clone()->value('commission_percentage') ?? 60),
             ],
         ]);
     }
@@ -54,20 +56,15 @@ class EarningController extends Controller
     public function show(Earning $earning)
     {
         $this->authorise($earning);
-
         return response()->json([
-            'earning' => $earning->load(['client.user', 'resident', 'payment']),
+            'earning' => $earning->load(['resident', 'payment']),
         ]);
     }
 
     private function authorise(Earning $earning): void
     {
         $user = auth()->user();
-
         if ($user->role === 'admin') return;
-
-        $client = Client::where('user_id', $user->id)->firstOrFail();
-
-        abort_if($earning->client_id !== $client->id, 403, 'Unauthorised');
+        abort_if($earning->client_id !== $user->id, 403, 'Unauthorised');
     }
 }
