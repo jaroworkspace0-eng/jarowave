@@ -30,7 +30,7 @@ class EarningController extends Controller
         return response()->json(['earnings' => $earnings]);
     }
 
-    // GET /api/earnings/summary — totals for the dashboard widget
+    // GET /api/earnings/summary
     public function summary(Request $request)
     {
         $user   = $request->user();
@@ -40,11 +40,12 @@ class EarningController extends Controller
 
         return response()->json([
             'summary' => [
-                'pending_amount'    => 'R' . number_format($earnings->clone()->where('status', 'pending')->sum('earned_amount') / 100, 2),
-                'paid_amount'       => 'R' . number_format($earnings->clone()->where('status', 'paid')->sum('earned_amount') / 100, 2),
-                'total_earned'      => 'R' . number_format($earnings->clone()->sum('earned_amount') / 100, 2),
-                'total_residents'   => $earnings->clone()->distinct('resident_id')->count('resident_id'),
-                'pending_count'     => $earnings->clone()->where('status', 'pending')->count(),
+                // Raw numeric values — Vue's formatRands() adds the R prefix
+                'pending_amount'  => (float) $earnings->clone()->where('status', 'pending')->sum('earned_amount'),
+                'paid_amount'     => (float) $earnings->clone()->where('status', 'paid')->sum('earned_amount'),
+                'total_earned'    => (float) $earnings->clone()->sum('earned_amount'),
+                'total_residents' => $earnings->clone()->distinct('resident_id')->count('resident_id'),
+                'pending_count'   => $earnings->clone()->where('status', 'pending')->count(),
             ],
         ]);
     }
@@ -59,7 +60,6 @@ class EarningController extends Controller
         ]);
     }
 
-    // Private
     private function authorise(Earning $earning): void
     {
         $user = auth()->user();

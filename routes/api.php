@@ -26,6 +26,7 @@ use App\Http\Controllers\InviteController;
 use App\Http\Controllers\LiveKitController;
 use App\Http\Controllers\PatrolController;
 use App\Http\Controllers\Payments\EarningController;
+use App\Http\Controllers\Payments\HouseholdPayoutController;
 use App\Http\Controllers\Payments\InvoiceController;
 use App\Http\Controllers\Payments\OzowRecoveryWebhookController;
 use App\Http\Controllers\Payments\OzowWebhookController;
@@ -33,6 +34,7 @@ use App\Http\Controllers\Payments\PayfastRecoveryWebhookController;
 use App\Http\Controllers\Payments\PayfastWebhookController;
 use App\Http\Controllers\Payments\PaymentController;
 use App\Http\Controllers\Payments\PaymentRecoveryController;
+use App\Http\Controllers\Payments\PayoutController;
 use App\Http\Controllers\Payments\SubscriptionController;
 use App\Http\Controllers\Payments\SubscriptionPaymentController;
 use App\Http\Controllers\SearchController;
@@ -438,6 +440,17 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/earnings',          [EarningController::class, 'index']);
     Route::get('/earnings/summary',  [EarningController::class, 'summary']);
     Route::get('/earnings/{earning}', [EarningController::class, 'show']);
+
+
+    // Payouts — CPF agent's monthly payout history
+    Route::get('/payouts', [PayoutController::class, 'index']);
+    
+    // Households — scoped to the logged-in client (for the payout breakdown table)
+    Route::get('/households', [HouseholdPayoutController::class, 'households']);
+    
+    // Bank details — view and save
+    Route::get('/bank-details',  [HouseholdPayoutController::class, 'show']);
+    Route::post('/bank-details', [HouseholdPayoutController::class, 'store']);
 
 
     Route::post('/payments/initiate', [PaymentController::class, 'initiate']);
