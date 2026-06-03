@@ -266,7 +266,7 @@ const statusColour = (s: string) =>
                     <div class="stat-card">
                         <div class="sc-top">
                             <Hourglass :size="18" stroke-width="2" />
-                            <span class="sc-badge orange">pending</span>
+                            <span class="sc-badge orange">trialing</span>
                         </div>
                         <div class="sc-val">{{ pendingHouseholds.length }}</div>
                         <div class="sc-lbl">Pending Payment</div>
@@ -307,14 +307,12 @@ const statusColour = (s: string) =>
                 <!-- ── HOUSEHOLD BREAKDOWN ───────────────────────────────── -->
                 <div class="card" v-if="households.length">
                     <div class="card-head">
-                        <div class="card-title">
-                            <House :size="16" stroke-width="2" />
-                            Household Breakdown
-                        </div>
+                        <div class="card-title">Household Breakdown</div>
                         <div class="legend">
                             <span class="leg green">● Active</span>
-                            <span class="leg orange">● Pending</span>
+                            <span class="leg orange">● Trialing</span>
                             <span class="leg red">● Failed</span>
+                            <span class="leg grey">● Cancelled</span>
                         </div>
                     </div>
                     <div class="table-wrap">
@@ -326,7 +324,7 @@ const statusColour = (s: string) =>
                                     <th>Monthly Fee</th>
                                     <th>Your Share ({{ commissionRate }}%)</th>
                                     <th>Joined</th>
-                                    <th>Status</th>
+                                    <th>Subscription</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -348,7 +346,11 @@ const statusColour = (s: string) =>
                                                 'badge',
                                                 statusColour(hh.status),
                                             ]"
-                                            >{{ hh.status }}</span
+                                            >{{
+                                                hh.status === 'pending'
+                                                    ? 'trialing'
+                                                    : hh.status
+                                            }}</span
                                         >
                                     </td>
                                 </tr>
@@ -879,6 +881,9 @@ const statusColour = (s: string) =>
 }
 .leg.red {
     color: #dc2626;
+}
+.leg.grey {
+    color: #888888;
 }
 
 /* ── Tables ─────────────────────────────────────────────────── */
