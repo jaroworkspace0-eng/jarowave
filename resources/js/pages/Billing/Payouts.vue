@@ -6,25 +6,114 @@ import {
     BadgeCheck,
     Banknote,
     Calendar,
+    ChevronLeft,
+    ChevronRight,
     CircleDollarSign,
+    Download,
     FileWarning,
+    Filter,
     Hourglass,
     House,
     HouseIcon,
     Percent,
     TrendingUp,
+    X,
 } from 'lucide-vue-next';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
+
+// ── Types ──────────────────────────────────────────────────────────────────
+interface Summary {
+    pending_amount: number;
+    paid_amount: number;
+    withheld_amount: number;
+    total_earned: number;
+    platform_collected: number;
+    pending_count: number;
+    paid_count: number;
+    total_count: number;
+    total_residents: number;
+    commission_rate: number;
+    alltime_earned: number;
+    alltime_paid: number;
+    alltime_pending: number;
+}
+
+interface Earning {
+    id: number;
+    household_name: string;
+    household_address: string;
+    resident_amount: number;
+    earned_amount: number;
+    platform_amount: number;
+    commission_percentage: number;
+    status: string;
+    period_start: string | null;
+    period_end: string | null;
+    payout_at: string | null;
+    payout_reference: string | null;
+    created_at: string | null;
+}
+
+interface Payout {
+    id: number;
+    reference: string | null;
+    period_start: string | null;
+    period_end: string | null;
+    household_count: number;
+    gross_amount: number;
+    platform_fee: number;
+    net_amount: number;
+    status: string;
+    paid_at: string | null;
+    transfer_reference: string | null;
+}
+
+interface PaginatedResponse<T> {
+    data: T[];
+    current_page: number;
+    last_page: number;
+    per_page: number;
+    total: number;
+    from: number;
+    to: number;
+}
 
 // ── State ──────────────────────────────────────────────────────────────────
-const summary = ref<any>(null);
-const payouts = ref<any[]>([]);
+const summary = ref<Summary | null>(null);
+const earnings = ref<PaginatedResponse<Earning> | null>(null);
+const payouts = ref<PaginatedResponse<Payout> | null>(null);
 const households = ref<any[]>([]);
 const bankDetails = ref<any>(null);
-const isLoading = ref(true);
+
+const isLoadingInit = ref(true);
+const isLoadingEarnings = ref(false);
+const isLoadingPayouts = ref(false);
 const isSavingBank = ref(false);
+const isExporting = ref(false);
+
 const showBankModal = ref(false);
+const activeTab = ref<'earnings' | 'payouts'>('earnings');
 const flash = ref<{ msg: string; type: 'success' | 'error' } | null>(null);
+
+// ── Filters ────────────────────────────────────────────────────────────────
+const now = new Date();
+
+const earningsFilter = reactive({
+    month: String(now.getMonth() + 1),
+    year: String(now.getFullYear()),
+    status: '',
+    resident_id: '',
+    per_page: 20,
+    page: 1,
+});
+
+const payoutsFilter = reactive({
+    month: String(now.getMonth() + 1),
+    year: String(now.getFullYear()),
+    status: '',
+    per_page: 20,
+    page: 1,
+});
 
 const bankForm = ref({
     bank_name: '',
@@ -34,7 +123,9 @@ const bankForm = ref({
     branch_code: '',
 });
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────
+const API = import.meta.env.VITE_APP_URL;
+
 const getHeaders = () => ({
     headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
 });
@@ -44,7 +135,15 @@ const showFlash = (msg: string, type: 'success' | 'error' = 'success') => {
     setTimeout(() => (flash.value = null), 5000);
 };
 
-const formatDate = (d: string) =>
+const fmt = (val: number | string | null | undefined) =>
+    val != null
+        ? `R\u202f${Number(val).toLocaleString('en-ZA', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+          })}`
+        : '—';
+
+const fmtDate = (d: string | null | undefined) =>
     d
         ? new Date(d).toLocaleDateString('en-ZA', {
               day: 'numeric',
@@ -53,15 +152,39 @@ const formatDate = (d: string) =>
           })
         : '—';
 
-// Server already returns rands (after /100). Just format with R prefix.
-const fmt = (val: number | string | null | undefined) =>
-    val != null
-        ? `R${Number(val).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-        : '—';
+const MONTHS = [
+    { v: '', l: 'All months' },
+    { v: '1', l: 'January' },
+    { v: '2', l: 'February' },
+    { v: '3', l: 'March' },
+    { v: '4', l: 'April' },
+    { v: '5', l: 'May' },
+    { v: '6', l: 'June' },
+    { v: '7', l: 'July' },
+    { v: '8', l: 'August' },
+    { v: '9', l: 'September' },
+    { v: '10', l: 'October' },
+    { v: '11', l: 'November' },
+    { v: '12', l: 'December' },
+];
 
-// ── Computed ─────────────────────────────────────────────────────────────────
+const YEARS = Array.from({ length: 5 }, (_, i) =>
+    String(now.getFullYear() - i),
+);
+
+const statusColour = (s: string) =>
+    ({
+        paid: 'green',
+        active: 'green',
+        pending: 'orange',
+        trialing: 'orange',
+        failed: 'red',
+        withheld: 'red',
+        cancelled: 'grey',
+    })[s] ?? 'grey';
+
+// ── Computed ───────────────────────────────────────────────────────────────
 const nextPayoutDate = computed(() => {
-    const now = new Date();
     const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     return next.toLocaleDateString('en-ZA', {
         day: 'numeric',
@@ -69,6 +192,11 @@ const nextPayoutDate = computed(() => {
         year: 'numeric',
     });
 });
+
+const commissionRate = computed(() => summary.value?.commission_rate ?? 60);
+const perHouseholdEarning = computed(() =>
+    ((80 * commissionRate.value) / 100).toFixed(2),
+);
 
 const activeHouseholds = computed(() =>
     households.value.filter((h) => h.status === 'active'),
@@ -80,37 +208,76 @@ const failedHouseholds = computed(() =>
     households.value.filter((h) => h.status === 'failed'),
 );
 
-const commissionRate = computed(() => summary.value?.commission_rate ?? 60);
-const perHouseholdEarning = computed(() => {
-    // R80 * commission_rate / 100
-    return ((80 * commissionRate.value) / 100).toFixed(2);
+const earningsFilterLabel = computed(() => {
+    const m = MONTHS.find((x) => x.v === earningsFilter.month)?.l ?? '';
+    return [m, earningsFilter.year].filter(Boolean).join(' ');
 });
 
-// ── Data Fetching ─────────────────────────────────────────────────────────────
+const hasActiveEarningsFilter = computed(
+    () =>
+        earningsFilter.month !== String(now.getMonth() + 1) ||
+        earningsFilter.year !== String(now.getFullYear()) ||
+        earningsFilter.status !== '' ||
+        earningsFilter.resident_id !== '',
+);
+
+// ── Data Fetching ──────────────────────────────────────────────────────────
+const buildParams = (f: Record<string, any>) => {
+    const p: Record<string, any> = {};
+    Object.entries(f).forEach(([k, v]) => {
+        if (v !== '') p[k] = v;
+    });
+    return p;
+};
+
+const fetchSummary = async () => {
+    const params = buildParams({
+        month: earningsFilter.month,
+        year: earningsFilter.year,
+        status: earningsFilter.status,
+        resident_id: earningsFilter.resident_id,
+    });
+    const { data } = await axios.get(`${API}/api/earnings/summary`, {
+        ...getHeaders(),
+        params,
+    });
+    summary.value = data.summary;
+};
+
+const fetchEarnings = async () => {
+    isLoadingEarnings.value = true;
+    try {
+        const params = buildParams({ ...earningsFilter });
+        const { data } = await axios.get(`${API}/api/earnings`, {
+            ...getHeaders(),
+            params,
+        });
+        earnings.value = data.earnings;
+    } finally {
+        isLoadingEarnings.value = false;
+    }
+};
+
+const fetchPayouts = async () => {
+    isLoadingPayouts.value = true;
+    try {
+        const params = buildParams({ ...payoutsFilter });
+        const { data } = await axios.get(`${API}/api/payouts`, {
+            ...getHeaders(),
+            params,
+        });
+        payouts.value = data.payouts;
+    } finally {
+        isLoadingPayouts.value = false;
+    }
+};
+
 onMounted(async () => {
     try {
-        const [summaryRes, payoutsRes, householdsRes, bankRes] =
-            await Promise.all([
-                axios.get(
-                    `${import.meta.env.VITE_APP_URL}/api/earnings/summary`,
-                    getHeaders(),
-                ),
-                axios.get(
-                    `${import.meta.env.VITE_APP_URL}/api/payouts`,
-                    getHeaders(),
-                ),
-                axios.get(
-                    `${import.meta.env.VITE_APP_URL}/api/households`,
-                    getHeaders(),
-                ),
-                axios.get(
-                    `${import.meta.env.VITE_APP_URL}/api/bank-details`,
-                    getHeaders(),
-                ),
-            ]);
-
-        summary.value = summaryRes.data.summary;
-        payouts.value = payoutsRes.data.payouts?.data ?? [];
+        const [householdsRes, bankRes] = await Promise.all([
+            axios.get(`${API}/api/households`, getHeaders()),
+            axios.get(`${API}/api/bank-details`, getHeaders()),
+        ]);
         households.value = householdsRes.data.households?.data ?? [];
         bankDetails.value = bankRes.data.bank_details ?? null;
 
@@ -123,6 +290,8 @@ onMounted(async () => {
                 branch_code: bankDetails.value.branch_code ?? '',
             };
         }
+
+        await Promise.all([fetchSummary(), fetchEarnings(), fetchPayouts()]);
     } catch (err: any) {
         if (err.response?.status === 401) {
             router.visit('/login');
@@ -130,16 +299,112 @@ onMounted(async () => {
         }
         console.error('Failed to load payout data', err);
     } finally {
-        isLoading.value = false;
+        isLoadingInit.value = false;
     }
 });
 
-// ── Save Bank Details ─────────────────────────────────────────────────────────
-const saveBankDetails = async () => {
+// ── Filter watchers ────────────────────────────────────────────────────────
+watch(
+    () => ({ ...earningsFilter }),
+    () => {
+        earningsFilter.page = 1;
+        fetchSummary();
+        fetchEarnings();
+    },
+    { deep: true },
+);
+
+watch(
+    () => ({ ...payoutsFilter }),
+    () => {
+        payoutsFilter.page = 1;
+        fetchPayouts();
+    },
+    { deep: true },
+);
+
+// Pause deep watcher on page change to avoid double-fetch
+const goEarningsPage = (p: number) => {
+    earningsFilter.page = p;
+    fetchEarnings();
+};
+const goPayoutsPage = (p: number) => {
+    payoutsFilter.page = p;
+    fetchPayouts();
+};
+
+const resetEarningsFilters = () => {
+    Object.assign(earningsFilter, {
+        month: String(now.getMonth() + 1),
+        year: String(now.getFullYear()),
+        status: '',
+        resident_id: '',
+        page: 1,
+    });
+};
+
+// ── Export ─────────────────────────────────────────────────────────────────
+const exportEarnings = async () => {
+    isExporting.value = true;
     try {
-        isSavingBank.value = true;
+        const params = buildParams({
+            month: earningsFilter.month,
+            year: earningsFilter.year,
+            status: earningsFilter.status,
+            resident_id: earningsFilter.resident_id,
+        });
+        const qs = new URLSearchParams(params).toString();
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API}/api/earnings/export?${qs}`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `earnings-${earningsFilter.year}${earningsFilter.month ? '-' + earningsFilter.month.padStart(2, '0') : ''}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch {
+        showFlash('Failed to export CSV.', 'error');
+    } finally {
+        isExporting.value = false;
+    }
+};
+
+const exportPayouts = async () => {
+    isExporting.value = true;
+    try {
+        const params = buildParams({
+            month: payoutsFilter.month,
+            year: payoutsFilter.year,
+            status: payoutsFilter.status,
+        });
+        const qs = new URLSearchParams(params).toString();
+        const token = localStorage.getItem('token');
+        const res = await fetch(`${API}/api/payouts/export?${qs}`, {
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `payouts-${payoutsFilter.year}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+    } catch {
+        showFlash('Failed to export CSV.', 'error');
+    } finally {
+        isExporting.value = false;
+    }
+};
+
+// ── Save Bank Details ──────────────────────────────────────────────────────
+const saveBankDetails = async () => {
+    isSavingBank.value = true;
+    try {
         const { data } = await axios.post(
-            `${import.meta.env.VITE_APP_URL}/api/bank-details`,
+            `${API}/api/bank-details`,
             bankForm.value,
             getHeaders(),
         );
@@ -155,15 +420,6 @@ const saveBankDetails = async () => {
         isSavingBank.value = false;
     }
 };
-
-const statusColour = (s: string) =>
-    ({
-        paid: 'green',
-        pending: 'orange',
-        failed: 'red',
-        active: 'green',
-        cancelled: 'gray',
-    })[s] ?? 'gray';
 </script>
 
 <template>
@@ -171,7 +427,7 @@ const statusColour = (s: string) =>
     <AppLayout>
         <div class="po-root">
             <!-- LOADING -->
-            <div v-if="isLoading" class="po-loading">
+            <div v-if="isLoadingInit" class="po-loading">
                 <div class="spinner"></div>
                 <p>Loading payout data…</p>
             </div>
@@ -182,8 +438,8 @@ const statusColour = (s: string) =>
                     <div>
                         <h1 class="po-title">Payouts</h1>
                         <p class="po-sub">
-                            Monthly earnings from active households · paid on
-                            the 1st
+                            Monthly earnings from active households · disbursed
+                            on the 1st
                         </p>
                     </div>
                 </div>
@@ -193,7 +449,7 @@ const statusColour = (s: string) =>
                     {{ flash.type === 'success' ? '✓' : '⚠' }} {{ flash.msg }}
                 </div>
 
-                <!-- ── HERO BANNER ───────────────────────────────────────── -->
+                <!-- ── HERO BANNER ─────────────────────────────────────── -->
                 <div class="hero-banner">
                     <div class="hero-left">
                         <div class="hero-eyebrow">
@@ -204,7 +460,7 @@ const statusColour = (s: string) =>
                             {{
                                 summary?.pending_amount
                                     ? fmt(summary.pending_amount)
-                                    : 'R0.00'
+                                    : 'R\u202f0.00'
                             }}
                         </div>
                         <div class="hero-sub">
@@ -214,8 +470,6 @@ const statusColour = (s: string) =>
                             }}
                             pending
                         </div>
-
-                        <!-- mini earning formula -->
                         <div class="hero-formula">
                             <span class="formula-pill">R80 / household</span>
                             <span class="formula-op">×</span>
@@ -228,18 +482,17 @@ const statusColour = (s: string) =>
                             >
                         </div>
                     </div>
-
                     <div class="hero-right">
                         <div class="hero-stat">
                             <div class="hs-val">
-                                {{ fmt(summary?.total_earned) }}
+                                {{ fmt(summary?.alltime_earned) }}
                             </div>
                             <div class="hs-lbl">Lifetime earned</div>
                         </div>
                         <div class="hero-divider"></div>
                         <div class="hero-stat">
                             <div class="hs-val">
-                                {{ fmt(summary?.paid_amount) }}
+                                {{ fmt(summary?.alltime_paid) }}
                             </div>
                             <div class="hs-lbl">Total paid out</div>
                         </div>
@@ -253,28 +506,34 @@ const statusColour = (s: string) =>
                     </div>
                 </div>
 
-                <!-- ── STAT CARDS ────────────────────────────────────────── -->
+                <!-- ── STAT CARDS ──────────────────────────────────────── -->
                 <div class="stat-row">
                     <div class="stat-card">
                         <div class="sc-top">
-                            <House :size="18" stroke-width="2" />
-                            <span class="sc-badge green">active</span>
+                            <House :size="18" stroke-width="2" /><span
+                                class="sc-badge green"
+                                >active</span
+                            >
                         </div>
                         <div class="sc-val">{{ activeHouseholds.length }}</div>
                         <div class="sc-lbl">Active Households</div>
                     </div>
                     <div class="stat-card">
                         <div class="sc-top">
-                            <Hourglass :size="18" stroke-width="2" />
-                            <span class="sc-badge orange">trialing</span>
+                            <Hourglass :size="18" stroke-width="2" /><span
+                                class="sc-badge orange"
+                                >trialing</span
+                            >
                         </div>
                         <div class="sc-val">{{ pendingHouseholds.length }}</div>
                         <div class="sc-lbl">Pending Payment</div>
                     </div>
                     <div class="stat-card">
                         <div class="sc-top">
-                            <FileWarning :size="18" stroke-width="2" />
-                            <span class="sc-badge red">failed</span>
+                            <FileWarning :size="18" stroke-width="2" /><span
+                                class="sc-badge red"
+                                >failed</span
+                            >
                         </div>
                         <div class="sc-val">{{ failedHouseholds.length }}</div>
                         <div class="sc-lbl">Failed Payment</div>
@@ -304,10 +563,404 @@ const statusColour = (s: string) =>
                     </div>
                 </div>
 
-                <!-- ── HOUSEHOLD BREAKDOWN ───────────────────────────────── -->
+                <!-- ── TABS ────────────────────────────────────────────── -->
+                <div class="tabs">
+                    <button
+                        :class="['tab', { active: activeTab === 'earnings' }]"
+                        @click="activeTab = 'earnings'"
+                    >
+                        <CircleDollarSign :size="14" stroke-width="2" />
+                        Earnings
+                        <span v-if="earnings?.total" class="tab-count">{{
+                            earnings.total
+                        }}</span>
+                    </button>
+                    <button
+                        :class="['tab', { active: activeTab === 'payouts' }]"
+                        @click="activeTab = 'payouts'"
+                    >
+                        <Banknote :size="14" stroke-width="2" />
+                        Payout History
+                        <span v-if="payouts?.total" class="tab-count">{{
+                            payouts.total
+                        }}</span>
+                    </button>
+                </div>
+
+                <!-- ══════════════════════════════════════════════════════ -->
+                <!-- EARNINGS TAB                                           -->
+                <!-- ══════════════════════════════════════════════════════ -->
+                <div v-if="activeTab === 'earnings'" class="card">
+                    <!-- Filter bar -->
+                    <div class="filter-bar">
+                        <div class="filter-bar-left">
+                            <Filter
+                                :size="14"
+                                stroke-width="2"
+                                class="filter-icon"
+                            />
+                            <select class="fsel" v-model="earningsFilter.month">
+                                <option
+                                    v-for="m in MONTHS"
+                                    :key="m.v"
+                                    :value="m.v"
+                                >
+                                    {{ m.l }}
+                                </option>
+                            </select>
+                            <select class="fsel" v-model="earningsFilter.year">
+                                <option v-for="y in YEARS" :key="y" :value="y">
+                                    {{ y }}
+                                </option>
+                            </select>
+                            <select
+                                class="fsel"
+                                v-model="earningsFilter.status"
+                            >
+                                <option value="">All statuses</option>
+                                <option value="pending">Pending</option>
+                                <option value="paid">Paid</option>
+                                <option value="withheld">Withheld</option>
+                            </select>
+                            <select
+                                class="fsel"
+                                v-model="earningsFilter.resident_id"
+                            >
+                                <option value="">All households</option>
+                                <option
+                                    v-for="hh in households"
+                                    :key="hh.id"
+                                    :value="hh.id"
+                                >
+                                    {{ hh.name }}
+                                </option>
+                            </select>
+                            <button
+                                v-if="hasActiveEarningsFilter"
+                                class="btn-reset"
+                                @click="resetEarningsFilters"
+                            >
+                                <X :size="12" stroke-width="2.5" /> Reset
+                            </button>
+                        </div>
+                        <div class="filter-bar-right">
+                            <!-- Filtered summary pills -->
+                            <span class="sum-pill">
+                                <span class="sum-dot orange"></span>
+                                Pending:
+                                <strong>{{
+                                    fmt(summary?.pending_amount)
+                                }}</strong>
+                            </span>
+                            <span class="sum-pill">
+                                <span class="sum-dot green"></span>
+                                Paid:
+                                <strong>{{ fmt(summary?.paid_amount) }}</strong>
+                            </span>
+                            <button
+                                class="btn-export"
+                                @click="exportEarnings"
+                                :disabled="isExporting"
+                            >
+                                <Download :size="13" stroke-width="2" />
+                                {{ isExporting ? 'Exporting…' : 'CSV' }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Table -->
+                    <div class="table-wrap">
+                        <div v-if="isLoadingEarnings" class="table-loading">
+                            <div class="spinner sm"></div>
+                        </div>
+                        <table v-else class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Household</th>
+                                    <th>Address</th>
+                                    <th>Period</th>
+                                    <th>Resident Paid</th>
+                                    <th>Your Share ({{ commissionRate }}%)</th>
+                                    <th>Platform Fee</th>
+                                    <th>Status</th>
+                                    <th>Paid On</th>
+                                    <th>Payout Ref</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-if="!earnings?.data?.length">
+                                    <td colspan="9" class="empty-row">
+                                        No earnings found for
+                                        <strong>{{
+                                            earningsFilterLabel || 'this period'
+                                        }}</strong>
+                                    </td>
+                                </tr>
+                                <tr v-for="e in earnings?.data" :key="e.id">
+                                    <td class="fw6">{{ e.household_name }}</td>
+                                    <td class="muted small">
+                                        {{ e.household_address || '—' }}
+                                    </td>
+                                    <td class="small muted nowrap">
+                                        {{ fmtDate(e.period_start) }}
+                                        <span class="arrow">→</span>
+                                        {{ fmtDate(e.period_end) }}
+                                    </td>
+                                    <td class="muted">
+                                        {{ fmt(e.resident_amount) }}
+                                    </td>
+                                    <td class="fw7 green-text">
+                                        {{ fmt(e.earned_amount) }}
+                                    </td>
+                                    <td class="red-text small">
+                                        {{ fmt(e.platform_amount) }}
+                                    </td>
+                                    <td>
+                                        <span
+                                            :class="[
+                                                'badge',
+                                                statusColour(e.status),
+                                            ]"
+                                            >{{ e.status }}</span
+                                        >
+                                    </td>
+                                    <td class="muted small">
+                                        {{ fmtDate(e.payout_at) }}
+                                    </td>
+                                    <td class="mono small muted">
+                                        {{ e.payout_reference ?? '—' }}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div
+                        v-if="earnings && earnings.last_page > 1"
+                        class="pagination"
+                    >
+                        <span class="page-info">
+                            Showing {{ earnings.from }}–{{ earnings.to }} of
+                            {{ earnings.total }}
+                        </span>
+                        <div class="page-btns">
+                            <button
+                                class="pg-btn"
+                                :disabled="earnings.current_page === 1"
+                                @click="
+                                    goEarningsPage(earnings!.current_page - 1)
+                                "
+                            >
+                                <ChevronLeft :size="14" />
+                            </button>
+                            <template v-for="p in earnings.last_page" :key="p">
+                                <button
+                                    v-if="
+                                        p <= 3 ||
+                                        p > earnings.last_page - 2 ||
+                                        Math.abs(p - earnings.current_page) <= 1
+                                    "
+                                    :class="[
+                                        'pg-btn',
+                                        { active: p === earnings.current_page },
+                                    ]"
+                                    @click="goEarningsPage(p)"
+                                >
+                                    {{ p }}
+                                </button>
+                                <span
+                                    v-else-if="
+                                        p === 4 && earnings.current_page > 5
+                                    "
+                                    class="pg-ellipsis"
+                                    >…</span
+                                >
+                            </template>
+                            <button
+                                class="pg-btn"
+                                :disabled="
+                                    earnings.current_page === earnings.last_page
+                                "
+                                @click="
+                                    goEarningsPage(earnings!.current_page + 1)
+                                "
+                            >
+                                <ChevronRight :size="14" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ══════════════════════════════════════════════════════ -->
+                <!-- PAYOUTS TAB                                            -->
+                <!-- ══════════════════════════════════════════════════════ -->
+                <div v-if="activeTab === 'payouts'" class="card">
+                    <!-- Filter bar -->
+                    <div class="filter-bar">
+                        <div class="filter-bar-left">
+                            <Filter
+                                :size="14"
+                                stroke-width="2"
+                                class="filter-icon"
+                            />
+                            <select class="fsel" v-model="payoutsFilter.month">
+                                <option
+                                    v-for="m in MONTHS"
+                                    :key="m.v"
+                                    :value="m.v"
+                                >
+                                    {{ m.l }}
+                                </option>
+                            </select>
+                            <select class="fsel" v-model="payoutsFilter.year">
+                                <option v-for="y in YEARS" :key="y" :value="y">
+                                    {{ y }}
+                                </option>
+                            </select>
+                            <select class="fsel" v-model="payoutsFilter.status">
+                                <option value="">All statuses</option>
+                                <option value="pending">Pending</option>
+                                <option value="paid">Paid</option>
+                                <option value="failed">Failed</option>
+                            </select>
+                        </div>
+                        <div class="filter-bar-right">
+                            <button
+                                class="btn-export"
+                                @click="exportPayouts"
+                                :disabled="isExporting"
+                            >
+                                <Download :size="13" stroke-width="2" />
+                                {{ isExporting ? 'Exporting…' : 'CSV' }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Table -->
+                    <div class="table-wrap">
+                        <div v-if="isLoadingPayouts" class="table-loading">
+                            <div class="spinner sm"></div>
+                        </div>
+                        <table v-else class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Reference</th>
+                                    <th>Period</th>
+                                    <th>Households</th>
+                                    <th>Gross</th>
+                                    <th>Platform Fee</th>
+                                    <th>Your Payout</th>
+                                    <th>Paid On</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-if="!payouts?.data?.length">
+                                    <td colspan="8" class="empty-row">
+                                        No payout records found for this period.
+                                    </td>
+                                </tr>
+                                <tr v-for="p in payouts?.data" :key="p.id">
+                                    <td class="mono small">
+                                        {{ p.reference ?? '—' }}
+                                    </td>
+                                    <td class="muted small nowrap">
+                                        {{ fmtDate(p.period_start)
+                                        }}<span class="arrow">→</span
+                                        >{{ fmtDate(p.period_end) }}
+                                    </td>
+                                    <td>{{ p.household_count ?? '—' }}</td>
+                                    <td class="muted">
+                                        {{ fmt(p.gross_amount) }}
+                                    </td>
+                                    <td class="red-text small">
+                                        {{ fmt(p.platform_fee) }}
+                                    </td>
+                                    <td class="fw7 green-text">
+                                        {{ fmt(p.net_amount) }}
+                                    </td>
+                                    <td class="muted small">
+                                        {{ fmtDate(p.paid_at) }}
+                                    </td>
+                                    <td>
+                                        <span
+                                            :class="[
+                                                'badge',
+                                                statusColour(p.status),
+                                            ]"
+                                            >{{ p.status }}</span
+                                        >
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination -->
+                    <div
+                        v-if="payouts && payouts.last_page > 1"
+                        class="pagination"
+                    >
+                        <span class="page-info"
+                            >Showing {{ payouts.from }}–{{ payouts.to }} of
+                            {{ payouts.total }}</span
+                        >
+                        <div class="page-btns">
+                            <button
+                                class="pg-btn"
+                                :disabled="payouts.current_page === 1"
+                                @click="
+                                    goPayoutsPage(payouts!.current_page - 1)
+                                "
+                            >
+                                <ChevronLeft :size="14" />
+                            </button>
+                            <template v-for="p in payouts.last_page" :key="p">
+                                <button
+                                    v-if="
+                                        p <= 3 ||
+                                        p > payouts.last_page - 2 ||
+                                        Math.abs(p - payouts.current_page) <= 1
+                                    "
+                                    :class="[
+                                        'pg-btn',
+                                        { active: p === payouts.current_page },
+                                    ]"
+                                    @click="goPayoutsPage(p)"
+                                >
+                                    {{ p }}
+                                </button>
+                                <span
+                                    v-else-if="
+                                        p === 4 && payouts.current_page > 5
+                                    "
+                                    class="pg-ellipsis"
+                                    >…</span
+                                >
+                            </template>
+                            <button
+                                class="pg-btn"
+                                :disabled="
+                                    payouts.current_page === payouts.last_page
+                                "
+                                @click="
+                                    goPayoutsPage(payouts!.current_page + 1)
+                                "
+                            >
+                                <ChevronRight :size="14" />
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── HOUSEHOLD BREAKDOWN ─────────────────────────────── -->
                 <div class="card" v-if="households.length">
                     <div class="card-head">
-                        <div class="card-title">Household Breakdown</div>
+                        <div class="card-title">
+                            <HouseIcon :size="16" stroke-width="2" />
+                            Household Breakdown
+                        </div>
                         <div class="legend">
                             <span class="leg green">● Active</span>
                             <span class="leg orange">● Trialing</span>
@@ -333,25 +986,30 @@ const statusColour = (s: string) =>
                                     <td class="muted small">
                                         {{ hh.address || '—' }}
                                     </td>
-                                    <td>R80.00</td>
+                                    <td>R 80.00</td>
                                     <td class="fw7 green-text">
-                                        R{{ perHouseholdEarning }}
+                                        R {{ perHouseholdEarning }}
                                     </td>
                                     <td class="muted small">
-                                        {{ formatDate(hh.created_at) }}
+                                        {{ fmtDate(hh.created_at) }}
                                     </td>
                                     <td>
                                         <span
                                             :class="[
                                                 'badge',
-                                                statusColour(hh.status),
+                                                statusColour(
+                                                    hh.status === 'pending'
+                                                        ? 'trialing'
+                                                        : hh.status,
+                                                ),
                                             ]"
-                                            >{{
+                                        >
+                                            {{
                                                 hh.status === 'pending'
                                                     ? 'trialing'
                                                     : hh.status
-                                            }}</span
-                                        >
+                                            }}
+                                        </span>
                                     </td>
                                 </tr>
                             </tbody>
@@ -368,78 +1026,7 @@ const statusColour = (s: string) =>
                     </div>
                 </div>
 
-                <!-- ── PAYOUT HISTORY ────────────────────────────────────── -->
-                <div class="card" v-if="payouts.length">
-                    <div class="card-head">
-                        <div class="card-title">
-                            <CircleDollarSign :size="16" stroke-width="2" />
-                            Payout History
-                        </div>
-                    </div>
-                    <div class="table-wrap">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Reference</th>
-                                    <th>Period</th>
-                                    <th>Households</th>
-                                    <th>Gross</th>
-                                    <th>Platform Fee</th>
-                                    <th>Your Payout</th>
-                                    <th>Paid On</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="p in payouts" :key="p.id">
-                                    <td class="mono small">
-                                        {{ p.reference ?? '—' }}
-                                    </td>
-                                    <td class="muted small">
-                                        {{ formatDate(p.period_start) }}
-                                        <span class="arrow">→</span>
-                                        {{ formatDate(p.period_end) }}
-                                    </td>
-                                    <td>{{ p.household_count ?? '—' }}</td>
-                                    <td>{{ fmt(p.gross_amount) }}</td>
-                                    <td class="red-text">
-                                        {{ fmt(p.platform_fee) }}
-                                    </td>
-                                    <td class="fw7 green-text">
-                                        {{ fmt(p.net_amount) }}
-                                    </td>
-                                    <td class="muted small">
-                                        {{ formatDate(p.paid_at) }}
-                                    </td>
-                                    <td>
-                                        <span
-                                            :class="[
-                                                'badge',
-                                                statusColour(p.status),
-                                            ]"
-                                            >{{ p.status }}</span
-                                        >
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div v-else class="card empty-card">
-                    <CircleDollarSign
-                        :size="28"
-                        stroke-width="1.5"
-                        color="#bbb"
-                    />
-                    <div class="empty-title">No payout history yet</div>
-                    <div class="empty-desc">
-                        Your first payout will appear here after the 1st of next
-                        month.
-                    </div>
-                </div>
-
-                <!-- ── BANK DETAILS ──────────────────────────────────────── -->
+                <!-- ── BANK DETAILS ────────────────────────────────────── -->
                 <div class="card">
                     <div class="card-head">
                         <div class="card-title">
@@ -502,7 +1089,7 @@ const statusColour = (s: string) =>
                 </div>
             </template>
 
-            <!-- ── BANK MODAL ────────────────────────────────────────────── -->
+            <!-- ── BANK MODAL ──────────────────────────────────────────── -->
             <div
                 v-if="showBankModal"
                 class="modal-overlay"
@@ -616,11 +1203,11 @@ const statusColour = (s: string) =>
 </template>
 
 <style scoped>
-/* ── Root ───────────────────────────────────────────────────── */
+/* ── Root ─────────────────────────────────────────────────────────────────── */
 .po-root {
-    max-width: 1060px;
+    max-width: 1100px;
     margin: 0 auto;
-    padding: 36px 24px 64px;
+    padding: 36px 24px 80px;
     font-family: 'Segoe UI', sans-serif;
     color: #111;
 }
@@ -647,7 +1234,7 @@ const statusColour = (s: string) =>
     margin: 0;
 }
 
-/* ── Flash ──────────────────────────────────────────────────── */
+/* ── Flash ────────────────────────────────────────────────────────────────── */
 .flash {
     padding: 11px 16px;
     border-radius: 10px;
@@ -666,7 +1253,7 @@ const statusColour = (s: string) =>
     color: #dc2626;
 }
 
-/* ── Hero Banner ────────────────────────────────────────────── */
+/* ── Hero Banner ──────────────────────────────────────────────────────────── */
 .hero-banner {
     background: linear-gradient(135deg, #0f172a 0%, #1e293b 60%, #0f172a 100%);
     border-radius: 20px;
@@ -726,7 +1313,6 @@ const statusColour = (s: string) =>
 .hero-sub strong {
     color: #94a3b8;
 }
-
 .hero-formula {
     display: flex;
     align-items: center;
@@ -754,7 +1340,6 @@ const statusColour = (s: string) =>
     font-size: 13px;
     font-weight: 700;
 }
-
 .hero-right {
     display: flex;
     align-items: center;
@@ -783,7 +1368,7 @@ const statusColour = (s: string) =>
     background: rgba(255, 255, 255, 0.07);
 }
 
-/* ── Stat Row ───────────────────────────────────────────────── */
+/* ── Stat Row ─────────────────────────────────────────────────────────────── */
 .stat-row {
     display: grid;
     grid-template-columns: repeat(6, 1fr);
@@ -844,12 +1429,62 @@ const statusColour = (s: string) =>
     letter-spacing: 0.5px;
 }
 
-/* ── Cards ──────────────────────────────────────────────────── */
+/* ── Tabs ─────────────────────────────────────────────────────────────────── */
+.tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 0;
+    border-bottom: 2px solid #f0f0f0;
+    margin-bottom: -2px; /* overlap card top border */
+    position: relative;
+    z-index: 1;
+}
+.tab {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #888;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-bottom: 2.5px solid transparent;
+    margin-bottom: -2px;
+    transition:
+        color 0.15s,
+        border-color 0.15s;
+    font-family: 'Segoe UI', sans-serif;
+}
+.tab:hover {
+    color: #111;
+}
+.tab.active {
+    color: #111;
+    border-bottom-color: #f97316;
+}
+.tab-count {
+    background: #f0f0f0;
+    color: #666;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 100px;
+    min-width: 18px;
+    text-align: center;
+}
+.tab.active .tab-count {
+    background: rgba(249, 115, 22, 0.1);
+    color: #f97316;
+}
+
+/* ── Cards ────────────────────────────────────────────────────────────────── */
 .card {
     background: #fff;
     border: 1.5px solid #ebebeb;
     border-radius: 16px;
-    padding: 24px;
+    padding: 20px 24px;
     margin-bottom: 16px;
 }
 .card-head {
@@ -886,9 +1521,133 @@ const statusColour = (s: string) =>
     color: #888888;
 }
 
-/* ── Tables ─────────────────────────────────────────────────── */
+/* ── Filter Bar ───────────────────────────────────────────────────────────── */
+.filter-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    padding-bottom: 16px;
+    border-bottom: 1.5px solid #f3f3f3;
+}
+.filter-bar-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.filter-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+.filter-icon {
+    color: #bbb;
+    flex-shrink: 0;
+}
+.fsel {
+    padding: 7px 10px;
+    border: 1.5px solid #e8e8e8;
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #333;
+    background: #fff;
+    cursor: pointer;
+    outline: none;
+    font-family: 'Segoe UI', sans-serif;
+    transition: border-color 0.15s;
+}
+.fsel:hover,
+.fsel:focus {
+    border-color: #f97316;
+}
+
+.btn-reset {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 7px 11px;
+    border-radius: 9px;
+    border: 1.5px solid #ffd0b5;
+    background: rgba(249, 115, 22, 0.05);
+    color: #f97316;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Segoe UI', sans-serif;
+    transition: all 0.15s;
+}
+.btn-reset:hover {
+    background: rgba(249, 115, 22, 0.1);
+}
+
+.sum-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #555;
+    white-space: nowrap;
+}
+.sum-pill strong {
+    color: #111;
+}
+.sum-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+.sum-dot.green {
+    background: #16a34a;
+}
+.sum-dot.orange {
+    background: #f97316;
+}
+
+.btn-export {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 9px;
+    border: 1.5px solid #e0e0e0;
+    background: #fafafa;
+    color: #444;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Segoe UI', sans-serif;
+    transition: all 0.15s;
+}
+.btn-export:hover:not(:disabled) {
+    border-color: #f97316;
+    color: #f97316;
+    background: rgba(249, 115, 22, 0.04);
+}
+.btn-export:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ── Tables ───────────────────────────────────────────────────────────────── */
 .table-wrap {
     overflow-x: auto;
+    position: relative;
+    min-height: 60px;
+}
+.table-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.7);
+    z-index: 2;
 }
 .data-table {
     width: 100%;
@@ -910,12 +1669,19 @@ const statusColour = (s: string) =>
     padding: 11px 14px 11px 0;
     color: #333;
     border-bottom: 1px solid #f7f7f7;
+    vertical-align: middle;
 }
 .data-table tr:last-child td {
     border-bottom: none;
 }
+.empty-row {
+    text-align: center;
+    padding: 36px 0 !important;
+    color: #aaa;
+    font-size: 13px;
+}
 
-/* ── Badges ─────────────────────────────────────────────────── */
+/* ── Badges ───────────────────────────────────────────────────────────────── */
 .badge {
     font-size: 11px;
     font-weight: 700;
@@ -935,17 +1701,68 @@ const statusColour = (s: string) =>
     background: rgba(220, 38, 38, 0.1);
     color: #dc2626;
 }
-.badge.gray {
+.badge.grey {
     background: #f5f5f5;
     color: #888;
 }
 
-.hh-status.cancelled {
-    background: #f5f5f5;
-    color: #888;
+/* ── Pagination ───────────────────────────────────────────────────────────── */
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 16px;
+    margin-top: 4px;
+    border-top: 1.5px solid #f3f3f3;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.page-info {
+    font-size: 12px;
+    color: #999;
+}
+.page-btns {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+.pg-btn {
+    min-width: 30px;
+    height: 30px;
+    padding: 0 6px;
+    border: 1.5px solid #e8e8e8;
+    border-radius: 8px;
+    background: #fff;
+    color: #444;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'Segoe UI', sans-serif;
+    transition: all 0.15s;
+}
+.pg-btn:hover:not(:disabled) {
+    border-color: #f97316;
+    color: #f97316;
+}
+.pg-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.pg-btn.active {
+    background: #f97316;
+    border-color: #f97316;
+    color: #fff;
+}
+.pg-ellipsis {
+    font-size: 13px;
+    color: #bbb;
+    padding: 0 4px;
 }
 
-/* ── Utility ────────────────────────────────────────────────── */
+/* ── Utility ──────────────────────────────────────────────────────────────── */
 .fw6 {
     font-weight: 600;
     color: #111;
@@ -963,6 +1780,9 @@ const statusColour = (s: string) =>
     font-family: monospace;
     font-size: 12px;
 }
+.nowrap {
+    white-space: nowrap;
+}
 .green-text {
     color: #16a34a;
 }
@@ -974,7 +1794,7 @@ const statusColour = (s: string) =>
     margin: 0 4px;
 }
 
-/* ── Empty state ────────────────────────────────────────────── */
+/* ── Empty state ──────────────────────────────────────────────────────────── */
 .empty-card {
     display: flex;
     flex-direction: column;
@@ -995,7 +1815,7 @@ const statusColour = (s: string) =>
     line-height: 1.6;
 }
 
-/* ── Bank Details ────────────────────────────────────────────── */
+/* ── Bank Details ─────────────────────────────────────────────────────────── */
 .bank-grid {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -1025,9 +1845,8 @@ const statusColour = (s: string) =>
     font-size: 13px;
     color: #16a34a;
     font-weight: 600;
-    grid-column: 1/-1;
+    grid-column: 1 / -1;
 }
-
 .bank-missing {
     display: flex;
     align-items: flex-start;
@@ -1054,7 +1873,7 @@ const statusColour = (s: string) =>
     line-height: 1.5;
 }
 
-/* ── Modal ──────────────────────────────────────────────────── */
+/* ── Modal ────────────────────────────────────────────────────────────────── */
 .modal-overlay {
     position: fixed;
     inset: 0;
@@ -1158,7 +1977,7 @@ const statusColour = (s: string) =>
     color: #f97316;
 }
 
-/* ── Buttons ────────────────────────────────────────────────── */
+/* ── Buttons ──────────────────────────────────────────────────────────────── */
 .btn-primary {
     padding: 10px 20px;
     background: #f97316;
@@ -1215,7 +2034,7 @@ const statusColour = (s: string) =>
     background: rgba(249, 115, 22, 0.04);
 }
 
-/* ── Spinners ───────────────────────────────────────────────── */
+/* ── Spinners ─────────────────────────────────────────────────────────────── */
 .spinner {
     width: 30px;
     height: 30px;
@@ -1223,6 +2042,11 @@ const statusColour = (s: string) =>
     border-top-color: #f97316;
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
+}
+.spinner.sm {
+    width: 22px;
+    height: 22px;
+    border-width: 2.5px;
 }
 .btn-spinner {
     width: 15px;
@@ -1239,13 +2063,13 @@ const statusColour = (s: string) =>
     }
 }
 
-/* ── Responsive ─────────────────────────────────────────────── */
-@media (max-width: 900px) {
+/* ── Responsive ───────────────────────────────────────────────────────────── */
+@media (max-width: 1000px) {
     .stat-row {
         grid-template-columns: repeat(3, 1fr);
     }
 }
-@media (max-width: 640px) {
+@media (max-width: 700px) {
     .hero-banner {
         flex-direction: column;
     }
@@ -1267,8 +2091,16 @@ const statusColour = (s: string) =>
     .type-toggle {
         flex-wrap: wrap;
     }
+    .filter-bar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .filter-bar-right {
+        width: 100%;
+        justify-content: flex-end;
+    }
 }
-@media (max-width: 400px) {
+@media (max-width: 420px) {
     .bank-grid {
         grid-template-columns: 1fr;
     }
@@ -1278,6 +2110,9 @@ const statusColour = (s: string) =>
     }
     .hero-divider {
         display: none;
+    }
+    .stat-row {
+        grid-template-columns: 1fr 1fr;
     }
 }
 </style>
