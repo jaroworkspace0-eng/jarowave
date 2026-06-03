@@ -4,23 +4,25 @@ namespace App\Http\Controllers\Payments;
 
 use App\Http\Controllers\Controller;
 use App\Models\BankDetail;
+use App\Models\Client;
 use App\Models\User;
 use Illuminate\Http\Request;
 
 class HouseholdPayoutController extends Controller
 {
-    // GET /api/households
     public function households(Request $request)
     {
-        $user = $request->user();
+        $user   = $request->user();
+        $client = Client::where('user_id', $user->id)->firstOrFail();
 
-        // Households belong to this client via subscriptions.client_id = user.id
+        // subscriptions.client_id = clients.id (3), NOT users.id (61)
+        // subscriptions.user_id   = household's users.id
         $households = User::where('role', 'household')
-            ->whereHas('subscription', function ($q) use ($user) {
-                $q->where('client_id', $user->id);
+            ->whereHas('subscription', function ($q) use ($client) {
+                $q->where('client_id', $client->id);
             })
             ->with([
-                'subscription' => fn($q) => $q->where('client_id', $user->id)->latest(),
+                'subscription' => fn($q) => $q->where('client_id', $client->id)->latest(),
             ])
             ->orderBy('created_at', 'desc')
             ->paginate(50);
@@ -28,11 +30,12 @@ class HouseholdPayoutController extends Controller
         $mapped = $households->through(function (User $hh) {
             $sub    = $hh->subscription;
             $status = match (true) {
-                $sub === null                 => 'pending',
-                $sub->status === 'active'     => 'active',
-                $sub->status === 'past_due'   => 'failed',
-                $sub->status === 'cancelled'  => 'failed',
-                default                       => 'pending',
+                $sub === null                => 'pending',
+                $sub->status === 'active'    => 'active',
+                $sub->status === 'trialing'  => 'pending',
+                $sub->status === 'past_due'  => 'failed',
+                $sub->status === 'cancelled' => 'failed',
+                default                      => 'pending',
             };
 
             return [
@@ -51,7 +54,6 @@ class HouseholdPayoutController extends Controller
         return response()->json(['households' => $mapped]);
     }
 
-    // GET /api/bank-details
     public function show(Request $request)
     {
         $user        = $request->user();
@@ -59,11 +61,9 @@ class HouseholdPayoutController extends Controller
         return response()->json(['bank_details' => $bankDetails]);
     }
 
-    // POST /api/bank-details
     public function store(Request $request)
     {
-        $user = $request->user();
-
+        $user      = $request->user();
         $validated = $request->validate([
             'bank_name'      => 'required|string|max:100',
             'account_holder' => 'required|string|max:150',
