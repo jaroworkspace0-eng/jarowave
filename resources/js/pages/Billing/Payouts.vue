@@ -2,6 +2,14 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
+import {
+    Calendar,
+    DollarSignIcon,
+    FileWarning,
+    Hourglass,
+    House,
+    HouseIcon,
+} from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
 
 // ── State ──
@@ -209,7 +217,6 @@ const payoutStatusColour = (status: string) => {
                 <!-- NO PENDING -->
                 <div v-else class="card card-flat">
                     <div class="no-pending">
-                        <span class="np-icon">💸</span>
                         <div class="np-title">No pending payout</div>
                         <div class="np-desc">
                             Payouts are calculated on the last day of each month
@@ -222,22 +229,42 @@ const payoutStatusColour = (status: string) => {
                 <!-- SUMMARY STATS -->
                 <div class="stats-grid">
                     <div class="stat-card">
-                        <div class="sc-icon green">🏠</div>
+                        <div class="sc-icon">
+                            <House :size="32" stroke-width="1.5" color="#333" />
+                        </div>
                         <div class="sc-val">{{ activeHouseholds.length }}</div>
                         <div class="sc-lbl">Active Households</div>
                     </div>
                     <div class="stat-card">
-                        <div class="sc-icon orange">⏳</div>
+                        <div class="sc-icon">
+                            <Hourglass
+                                :size="32"
+                                color="#333"
+                                stroke-width="1.5"
+                            />
+                        </div>
                         <div class="sc-val">{{ pendingHouseholds.length }}</div>
                         <div class="sc-lbl">Pending Payment</div>
                     </div>
                     <div class="stat-card">
-                        <div class="sc-icon red">⚠️</div>
+                        <div class="sc-icon">
+                            <FileWarning
+                                :size="32"
+                                color="#333"
+                                stroke-width="1.5"
+                            />
+                        </div>
                         <div class="sc-val">{{ failedHouseholds.length }}</div>
                         <div class="sc-lbl">Failed Payment</div>
                     </div>
                     <div class="stat-card">
-                        <div class="sc-icon blue">📅</div>
+                        <div class="sc-icon">
+                            <Calendar
+                                :size="32"
+                                color="#333"
+                                stroke-width="1.5"
+                            />
+                        </div>
                         <div class="sc-val">{{ nextPayoutDate }}</div>
                         <div class="sc-lbl">Next Payout Date</div>
                     </div>
@@ -289,7 +316,9 @@ const payoutStatusColour = (status: string) => {
                 </div>
 
                 <div v-else class="card card-flat empty-state">
-                    <div class="empty-icon">🏠</div>
+                    <div class="empty-icon">
+                        <HouseIcon :size="32" stroke-width="1.5" color="#000" />
+                    </div>
                     <div class="empty-title">No households yet</div>
                     <div class="empty-desc">
                         Share your invite link with households in your area to
@@ -349,7 +378,13 @@ const payoutStatusColour = (status: string) => {
                 </div>
 
                 <div v-else class="card card-flat empty-state">
-                    <div class="empty-icon">📋</div>
+                    <div class="empty-icon">
+                        <DollarSignIcon
+                            :size="32"
+                            stroke-width="1.5"
+                            color="#000"
+                        />
+                    </div>
                     <div class="empty-title">No payout history yet</div>
                     <div class="empty-desc">
                         Your first payout will appear here after the 1st of next
@@ -407,7 +442,7 @@ const payoutStatusColour = (status: string) => {
                     </div>
 
                     <div v-else class="bank-empty">
-                        <span>⚠️</span>
+                        <!-- <span>⚠️</span> -->
                         <div>
                             <div class="be-title">No bank details on file</div>
                             <div class="be-desc">
@@ -657,6 +692,7 @@ const payoutStatusColour = (status: string) => {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    align-items: center;
 }
 .sc-icon {
     font-size: 20px;
@@ -667,6 +703,7 @@ const payoutStatusColour = (status: string) => {
     align-items: center;
     justify-content: center;
     margin-bottom: 4px;
+    text-align: center;
 }
 .sc-icon.green {
     background: rgba(22, 163, 74, 0.08);
@@ -681,8 +718,8 @@ const payoutStatusColour = (status: string) => {
     background: rgba(37, 99, 235, 0.08);
 }
 .sc-val {
-    font-size: 20px;
-    font-weight: 800;
+    font-size: 17px;
+    font-weight: 600;
     color: #111;
     letter-spacing: -0.5px;
 }
