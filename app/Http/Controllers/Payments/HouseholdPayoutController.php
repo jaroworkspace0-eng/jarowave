@@ -34,7 +34,7 @@ class HouseholdPayoutController extends Controller
                 $sub->status === 'active'    => 'active',
                 $sub->status === 'trialing'  => 'pending',
                 $sub->status === 'past_due'  => 'failed',
-                $sub->status === 'cancelled' => 'failed',
+                $sub->status === 'cancelled' => 'cancelled',
                 default                      => 'pending',
             };
 

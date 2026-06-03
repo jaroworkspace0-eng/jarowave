@@ -157,8 +157,13 @@ const saveBankDetails = async () => {
 };
 
 const statusColour = (s: string) =>
-    ({ paid: 'green', pending: 'orange', failed: 'red', active: 'green' })[s] ??
-    'gray';
+    ({
+        paid: 'green',
+        pending: 'orange',
+        failed: 'red',
+        active: 'green',
+        cancelled: 'gray',
+    })[s] ?? 'gray';
 </script>
 
 <template>
@@ -926,6 +931,11 @@ const statusColour = (s: string) =>
     color: #dc2626;
 }
 .badge.gray {
+    background: #f5f5f5;
+    color: #888;
+}
+
+.hh-status.cancelled {
     background: #f5f5f5;
     color: #888;
 }
