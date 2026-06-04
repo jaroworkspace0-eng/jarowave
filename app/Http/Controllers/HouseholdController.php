@@ -53,6 +53,8 @@ class HouseholdController extends Controller
         ]);
     }
 
+
+    // self-registration for households via invite token
     // ── POST /api/household/register ──────────────────────────────────────────
     public function register(Request $request)
     {
@@ -124,7 +126,6 @@ class HouseholdController extends Controller
             'client_id'          => $invite->client_id,
             'client_type'        => $orgType,
             'status'             => 'trialing',
-            'gateway'            => $request->gateway ?? 'payfast',
             'plan'               => null,
             'billing_cycle'      => 'monthly',
             'price'              => BillingService::UNIT_PRICE, // 80.00

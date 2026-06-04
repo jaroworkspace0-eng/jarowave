@@ -140,6 +140,7 @@ class EmployeeController extends Controller
 
 
 
+    // registration for households via admin dashboard
     // ── Store ─────────────────────────────────────────────────────────────────
 
     public function store(Request $request)
@@ -371,16 +372,13 @@ class EmployeeController extends Controller
             'client_id'            => $clientId,
             'client_type'          => $orgType,
             'status'               => 'trialing',
-            // 'gateway'              => 'payfast',
+            'plan'               => null,
             'billing_cycle'        => 'monthly',
             'price'                => BillingService::UNIT_PRICE,
             'trial_ends_at'        => now()->addDays(14), // 14-day trial for households
             'merchant_reference'   => 'HH-' . $user->id . '-' . time(),
-            'activation_fee_paid'    => $activationFeePaid,
+            'activation_fee_paid'    => $activationFeePaid ?? null,
             'activation_fee_paid_at' => $activationFeePaid ? now() : null,
-            // 'price'                  => $activationFeePaid 
-            //     ? BillingService::UNIT_PRICE / 100 
-            //     : (BillingService::UNIT_PRICE + 5000) / 100, // R130 if fee unpaid
         ]);
     }
 

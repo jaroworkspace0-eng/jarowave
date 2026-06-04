@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountDeletionController;
+use App\Http\Controllers\Admin\AdminPayoutController;
 use App\Http\Controllers\Admin\AdminSubscriptionController;
 use App\Http\Controllers\Admin\PaymentSimulatorController;
 use App\Http\Controllers\AnnouncementController;
@@ -275,6 +276,14 @@ Route::middleware(['auth:sanctum'])->group(function () {
         return $request->user();
     });
 
+
+    // ── ADD THESE ROUTES inside the existing Route::middleware(['auth:sanctum']) group ──
+    Route::prefix('admin/payouts')->group(function () {
+        Route::get('/clients',                          [AdminPayoutController::class, 'clients']);
+        Route::get('/clients/{clientId}/earnings',      [AdminPayoutController::class, 'clientEarnings']);
+        Route::post('/process',                         [AdminPayoutController::class, 'process']);
+        Route::post('/notify-bank-details',             [AdminPayoutController::class, 'notifyBankDetails']);
+    });
 
     // ── Checkpoint routes (admin only) ────────────────────────────────────────────
     // Add these inside your existing auth middleware group in routes/api.php

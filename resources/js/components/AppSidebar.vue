@@ -19,10 +19,12 @@ import {
     ArrowsUpFromLineIcon,
     Briefcase,
     Building,
+    DollarSign,
     HomeIcon,
     Megaphone,
     Newspaper,
-    Radio, // ← add this
+    Radio,
+    RadioIcon, // ← add this
     Trash2,
 } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
@@ -37,7 +39,7 @@ const mainNavItems: NavItem[] = [
               {
                   title: 'Channels',
                   href: '/channels',
-                  icon: ArrowsUpFromLineIcon,
+                  icon: RadioIcon,
               },
           ]
         : []),
@@ -53,12 +55,17 @@ const mainNavItems: NavItem[] = [
     //     : []),
 
     // Watch groups see Payouts
-    // ...(auth.user?.role === 'admin'
-    //     ? [{ title: 'Payouts', href: '/payouts', icon: DollarSign }]
-    //     : []),
+    ...(auth.user?.role === 'client'
+        ? [{ title: 'Payouts', href: '/payouts', icon: DollarSign }]
+        : []),
 
     ...(auth.user?.role === 'admin'
         ? [
+              {
+                  title: 'Process Payouts',
+                  href: '/admin/process-payouts',
+                  icon: ArrowsUpFromLineIcon,
+              },
               {
                   title: 'Incident Reports',
                   href: '/admin/incident-reports',

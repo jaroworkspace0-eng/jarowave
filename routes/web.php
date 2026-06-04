@@ -7,13 +7,6 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
 
-// Route::get('/', function () {
-//     return Inertia::render('auth/Login', [
-//         'canRegister' => Features::enabled(Features::registration()),
-//     ]);
-// })->name('home');
-
-
 Route::get('/', function () { 
     return Inertia::render('auth/Login'); 
 })->name('home');
@@ -90,20 +83,16 @@ Route::get('/households/{id}/pairings', function() {
     return inertia('Households/Pairings');
 });
 
-// Add this with your other client routes
 Route::get('/clients/{id}/checkpoints', function () {
     return inertia('Clients/Checkpoints');
 });
 
-
-// DELETE THIS:
-// Route::get('/{any}', function () {
-//     return view('app');
-// })->where('any', '.*');
+Route::get('/admin/process-payouts', function () {
+    return inertia('Admin/AdminPayouts');
+});
 
 require __DIR__.'/settings.php';
 
 Route::resource("users", UserController::class);
 Route::get('/search', [SearchController::class, 'index'])->name('search.index');
-// });
 

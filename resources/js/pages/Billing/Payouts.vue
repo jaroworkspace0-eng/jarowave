@@ -957,10 +957,7 @@ const saveBankDetails = async () => {
                 <!-- ── HOUSEHOLD BREAKDOWN ─────────────────────────────── -->
                 <div class="card" v-if="households.length">
                     <div class="card-head">
-                        <div class="card-title">
-                            <HouseIcon :size="16" stroke-width="2" />
-                            Household Breakdown
-                        </div>
+                        <div class="card-title">Household Breakdown</div>
                         <div class="legend">
                             <span class="leg green">● Active</span>
                             <span class="leg orange">● Trialing</span>
