@@ -6,9 +6,6 @@ import {
     AlertTriangle,
     Banknote,
     Bell,
-    CheckCircle,
-    ChevronDown,
-    ChevronUp,
     CircleDollarSign,
     Hourglass,
     RefreshCw,
@@ -31,7 +28,6 @@ interface Client {
     organisation: string;
     pending_amount: number;
     paid_amount: number;
-    withheld_amount: number;
     total_amount: number;
     earning_count: number;
     pending_count: number;
@@ -39,19 +35,6 @@ interface Client {
     latest_period: string;
     has_bank_details: boolean;
     bank_details: BankDetails | null;
-}
-interface Earning {
-    id: number;
-    household_name: string;
-    resident_amount: number;
-    earned_amount: number;
-    platform_amount: number;
-    commission_percentage: number;
-    status: string;
-    period_start: string;
-    period_end: string;
-    payout_at: string | null;
-    payout_reference: string | null;
 }
 interface Totals {
     total_pending: number;
@@ -72,18 +55,15 @@ const filterMonth = ref(new Date().getMonth() + 1);
 const filterYear = ref(new Date().getFullYear());
 const filterStatus = ref('pending');
 
-// Expanded client drawer
-const expandedClient = ref<number | null>(null);
-const clientEarnings = ref<Record<number, Earning[]>>({});
-const loadingEarnings = ref<number | null>(null);
-
-// Selected earnings per client for processing
-const selectedEarnings = ref<Record<number, Set<number>>>({});
+// Selected clients
+const selectedClients = ref<Set<number>>(new Set());
 
 // Process modal
 const showProcessModal = ref(false);
-const processingClient = ref<Client | null>(null);
 const eftReference = ref('');
+
+// Notify loading per client
+const notifying = ref<number | null>(null);
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 const getHeaders = () => ({
@@ -123,15 +103,40 @@ const months = [
     'November',
     'December',
 ];
-
 const years = computed(() => {
     const y = new Date().getFullYear();
     return [y - 1, y, y + 1];
 });
 
+// ── Computed ──────────────────────────────────────────────────────────────
+const eligibleClients = computed(() =>
+    clients.value.filter((c) => c.has_bank_details && c.pending_count > 0),
+);
+
+const selectedList = computed(() =>
+    clients.value.filter((c) => selectedClients.value.has(c.client_id)),
+);
+
+const selectedTotal = computed(() =>
+    selectedList.value.reduce((sum, c) => sum + c.pending_amount, 0),
+);
+
+const selectedEarningCount = computed(() =>
+    selectedList.value.reduce((sum, c) => sum + c.pending_count, 0),
+);
+
+const allEligibleSelected = computed(
+    () =>
+        eligibleClients.value.length > 0 &&
+        eligibleClients.value.every((c) =>
+            selectedClients.value.has(c.client_id),
+        ),
+);
+
 // ── Data ──────────────────────────────────────────────────────────────────
 const fetchClients = async () => {
     isLoading.value = true;
+    selectedClients.value = new Set();
     try {
         const params: any = { status: filterStatus.value };
         if (filterMonth.value) params.month = filterMonth.value;
@@ -153,114 +158,69 @@ const fetchClients = async () => {
     }
 };
 
-const fetchClientEarnings = async (clientId: number) => {
-    if (clientEarnings.value[clientId]) return;
-    loadingEarnings.value = clientId;
-    try {
-        const params: any = { status: 'pending' };
-        if (filterMonth.value) params.month = filterMonth.value;
-        if (filterYear.value) params.year = filterYear.value;
-
-        const { data } = await axios.get(
-            `${import.meta.env.VITE_APP_URL}/api/admin/payouts/clients/${clientId}/earnings`,
-            { ...getHeaders(), params },
-        );
-        clientEarnings.value[clientId] = data.earnings;
-        // Pre-select all pending earnings
-        selectedEarnings.value[clientId] = new Set(
-            data.earnings
-                .filter((e: Earning) => e.status === 'pending')
-                .map((e: Earning) => e.id),
-        );
-    } catch {
-        showFlash('Failed to load earnings.', 'error');
-    } finally {
-        loadingEarnings.value = null;
-    }
-};
-
 onMounted(fetchClients);
 
-// ── Expand/collapse client drawer ─────────────────────────────────────────
-const toggleClient = async (clientId: number) => {
-    if (expandedClient.value === clientId) {
-        expandedClient.value = null;
+// ── Selection ─────────────────────────────────────────────────────────────
+const toggleClient = (clientId: number) => {
+    const s = new Set(selectedClients.value);
+    s.has(clientId) ? s.delete(clientId) : s.add(clientId);
+    selectedClients.value = s;
+};
+
+const toggleSelectAll = () => {
+    if (allEligibleSelected.value) {
+        selectedClients.value = new Set();
     } else {
-        expandedClient.value = clientId;
-        await fetchClientEarnings(clientId);
+        selectedClients.value = new Set(
+            eligibleClients.value.map((c) => c.client_id),
+        );
     }
 };
 
-// ── Selection ────────────────────────────────────────────────────────────
-const toggleEarning = (clientId: number, earningId: number) => {
-    if (!selectedEarnings.value[clientId]) {
-        selectedEarnings.value[clientId] = new Set();
-    }
-    const set = selectedEarnings.value[clientId];
-    set.has(earningId) ? set.delete(earningId) : set.add(earningId);
-    selectedEarnings.value = { ...selectedEarnings.value };
-};
-
-const selectAll = (clientId: number) => {
-    const earnings = clientEarnings.value[clientId] ?? [];
-    selectedEarnings.value[clientId] = new Set(
-        earnings.filter((e) => e.status === 'pending').map((e) => e.id),
-    );
-    selectedEarnings.value = { ...selectedEarnings.value };
-};
-
-const deselectAll = (clientId: number) => {
-    selectedEarnings.value[clientId] = new Set();
-    selectedEarnings.value = { ...selectedEarnings.value };
-};
-
-const selectedCount = (clientId: number) =>
-    selectedEarnings.value[clientId]?.size ?? 0;
-
-const selectedTotal = (clientId: number) => {
-    const ids = selectedEarnings.value[clientId];
-    if (!ids?.size) return 0;
-    return (clientEarnings.value[clientId] ?? [])
-        .filter((e) => ids.has(e.id))
-        .reduce((sum, e) => sum + e.earned_amount, 0);
-};
-
-// ── Process payout ────────────────────────────────────────────────────────
-const openProcessModal = (client: Client) => {
-    processingClient.value = client;
+// ── Process ───────────────────────────────────────────────────────────────
+const openProcessModal = () => {
     eftReference.value = '';
     showProcessModal.value = true;
 };
 
 const confirmProcess = async () => {
-    if (!processingClient.value || !eftReference.value.trim()) return;
-
-    const clientId = processingClient.value.client_id;
-    const earningIds = Array.from(selectedEarnings.value[clientId] ?? []);
-
-    if (!earningIds.length) {
-        showFlash('No earnings selected.', 'error');
-        return;
-    }
-
+    if (!eftReference.value.trim() || !selectedList.value.length) return;
     isProcessing.value = true;
+
     try {
-        await axios.post(
-            `${import.meta.env.VITE_APP_URL}/api/admin/payouts/process`,
-            {
-                client_id: clientId,
-                earning_ids: earningIds,
-                eft_reference: eftReference.value.trim(),
-            },
-            getHeaders(),
-        );
+        // Process each selected client sequentially
+        for (const client of selectedList.value) {
+            // Fetch their pending earning IDs first
+            const params: any = { status: 'pending' };
+            if (filterMonth.value) params.month = filterMonth.value;
+            if (filterYear.value) params.year = filterYear.value;
+
+            const { data } = await axios.get(
+                `${import.meta.env.VITE_APP_URL}/api/admin/payouts/clients/${client.client_id}/earnings`,
+                { ...getHeaders(), params },
+            );
+
+            const earningIds = data.earnings
+                .filter((e: any) => e.status === 'pending')
+                .map((e: any) => e.id);
+
+            if (!earningIds.length) continue;
+
+            await axios.post(
+                `${import.meta.env.VITE_APP_URL}/api/admin/payouts/process`,
+                {
+                    client_id: client.client_id,
+                    earning_ids: earningIds,
+                    eft_reference: eftReference.value.trim(),
+                },
+                getHeaders(),
+            );
+        }
+
         showFlash(
-            `Payout processed for ${processingClient.value.name}. Email sent.`,
+            `Payout processed for ${selectedList.value.length} client(s). Confirmation emails sent.`,
         );
         showProcessModal.value = false;
-        // Refresh
-        delete clientEarnings.value[clientId];
-        delete selectedEarnings.value[clientId];
         await fetchClients();
     } catch (err: any) {
         showFlash(
@@ -274,6 +234,7 @@ const confirmProcess = async () => {
 
 // ── Notify no bank details ────────────────────────────────────────────────
 const notifyNoBankDetails = async (client: Client) => {
+    notifying.value = client.client_id;
     try {
         await axios.post(
             `${import.meta.env.VITE_APP_URL}/api/admin/payouts/notify-bank-details`,
@@ -283,17 +244,14 @@ const notifyNoBankDetails = async (client: Client) => {
         showFlash(`Notification sent to ${client.email}`);
     } catch {
         showFlash('Failed to send notification.', 'error');
+    } finally {
+        notifying.value = null;
     }
 };
-
-const statusColour = (s: string) =>
-    ({ pending: 'orange', paid: 'green', withheld: 'red', approved: 'blue' })[
-        s
-    ] ?? 'gray';
 </script>
 
 <template>
-    <Head title="Admin · Payouts" />
+    <Head title="Admin · Process Payouts" />
     <AppLayout>
         <div class="ap-root">
             <!-- HEADER -->
@@ -301,8 +259,8 @@ const statusColour = (s: string) =>
                 <div>
                     <h1 class="ap-title">Process Payouts</h1>
                     <p class="ap-sub">
-                        Review pending earnings per client and process EFT
-                        disbursements
+                        Select clients to process EFT disbursements · paid on
+                        the 1st of each month
                     </p>
                 </div>
                 <button class="btn-icon" @click="fetchClients" title="Refresh">
@@ -345,13 +303,13 @@ const statusColour = (s: string) =>
                         </select>
                     </div>
                     <div class="filter-group">
-                        <label class="filter-label">Status</label>
+                        <label class="filter-label">Show</label>
                         <select class="filter-select" v-model="filterStatus">
-                            <option value="pending">Pending</option>
+                            <option value="pending">Pending only</option>
                             <option value="all">All</option>
                         </select>
                     </div>
-                    <button class="btn-primary sm" @click="fetchClients">
+                    <button class="btn-apply" @click="fetchClients">
                         Apply
                     </button>
                 </div>
@@ -420,323 +378,223 @@ const statusColour = (s: string) =>
                     </div>
                 </div>
 
-                <!-- CLIENT LIST -->
-                <div
-                    v-for="client in clients"
-                    :key="client.client_id"
-                    class="client-card"
-                >
-                    <!-- Client row header -->
-                    <div
-                        class="client-row"
-                        @click="toggleClient(client.client_id)"
-                    >
-                        <div class="cr-left">
-                            <div class="cr-avatar">
-                                {{ client.name.charAt(0).toUpperCase() }}
-                            </div>
-                            <div>
-                                <div class="cr-name">
-                                    {{ client.organisation }}
-                                </div>
-                                <div class="cr-email">{{ client.email }}</div>
-                            </div>
-                        </div>
-
-                        <div class="cr-middle">
-                            <div class="cr-stat">
-                                <div class="crs-val orange-text">
-                                    {{ fmt(client.pending_amount) }}
-                                </div>
-                                <div class="crs-lbl">Pending</div>
-                            </div>
-                            <div class="cr-stat">
-                                <div class="crs-val">
-                                    {{ client.pending_count }}
-                                </div>
-                                <div class="crs-lbl">Earnings</div>
-                            </div>
-                            <div class="cr-stat">
-                                <div class="crs-val green-text">
-                                    {{ fmt(client.paid_amount) }}
-                                </div>
-                                <div class="crs-lbl">Paid</div>
-                            </div>
-                        </div>
-
-                        <div class="cr-right">
-                            <!-- No bank details warning -->
-                            <div
-                                v-if="!client.has_bank_details"
-                                class="no-bank-tag"
-                                @click.stop
+                <template v-else>
+                    <!-- BULK ACTION BAR -->
+                    <div class="bulk-bar">
+                        <div class="bulk-left">
+                            <label class="select-all-wrap">
+                                <input
+                                    type="checkbox"
+                                    class="chk"
+                                    :checked="allEligibleSelected"
+                                    :indeterminate="
+                                        selectedClients.size > 0 &&
+                                        !allEligibleSelected
+                                    "
+                                    @change="toggleSelectAll"
+                                />
+                                <span class="sal-label">
+                                    {{
+                                        allEligibleSelected
+                                            ? 'Deselect all'
+                                            : 'Select all eligible'
+                                    }}
+                                </span>
+                            </label>
+                            <span
+                                v-if="selectedClients.size > 0"
+                                class="sel-summary"
                             >
-                                <AlertTriangle :size="13" />
-                                No bank details
-                                <button
-                                    class="notify-btn"
-                                    @click.stop="notifyNoBankDetails(client)"
-                                >
-                                    <Bell :size="12" /> Notify
-                                </button>
+                                {{ selectedClients.size }} client{{
+                                    selectedClients.size !== 1 ? 's' : ''
+                                }}
+                                selected ·
+                                <strong>{{ fmt(selectedTotal) }}</strong> ·
+                                {{ selectedEarningCount }} earning{{
+                                    selectedEarningCount !== 1 ? 's' : ''
+                                }}
+                            </span>
+                        </div>
+                        <button
+                            v-if="selectedClients.size > 0"
+                            class="btn-process"
+                            @click="openProcessModal"
+                        >
+                            Process {{ selectedClients.size }} Payout{{
+                                selectedClients.size !== 1 ? 's' : ''
+                            }}
+                        </button>
+                    </div>
+
+                    <!-- CLIENT LIST -->
+                    <div class="client-list">
+                        <div
+                            v-for="client in clients"
+                            :key="client.client_id"
+                            :class="[
+                                'client-card',
+                                {
+                                    selected: selectedClients.has(
+                                        client.client_id,
+                                    ),
+                                    'no-bank': !client.has_bank_details,
+                                    ineligible:
+                                        !client.has_bank_details ||
+                                        client.pending_count === 0,
+                                },
+                            ]"
+                            @click="
+                                client.has_bank_details &&
+                                client.pending_count > 0 &&
+                                toggleClient(client.client_id)
+                            "
+                        >
+                            <!-- Checkbox -->
+                            <div class="cc-check">
+                                <input
+                                    v-if="
+                                        client.has_bank_details &&
+                                        client.pending_count > 0
+                                    "
+                                    type="checkbox"
+                                    class="chk"
+                                    :checked="
+                                        selectedClients.has(client.client_id)
+                                    "
+                                    @change="toggleClient(client.client_id)"
+                                    @click.stop
+                                />
+                                <div v-else class="chk-disabled"></div>
                             </div>
 
-                            <!-- Bank details pill -->
-                            <div v-else class="bank-tag">
-                                <Banknote :size="13" />
-                                {{ client.bank_details?.bank_name }}
-                                ···{{
-                                    client.bank_details?.account_number.slice(
-                                        -4,
-                                    )
+                            <!-- Avatar -->
+                            <div class="cc-avatar">
+                                {{
+                                    client.organisation.charAt(0).toUpperCase()
                                 }}
                             </div>
 
-                            <button
-                                v-if="
-                                    client.has_bank_details &&
-                                    client.pending_count > 0
-                                "
-                                class="btn-process"
-                                @click.stop="openProcessModal(client)"
-                            >
-                                Process Payout
-                            </button>
-
-                            <button class="btn-chevron">
-                                <ChevronUp
-                                    v-if="expandedClient === client.client_id"
-                                    :size="16"
-                                />
-                                <ChevronDown v-else :size="16" />
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Expanded earnings drawer -->
-                    <div
-                        v-if="expandedClient === client.client_id"
-                        class="earnings-drawer"
-                    >
-                        <div
-                            v-if="loadingEarnings === client.client_id"
-                            class="drawer-loading"
-                        >
-                            <div class="spinner sm"></div>
-                            Loading earnings…
-                        </div>
-
-                        <template
-                            v-else-if="clientEarnings[client.client_id]?.length"
-                        >
-                            <!-- Selection toolbar -->
-                            <div class="drawer-toolbar">
-                                <div class="dt-left">
-                                    <button
-                                        class="btn-ghost xs"
-                                        @click="selectAll(client.client_id)"
-                                    >
-                                        Select all pending
-                                    </button>
-                                    <button
-                                        class="btn-ghost xs"
-                                        @click="deselectAll(client.client_id)"
-                                    >
-                                        Deselect all
-                                    </button>
-                                    <span class="sel-count">
-                                        {{
-                                            selectedCount(client.client_id)
-                                        }}
-                                        selected ·
-                                        {{
-                                            fmt(selectedTotal(client.client_id))
-                                        }}
-                                    </span>
+                            <!-- Info -->
+                            <div class="cc-info">
+                                <div class="cc-name">
+                                    {{ client.organisation }}
                                 </div>
-                                <button
-                                    v-if="
-                                        selectedCount(client.client_id) > 0 &&
-                                        client.has_bank_details
-                                    "
-                                    class="btn-process sm"
-                                    @click="openProcessModal(client)"
+                                <div class="cc-email">{{ client.email }}</div>
+                                <div
+                                    class="cc-period"
+                                    v-if="client.earliest_period"
                                 >
-                                    Process Selected
-                                </button>
+                                    {{ formatDate(client.earliest_period) }} →
+                                    {{ formatDate(client.latest_period) }}
+                                </div>
                             </div>
 
-                            <!-- Earnings table -->
-                            <div class="table-wrap">
-                                <table class="data-table">
-                                    <thead>
-                                        <tr>
-                                            <th></th>
-                                            <th>Household</th>
-                                            <th>Period</th>
-                                            <th>Household Paid</th>
-                                            <th>Platform Fee</th>
-                                            <th>Your Share</th>
-                                            <th>Commission</th>
-                                            <th>Status</th>
-                                            <th>Payout Ref</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr
-                                            v-for="e in clientEarnings[
-                                                client.client_id
-                                            ]"
-                                            :key="e.id"
-                                            :class="{
-                                                selected: selectedEarnings[
-                                                    client.client_id
-                                                ]?.has(e.id),
-                                            }"
-                                        >
-                                            <td>
-                                                <input
-                                                    v-if="
-                                                        e.status === 'pending'
-                                                    "
-                                                    type="checkbox"
-                                                    :checked="
-                                                        selectedEarnings[
-                                                            client.client_id
-                                                        ]?.has(e.id)
-                                                    "
-                                                    @change="
-                                                        toggleEarning(
-                                                            client.client_id,
-                                                            e.id,
-                                                        )
-                                                    "
-                                                    class="chk"
-                                                />
-                                                <CheckCircle
-                                                    v-else
-                                                    :size="14"
-                                                    color="#16a34a"
-                                                />
-                                            </td>
-                                            <td class="fw6">
-                                                {{ e.household_name }}
-                                            </td>
-                                            <td class="muted small">
-                                                {{ formatDate(e.period_start) }}
-                                                <span class="arrow">→</span>
-                                                {{ formatDate(e.period_end) }}
-                                            </td>
-                                            <td>
-                                                {{ fmt(e.resident_amount) }}
-                                            </td>
-                                            <td class="red-text">
-                                                {{ fmt(e.platform_amount) }}
-                                            </td>
-                                            <td class="fw7 green-text">
-                                                {{ fmt(e.earned_amount) }}
-                                            </td>
-                                            <td class="muted">
-                                                {{ e.commission_percentage }}%
-                                            </td>
-                                            <td>
-                                                <span
-                                                    :class="[
-                                                        'badge',
-                                                        statusColour(e.status),
-                                                    ]"
-                                                    >{{ e.status }}</span
-                                                >
-                                            </td>
-                                            <td class="mono small muted">
-                                                {{ e.payout_reference ?? '—' }}
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
+                            <!-- Stats -->
+                            <div class="cc-stats">
+                                <div class="cc-stat">
+                                    <div class="ccs-val orange-text">
+                                        {{ fmt(client.pending_amount) }}
+                                    </div>
+                                    <div class="ccs-lbl">Pending</div>
+                                </div>
+                                <div class="cc-stat">
+                                    <div class="ccs-val">
+                                        {{ client.pending_count }}
+                                    </div>
+                                    <div class="ccs-lbl">Earnings</div>
+                                </div>
+                                <div class="cc-stat">
+                                    <div class="ccs-val green-text">
+                                        {{ fmt(client.paid_amount) }}
+                                    </div>
+                                    <div class="ccs-lbl">Paid to date</div>
+                                </div>
                             </div>
-                        </template>
 
-                        <div v-else class="drawer-empty">
-                            No earnings found for this period.
+                            <!-- Bank / No bank -->
+                            <div class="cc-right">
+                                <div
+                                    v-if="client.has_bank_details"
+                                    class="bank-tag"
+                                >
+                                    <Banknote :size="13" />
+                                    {{ client.bank_details?.bank_name }}
+                                    ···{{
+                                        client.bank_details?.account_number.slice(
+                                            -4,
+                                        )
+                                    }}
+                                </div>
+                                <div v-else class="no-bank-tag">
+                                    <AlertTriangle :size="13" />
+                                    No bank details
+                                    <button
+                                        class="notify-btn"
+                                        :disabled="
+                                            notifying === client.client_id
+                                        "
+                                        @click.stop="
+                                            notifyNoBankDetails(client)
+                                        "
+                                    >
+                                        <Bell :size="11" />
+                                        {{
+                                            notifying === client.client_id
+                                                ? 'Sending…'
+                                                : 'Notify'
+                                        }}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
-                </div>
+                </template>
             </template>
 
-            <!-- ── PROCESS MODAL ─────────────────────────────────────── -->
+            <!-- ── PROCESS MODAL ───────────────────────────────────────────── -->
             <div
-                v-if="showProcessModal && processingClient"
+                v-if="showProcessModal"
                 class="modal-overlay"
                 @click.self="showProcessModal = false"
             >
                 <div class="modal">
-                    <div class="modal-title">Confirm Payout</div>
+                    <div class="modal-title">Confirm Payouts</div>
                     <p class="modal-note">
-                        You are about to mark
-                        {{
-                            selectedCount(processingClient.client_id)
-                        }}
-                        earning(s) as paid for
-                        <strong>{{ processingClient.organisation }}</strong
-                        >.
+                        You are about to process payouts for
+                        <strong
+                            >{{ selectedList.length }} client{{
+                                selectedList.length !== 1 ? 's' : ''
+                            }}</strong
+                        >. Make sure you have completed the EFT transfers before
+                        confirming.
                     </p>
 
-                    <!-- Payout summary -->
-                    <div class="payout-summary">
-                        <div class="ps-row">
-                            <span>Selected earnings</span>
-                            <span>{{
-                                selectedCount(processingClient.client_id)
-                            }}</span>
+                    <!-- Per-client summary -->
+                    <div class="client-summary-list">
+                        <div
+                            v-for="c in selectedList"
+                            :key="c.client_id"
+                            class="cs-row"
+                        >
+                            <div class="cs-left">
+                                <div class="cs-name">{{ c.organisation }}</div>
+                                <div class="cs-bank muted small">
+                                    {{ c.bank_details?.bank_name }} ···{{
+                                        c.bank_details?.account_number.slice(-4)
+                                    }}
+                                    · {{ c.bank_details?.account_type }} ·
+                                    Branch {{ c.bank_details?.branch_code }}
+                                </div>
+                            </div>
+                            <div class="cs-amount">
+                                {{ fmt(c.pending_amount) }}
+                            </div>
                         </div>
-                        <div class="ps-row">
-                            <span>Amount to transfer</span>
+                        <div class="cs-total">
+                            <span>Total to transfer</span>
                             <span class="fw7 green-text">{{
-                                fmt(selectedTotal(processingClient.client_id))
+                                fmt(selectedTotal)
                             }}</span>
-                        </div>
-                    </div>
-
-                    <!-- Bank details confirmation -->
-                    <div
-                        class="bank-confirm"
-                        v-if="processingClient.bank_details"
-                    >
-                        <div class="bc-title">
-                            <Banknote :size="14" /> Transfer to:
-                        </div>
-                        <div class="bc-grid">
-                            <div>
-                                <span class="bc-lbl">Bank</span
-                                ><span class="bc-val">{{
-                                    processingClient.bank_details.bank_name
-                                }}</span>
-                            </div>
-                            <div>
-                                <span class="bc-lbl">Account</span
-                                ><span class="bc-val mono">{{
-                                    processingClient.bank_details.account_number
-                                }}</span>
-                            </div>
-                            <div>
-                                <span class="bc-lbl">Branch</span
-                                ><span class="bc-val mono">{{
-                                    processingClient.bank_details.branch_code
-                                }}</span>
-                            </div>
-                            <div>
-                                <span class="bc-lbl">Holder</span
-                                ><span class="bc-val">{{
-                                    processingClient.bank_details.account_holder
-                                }}</span>
-                            </div>
-                            <div>
-                                <span class="bc-lbl">Type</span
-                                ><span class="bc-val">{{
-                                    processingClient.bank_details.account_type
-                                }}</span>
-                            </div>
                         </div>
                     </div>
 
@@ -752,7 +610,8 @@ const statusColour = (s: string) =>
                         />
                         <p class="mi-hint">
                             Enter the reference from your bank after completing
-                            the transfer.
+                            the transfer. This is recorded against each payout
+                            for audit purposes.
                         </p>
                     </div>
 
@@ -783,7 +642,7 @@ const statusColour = (s: string) =>
 
 <style scoped>
 .ap-root {
-    max-width: 1100px;
+    max-width: 1060px;
     margin: 0 auto;
     padding: 36px 24px 64px;
     font-family: 'Segoe UI', sans-serif;
@@ -849,7 +708,7 @@ const statusColour = (s: string) =>
     color: #999;
 }
 
-/* Filter bar */
+/* Filter */
 .filter-bar {
     display: flex;
     align-items: flex-end;
@@ -882,8 +741,24 @@ const statusColour = (s: string) =>
 .filter-select:focus {
     border-color: #f97316;
 }
+.btn-apply {
+    padding: 9px 18px;
+    background: #f97316;
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'Segoe UI', sans-serif;
+    transition: all 0.2s;
+    align-self: flex-end;
+}
+.btn-apply:hover {
+    background: #ea580c;
+}
 
-/* Summary cards */
+/* Summary */
 .summary-row {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
@@ -901,7 +776,6 @@ const statusColour = (s: string) =>
 }
 .sum-card.warn {
     border-color: rgba(220, 38, 38, 0.2);
-    background: rgba(220, 38, 38, 0.02);
 }
 .sum-icon {
     width: 36px;
@@ -943,94 +817,151 @@ const statusColour = (s: string) =>
     margin-top: 2px;
 }
 
-/* Client cards */
-.client-card {
-    background: #fff;
-    border: 1.5px solid #ebebeb;
-    border-radius: 16px;
-    margin-bottom: 12px;
-    overflow: hidden;
-}
-.client-row {
+/* Bulk bar */
+.bulk-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 18px 24px;
-    cursor: pointer;
-    gap: 16px;
+    padding: 12px 16px;
+    background: #fff;
+    border: 1.5px solid #ebebeb;
+    border-radius: 12px;
+    margin-bottom: 12px;
     flex-wrap: wrap;
-    transition: background 0.15s;
+    gap: 10px;
 }
-.client-row:hover {
-    background: #fafafa;
-}
-.cr-left {
+.bulk-left {
     display: flex;
     align-items: center;
     gap: 14px;
-    flex: 1;
-    min-width: 200px;
+    flex-wrap: wrap;
 }
-.cr-avatar {
-    width: 40px;
-    height: 40px;
+.select-all-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+.sal-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #555;
+}
+.sel-summary {
+    font-size: 13px;
+    color: #888;
+}
+
+/* Client list */
+.client-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.client-card {
+    background: #fff;
+    border: 1.5px solid #ebebeb;
+    border-radius: 14px;
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    cursor: pointer;
+    transition: all 0.15s;
+    flex-wrap: wrap;
+}
+.client-card:hover:not(.ineligible) {
+    border-color: #f97316;
+    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.06);
+}
+.client-card.selected {
+    border-color: #f97316;
+    background: rgba(249, 115, 22, 0.02);
+}
+.client-card.ineligible {
+    cursor: default;
+    opacity: 0.7;
+}
+.client-card.no-bank {
+    border-color: rgba(220, 38, 38, 0.2);
+    background: rgba(220, 38, 38, 0.01);
+}
+
+.cc-check {
+    flex-shrink: 0;
+}
+.chk {
+    width: 16px;
+    height: 16px;
+    accent-color: #f97316;
+    cursor: pointer;
+}
+.chk-disabled {
+    width: 16px;
+    height: 16px;
+    border: 1.5px solid #ddd;
+    border-radius: 4px;
+    background: #f9f9f9;
+}
+
+.cc-avatar {
+    width: 44px;
+    height: 44px;
     border-radius: 12px;
     background: linear-gradient(135deg, #f97316, #ea580c);
     color: #fff;
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 800;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
 }
-.cr-name {
+
+.cc-info {
+    flex: 1;
+    min-width: 160px;
+}
+.cc-name {
     font-size: 14px;
     font-weight: 700;
     color: #111;
 }
-.cr-email {
+.cc-email {
     font-size: 12px;
     color: #888;
 }
-.cr-middle {
-    display: flex;
-    align-items: center;
-    gap: 24px;
+.cc-period {
+    font-size: 11px;
+    color: #aaa;
+    margin-top: 2px;
 }
-.cr-stat {
+
+.cc-stats {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+.cc-stat {
     text-align: center;
 }
-.crs-val {
+.ccs-val {
     font-size: 16px;
     font-weight: 800;
     color: #111;
 }
-.crs-lbl {
+.ccs-lbl {
     font-size: 11px;
     color: #aaa;
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.5px;
 }
-.cr-right {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
-}
 
-.no-bank-tag {
+.cc-right {
+    margin-left: auto;
     display: flex;
     align-items: center;
-    gap: 5px;
-    font-size: 11px;
-    font-weight: 700;
-    color: #dc2626;
-    background: rgba(220, 38, 38, 0.08);
-    border: 1px solid rgba(220, 38, 38, 0.2);
-    padding: 4px 10px;
-    border-radius: 100px;
 }
 .bank-tag {
     display: flex;
@@ -1041,7 +972,19 @@ const statusColour = (s: string) =>
     color: #16a34a;
     background: rgba(22, 163, 74, 0.08);
     border: 1px solid rgba(22, 163, 74, 0.2);
-    padding: 4px 10px;
+    padding: 5px 12px;
+    border-radius: 100px;
+}
+.no-bank-tag {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #dc2626;
+    background: rgba(220, 38, 38, 0.08);
+    border: 1px solid rgba(220, 38, 38, 0.2);
+    padding: 5px 12px;
     border-radius: 100px;
 }
 .notify-btn {
@@ -1052,34 +995,34 @@ const statusColour = (s: string) =>
     color: #fff;
     border: none;
     border-radius: 6px;
-    padding: 2px 7px;
+    padding: 3px 8px;
     font-size: 10px;
     font-weight: 700;
     cursor: pointer;
-    margin-left: 4px;
+    margin-left: 6px;
+    transition: all 0.15s;
 }
-.btn-chevron {
-    background: none;
-    border: none;
-    cursor: pointer;
-    color: #aaa;
-    display: flex;
-    padding: 4px;
+.notify-btn:hover:not(:disabled) {
+    background: #b91c1c;
+}
+.notify-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 .btn-process {
-    padding: 8px 16px;
+    padding: 10px 20px;
     background: #f97316;
     color: #fff;
     border: none;
     border-radius: 10px;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 700;
     cursor: pointer;
     transition: all 0.2s;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
     font-family: 'Segoe UI', sans-serif;
     white-space: nowrap;
 }
@@ -1089,147 +1032,6 @@ const statusColour = (s: string) =>
 .btn-process:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-}
-.btn-process.sm {
-    font-size: 12px;
-    padding: 6px 12px;
-}
-
-/* Drawer */
-.earnings-drawer {
-    border-top: 1.5px solid #f0f0f0;
-    padding: 16px 24px 20px;
-}
-.drawer-loading {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: #888;
-    font-size: 13px;
-    padding: 16px 0;
-}
-.drawer-empty {
-    color: #aaa;
-    font-size: 13px;
-    padding: 16px 0;
-}
-.drawer-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-.dt-left {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
-}
-.sel-count {
-    font-size: 12px;
-    color: #888;
-    font-weight: 600;
-}
-
-/* Table */
-.table-wrap {
-    overflow-x: auto;
-}
-.data-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13px;
-}
-.data-table th {
-    text-align: left;
-    font-size: 11px;
-    font-weight: 700;
-    color: #aaa;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    padding: 0 12px 8px 0;
-    border-bottom: 1.5px solid #f0f0f0;
-    white-space: nowrap;
-}
-.data-table td {
-    padding: 10px 12px 10px 0;
-    color: #333;
-    border-bottom: 1px solid #f7f7f7;
-}
-.data-table tr:last-child td {
-    border-bottom: none;
-}
-.data-table tr.selected td {
-    background: rgba(249, 115, 22, 0.03);
-}
-.chk {
-    width: 15px;
-    height: 15px;
-    accent-color: #f97316;
-    cursor: pointer;
-}
-
-/* Badges */
-.badge {
-    font-size: 11px;
-    font-weight: 700;
-    padding: 3px 9px;
-    border-radius: 100px;
-    text-transform: capitalize;
-}
-.badge.green {
-    background: rgba(22, 163, 74, 0.1);
-    color: #16a34a;
-}
-.badge.orange {
-    background: rgba(249, 115, 22, 0.1);
-    color: #f97316;
-}
-.badge.red {
-    background: rgba(220, 38, 38, 0.1);
-    color: #dc2626;
-}
-.badge.blue {
-    background: rgba(37, 99, 235, 0.1);
-    color: #2563eb;
-}
-.badge.gray {
-    background: #f0f0f0;
-    color: #888;
-}
-
-/* Utility */
-.fw6 {
-    font-weight: 600;
-    color: #111;
-}
-.fw7 {
-    font-weight: 700;
-}
-.muted {
-    color: #888;
-}
-.small {
-    font-size: 12px;
-}
-.mono {
-    font-family: monospace;
-    font-size: 12px;
-}
-.green-text {
-    color: #16a34a;
-}
-.red-text {
-    color: #dc2626;
-}
-.orange-text {
-    color: #f97316;
-}
-.arrow {
-    color: #ddd;
-    margin: 0 4px;
 }
 
 /* Empty */
@@ -1296,53 +1098,45 @@ const statusColour = (s: string) =>
     margin-top: 22px;
 }
 
-.payout-summary {
-    background: #f9f9f9;
+/* Client summary in modal */
+.client-summary-list {
+    border: 1.5px solid #f0f0f0;
     border-radius: 12px;
-    padding: 16px;
-    margin-bottom: 18px;
+    overflow: hidden;
+    margin-bottom: 20px;
 }
-.ps-row {
-    display: flex;
-    justify-content: space-between;
-    font-size: 13px;
-    color: #555;
-    padding: 4px 0;
-}
-
-.bank-confirm {
-    background: rgba(22, 163, 74, 0.04);
-    border: 1.5px solid rgba(22, 163, 74, 0.15);
-    border-radius: 12px;
-    padding: 14px 16px;
-    margin-bottom: 18px;
-}
-.bc-title {
+.cs-row {
     display: flex;
     align-items: center;
-    gap: 6px;
-    font-size: 12px;
-    font-weight: 700;
-    color: #16a34a;
-    margin-bottom: 10px;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid #f7f7f7;
+    gap: 12px;
 }
-.bc-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
+.cs-left {
+    flex: 1;
 }
-.bc-lbl {
-    font-size: 11px;
-    color: #aaa;
-    display: block;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
-.bc-val {
+.cs-name {
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 700;
     color: #111;
+}
+.cs-bank {
+    margin-top: 2px;
+}
+.cs-amount {
+    font-size: 14px;
+    font-weight: 800;
+    color: #f97316;
+    white-space: nowrap;
+}
+.cs-total {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 16px;
+    background: #f9f9f9;
+    font-size: 13px;
+    color: #555;
 }
 
 .mf {
@@ -1396,30 +1190,22 @@ const statusColour = (s: string) =>
     border-color: #ccc;
     color: #111;
 }
-.btn-ghost.xs {
-    padding: 5px 10px;
-    font-size: 12px;
-    border-radius: 8px;
-}
 
-.btn-primary {
-    padding: 9px 18px;
-    background: #f97316;
-    color: #fff;
-    border: none;
-    border-radius: 10px;
-    font-size: 13px;
-    font-weight: 600;
-    cursor: pointer;
-    font-family: 'Segoe UI', sans-serif;
-    transition: all 0.2s;
+/* Utility */
+.fw7 {
+    font-weight: 700;
 }
-.btn-primary:hover {
-    background: #ea580c;
+.muted {
+    color: #888;
 }
-.btn-primary.sm {
+.small {
     font-size: 12px;
-    padding: 7px 14px;
+}
+.green-text {
+    color: #16a34a;
+}
+.orange-text {
+    color: #f97316;
 }
 
 .spinner {
@@ -1429,11 +1215,6 @@ const statusColour = (s: string) =>
     border-top-color: #f97316;
     border-radius: 50%;
     animation: spin 0.7s linear infinite;
-}
-.spinner.sm {
-    width: 16px;
-    height: 16px;
-    border-width: 2px;
 }
 .btn-spinner {
     width: 14px;
@@ -1456,18 +1237,18 @@ const statusColour = (s: string) =>
     }
 }
 @media (max-width: 640px) {
-    .client-row {
+    .client-card {
         flex-direction: column;
         align-items: flex-start;
     }
-    .cr-middle {
-        flex-wrap: wrap;
+    .cc-right {
+        margin-left: 0;
+    }
+    .cc-stats {
+        gap: 16px;
     }
     .summary-row {
         grid-template-columns: 1fr 1fr;
-    }
-    .bc-grid {
-        grid-template-columns: 1fr;
     }
 }
 </style>
