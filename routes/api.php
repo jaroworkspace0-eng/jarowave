@@ -254,7 +254,20 @@ Route::middleware('auth:sanctum')->prefix('guard')->group(function () {
     Route::get('/patrol/history', [PatrolController::class, 'history']);
 });
 
+// Earnings
+Route::middleware('auth:sanctum')->prefix('earnings')->group(function () {
+Route::get('/',          [EarningController::class, 'index']);
+Route::get('/summary',  [EarningController::class, 'summary']);
+Route::get('/export',   [EarningController::class, 'export']); 
+Route::get('/{earning}', [EarningController::class, 'show']);
+});
 
+
+// Payouts — CPF agent's monthly payout history
+Route::middleware('auth:sanctum')->prefix('payouts')->group(function () {
+Route::get('/', [PayoutController::class, 'index']);
+Route::get('/export',    [PayoutController::class, 'export']); 
+});
 
 
 Route::middleware(['auth:sanctum'])->group(function () { 
@@ -322,6 +335,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('guardians',                     [GuardianResponseController::class, 'index']);
         Route::post('guardian-response',            [GuardianResponseController::class, 'store']);
     });
+
 
     // ── Guardian reports ────────────────────────────────────────
     Route::prefix('guardian-reports')->group(function () {
@@ -436,14 +450,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/payments',          [SubscriptionPaymentController::class, 'index']);
     Route::get('/payments/{payment}', [SubscriptionPaymentController::class, 'show']);
 
-    // Earnings
-    Route::get('/earnings',          [EarningController::class, 'index']);
-    Route::get('/earnings/summary',  [EarningController::class, 'summary']);
-    Route::get('/earnings/{earning}', [EarningController::class, 'show']);
-
-
-    // Payouts — CPF agent's monthly payout history
-    Route::get('/payouts', [PayoutController::class, 'index']);
     
     // Households — scoped to the logged-in client (for the payout breakdown table)
     Route::get('/households', [HouseholdPayoutController::class, 'households']);
