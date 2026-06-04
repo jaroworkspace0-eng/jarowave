@@ -7,6 +7,7 @@ import {
     Banknote,
     Bell,
     CircleDollarSign,
+    Copy,
     Hourglass,
     RefreshCw,
     Users,
@@ -61,6 +62,9 @@ const selectedClients = ref<Set<number>>(new Set());
 // Process modal
 const showProcessModal = ref(false);
 const eftReference = ref('');
+const generatedPayoutRef = ref('');
+const copiedRef = ref(false);
+const copiedAccount = ref<number | null>(null); // stores client_id of copied account
 
 // Notify loading per client
 const notifying = ref<number | null>(null);
@@ -107,6 +111,45 @@ const years = computed(() => {
     const y = new Date().getFullYear();
     return [y - 1, y, y + 1];
 });
+
+// Generate a payout reference like PAY-2026-06-001
+const generatePayoutRef = () => {
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const seq = String(Math.floor(Math.random() * 900) + 100); // 3-digit
+    return `PAY-${yyyy}-${mm}-${seq}`;
+};
+
+const copyToClipboard = async (text: string, cb: () => void) => {
+    try {
+        await navigator.clipboard.writeText(text);
+        cb();
+    } catch {
+        // fallback
+        const el = document.createElement('textarea');
+        el.value = text;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+        cb();
+    }
+};
+
+const copyPayoutRef = () => {
+    copyToClipboard(generatedPayoutRef.value, () => {
+        copiedRef.value = true;
+        setTimeout(() => (copiedRef.value = false), 2000);
+    });
+};
+
+const copyAccountNumber = (clientId: number, accountNumber: string) => {
+    copyToClipboard(accountNumber, () => {
+        copiedAccount.value = clientId;
+        setTimeout(() => (copiedAccount.value = null), 2000);
+    });
+};
 
 // ── Computed ──────────────────────────────────────────────────────────────
 const eligibleClients = computed(() =>
@@ -179,7 +222,10 @@ const toggleSelectAll = () => {
 
 // ── Process ───────────────────────────────────────────────────────────────
 const openProcessModal = () => {
-    eftReference.value = '';
+    generatedPayoutRef.value = generatePayoutRef();
+    eftReference.value = generatedPayoutRef.value;
+    copiedRef.value = false;
+    copiedAccount.value = null;
     showProcessModal.value = true;
 };
 
@@ -188,9 +234,7 @@ const confirmProcess = async () => {
     isProcessing.value = true;
 
     try {
-        // Process each selected client sequentially
         for (const client of selectedList.value) {
-            // Fetch their pending earning IDs first
             const params: any = { status: 'pending' };
             if (filterMonth.value) params.month = filterMonth.value;
             if (filterYear.value) params.year = filterYear.value;
@@ -565,9 +609,29 @@ const notifyNoBankDetails = async (client: Client) => {
                             >{{ selectedList.length }} client{{
                                 selectedList.length !== 1 ? 's' : ''
                             }}</strong
-                        >. Make sure you have completed the EFT transfers before
-                        confirming.
+                        >. Use the reference below when making each transfer in
+                        your banking app.
                     </p>
+
+                    <!-- ── PAYOUT REFERENCE BANNER ── -->
+                    <div class="payout-ref-banner">
+                        <div class="prb-top">
+                            <span class="prb-label">Payout Reference</span>
+                            <span class="prb-hint"
+                                >Use this as the Beneficiary Reference in your
+                                banking app</span
+                            >
+                        </div>
+                        <div class="prb-row">
+                            <span class="prb-value">{{
+                                generatedPayoutRef
+                            }}</span>
+                            <button class="prb-copy-btn" @click="copyPayoutRef">
+                                <Copy :size="13" />
+                                {{ copiedRef ? 'Copied!' : 'Copy' }}
+                            </button>
+                        </div>
+                    </div>
 
                     <!-- Per-client summary -->
                     <div class="client-summary-list">
@@ -578,12 +642,32 @@ const notifyNoBankDetails = async (client: Client) => {
                         >
                             <div class="cs-left">
                                 <div class="cs-name">{{ c.organisation }}</div>
-                                <div class="cs-bank muted small">
-                                    {{ c.bank_details?.bank_name }} ···{{
-                                        c.bank_details?.account_number.slice(-4)
-                                    }}
-                                    · {{ c.bank_details?.account_type }} ·
-                                    Branch {{ c.bank_details?.branch_code }}
+                                <!-- Full account number with copy -->
+                                <div class="cs-bank-row">
+                                    <span class="cs-bank muted small">
+                                        {{ c.bank_details?.bank_name }} ·
+                                        {{ c.bank_details?.account_number }}
+                                        · {{ c.bank_details?.account_type }} ·
+                                        Branch {{ c.bank_details?.branch_code }}
+                                    </span>
+                                    <button
+                                        class="acct-copy-btn"
+                                        @click.stop="
+                                            copyAccountNumber(
+                                                c.client_id,
+                                                c.bank_details
+                                                    ?.account_number ?? '',
+                                            )
+                                        "
+                                        title="Copy account number"
+                                    >
+                                        <Copy :size="11" />
+                                        {{
+                                            copiedAccount === c.client_id
+                                                ? 'Copied!'
+                                                : 'Copy acc.'
+                                        }}
+                                    </button>
                                 </div>
                             </div>
                             <div class="cs-amount">
@@ -598,20 +682,23 @@ const notifyNoBankDetails = async (client: Client) => {
                         </div>
                     </div>
 
-                    <!-- EFT Reference -->
+                    <!-- Beneficiary Reference field -->
                     <div class="mf">
-                        <label class="ml">EFT / Bank Transfer Reference</label>
+                        <label class="ml"
+                            >Beneficiary Reference (used when making the
+                            transfer)</label
+                        >
                         <input
                             class="mi"
                             type="text"
                             v-model="eftReference"
-                            placeholder="e.g. FNB-20260601-001"
+                            placeholder="e.g. PAY-2026-06-001"
                             autofocus
                         />
                         <p class="mi-hint">
-                            Enter the reference from your bank after completing
-                            the transfer. This is recorded against each payout
-                            for audit purposes.
+                            This is pre-filled with the generated reference
+                            above. Edit only if you used a different reference
+                            in your banking app.
                         </p>
                     </div>
 
@@ -1098,6 +1185,67 @@ const notifyNoBankDetails = async (client: Client) => {
     margin-top: 22px;
 }
 
+/* Payout reference banner */
+.payout-ref-banner {
+    background: #fff7ed;
+    border: 1.5px solid #fed7aa;
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 18px;
+}
+.prb-top {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+.prb-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #c2410c;
+}
+.prb-hint {
+    font-size: 11px;
+    color: #9a3412;
+    opacity: 0.75;
+}
+.prb-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.prb-value {
+    font-size: 18px;
+    font-weight: 800;
+    color: #c2410c;
+    letter-spacing: 0.5px;
+    font-family: 'Courier New', monospace;
+}
+.prb-copy-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 14px;
+    background: #f97316;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Segoe UI', sans-serif;
+    transition: all 0.15s;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.prb-copy-btn:hover {
+    background: #ea580c;
+}
+
 /* Client summary in modal */
 .client-summary-list {
     border: 1.5px solid #f0f0f0;
@@ -1115,14 +1263,23 @@ const notifyNoBankDetails = async (client: Client) => {
 }
 .cs-left {
     flex: 1;
+    min-width: 0;
 }
 .cs-name {
     font-size: 13px;
     font-weight: 700;
     color: #111;
 }
+.cs-bank-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 3px;
+    flex-wrap: wrap;
+}
 .cs-bank {
-    margin-top: 2px;
+    flex-shrink: 1;
+    min-width: 0;
 }
 .cs-amount {
     font-size: 14px;
@@ -1137,6 +1294,30 @@ const notifyNoBankDetails = async (client: Client) => {
     background: #f9f9f9;
     font-size: 13px;
     color: #555;
+}
+
+/* Account copy button */
+.acct-copy-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 8px;
+    background: transparent;
+    color: #888;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: 'Segoe UI', sans-serif;
+    transition: all 0.15s;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.acct-copy-btn:hover {
+    border-color: #f97316;
+    color: #f97316;
+    background: rgba(249, 115, 22, 0.04);
 }
 
 .mf {
@@ -1249,6 +1430,9 @@ const notifyNoBankDetails = async (client: Client) => {
     }
     .summary-row {
         grid-template-columns: 1fr 1fr;
+    }
+    .prb-value {
+        font-size: 15px;
     }
 }
 </style>
