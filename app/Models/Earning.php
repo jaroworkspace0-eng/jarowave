@@ -103,9 +103,9 @@ class Earning extends Model
         int $commissionPct = 60
     ): self {
         $residentAmount  = $payment->amount;
-        $earnedAmount    = (int) round($residentAmount * ($commissionPct / 100));
-        $platformAmount  = $residentAmount - $earnedAmount;
-
+        $earnedAmount   = round($residentAmount * ($commissionPct / 100), 2); // 48.00
+        $platformAmount = round($residentAmount - $earnedAmount, 2);          // 32.00
+                                 
         return self::create([
             // 'client_id'               => $client->id,
             'client_id'               => $client->user_id,

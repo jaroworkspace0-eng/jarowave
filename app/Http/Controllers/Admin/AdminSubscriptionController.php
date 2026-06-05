@@ -67,31 +67,45 @@ class AdminSubscriptionController extends Controller
             'proof'  => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
         ]);
 
-        $proofPath = $request->file('proof')->store('eft-proofs', 'public');
-
-        $amountCents = (int) round($request->amount * 100);
+        $proofPath  = $request->file('proof')->store('eft-proofs', 'public');
+        // $amountCents = (int) round($request->amount * 100);
+        $amountRands = round($request->amount, 2);
+        $eftReference = 'EFT-' . strtoupper(uniqid());
 
         // Create payment record
         $payment = SubscriptionPayment::create([
-            'subscription_id'     => $subscription->id,
-            'user_id'             => $subscription->user_id,
-            'amount'              => $amountCents,
-            'amount_gross'        => $amountCents / 100,
-            'status'              => 'complete',
-            'gateway'             => 'manual_eft',
-            'merchant_reference'  => 'EFT-' . strtoupper(uniqid()),
-            'billing_period_start'=> $subscription->current_period_start,
-            'billing_period_end'  => $subscription->current_period_end,
-            'notes'               => $request->note,
-            'proof_of_payment'    => $proofPath,
+            'subscription_id'           => $subscription->id,
+            'user_id'                   => $subscription->user_id,
+            'amount'                    => $amountRands,
+            'amount_gross'              => $amountRands,
+            'amount_fee'                => 0, // No fee for manual EFT
+            'amount_net'                => $amountRands, // Net is same as gross for manual EFT
+            'status'                    => 'complete',
+            'gateway'                   => 'manual_eft',
+            'gateway_transaction_id'    => null,
+            'gateway_payment_reference' => $eftReference,
+            'gateway_status'            => 'COMPLETE',
+            'merchant_reference'        => $eftReference,
+            'currency'                  => 'ZAR',
+            'payment_method'            => 'eft',
+            'payer_name'                => trim($subscription->user->name ?? '') ?: null,
+            'payer_email'               => $subscription->user->email ?? null,
+            'gateway_payload'           => null,
+            'signature'                 => null,
+            'ip_address'                => $request->ip(),
+            'billing_period_start'      => $subscription->current_period_start,
+            'billing_period_end'        => $subscription->current_period_end,
+            'paid_at'                   => now(),
+            'notes'                     => $request->note,
+            'proof_of_payment'          => $proofPath,
         ]);
 
         // Activate subscription
         $subscription->update([
-            'status'              => 'active',
-            'payment_failed_at'   => null,
-            'sos_suspended_at'    => null,
-            'gateway'             => 'manual_eft',
+            'status'            => 'active',
+            'payment_failed_at' => null,
+            'sos_suspended_at'  => null,
+            'gateway'           => 'manual_eft',
         ]);
 
         // Create earning + invoice
@@ -101,24 +115,22 @@ class AdminSubscriptionController extends Controller
             }
             Invoice::createFromPayment($payment);
 
-
             // Mark activation fee as paid on first successful payment if not already
             if (!$subscription->activation_fee_paid) {
                 $subscription->update([
                     'activation_fee_paid'    => true,
                     'activation_fee_paid_at' => now(),
-                    'price'                  => BillingService::UNIT_PRICE / 100, // reset to R80
+                    'price'                  => BillingService::UNIT_PRICE / 100,
                 ]);
-}
-
+            }
         } catch (\Throwable $e) {
             Log::warning('EFT payment: earning/invoice failed', ['error' => $e->getMessage()]);
         }
 
         // Notify Node.js
         $this->notifyNode('POST', '/payment-resolved', [
-            'userId'   => $subscription->user_id,
-            'note'     => 'EFT payment confirmed by admin',
+            'userId' => $subscription->user_id,
+            'note'   => 'EFT payment confirmed by admin',
         ]);
 
         return response()->json(['success' => true, 'message' => 'EFT payment recorded. SOS re-enabled.']);

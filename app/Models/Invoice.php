@@ -82,15 +82,19 @@ class Invoice extends Model
     {
         $subscription = $payment->subscription;
 
+        $subtotal       = round($subscription->original_price ?? $payment->amount_gross, 2);
+        $discountAmount = round($subscription->discount_amount ?? 0, 2);
+        $total          = round($payment->amount, 2);
+
         return self::create([
             'subscription_id'         => $subscription->id,
             'subscription_payment_id' => $payment->id,
-            'client_id' => $subscription->user_id, // household resident
+            'client_id'               => $subscription->user_id,
             'invoice_number'          => self::generateNumber(),
             'status'                  => 'paid',
-            'subtotal'                => $subscription->original_price ?? $payment->amount_gross,
-            'discount_amount'         => $subscription->discount_amount ?? 0,
-            'total'                   => $payment->amount,
+            'subtotal'                => $subtotal,
+            'discount_amount'         => $discountAmount,
+            'total'                   => $total,
             'currency'                => 'ZAR',
             'issued_at'               => now(),
             'due_date'                => $payment->billing_period_end,
