@@ -61,10 +61,10 @@ class AdminPayoutController extends Controller
                 'name'            => $user?->name            ?? '—',
                 'email'           => $user?->email           ?? '—',
                 'organisation'    => $user?->organisation_name ?? $user?->name ?? '—',
-                'pending_amount'  => round($row->pending_amount  / 100, 2),
-                'paid_amount'     => round($row->paid_amount     / 100, 2),
-                'withheld_amount' => round($row->withheld_amount / 100, 2),
-                'total_amount'    => round($row->total_amount    / 100, 2),
+                'pending_amount'  => round($row->pending_amount,  2),
+                'paid_amount'     => round($row->paid_amount,     2),
+                'withheld_amount' => round($row->withheld_amount, 2),
+                'total_amount'    => round($row->total_amount,    2),
                 'earning_count'   => (int) $row->earning_count,
                 'pending_count'   => (int) $row->pending_count,
                 'earliest_period' => $row->earliest_period,
@@ -82,10 +82,10 @@ class AdminPayoutController extends Controller
 
         // Platform-wide totals
         $totals = [
-            'total_pending'  => round($rows->sum('pending_amount')  / 100, 2),
-            'total_paid'     => round($rows->sum('paid_amount')     / 100, 2),
-            'total_clients'  => $rows->count(),
-            'clients_no_bank'=> $clients->where('has_bank_details', false)->count(),
+            'total_pending'   => round($rows->sum('pending_amount'), 2),
+            'total_paid'      => round($rows->sum('paid_amount'),    2),
+            'total_clients'   => $rows->count(),
+            'clients_no_bank' => $clients->where('has_bank_details', false)->count(),
         ];
 
         return response()->json([
@@ -115,9 +115,9 @@ class AdminPayoutController extends Controller
         $earnings = $q->orderBy('period_start', 'desc')->get()->map(fn($e) => [
             'id'               => $e->id,
             'household_name'   => $e->resident?->name ?? '—',
-            'resident_amount'  => round($e->resident_amount  / 100, 2),
-            'earned_amount'    => round($e->earned_amount    / 100, 2),
-            'platform_amount'  => round($e->platform_amount  / 100, 2),
+            'resident_amount' => round($e->resident_amount, 2),
+            'earned_amount'   => round($e->earned_amount,   2),
+            'platform_amount' => round($e->platform_amount, 2),
             'commission_percentage' => $e->commission_percentage,
             'status'           => $e->status,
             'period_start'     => $e->period_start?->toDateTimeString(),
@@ -188,9 +188,9 @@ class AdminPayoutController extends Controller
                 'period_start'       => $periodStart,
                 'period_end'         => $periodEnd,
                 'household_count'    => $householdCount,
-                'gross_amount'       => round($grossAmount  / 100, 2),
-                'platform_fee'       => round($platformFee  / 100, 2),
-                'net_amount'         => round($netAmount     / 100, 2),
+                'gross_amount' => round($grossAmount, 2),
+                'platform_fee' => round($platformFee, 2),
+                'net_amount'   => round($netAmount,   2),
                 'status'             => 'paid',
                 'paid_at'            => now(),
                 'transfer_reference' => $eftRef,
