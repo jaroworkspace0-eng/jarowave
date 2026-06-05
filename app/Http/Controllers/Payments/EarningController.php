@@ -41,27 +41,24 @@ class EarningController extends Controller
 
         $this->applyFilters($q, $request);
 
-        // All-time totals (unfiltered) for the hero banner
         $all = $this->baseQuery($user);
 
         return response()->json([
             'summary' => [
-                // Filtered totals
-                'pending_amount'     => round($q->clone()->where('status', 'pending')->sum('earned_amount')  / 100, 2),
-                'paid_amount'        => round($q->clone()->where('status', 'paid')->sum('earned_amount')     / 100, 2),
-                'withheld_amount'    => round($q->clone()->where('status', 'withheld')->sum('earned_amount') / 100, 2),
-                'total_earned'       => round($q->clone()->sum('earned_amount')                              / 100, 2),
-                'platform_collected' => round($q->clone()->sum('platform_amount')                            / 100, 2),
+                'pending_amount'     => round($q->clone()->where('status', 'pending')->sum('earned_amount'),  2),
+                'paid_amount'        => round($q->clone()->where('status', 'paid')->sum('earned_amount'),     2),
+                'withheld_amount'    => round($q->clone()->where('status', 'withheld')->sum('earned_amount'), 2),
+                'total_earned'       => round($q->clone()->sum('earned_amount'),                              2),
+                'platform_collected' => round($q->clone()->sum('platform_amount'),                            2),
                 'pending_count'      => $q->clone()->where('status', 'pending')->count(),
                 'paid_count'         => $q->clone()->where('status', 'paid')->count(),
                 'total_count'        => $q->clone()->count(),
                 'total_residents'    => $q->clone()->distinct('resident_id')->count('resident_id'),
                 'commission_rate'    => (int) ($q->clone()->value('commission_percentage') ?? 60),
 
-                // All-time totals (always unfiltered — for hero banner)
-                'alltime_earned'     => round($all->clone()->sum('earned_amount') / 100, 2),
-                'alltime_paid'       => round($all->clone()->where('status', 'paid')->sum('earned_amount') / 100, 2),
-                'alltime_pending'    => round($all->clone()->where('status', 'pending')->sum('earned_amount') / 100, 2),
+                'alltime_earned'     => round($all->clone()->sum('earned_amount'),                              2),
+                'alltime_paid'       => round($all->clone()->where('status', 'paid')->sum('earned_amount'),     2),
+                'alltime_pending'    => round($all->clone()->where('status', 'pending')->sum('earned_amount'),  2),
             ],
         ]);
     }
@@ -86,9 +83,9 @@ class EarningController extends Controller
                 $e->resident?->name ?? '—',
                 $e->period_start?->format('Y-m-d') ?? '—',
                 $e->period_end?->format('Y-m-d')   ?? '—',
-                number_format($e->resident_amount / 100, 2),
-                number_format($e->earned_amount   / 100, 2),
-                number_format($e->platform_amount / 100, 2),
+                number_format($e->resident_amount, 2),
+                number_format($e->earned_amount,   2),
+                number_format($e->platform_amount, 2),
                 $e->commission_percentage . '%',
                 $e->status,
                 $e->payout_at?->format('Y-m-d') ?? '—',
@@ -150,22 +147,22 @@ class EarningController extends Controller
     private function formatEarning(Earning $e): array
     {
         return [
-            'id'                  => $e->id,
-            'household_name'      => $e->resident?->name ?? '—',
-            'household_address'   => trim(implode(', ', array_filter([
+            'id'                    => $e->id,
+            'household_name'        => $e->resident?->name ?? '—',
+            'household_address'     => trim(implode(', ', array_filter([
                 $e->resident?->address_line_1,
                 $e->resident?->suburb,
             ]))),
-            'resident_amount'     => round($e->resident_amount  / 100, 2),
-            'earned_amount'       => round($e->earned_amount    / 100, 2),
-            'platform_amount'     => round($e->platform_amount  / 100, 2),
+            'resident_amount'       => round($e->resident_amount,   2),
+            'earned_amount'         => round($e->earned_amount,     2),
+            'platform_amount'       => round($e->platform_amount,   2),
             'commission_percentage' => $e->commission_percentage,
-            'status'              => $e->status,
-            'period_start'        => $e->period_start?->toDateTimeString(),
-            'period_end'          => $e->period_end?->toDateTimeString(),
-            'payout_at'           => $e->payout_at?->toDateTimeString(),
-            'payout_reference'    => $e->payout_reference,
-            'created_at'          => $e->created_at?->toDateTimeString(),
+            'status'                => $e->status,
+            'period_start'          => $e->period_start?->toDateTimeString(),
+            'period_end'            => $e->period_end?->toDateTimeString(),
+            'payout_at'             => $e->payout_at?->toDateTimeString(),
+            'payout_reference'      => $e->payout_reference,
+            'created_at'            => $e->created_at?->toDateTimeString(),
         ];
     }
 
