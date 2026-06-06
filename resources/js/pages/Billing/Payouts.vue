@@ -1073,7 +1073,6 @@ const saveBankDetails = async () => {
                     </div>
 
                     <div v-else class="bank-missing">
-                        <div class="bm-icon">⚠</div>
                         <div>
                             <div class="bm-title">No bank details on file</div>
                             <div class="bm-desc">
