@@ -570,7 +570,6 @@ const notifyNoBankDetails = async (client: Client) => {
                                     }}
                                 </div>
                                 <div v-else class="no-bank-tag">
-                                    <AlertTriangle :size="13" />
                                     No bank details
                                     <button
                                         class="notify-btn"
