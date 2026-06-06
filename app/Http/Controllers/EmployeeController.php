@@ -259,6 +259,7 @@ class EmployeeController extends Controller
             'unit_number'               => 'nullable|string',
             'safe_cancel_pin'           => 'nullable|string|size:6',
             'duress_pin'                => 'nullable|string|size:6',
+            'is_estate' => 'boolean',
         ]);
 
         // Verify current password if user is changing their own password
@@ -295,6 +296,7 @@ class EmployeeController extends Controller
                     'unit_number'     => $isHousehold ? ($validated['unit_number'] ?? null)      : null,
                     'safe_cancel_pin' => $isHousehold ? ($validated['safe_cancel_pin'] ?? null)  : null,
                     'duress_pin'      => $isHousehold ? ($validated['duress_pin'] ?? null)       : null,
+                    'is_estate' => $isHousehold ? (bool) ($validated['is_estate'] ?? false) : false,
                 ]);
             }
 

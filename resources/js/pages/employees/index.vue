@@ -722,7 +722,7 @@ const editEmployee = (employee: any) => {
     form.value.safe_cancel_pin = employee.user.safe_cancel_pin || '';
     form.value.duress_pin = employee.user.duress_pin || '';
     form.value.unit_number = employee.user.unit_number || '';
-    inComplex.value = !!employee.user.complex_name;
+    // inComplex.value = !!employee.user.complex_name;
     form.value.activation_fee_paid =
         employee.user.subscription?.activation_fee_paid ?? false;
     const allOptions = roleGroups.flatMap((g) => g.options);
@@ -730,6 +730,8 @@ const editEmployee = (employee: any) => {
         (allOptions.find((o) => o.value === form.value.occupation) as any) ||
         '';
     showModal.value = true;
+    form.value.is_estate = employee.user.is_estate ?? false;
+    inComplex.value = employee.user.is_estate ?? !!employee.user.complex_name;
 };
 
 const closeModal = () => {
