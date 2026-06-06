@@ -18,6 +18,7 @@ class AdminPayoutController extends Controller
     // ── GET /api/admin/payouts/clients ────────────────────────────────────────
     // Returns all clients that have earnings, with their pending totals
     // Supports: ?month=6&year=2026&status=pending
+    // ── GET /api/admin/payouts/clients ────────────────────────────────────────
     public function clients(Request $request)
     {
         $this->requireAdmin();
@@ -36,12 +37,18 @@ class AdminPayoutController extends Controller
             )
             ->groupBy('client_id');
 
-        // Period filter
+        // Period filter — include NULL period_start rows so manual EFT earnings aren't excluded
         if ($request->filled('month') && $request->filled('year')) {
-            $q->whereMonth('period_start', $request->integer('month'))
-              ->whereYear('period_start',  $request->integer('year'));
+            $q->where(function ($query) use ($request) {
+                $query->whereMonth('period_start', $request->integer('month'))
+                    ->whereYear('period_start',  $request->integer('year'))
+                    ->orWhereNull('period_start');
+            });
         } elseif ($request->filled('year')) {
-            $q->whereYear('period_start', $request->integer('year'));
+            $q->where(function ($query) use ($request) {
+                $query->whereYear('period_start', $request->integer('year'))
+                    ->orWhereNull('period_start');
+            });
         }
 
         // Only show clients with pending earnings by default
@@ -57,20 +64,20 @@ class AdminPayoutController extends Controller
             $bankDetails = BankDetail::where('client_id', $row->client_id)->first();
 
             return [
-                'client_id'       => $row->client_id,
-                'name'            => $user?->name            ?? '—',
-                'email'           => $user?->email           ?? '—',
-                'organisation'    => $user?->organisation_name ?? $user?->name ?? '—',
-                'pending_amount'  => round($row->pending_amount,  2),
-                'paid_amount'     => round($row->paid_amount,     2),
-                'withheld_amount' => round($row->withheld_amount, 2),
-                'total_amount'    => round($row->total_amount,    2),
-                'earning_count'   => (int) $row->earning_count,
-                'pending_count'   => (int) $row->pending_count,
-                'earliest_period' => $row->earliest_period,
-                'latest_period'   => $row->latest_period,
+                'client_id'        => $row->client_id,
+                'name'             => $user?->name              ?? '—',
+                'email'            => $user?->email             ?? '—',
+                'organisation'     => $user?->organisation_name ?? $user?->name ?? '—',
+                'pending_amount'   => round($row->pending_amount,  2),
+                'paid_amount'      => round($row->paid_amount,     2),
+                'withheld_amount'  => round($row->withheld_amount, 2),
+                'total_amount'     => round($row->total_amount,    2),
+                'earning_count'    => (int) $row->earning_count,
+                'pending_count'    => (int) $row->pending_count,
+                'earliest_period'  => $row->earliest_period,
+                'latest_period'    => $row->latest_period,
                 'has_bank_details' => $bankDetails !== null,
-                'bank_details'    => $bankDetails ? [
+                'bank_details'     => $bankDetails ? [
                     'bank_name'      => $bankDetails->bank_name,
                     'account_holder' => $bankDetails->account_holder,
                     'account_number' => $bankDetails->account_number,
@@ -82,10 +89,10 @@ class AdminPayoutController extends Controller
 
         // Platform-wide totals
         $totals = [
-            'total_pending'   => round($rows->sum('pending_amount'), 2),
-            'total_paid'      => round($rows->sum('paid_amount'),    2),
-            'total_clients'   => $rows->count(),
-            'clients_no_bank' => $clients->where('has_bank_details', false)->count(),
+            'total_pending'    => round($rows->sum('pending_amount'), 2),
+            'total_paid'       => round($rows->sum('paid_amount'),    2),
+            'total_clients'    => $rows->count(),
+            'clients_no_bank'  => $clients->where('has_bank_details', false)->count(),
         ];
 
         return response()->json([
@@ -95,7 +102,6 @@ class AdminPayoutController extends Controller
     }
 
     // ── GET /api/admin/payouts/clients/{clientId}/earnings ────────────────────
-    // Returns individual earning rows for a specific client (for the detail drawer)
     public function clientEarnings(Request $request, int $clientId)
     {
         $this->requireAdmin();
@@ -103,9 +109,18 @@ class AdminPayoutController extends Controller
         $q = Earning::where('client_id', $clientId)
             ->with(['resident']);
 
+        // Period filter — include NULL period_start rows so manual EFT earnings aren't excluded
         if ($request->filled('month') && $request->filled('year')) {
-            $q->whereMonth('period_start', $request->integer('month'))
-              ->whereYear('period_start',  $request->integer('year'));
+            $q->where(function ($query) use ($request) {
+                $query->whereMonth('period_start', $request->integer('month'))
+                    ->whereYear('period_start',  $request->integer('year'))
+                    ->orWhereNull('period_start');
+            });
+        } elseif ($request->filled('year')) {
+            $q->where(function ($query) use ($request) {
+                $query->whereYear('period_start', $request->integer('year'))
+                    ->orWhereNull('period_start');
+            });
         }
 
         if ($request->filled('status')) {
@@ -113,17 +128,17 @@ class AdminPayoutController extends Controller
         }
 
         $earnings = $q->orderBy('period_start', 'desc')->get()->map(fn($e) => [
-            'id'               => $e->id,
-            'household_name'   => $e->resident?->name ?? '—',
-            'resident_amount' => round($e->resident_amount, 2),
-            'earned_amount'   => round($e->earned_amount,   2),
-            'platform_amount' => round($e->platform_amount, 2),
+            'id'                    => $e->id,
+            'household_name'        => $e->resident?->name ?? '—',
+            'resident_amount'       => round($e->resident_amount, 2),
+            'earned_amount'         => round($e->earned_amount,   2),
+            'platform_amount'       => round($e->platform_amount, 2),
             'commission_percentage' => $e->commission_percentage,
-            'status'           => $e->status,
-            'period_start'     => $e->period_start?->toDateTimeString(),
-            'period_end'       => $e->period_end?->toDateTimeString(),
-            'payout_at'        => $e->payout_at?->toDateTimeString(),
-            'payout_reference' => $e->payout_reference,
+            'status'                => $e->status,
+            'period_start'          => $e->period_start?->toDateTimeString(),
+            'period_end'            => $e->period_end?->toDateTimeString(),
+            'payout_at'             => $e->payout_at?->toDateTimeString(),
+            'payout_reference'      => $e->payout_reference,
         ]);
 
         return response()->json(['earnings' => $earnings]);
