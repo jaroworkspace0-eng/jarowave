@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'node' => [
+        'url' => env('PTT_SERVER_URL'),
+    ],
+
 ];

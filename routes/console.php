@@ -10,3 +10,5 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::job(new ProcessAccountDeletions)->dailyAt('00:00');
+Schedule::command('echo:suspend-non-paying')->dailyAt('00:01');
+Schedule::command('echo:send-payment-reminders')->dailyAt('08:00');
