@@ -141,7 +141,7 @@ Route::post('/login', function (Request $request) {
             'duress_pin' => $user->duress_pin,
             'unit_number' => $user->unit_number,
             'plan'              => $user->plan,
-            'isEstate' => $user->is_estate,
+            'is_estate' => $user->is_estate,
         ],
         'channels' => $channels,
         'token'    => $token,
