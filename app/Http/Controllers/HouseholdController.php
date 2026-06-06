@@ -13,12 +13,16 @@ use App\Services\BillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use App\Services\PayFastService;
+use App\Traits\NotifiesNode;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class HouseholdController extends Controller
 {
+    use NotifiesNode;
     // ── POST /api/household/login ─────────────────────────────────────────────
     public function login(Request $request)
     {
@@ -274,9 +278,18 @@ class HouseholdController extends Controller
             }
         }
 
+
+        $accessEnd = $subscription->current_period_end ?? now()->addDays(30);
+
         $subscription->update([
-            'status'  => 'cancelled',
-            'ends_at' => $subscription->current_period_end,
+            'status'       => 'cancelled',
+            'cancelled_at' => now(),
+            'ends_at'      => $accessEnd,
+        ]);
+
+        $this->notifyNode('POST', '/subscription-cancelled', [
+            'userId'    => $subscription->user_id,
+            'accessEnd' => $accessEnd->toIso8601String(),
         ]);
 
         return response()->json(['message' => 'Subscription cancelled successfully.']);
@@ -458,7 +471,7 @@ class HouseholdController extends Controller
         }
 
         // Prevent double charge with DB lock
-        $locked = \Cache::lock('pay_now_' . $user->id, 30);
+        $locked = Cache::lock('pay_now_' . $user->id, 30);
         if (!$locked->get()) {
             return response()->json(['message' => 'Payment already in progress.'], 429);
         }
@@ -510,4 +523,5 @@ class HouseholdController extends Controller
             'action' => 'https://www.payfast.co.za/eng/process',
         ]);
     }
+
 }

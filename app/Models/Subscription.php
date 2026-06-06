@@ -128,4 +128,18 @@ class Subscription extends Model
     {
         return $this->hasOne(SubscriptionPayment::class)->latestOfMany();
     }
+
+
+    public function isAccessActive(): bool
+    {
+        if (in_array($this->status, ['active', 'trialing'])) {
+            return true;
+        }
+
+        if ($this->status === 'cancelled' && $this->ends_at?->isFuture()) {
+            return true;
+        }
+
+        return false;
+    }
 }
