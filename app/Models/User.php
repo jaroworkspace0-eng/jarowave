@@ -42,6 +42,7 @@ class User extends Authenticatable
         'fcm_token',
         'fcm_device_id',
         'fcm_token_updated_at',
+        'is_estate',
     ];
 
     protected $hidden = [

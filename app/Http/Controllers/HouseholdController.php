@@ -70,6 +70,7 @@ class HouseholdController extends Controller
             'email'        => 'required|email|unique:users,email',
             'phone'        => 'nullable|string|max:20|unique:users,phone',
             'password'     => 'required|string|min:8|confirmed',
+            'is_estate' => 'boolean',
             // 'gateway'      => 'required|in:payfast,ozow',
         ]);
 
@@ -102,6 +103,8 @@ class HouseholdController extends Controller
             'occupation' => 'household',
             'is_active'  => true,
             'status'     => 'offline',
+            'is_estate'  => $request->boolean('is_estate', false),
+
         ]);
 
         // Create employee record

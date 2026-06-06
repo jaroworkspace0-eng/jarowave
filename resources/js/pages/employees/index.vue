@@ -471,6 +471,7 @@ const form = ref({
     safe_cancel_pin: '',
     duress_pin: '',
     activation_fee_paid: false,
+    is_estate: false,
 });
 
 // ─── watchers ─────────────────────────────────────────────────────────────────
@@ -739,6 +740,7 @@ const closeModal = () => {
 const submitEmployee = async () => {
     try {
         loading.value = true;
+        form.value.is_estate = inComplex.value;
         const payload = {
             ...form.value,
             channel_ids: form.value.channel_ids.map((c: any) => c.id ?? c),
