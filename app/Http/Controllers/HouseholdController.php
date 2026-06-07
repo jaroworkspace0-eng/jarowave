@@ -507,7 +507,7 @@ class HouseholdController extends Controller
     {
         $user         = $request->user();
         $subscription = Subscription::where('user_id', $user->id)
-            ->whereIn('status', ['past_due', 'trialing'])
+            ->whereIn('status', ['past_due', 'trialing', 'cancelled'])
             ->latest()
             ->first();
 
