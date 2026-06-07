@@ -412,60 +412,59 @@ class HouseholdController extends Controller
         return $digits;
     }
 
-    public function reactivate(Request $request)
-    {
-        $user         = $request->user();
-        $subscription = Subscription::where('user_id', $user->id)->latest()->first();
+   public function reactivate(Request $request)
+{
+    $user         = $request->user();
+    $subscription = Subscription::where('user_id', $user->id)->latest()->first();
 
-        if (!$subscription) {
-            return response()->json(['message' => 'No subscription found.'], 404);
-        }
-
-        if ($subscription->status !== 'cancelled') {
-            return response()->json(['message' => 'Subscription is not cancelled.'], 400);
-        }
-
-        // Reset subscription
-        $merchantReference = 'HH-' . $user->id . '-' . time();
-
-        $now = now();
-        $trialStillValid = $subscription->trial_ends_at && $subscription->trial_ends_at->isFuture();
-
-        $subscription->update([
-            'status'               => $trialStillValid ? 'trialing' : 'active',
-            'payfast_token'        => null,
-            'merchant_reference'   => $merchantReference,
-            'gateway_status'       => null,
-            'cancelled_at'         => null,
-            'ends_at'              => null,
-            'sos_suspended_at'     => null,
-            'trial_ends_at'        => $trialStillValid ? $subscription->trial_ends_at : null,
-            'current_period_start' => $trialStillValid ? null : $now,
-            'current_period_end'   => $trialStillValid ? null : $now->copy()->addMonth(),
-        ]);
-
-        $payfast = new \App\Services\PayFastService();
-        $fields  = $payfast->buildSubscriptionFields([
-            // 'billing_date'     => now()->format('Y-m-d'),
-            'billing_date' => $trialStillValid
-            ? $subscription->trial_ends_at->format('Y-m-d')  // resume from where trial would have ended
-            : $now->format('Y-m-d'),                          // start fresh from today
-            'name_first'       => explode(' ', $user->name)[0],
-            'name_last'        => explode(' ', $user->name, 2)[1] ?? '',
-            'email_address'    => $user->email,
-            'cell_number'      => $this->formatPhone($user->phone ?? ''),
-            'm_payment_id'     => $merchantReference,
-            'item_name'        => 'Echo Link Community Protection',
-            'item_description' => 'R80 per month neighbourhood watch reactivation',
-            'custom_str1'      => (string) $user->id,
-        ], $trialStillValid ? '0.00' : '80.00');
-
-        return response()->json([
-            'type'   => 'new',
-            'fields' => $fields,
-            'action' => 'https://www.payfast.co.za/eng/process',
-        ]);
+    if (!$subscription) {
+        return response()->json(['message' => 'No subscription found.'], 404);
     }
+
+    if ($subscription->status !== 'cancelled') {
+        return response()->json(['message' => 'Subscription is not cancelled.'], 400);
+    }
+
+    $now                 = now();
+    $trialStillValid     = $subscription->trial_ends_at && $subscription->trial_ends_at->isFuture();
+    $originalTrialEndsAt = $subscription->trial_ends_at; // ← capture before update nulls it
+
+    $merchantReference = 'HH-' . $user->id . '-' . time();
+
+    $subscription->update([
+        'status'               => $trialStillValid ? 'trialing' : 'active',
+        'payfast_token'        => null,
+        'merchant_reference'   => $merchantReference,
+        'gateway_status'       => null,
+        'cancelled_at'         => null,
+        'ends_at'              => null,
+        'sos_suspended_at'     => null,
+        'trial_ends_at'        => $trialStillValid ? $originalTrialEndsAt : null,
+        'current_period_start' => $trialStillValid ? null : $now,
+        'current_period_end'   => $trialStillValid ? null : $now->copy()->addMonth(),
+    ]);
+
+    $payfast = new \App\Services\PayFastService();
+    $fields  = $payfast->buildSubscriptionFields([
+        'billing_date'     => $trialStillValid
+            ? $originalTrialEndsAt->format('Y-m-d')
+            : $now->format('Y-m-d'),
+        'name_first'       => explode(' ', $user->name)[0],
+        'name_last'        => explode(' ', $user->name, 2)[1] ?? '',
+        'email_address'    => $user->email,
+        'cell_number'      => $this->formatPhone($user->phone ?? ''),
+        'm_payment_id'     => $merchantReference,
+        'item_name'        => 'Echo Link Community Protection',
+        'item_description' => 'R80 per month neighbourhood watch reactivation',
+        'custom_str1'      => (string) $user->id,
+    ], $trialStillValid ? '0.00' : '80.00');
+
+    return response()->json([
+        'type'   => 'new',
+        'fields' => $fields,
+        'action' => 'https://www.payfast.co.za/eng/process',
+    ]);
+}
 
     public function payNow(Request $request)
     {
