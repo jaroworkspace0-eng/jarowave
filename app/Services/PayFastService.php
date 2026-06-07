@@ -63,9 +63,9 @@ class PayFastService
         ';
     }
 
-    public function buildSubscriptionFields(array $params): array
+    public function buildSubscriptionFields(array $params, string $amount = '0.00'): array
     {
-        $data = $this->basePayload($params, '0.00');
+        $data = $this->basePayload($params, $amount);
         $data = array_filter($data, fn($v) => $v !== '' && $v !== null);
         $data['signature'] = $this->generateSignature($data);
 

@@ -458,7 +458,7 @@ class HouseholdController extends Controller
             'item_name'        => 'Echo Link Community Protection',
             'item_description' => 'R80 per month neighbourhood watch reactivation',
             'custom_str1'      => (string) $user->id,
-        ]);
+        ], $trialStillValid ? '0.00' : '80.00');
 
         return response()->json([
             'type'   => 'new',
