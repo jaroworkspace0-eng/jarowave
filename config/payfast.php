@@ -7,7 +7,7 @@ return [
     'notify_url'          => env('PAYFAST_NOTIFY_URL',          'https://admin.jaroworkspace.com/api/webhooks/payfast'),
     'recovery_notify_url' => env('PAYFAST_RECOVERY_NOTIFY_URL', 'https://admin.jaroworkspace.com/api/webhooks/payfast/recovery'),
     'return_url'          => env('PAYFAST_RETURN_URL',          'https://account.jaroworkspace.com/dashboard.html'),
-    'cancel_url'          => env('PAYFAST_CANCEL_URL',          'https://account.jaroworkspace.com/register.html'),
+    'cancel_url'          => env('PAYFAST_CANCEL_URL',          'https://account.jaroworkspace.com/dashboard.html'), // No dedicated cancel page, just return to dashboard
     // 'recovery_return_url' => env('PAYFAST_RECOVERY_RETURN_URL', 'https://account.jaroworkspace.com/billing/recovery/success'),
     // 'recovery_cancel_url' => env('PAYFAST_RECOVERY_CANCEL_URL', 'https://account.jaroworkspace.com/billing/recovery/cancelled'),
 ];
