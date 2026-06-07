@@ -121,10 +121,12 @@ const form: any = useForm({
     email: '',
     address: '',
     password: '',
-    organisation_type: '', // ← add
-    organisation_name: '', // ← add
-    plan: '', // ← add
-    billing_cycle: 'monthly', // ← add
+    organisation_type: '',
+    organisation_name: '',
+    plan: '',
+    billing_cycle: 'monthly',
+    partner_type: 'outsourced',
+    revenue_share_percentage: 30,
 });
 
 function resetForm() {
@@ -190,6 +192,8 @@ const editClient = (client: any) => {
     form.phone = client.user?.phone || '';
     form.address = client.user?.address_line_1 || '';
     form.password = ''; // leave blank for edit
+    form.value.partner_type = client.partner_type ?? 'outsourced';
+    form.value.revenue_share_percentage = client.revenue_share_percentage ?? 30;
 };
 
 const handleSubmit = async () => {
@@ -611,6 +615,148 @@ const annualSummary = computed(() => {
                                                     class="text-sm text-red-600"
                                                 >
                                                     {{ errors.password[0] }}
+                                                </p>
+                                            </div>
+
+                                            <!-- PARTNER TYPE -->
+                                            <div class="grid gap-2">
+                                                <label
+                                                    class="text-sm font-semibold text-gray-700"
+                                                    >Partner Type</label
+                                                >
+                                                <div
+                                                    class="grid grid-cols-2 gap-2"
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        @click="
+                                                            form.partner_type =
+                                                                'outsourced';
+                                                            form.revenue_share_percentage = 30;
+                                                        "
+                                                        :class="[
+                                                            'flex flex-col items-start gap-1 rounded-xl border-2 p-3 text-left transition-all',
+                                                            form.partner_type ===
+                                                            'outsourced'
+                                                                ? 'border-orange-400 bg-orange-50'
+                                                                : 'border-gray-200 hover:border-orange-300',
+                                                        ]"
+                                                    >
+                                                        <span
+                                                            class="text-sm font-bold text-gray-900"
+                                                            >Outsourced</span
+                                                        >
+                                                        <span
+                                                            class="text-xs text-gray-500"
+                                                            >Echo Link brings
+                                                            the clients</span
+                                                        >
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        @click="
+                                                            form.partner_type =
+                                                                'existing_clients';
+                                                            form.revenue_share_percentage = 45;
+                                                        "
+                                                        :class="[
+                                                            'flex flex-col items-start gap-1 rounded-xl border-2 p-3 text-left transition-all',
+                                                            form.partner_type ===
+                                                            'existing_clients'
+                                                                ? 'border-orange-400 bg-orange-50'
+                                                                : 'border-gray-200 hover:border-orange-300',
+                                                        ]"
+                                                    >
+                                                        <span
+                                                            class="text-sm font-bold text-gray-900"
+                                                            >Existing
+                                                            Clients</span
+                                                        >
+                                                        <span
+                                                            class="text-xs text-gray-500"
+                                                            >They bring their
+                                                            own clients</span
+                                                        >
+                                                    </button>
+                                                </div>
+                                                <p
+                                                    v-if="errors.partner_type"
+                                                    class="text-sm text-red-600"
+                                                >
+                                                    {{ errors.partner_type[0] }}
+                                                </p>
+                                            </div>
+
+                                            <!-- REVENUE SHARE PERCENTAGE -->
+                                            <div class="grid gap-2">
+                                                <label
+                                                    class="text-sm font-semibold text-gray-700"
+                                                >
+                                                    Revenue Share %
+                                                    <span
+                                                        class="font-normal text-gray-400"
+                                                        >(their cut of
+                                                        R80/household)</span
+                                                    >
+                                                </label>
+                                                <div class="relative">
+                                                    <input
+                                                        class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                                                        type="number"
+                                                        min="0"
+                                                        max="100"
+                                                        step="0.5"
+                                                        v-model="
+                                                            form.revenue_share_percentage
+                                                        "
+                                                        placeholder="30"
+                                                    />
+                                                    <span
+                                                        class="absolute top-2 right-3 text-sm text-gray-400"
+                                                        >%</span
+                                                    >
+                                                </div>
+                                                <!-- Live calculation -->
+                                                <p
+                                                    class="text-xs text-gray-500"
+                                                >
+                                                    Partner earns
+                                                    <span
+                                                        class="font-bold text-orange-500"
+                                                    >
+                                                        R{{
+                                                            (
+                                                                (form.revenue_share_percentage /
+                                                                    100) *
+                                                                80
+                                                            ).toFixed(2)
+                                                        }}
+                                                    </span>
+                                                    per household · Echo Link
+                                                    keeps
+                                                    <span
+                                                        class="font-bold text-gray-700"
+                                                    >
+                                                        R{{
+                                                            (
+                                                                80 -
+                                                                (form.revenue_share_percentage /
+                                                                    100) *
+                                                                    80
+                                                            ).toFixed(2)
+                                                        }}
+                                                    </span>
+                                                </p>
+                                                <p
+                                                    v-if="
+                                                        errors.revenue_share_percentage
+                                                    "
+                                                    class="text-sm text-red-600"
+                                                >
+                                                    {{
+                                                        errors
+                                                            .revenue_share_percentage[0]
+                                                    }}
                                                 </p>
                                             </div>
 

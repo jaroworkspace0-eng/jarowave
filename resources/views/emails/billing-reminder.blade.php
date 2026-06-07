@@ -71,7 +71,7 @@
     @endif
 </p>
 
-@component('mail::button', ['url' => config('app.url') . '/dashboard.html', 'color' => 'primary'])
+@component('mail::button', ['url' => 'https://account.jaroworkspace.com/dashboard.html', 'color' => 'primary'])
 {{ $failedPayment ? 'Update Payment Details' : 'View Billing Dashboard' }}
 @endcomponent
 

@@ -12,11 +12,13 @@ class Client extends Model
     protected $table = "clients";
     protected $fillable = [
         'user_id',
-        'name',
-        'phone',
-        'email',
-        'address',
-        'is_active',
+        'partner_type',
+        'revenue_share_percentage',
+        // 'name',
+        // 'phone',
+        // 'email',
+        // 'address',
+        // 'is_active',
     ];
 
     public function channels() {

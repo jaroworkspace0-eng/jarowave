@@ -161,6 +161,8 @@ class ClientController extends Controller
             'password'          => 'required|string|min:8',
             'organisation_type' => 'required|in:watch,estate',
             'organisation_name' => 'required|string|max:255',
+            'partner_type'              => 'required|in:outsourced,existing_clients',
+            'revenue_share_percentage'  => 'required|numeric|min:0|max:100',
             // 'plan'              => 'nullable|required_if:organisation_type,estate|in:basic,standard,premium',
             // 'billing_cycle'     => 'nullable|in:monthly,annual',
         ]);
@@ -178,8 +180,10 @@ class ClientController extends Controller
             'billing_cycle'     => $validated['billing_cycle'] ?? 'monthly',
         ]);
 
-        $client = Client::create([
+        Client::create([
             'user_id' => $user->id,
+            'partner_type'             => $validated['partner_type'],
+            'revenue_share_percentage' => $validated['revenue_share_percentage'],
         ]);
 
 
@@ -207,10 +211,10 @@ class ClientController extends Controller
         $plainPassword = $request->password;
 
         Mail::to($user->email)->queue(new ClientWelcomeMail(
-        user:         $user,
-        adminCreated: true,
-        tempPassword: $plainPassword,
-    ));
+            user:         $user,
+            adminCreated: true,
+            tempPassword: $plainPassword,
+        ));
 
         return response()->json([
             'success' => true,
@@ -267,42 +271,51 @@ class ClientController extends Controller
      * Update the specified resource in storage.
      */
    public function update(Request $request, Client $client)
-{
-    $validated = $request->validate([
-        'name' => 'required|string|max:255',
-        'email' => [
-            'required',
-            'email',
-            'max:250',
-            Rule::unique('users', 'email')->ignore($client->user_id),
-        ],
-        'phone' => 'required|numeric',
-        'address' => 'nullable|string',
-        'password' => 'nullable|string|min:8', // optional password
-    ]);
+    {
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => [
+                'required',
+                'email',
+                'max:250',
+                Rule::unique('users', 'email')->ignore($client->user_id),
+            ],
+            'phone' => 'required|numeric',
+            'address' => 'nullable|string',
+            'password' => 'nullable|string|min:8', // optional password
+            'partner_type'             => 'required|in:outsourced,existing_clients',
+            'revenue_share_percentage' => 'required|numeric|min:0|max:100',
+        ]);
 
-    $user = User::findOrFail($client->user_id);
+        $user = User::findOrFail($client->user_id);
 
-    $updateData = [
-        'name' => $validated['name'],
-        'email' => $validated['email'],
-        'phone' => $validated['phone'],
-        'address_line_1' => $validated['address'] ?? null,
-    ];
+        $updateData = [
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'phone' => $validated['phone'],
+            'address_line_1' => $validated['address'] ?? null,
+        ];
 
-    // Only update password if provided
-    if (!empty($validated['password'])) {
-        $updateData['password'] = Hash::make($validated['password']);
+        // Only update password if provided
+        if (!empty($validated['password'])) {
+            $updateData['password'] = Hash::make($validated['password']);
+        }
+
+        $user->update($updateData);
+
+
+        // then add to $user->update() and also update the client record:
+        $client->update([
+            'partner_type'             => $validated['partner_type'],
+            'revenue_share_percentage' => $validated['revenue_share_percentage'],
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Client updated successfully!',
+            'client' => $client->load('user'),
+        ]);
     }
-
-    $user->update($updateData);
-
-    return response()->json([
-        'success' => true,
-        'message' => 'Client updated successfully!',
-        'client' => $client->load('user'),
-    ]);
-}
 
 
     /**
