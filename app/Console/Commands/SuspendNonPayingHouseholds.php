@@ -18,42 +18,37 @@ class SuspendNonPayingHouseholds extends Command
 
     public function __construct()
     {
+        parent::__construct();
         $this->nodeUrl = rtrim(env('PTT_SERVER_URL', 'https://radio.server.jaroworkspace.com'), '/');
     }
 
     public function handle(): void
     {
-        // 1. Trial expired — never converted to active
         $expiredTrials = Subscription::with('user')
             ->where('status', 'trialing')
             ->whereNotNull('trial_ends_at')
             ->whereDate('trial_ends_at', '<', now()->toDateString())
             ->get();
 
-        // 2. Active but payment failed — past_due with current_period_end lapsed
         $failedPayments = Subscription::with('user')
             ->where('status', 'past_due')
             ->whereNotNull('current_period_end')
-            ->whereDate('current_period_end', '<', now()->subDays(3)->toDateString()) // 3-day grace
+            ->whereDate('current_period_end', '<', now()->subDays(3)->toDateString())
             ->get();
 
         $targets = $expiredTrials->merge($failedPayments);
 
         foreach ($targets as $subscription) {
             $user = $subscription->user;
+
             if (!$user) continue;
 
-            // Suspend
             $subscription->update([
-                'status'          => 'cancelled',
+                'status'           => 'cancelled',
                 'sos_suspended_at' => now(),
             ]);
 
             $user->update(['sos_suspended_at' => now()]);
-
-            // Notify Node.js — takes effect immediately if user is online
-            // $this->notifyNode($subscription->user_id);
-
 
             $this->notifyNode('POST', '/payment-failed', [
                 'userId'       => $subscription->user_id,
@@ -61,7 +56,6 @@ class SuspendNonPayingHouseholds extends Command
                 'reason'       => 'Trial or billing period lapsed - auto suspended',
             ]);
 
-            // Email
             if ($user->email) {
                 Mail::to($user->email)->queue(
                     new HouseholdSuspendedMail($user, $subscription)
@@ -73,7 +67,6 @@ class SuspendNonPayingHouseholds extends Command
         $this->info("Total suspended: {$targets->count()}");
     }
 
-
     private function notifyNode(string $method, string $path, array $payload): void
     {
         try {
@@ -84,20 +77,10 @@ class SuspendNonPayingHouseholds extends Command
                 ])
                 ->{strtolower($method)}($this->nodeUrl . $path, $payload);
         } catch (\Throwable $e) {
-            Log::warning('AdminSubscriptionController: Node notify failed', ['path' => $path, 'error' => $e->getMessage()]);
+            Log::warning('SuspendNonPayingHouseholds: Node notify failed', [
+                'path'  => $path,
+                'error' => $e->getMessage(),
+            ]);
         }
     }
-
-    // private function notifyNode(int $userId): void
-    // {
-    //     try {
-    //         Http::post(config('services.node.url') . '/payment-failed', [
-    //             'userId'       => $userId,
-    //             'forceSuspend' => true,
-    //             'reason'       => 'Trial or billing period lapsed — auto suspended',
-    //         ]);
-    //     } catch (\Throwable $e) {
-    //         $this->warn("Node notify failed for user {$userId}: " . $e->getMessage());
-    //     }
-    // }
 }
