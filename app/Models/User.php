@@ -43,6 +43,7 @@ class User extends Authenticatable
         'fcm_device_id',
         'fcm_token_updated_at',
         'is_estate',
+        'sos_suspended_at',
     ];
 
     protected $hidden = [
