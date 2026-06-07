@@ -427,19 +427,29 @@ class HouseholdController extends Controller
 
         // Reset subscription
         $merchantReference = 'HH-' . $user->id . '-' . time();
+
+        $now = now();
+        $trialStillValid = $subscription->trial_ends_at && $subscription->trial_ends_at->isFuture();
+
         $subscription->update([
-            'status'            => 'trialing',
-            'payfast_token'     => null,
-            'merchant_reference'=> $merchantReference,
-            'gateway_status'    => null,
-            'cancelled_at'      => null,
-            'ends_at'           => null,
-            'trial_ends_at'     => $subscription->trial_ends_at,
+            'status'               => $trialStillValid ? 'trialing' : 'active',
+            'payfast_token'        => null,
+            'merchant_reference'   => $merchantReference,
+            'gateway_status'       => null,
+            'cancelled_at'         => null,
+            'ends_at'              => null,
+            'sos_suspended_at'     => null,
+            'trial_ends_at'        => $trialStillValid ? $subscription->trial_ends_at : null,
+            'current_period_start' => $trialStillValid ? null : $now,
+            'current_period_end'   => $trialStillValid ? null : $now->copy()->addMonth(),
         ]);
 
         $payfast = new \App\Services\PayFastService();
         $fields  = $payfast->buildSubscriptionFields([
-            'billing_date'     => now()->format('Y-m-d'),
+            // 'billing_date'     => now()->format('Y-m-d'),
+            'billing_date' => $trialStillValid
+            ? $subscription->trial_ends_at->format('Y-m-d')  // resume from where trial would have ended
+            : $now->format('Y-m-d'),                          // start fresh from today
             'name_first'       => explode(' ', $user->name)[0],
             'name_last'        => explode(' ', $user->name, 2)[1] ?? '',
             'email_address'    => $user->email,
