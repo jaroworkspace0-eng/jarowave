@@ -7,11 +7,19 @@ use App\Models\Subscription;
 use App\Mail\HouseholdSuspendedMail;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 
 class SuspendNonPayingHouseholds extends Command
 {
     protected $signature   = 'echo:suspend-non-paying';
     protected $description = 'Suspend households whose trial or billing period has lapsed';
+
+    private string $nodeUrl;
+
+    public function __construct()
+    {
+        $this->nodeUrl = rtrim(env('PTT_SERVER_URL', 'https://radio.server.jaroworkspace.com'), '/');
+    }
 
     public function handle(): void
     {
@@ -44,7 +52,14 @@ class SuspendNonPayingHouseholds extends Command
             $user->update(['sos_suspended_at' => now()]);
 
             // Notify Node.js — takes effect immediately if user is online
-            $this->notifyNode($subscription->user_id);
+            // $this->notifyNode($subscription->user_id);
+
+
+            $this->notifyNode('POST', '/payment-failed', [
+                'userId'       => $subscription->user_id,
+                'forceSuspend' => true,
+                'reason'       => 'Trial or billing period lapsed - auto suspended',
+            ]);
 
             // Email
             if ($user->email) {
@@ -58,16 +73,31 @@ class SuspendNonPayingHouseholds extends Command
         $this->info("Total suspended: {$targets->count()}");
     }
 
-    private function notifyNode(int $userId): void
+
+    private function notifyNode(string $method, string $path, array $payload): void
     {
         try {
-            Http::post(config('services.node.url') . '/payment-failed', [
-                'userId'       => $userId,
-                'forceSuspend' => true,
-                'reason'       => 'Trial or billing period lapsed — auto suspended',
-            ]);
+            Http::timeout(5)
+                ->withHeaders([
+                    'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
+                    'Content-Type'  => 'application/json',
+                ])
+                ->{strtolower($method)}($this->nodeUrl . $path, $payload);
         } catch (\Throwable $e) {
-            $this->warn("Node notify failed for user {$userId}: " . $e->getMessage());
+            Log::warning('AdminSubscriptionController: Node notify failed', ['path' => $path, 'error' => $e->getMessage()]);
         }
     }
+
+    // private function notifyNode(int $userId): void
+    // {
+    //     try {
+    //         Http::post(config('services.node.url') . '/payment-failed', [
+    //             'userId'       => $userId,
+    //             'forceSuspend' => true,
+    //             'reason'       => 'Trial or billing period lapsed — auto suspended',
+    //         ]);
+    //     } catch (\Throwable $e) {
+    //         $this->warn("Node notify failed for user {$userId}: " . $e->getMessage());
+    //     }
+    // }
 }
