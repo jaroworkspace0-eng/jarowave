@@ -26,22 +26,31 @@ class SuspendNonPayingHouseholds extends Command
     {
         $expiredTrials = Subscription::with('user')
             ->where('status', 'trialing')
+            ->whereNull('sos_suspended_at')
             ->whereNotNull('trial_ends_at')
             ->whereDate('trial_ends_at', '<', now()->toDateString())
             ->get();
 
         $failedPayments = Subscription::with('user')
             ->where('status', 'past_due')
+            ->whereNull('sos_suspended_at')
             ->whereNotNull('current_period_end')
             ->whereDate('current_period_end', '<', now()->subDays(3)->toDateString())
             ->get();
 
-        foreach ($expiredTrials as $subscription) {
+        $targets = $expiredTrials->merge($failedPayments);
+
+        foreach ($targets as $subscription) {
             $user = $subscription->user;
+
             if (!$user) continue;
+
+            $reason = $expiredTrials->contains($subscription) ? 'trial_expired' : 'payment_failed';
 
             $subscription->update([
                 'status'           => 'cancelled',
+                'cancelled_at'     => now(),
+                'ends_at'          => now(),
                 'sos_suspended_at' => now(),
             ]);
 
@@ -50,39 +59,16 @@ class SuspendNonPayingHouseholds extends Command
             $this->notifyNode('POST', '/payment-failed', [
                 'userId'       => $subscription->user_id,
                 'forceSuspend' => true,
-                'reason'       => 'trial_expired',
+                'reason'       => $reason,
             ]);
 
             if ($user->email) {
                 Mail::to($user->email)->queue(new HouseholdSuspendedMail($user, $subscription));
-                $this->info("Suspended (trial expired) & emailed: {$user->email}");
+                $this->info("Suspended ({$reason}) & emailed: {$user->email}");
             }
         }
 
-        foreach ($failedPayments as $subscription) {
-            $user = $subscription->user;
-            if (!$user) continue;
-
-            $subscription->update([
-                'status'           => 'cancelled',
-                'sos_suspended_at' => now(),
-            ]);
-
-            $user->update(['sos_suspended_at' => now()]);
-
-            $this->notifyNode('POST', '/payment-failed', [
-                'userId'       => $subscription->user_id,
-                'forceSuspend' => true,
-                'reason'       => 'payment_failed',
-            ]);
-
-            if ($user->email) {
-                Mail::to($user->email)->queue(new HouseholdSuspendedMail($user, $subscription));
-                $this->info("Suspended (payment failed) & emailed: {$user->email}");
-            }
-        }
-
-        $this->info("Total suspended: " . ($expiredTrials->count() + $failedPayments->count()));
+        $this->info("Total suspended: {$targets->count()}");
     }
 
     private function notifyNode(string $method, string $path, array $payload): void
