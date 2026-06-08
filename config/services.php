@@ -39,4 +39,9 @@ return [
         'url' => env('PTT_SERVER_URL'),
     ],
 
+    'ptt' => [
+        'secret' => env('ASSIGN_SECRET'),
+        'url'    => env('PTT_SERVER_URL'),
+    ],
+
 ];

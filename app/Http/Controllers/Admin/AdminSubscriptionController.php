@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Mail\ConductBlockMail;
 use App\Mail\ConductUnblockMail;
+use App\Mail\PaymentSuccessMail;
 use App\Models\Earning;
 use App\Models\Invoice;
 use App\Models\Subscription;
@@ -12,6 +13,7 @@ use App\Models\SubscriptionPayment;
 use App\Models\User;
 use App\Services\BillingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -59,6 +61,14 @@ class AdminSubscriptionController extends Controller
 
     // ── POST /api/admin/subscriptions/{id}/eft-payment ───────────────────────
     // Mark as manually paid via EFT — creates payment, invoice, earning, notifies Node
+    /**
+     * Mark a subscription as manually paid via EFT.
+     *
+     * - Wraps payment + subscription update in a DB transaction
+     * - Handles earning/invoice/email failures gracefully without hiding them from the caller
+     * - Uses actual period end from subscription for email, not a hardcoded +30 days
+     * - Surfaces invoice/email success state in the response
+     */
     public function markEftPaid(Request $request, Subscription $subscription)
     {
         $request->validate([
@@ -67,55 +77,76 @@ class AdminSubscriptionController extends Controller
             'proof'  => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
         ]);
 
-        $proofPath  = $request->file('proof')->store('eft-proofs', 'public');
-        // $amountCents = (int) round($request->amount * 100);
-        $amountRands = round($request->amount, 2);
+        $proofPath    = $request->file('proof')->store('eft-proofs', 'public');
+        $amountRands  = round($request->amount, 2);
         $eftReference = 'EFT-' . strtoupper(uniqid());
+        $user         = $subscription->user;
 
-        // Create payment record
-        $payment = SubscriptionPayment::create([
-            'subscription_id'           => $subscription->id,
-            'user_id'                   => $subscription->user_id,
-            'amount'                    => $amountRands,
-            'amount_gross'              => $amountRands,
-            'amount_fee'                => 0, // No fee for manual EFT
-            'amount_net'                => $amountRands, // Net is same as gross for manual EFT
-            'status'                    => 'complete',
-            'gateway'                   => 'manual_eft',
-            'gateway_transaction_id'    => null,
-            'gateway_payment_reference' => $eftReference,
-            'gateway_status'            => 'COMPLETE',
-            'merchant_reference'        => $eftReference,
-            'currency'                  => 'ZAR',
-            'payment_method'            => 'eft',
-            'payer_name'                => trim($subscription->user->name ?? '') ?: null,
-            'payer_email'               => $subscription->user->email ?? null,
-            'gateway_payload'           => null,
-            'signature'                 => null,
-            'ip_address'                => $request->ip(),
-            'billing_period_start'      => $subscription->current_period_start,
-            'billing_period_end'        => $subscription->current_period_end,
-            'paid_at'                   => now(),
-            'notes'                     => $request->note,
-            'proof_of_payment'          => $proofPath,
-        ]);
+        $payment = DB::transaction(function () use (
+            $request, $subscription, $proofPath, $amountRands, $eftReference
+        ) {
+            $periodStart = $subscription->current_period_end ?? now();
+            $periodEnd   = $periodStart->copy()->addDays(30);
 
-        // Activate subscription
-        $subscription->update([
-            'status'            => 'active',
-            'payment_failed_at' => null,
-            'sos_suspended_at'  => null,
-            'gateway'           => 'manual_eft',
-        ]);
+            $payment = SubscriptionPayment::create([
+                'subscription_id'           => $subscription->id,
+                'user_id'                   => $subscription->user_id,
+                'amount'                    => $amountRands,
+                'amount_gross'              => $amountRands,
+                'amount_fee'                => 0,
+                'amount_net'                => $amountRands,
+                'status'                    => 'complete',
+                'gateway'                   => 'manual_eft',
+                'gateway_transaction_id'    => null,
+                'gateway_payment_reference' => $eftReference,
+                'gateway_status'            => 'COMPLETE',
+                'merchant_reference'        => $eftReference,
+                'currency'                  => 'ZAR',
+                'payment_method'            => 'eft',
+                'payer_name'                => trim($subscription->user->name ?? '') ?: null,
+                'payer_email'               => $subscription->user->email ?? null,
+                'gateway_payload'           => null,
+                'signature'                 => null,
+                'ip_address'                => $request->ip(),
+                'billing_period_start'      => $periodStart,
+                'billing_period_end'        => $periodEnd,
+                'paid_at'                   => now(),
+                'notes'                     => $request->note,
+                'proof_of_payment'          => $proofPath,
+            ]);
 
-        // Create earning + invoice
+            $subscription->update([
+                'status'               => 'active',
+                'payment_failed_at'    => null,
+                'sos_suspended_at'     => null,
+                'gateway'              => 'manual_eft',
+                'current_period_start' => $periodStart,
+                'current_period_end'   => $periodEnd,
+            ]);
+
+            return $payment;
+        });
+
+        $invoiceSent     = false;
+        $sideEffectError = null;
+
         try {
             if ($subscription->client) {
                 Earning::createFromPayment($payment, $subscription->client);
             }
-            Invoice::createFromPayment($payment);
 
-            // Mark activation fee as paid on first successful payment if not already
+            $invoice = Invoice::createFromPayment($payment);
+            $invoice->load('payment.subscription', 'client');
+
+            Mail::to($user->email)->queue(new PaymentSuccessMail(
+                userName:  $user->name,
+                amount:    $amountRands,
+                periodEnd: $subscription->fresh()->current_period_end->format('d M Y'),
+                invoice:   $invoice,
+            ));
+
+            $invoiceSent = true;
+
             if (!$subscription->activation_fee_paid) {
                 $subscription->update([
                     'activation_fee_paid'    => true,
@@ -124,16 +155,25 @@ class AdminSubscriptionController extends Controller
                 ]);
             }
         } catch (\Throwable $e) {
-            Log::warning('EFT payment: earning/invoice failed', ['error' => $e->getMessage()]);
+            $sideEffectError = $e->getMessage();
+            Log::warning('EFT payment: earning/invoice/email failed', [
+                'subscription_id' => $subscription->id,
+                'payment_id'      => $payment->id,
+                'error'           => $sideEffectError,
+            ]);
         }
 
-        // Notify Node.js
         $this->notifyNode('POST', '/payment-resolved', [
             'userId' => $subscription->user_id,
             'note'   => 'EFT payment confirmed by admin',
         ]);
 
-        return response()->json(['success' => true, 'message' => 'EFT payment recorded. SOS re-enabled.']);
+        return response()->json([
+            'success'           => true,
+            'message'           => 'EFT payment recorded. SOS re-enabled.',
+            'invoice_sent'      => $invoiceSent,
+            'side_effect_error' => $sideEffectError,
+        ]);
     }
 
     // ── POST /api/admin/subscriptions/{id}/suspend ───────────────────────────
