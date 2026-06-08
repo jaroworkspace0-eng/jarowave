@@ -2,20 +2,20 @@
 
 <div style="text-align:center; margin-bottom:8px;">
     <span style="display:inline-block; background:#fef2f2; color:#ef4444; font-size:11px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; padding:4px 14px; border-radius:100px; border:1px solid #fca5a5;">
-        Account Suspended
+        Protection Paused
     </span>
 </div>
 
 <h1 style="text-align:center; font-size:22px; font-weight:800; color:#1a1a2e; letter-spacing:-0.5px; margin:12px 0 4px;">
-    Your Echo Link account has been suspended
+    Your household is no longer protected
 </h1>
 
 <p style="text-align:center; font-size:14px; color:#888; margin:0 0 28px;">
     Hi {{ $user->name }},
     @if($subscription->status === 'past_due')
-        your last payment could not be processed.
+        your last payment could not be processed, so your Echo Link protection has been paused.
     @else
-        your free trial has ended and no billing was set up.
+        your free trial has ended. No payment was set up, so your Echo Link protection has been paused.
     @endif
 </p>
 
@@ -27,7 +27,7 @@
         <td style="padding:4px 0; font-size:13px; font-weight:700; color:#1a1a2e; text-align:right;">{{ $user->email }}</td>
     </tr>
     <tr>
-        <td style="padding:4px 0; font-size:13px; color:#888;">Status</td>
+        <td style="padding:4px 0; font-size:13px; color:#888;">Subscription Status</td>
         <td style="padding:4px 0; font-size:13px; font-weight:700; color:#ef4444; text-align:right;">Suspended</td>
     </tr>
     <tr>
@@ -37,7 +37,7 @@
         </td>
     </tr>
     <tr>
-        <td style="padding:4px 0; font-size:13px; color:#888;">Suspended On</td>
+        <td style="padding:4px 0; font-size:13px; color:#888;">Paused On</td>
         <td style="padding:4px 0; font-size:13px; font-weight:700; color:#1a1a2e; text-align:right;">
             {{ now()->format('d F Y') }}
         </td>
@@ -47,17 +47,18 @@
 ---
 
 <p style="font-size:13px; color:#888; text-align:center; margin:16px 0;">
-    While suspended, SOS panic alerts, community safety notifications, and guard communication are disabled for your household.
-    Reactivate now to restore full protection.
+    SOS panic alerts, community safety notifications, and guard communication are
+    currently <strong style="color:#ef4444;">disabled</strong> for your household.
+    Reactivate your subscription to restore full protection.
 </p>
 
 @component('mail::button', ['url' => 'https://account.jaroworkspace.com/dashboard.html', 'color' => 'primary'])
-Reactivate My Account
+Restore My Protection
 @endcomponent
 
 <p style="font-size:12px; color:#ccc; text-align:center; margin-top:24px;">
     Questions? Contact us at
-    <a href="mailto:billing@echolink.co.za" style="color:#f97316; text-decoration:none;">billing@echolink.co.za</a>
+    <a href="mailto:jaroworkspace0@gmail.com" style="color:#f97316; text-decoration:none;">jaroworkspace0@gmail.com</a>
 </p>
 
 @endcomponent

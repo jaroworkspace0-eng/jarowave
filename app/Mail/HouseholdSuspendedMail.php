@@ -20,7 +20,7 @@ class HouseholdSuspendedMail extends Mailable
     public function envelope(): \Illuminate\Mail\Mailables\Envelope
     {
         return new \Illuminate\Mail\Mailables\Envelope(
-            subject: 'Your Echo Link account has been suspended',
+            subject: 'Action required: Your household protection has been paused',
         );
     }
 
