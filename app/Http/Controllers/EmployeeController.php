@@ -393,13 +393,13 @@ class EmployeeController extends Controller
                 ?? $client?->user?->name
                 ?? 'Echo Link Community';
 
-        // Mail::to($user->email)->queue(new HouseholdWelcomeMail(
-        //     user:             $user,
-        //     organisationName: $orgName,
-        //     gateway:          'payfast',
-        //     adminAdded:       true,
-        //     tempPassword:     $plainPassword,
-        // ));
+        Mail::to($user->email)->queue(new HouseholdWelcomeMail(
+            user:             $user,
+            organisationName: $orgName,
+            gateway:          'payfast',
+            adminAdded:       true,
+            tempPassword:     $plainPassword,
+        ));
     }
 
 }
