@@ -30,14 +30,40 @@ const isProcessing = ref(false);
 const errors = ref<{ [key: string]: string[] }>({});
 const confirmToggleChannel = ref<any>(null);
 
-// --- Form ---
-const form = ref({
+const defaultForm = {
     id: null,
     client_id: '',
     name: '',
     category: '',
     type: '',
-});
+    billing_model: '',
+    billing_contact_name: '',
+    billing_contact_email: '',
+    billing_contact_phone: '',
+    amount_per_household: 80,
+    channel_type: '',
+};
+
+const form = ref({ ...defaultForm });
+
+function resetForm() {
+    form.value = { ...defaultForm };
+}
+
+// --- Form ---
+// const form = ref({
+//     id: null,
+//     client_id: '',
+//     name: '',
+//     category: '',
+//     type: '',
+//     billing_model: '',
+//     // estate fields
+//     billing_contact_name: '',
+//     billing_contact_email: '',
+//     billing_contact_phone: '',
+//     amount_per_household: 80,
+// });
 
 // --- Helpers ---
 function showMessage(message: string) {
@@ -45,15 +71,20 @@ function showMessage(message: string) {
     setTimeout(() => (flashMessage.value = null), 3000);
 }
 
-function resetForm() {
-    form.value = {
-        id: null,
-        client_id: '',
-        name: '',
-        category: '',
-        type: '',
-    };
-}
+// function resetForm() {
+//     form.value = {
+//         id: null,
+//         client_id: '',
+//         name: '',
+//         category: '',
+//         type: '',
+//         billing_model: '',
+//         billing_contact_name: '',
+//         billing_contact_email: '',
+//         billing_contact_phone: '',
+//         amount_per_household: 80,
+//     };
+// }
 
 // --- API Fetch ---
 const reloadClients = async () => {
@@ -298,13 +329,13 @@ const confirmDelete = (channel: any) => {
                         </button>
                         <form @submit.prevent="handleSubmit">
                             <div v-if="showModal">
-                                <!-- Overlaying -->
+                                <!-- Overlay -->
                                 <div
                                     class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-[2px]"
                                 >
-                                    <!-- Modal Content -->
+                                    <!-- Modal Content — scroll goes HERE -->
                                     <div
-                                        class="w-full max-w-lg rounded-lg bg-white p-6 shadow-lg"
+                                        class="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-6 shadow-lg"
                                     >
                                         <h2 class="text-heading">
                                             {{
@@ -375,35 +406,171 @@ const confirmDelete = (channel: any) => {
                                                 </p>
                                             </div>
                                             <div class="grid gap-3">
-                                                <Label for="name-1">Type</Label>
+                                                <Label>Type</Label>
                                                 <select
-                                                    v-model="form.type"
-                                                    id="post-type"
+                                                    v-model="form.channel_type"
                                                     class="focus:ring-opacity-50 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
                                                 >
                                                     <option value="" disabled>
                                                         -- Choose type --
                                                     </option>
-                                                    <option
-                                                        value="listen"
-                                                        selected
-                                                    >
-                                                        Listen Only
+                                                    <option value="residential">
+                                                        Residential
                                                     </option>
-                                                    <option
-                                                        value="listen_and_speak"
-                                                        selected
-                                                    >
-                                                        Listen & speak
+                                                    <option value="operational">
+                                                        Operational
                                                     </option>
                                                 </select>
                                                 <p
-                                                    v-if="errors.type"
+                                                    v-if="errors.channel_type"
                                                     class="text-sm text-red-600"
                                                 >
-                                                    {{ errors.type[0] }}
+                                                    {{ errors.channel_type[0] }}
                                                 </p>
                                             </div>
+                                            <!-- Billing Model -->
+                                            <div class="grid gap-3">
+                                                <Label>Billing Model</Label>
+                                                <select
+                                                    v-model="form.billing_model"
+                                                    class="focus:ring-opacity-50 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
+                                                >
+                                                    <option value="" disabled>
+                                                        -- Choose billing model
+                                                        --
+                                                    </option>
+                                                    <option value="individual">
+                                                        Individual (each
+                                                        household pays
+                                                        separately)
+                                                    </option>
+                                                    <option value="bulk">
+                                                        Residential / Estate
+                                                        (bulk EFT billing)
+                                                    </option>
+                                                </select>
+                                                <p
+                                                    v-if="errors.billing_model"
+                                                    class="text-sm text-red-600"
+                                                >
+                                                    {{
+                                                        errors.billing_model[0]
+                                                    }}
+                                                </p>
+                                            </div>
+
+                                            <!-- Estate Billing Fields — only shown when billing_model === 'bulk' -->
+                                            <template
+                                                v-if="
+                                                    form.billing_model ===
+                                                    'bulk'
+                                                "
+                                            >
+                                                <div class="grid gap-3">
+                                                    <Label
+                                                        >Billing Contact
+                                                        Name</Label
+                                                    >
+                                                    <input
+                                                        type="text"
+                                                        v-model="
+                                                            form.billing_contact_name
+                                                        "
+                                                        placeholder="e.g. Jane Smith"
+                                                        class="focus:ring-opacity-50 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
+                                                    />
+                                                    <p
+                                                        v-if="
+                                                            errors.billing_contact_name
+                                                        "
+                                                        class="text-sm text-red-600"
+                                                    >
+                                                        {{
+                                                            errors
+                                                                .billing_contact_name[0]
+                                                        }}
+                                                    </p>
+                                                </div>
+
+                                                <div class="grid gap-3">
+                                                    <Label
+                                                        >Billing Contact
+                                                        Email</Label
+                                                    >
+                                                    <input
+                                                        type="email"
+                                                        v-model="
+                                                            form.billing_contact_email
+                                                        "
+                                                        placeholder="billing@estate.co.za"
+                                                        class="focus:ring-opacity-50 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
+                                                    />
+                                                    <p
+                                                        v-if="
+                                                            errors.billing_contact_email
+                                                        "
+                                                        class="text-sm text-red-600"
+                                                    >
+                                                        {{
+                                                            errors
+                                                                .billing_contact_email[0]
+                                                        }}
+                                                    </p>
+                                                </div>
+
+                                                <div class="grid gap-3">
+                                                    <Label
+                                                        >Billing Contact Phone
+                                                        <span
+                                                            class="text-xs font-normal text-gray-400"
+                                                            >(optional)</span
+                                                        ></Label
+                                                    >
+                                                    <input
+                                                        type="text"
+                                                        v-model="
+                                                            form.billing_contact_phone
+                                                        "
+                                                        placeholder="+27 82 000 0000"
+                                                        class="focus:ring-opacity-50 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
+                                                    />
+                                                </div>
+
+                                                <div class="grid gap-3">
+                                                    <Label
+                                                        >Amount Per Household
+                                                        (R)</Label
+                                                    >
+                                                    <input
+                                                        type="number"
+                                                        v-model="
+                                                            form.amount_per_household
+                                                        "
+                                                        placeholder="80"
+                                                        min="1"
+                                                        step="0.01"
+                                                        class="focus:ring-opacity-50 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
+                                                    />
+                                                    <p
+                                                        class="text-xs text-gray-400"
+                                                    >
+                                                        Default is
+                                                        R80/household/month.
+                                                        Override if needed.
+                                                    </p>
+                                                    <p
+                                                        v-if="
+                                                            errors.amount_per_household
+                                                        "
+                                                        class="text-sm text-red-600"
+                                                    >
+                                                        {{
+                                                            errors
+                                                                .amount_per_household[0]
+                                                        }}
+                                                    </p>
+                                                </div>
+                                            </template>
                                             <div class="flex w-max items-end">
                                                 <button
                                                     type="button"

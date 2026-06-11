@@ -24,9 +24,14 @@ async function login() {
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
 
         const userRes = await axios.get('/api/user');
+        const user = userRes.data;
         localStorage.setItem('user', JSON.stringify(userRes.data));
 
-        window.location.href = '/dashboard';
+        if (user.role === 'estate_billing') {
+            window.location.href = '/estate/dashboard';
+        } else {
+            window.location.href = '/dashboard';
+        }
     } catch (err: any) {
         error.value =
             err.response?.data?.message ||

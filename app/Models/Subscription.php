@@ -41,7 +41,7 @@ class Subscription extends Model
         'cancelled_at'           => 'datetime',
         'ends_at'                => 'datetime',
         'activation_fee_paid_at' => 'datetime',
-        'price'                  => 'integer',
+        // 'price'                  => 'integer',
         'original_price'         => 'integer',
         'discount_amount'        => 'integer',
         'discount_percentage'    => 'integer',
@@ -141,5 +141,10 @@ class Subscription extends Model
         }
 
         return false;
+    }
+
+    public function channelSubscription(): BelongsTo
+    {
+        return $this->belongsTo(ChannelSubscription::class);
     }
 }

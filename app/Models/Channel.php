@@ -4,6 +4,9 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Channel extends Model
 {
@@ -13,27 +16,44 @@ class Channel extends Model
         'client_id',
         'name',
         'category',
-        'type',
+        'channel_type',
+        'billing_model',
+        'amount_per_household',
         'is_active',
     ];
+    // ── Relationships ──
 
-    public function client(){
+    public function client(): BelongsTo
+    {
         return $this->belongsTo(Client::class);
     }
 
     public function employees()
     {
-        // Change hasMany to belongsToMany
         return $this->belongsToMany(Employee::class, 'channel_employee')
-                    ->withPivot('last_seen') // This allows us to see when they were last on THIS channel
+                    ->withPivot('last_seen')
                     ->withTimestamps();
     }
 
-    // public function employees(){
-    //     return $this->hasMany(Employee::class);
-    // }
-
-    public function channelEmployees(){
+    public function channelEmployees()
+    {
         return $this->belongsToMany(ChannelEmployee::class, 'channel_id');
+    }
+
+    public function billingContact(): HasOne
+    {
+        return $this->hasOne(ChannelBillingContact::class)->where('is_active', true);
+    }
+
+    public function channelSubscriptions(): HasMany
+    {
+        return $this->hasMany(ChannelSubscription::class);
+    }
+
+    public function activeChannelSubscription(): HasOne
+    {
+        return $this->hasOne(ChannelSubscription::class)
+                    ->whereIn('status', ['pending', 'active'])
+                    ->latestOfMany();
     }
 }

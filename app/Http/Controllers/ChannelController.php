@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class ChannelController extends Controller
@@ -69,27 +70,106 @@ class ChannelController extends Controller
         //
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string',
-            'category' => 'required|string',
-            'type' => 'required|string',
-            'client_id' => 'required',
-        ]);
+{
+    $validated = $request->validate([
+        'name'                   => 'required|string|max:255',
+        'category'               => 'required|string',
+        'channel_type'           => 'required|string',
+        'client_id'              => 'required|exists:clients,id',
+        'billing_model'          => 'nullable|in:individual,bulk',
+        'billing_contact_name'   => 'required_if:billing_model,bulk|string|max:255',
+        'billing_contact_email'  => 'required_if:billing_model,bulk|email|unique:users,email',
+        'billing_contact_phone'  => 'nullable|string|max:15',
+        'amount_per_household'   => 'nullable|numeric|min:1',
+    ]);
 
-        $channel = Channel::create($validated);
+    $channel = Channel::create([
+        'name'                 => $validated['name'],
+        'category'             => $validated['category'],
+        'channel_type'         => $validated['channel_type'],
+        'client_id'            => $validated['client_id'],
+        'billing_model'        => $validated['billing_model'] ?? 'individual',
+        'amount_per_household' => $validated['amount_per_household'] ?? 80,
+    ]);
 
-         return response()->json([
-            'success' => true,
-            'message' => 'Channel created successfully!',
-            'channel' => $channel,
-        ]);
-
+    if (($validated['billing_model'] ?? null) === 'bulk') {
+        app(ChannelBillingController::class)->storeBillingContact(
+            new Request([
+                'name'  => $validated['billing_contact_name'],
+                'email' => $validated['billing_contact_email'],
+                'phone' => $validated['billing_contact_phone'] ?? null,
+            ]),
+            $channel
+        );
     }
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Channel created successfully!',
+        'channel' => $channel,
+    ]);
+}
+
+public function update(Request $request, Channel $channel)
+{
+    $validated = $request->validate([
+        'name'                   => 'required|string|max:255',
+        'category'               => 'required|string',
+        'channel_type'           => 'required|string',
+        'client_id'              => 'required|exists:clients,id',
+        'billing_model'          => 'nullable|in:individual,bulk',
+        'billing_contact_name'   => 'required_if:billing_model,bulk|string|max:255',
+        'billing_contact_email'  => [
+            'required_if:billing_model,bulk',
+            'email',
+            Rule::unique('users', 'email')->ignore(
+                optional($channel->billingContact?->user)->id
+            ),
+        ],
+        'billing_contact_phone'  => 'nullable|string|max:15',
+        'amount_per_household'   => 'nullable|numeric|min:1',
+    ]);
+
+    $channel->update([
+        'name'                 => $validated['name'],
+        'category'             => $validated['category'],
+        'channel_type'         => $validated['channel_type'],
+        'client_id'            => $validated['client_id'],
+        'billing_model'        => $validated['billing_model'] ?? $channel->billing_model,
+        'amount_per_household' => $validated['amount_per_household'] ?? $channel->amount_per_household,
+    ]);
+
+    if (($validated['billing_model'] ?? null) === 'bulk') {
+        $existingContact = $channel->billingContact()->where('is_active', true)->first();
+
+        if ($existingContact) {
+            app(ChannelBillingController::class)->updateBillingContact(
+                new Request([
+                    'name'  => $validated['billing_contact_name'],
+                    'email' => $validated['billing_contact_email'],
+                    'phone' => $validated['billing_contact_phone'] ?? null,
+                ]),
+                $channel
+            );
+        } else {
+            app(ChannelBillingController::class)->storeBillingContact(
+                new Request([
+                    'name'  => $validated['billing_contact_name'],
+                    'email' => $validated['billing_contact_email'],
+                    'phone' => $validated['billing_contact_phone'] ?? null,
+                ]),
+                $channel
+            );
+        }
+    }
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Channel updated successfully.',
+        'channel' => $channel,
+    ]);
+}
 
     /**
      * Display the specified resource.
@@ -109,28 +189,6 @@ class ChannelController extends Controller
             'channel' => $channel->load('client'),
             'clients' => Client::all()
         ]);
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, Channel $channel)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'client_id' => 'required|exists:clients,id',
-            'category' => 'required',
-            'type' => 'required',
-        ]);
-
-        $channel->update($validated);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Channel updated successful.',
-            'channel' => $channel,
-        ]);
-
     }
 
     /**

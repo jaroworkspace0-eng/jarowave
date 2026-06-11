@@ -10,6 +10,7 @@ class Earning extends Model
     protected $fillable = [
         'client_id',
         'subscription_payment_id',
+        'channel_subscription_payment_id',
         'resident_id',
         'resident_amount',
         'commission_percentage',
@@ -23,13 +24,13 @@ class Earning extends Model
     ];
 
     protected $casts = [
-        'resident_amount'  => 'integer',
-        'commission_percentage'   => 'integer',
-        'earned_amount'    => 'integer',
-        'platform_amount'  => 'integer',
-        'payout_at'        => 'datetime',
-        'period_start'     => 'datetime',
-        'period_end'       => 'datetime',
+        'resident_amount'       => 'integer',
+        'commission_percentage' => 'integer',
+        'earned_amount'         => 'integer',
+        'platform_amount'       => 'integer',
+        'payout_at'             => 'datetime',
+        'period_start'          => 'datetime',
+        'period_end'            => 'datetime',
     ];
 
     // ── Relationships ──
@@ -47,6 +48,11 @@ class Earning extends Model
     public function payment(): BelongsTo
     {
         return $this->belongsTo(SubscriptionPayment::class, 'subscription_payment_id');
+    }
+
+    public function channelSubscriptionPayment(): BelongsTo
+    {
+        return $this->belongsTo(ChannelSubscriptionPayment::class);
     }
 
     // ── Amount helpers ──
@@ -91,28 +97,27 @@ class Earning extends Model
     // ── Business logic ──
 
     /**
-     * Calculate and set amounts from the resident payment.
-     * Call this when creating an earning row.
+     * Create an earning from an individual household payment.
      *
      * Usage:
-     * Earning::createFromPayment($payment, $client, commissionPct: 65);
+     *   Earning::createFromPayment($payment, $client);
      */
     public static function createFromPayment(
         SubscriptionPayment $payment,
         Client $client,
     ): self {
-        $commissionPct   = $client->revenue_share_percentage;
-        $residentAmount  = $payment->amount;
-        $earnedAmount   = round($residentAmount * ($commissionPct / 100), 2); // e.g. R1000 * 65% = R650.00
-        $platformAmount = round($residentAmount - $earnedAmount, 2); // e.g. R1000 - R650 = R350.00
-                                 
+        $commissionPct  = $client->revenue_share_percentage;
+        $residentAmount = $payment->amount;
+        $earnedAmount   = round($residentAmount * ($commissionPct / 100), 2);
+        $platformAmount = round($residentAmount - $earnedAmount, 2);
+
         return self::create([
             'client_id'               => $client->user_id,
             'subscription_payment_id' => $payment->id,
             'resident_id'             => $payment->subscription->user_id,
             'resident_amount'         => $residentAmount,
             'commission_percentage'   => $commissionPct,
-            'earned_amount'           => $earnedAmount, // amount that goes to the resident/watch group
+            'earned_amount'           => $earnedAmount,
             'platform_amount'         => $platformAmount,
             'status'                  => 'pending',
             'period_start'            => $payment->billing_period_start,
@@ -121,7 +126,38 @@ class Earning extends Model
     }
 
     /**
-     * Mark as paid out — called when you EFT the watch group.
+     * Create an earning from an estate bulk payment.
+     * One record per channel payment — security company earns their cut of the total.
+     *
+     * Usage:
+     *   Earning::createFromChannelPayment($payment, $client);
+     */
+    public static function createFromChannelPayment(
+        ChannelSubscriptionPayment $payment,
+        Client $client,
+    ): self {
+        $commissionPct  = $client->revenue_share_percentage;
+        $totalAmount    = $payment->amount;
+        $earnedAmount   = round($totalAmount * ($commissionPct / 100), 2);
+        $platformAmount = round($totalAmount - $earnedAmount, 2);
+
+        return self::create([
+            'client_id'                       => $client->user_id,
+            'channel_subscription_payment_id' => $payment->id,
+            'subscription_payment_id'         => null,
+            'resident_id'                     => null,
+            'resident_amount'                 => $totalAmount,
+            'commission_percentage'           => $commissionPct,
+            'earned_amount'                   => $earnedAmount,
+            'platform_amount'                 => $platformAmount,
+            'status'                          => 'pending',
+            'period_start'                    => $payment->channelSubscription->current_period_start,
+            'period_end'                      => $payment->channelSubscription->current_period_end,
+        ]);
+    }
+
+    /**
+     * Mark as paid out — called when you EFT the watch group / security company.
      */
     public function markPaid(string $payoutReference): void
     {

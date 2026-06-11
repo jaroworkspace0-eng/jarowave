@@ -32,7 +32,12 @@ import AppLogo from './AppLogo.vue';
 const auth = useAuthStore();
 
 const mainNavItems: NavItem[] = [
-    { title: 'Dashboard', href: dashboard(), icon: HomeIcon },
+    ...(auth.user?.role === 'client' || auth.user?.role === 'admin'
+        ? [
+              { title: 'Dashboard', href: dashboard(), icon: HomeIcon },
+              { title: 'Personnels', href: '/employees', icon: Briefcase },
+          ]
+        : [{ title: 'Dashboard', href: '', icon: HomeIcon }]),
     ...(auth.user?.role === 'admin'
         ? [
               { title: 'Clients', href: '/clients', icon: Building },
@@ -43,8 +48,6 @@ const mainNavItems: NavItem[] = [
               },
           ]
         : []),
-
-    { title: 'Personnels', href: '/employees', icon: Briefcase },
 
     // Estate users see Subscription + Invoices
     // ...(auth.user?.organisation_type === 'estate'
@@ -84,16 +87,20 @@ const mainNavItems: NavItem[] = [
               },
           ]
         : []),
-    {
-        title: 'Announcements',
-        href: '/announcements',
-        icon: Megaphone,
-    },
-    {
-        title: 'DV Recordings',
-        href: '/dv-recordings',
-        icon: Radio,
-    },
+    ...(auth.user?.role !== 'estate_billing'
+        ? [
+              {
+                  title: 'Announcements',
+                  href: '/announcements',
+                  icon: Megaphone,
+              },
+              {
+                  title: 'DV Recordings',
+                  href: '/dv-recordings',
+                  icon: Radio,
+              },
+          ]
+        : []),
 ];
 
 const footerNavItems: NavItem[] = [];

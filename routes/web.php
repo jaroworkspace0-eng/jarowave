@@ -91,6 +91,12 @@ Route::get('/admin/process-payouts', function () {
     return inertia('Admin/AdminPayouts');
 });
 
+Route::get('/estate/dashboard', function () {
+    return inertia('Estate/EstateBillingDashboard');
+});
+
+
+
 require __DIR__.'/settings.php';
 
 Route::resource("users", UserController::class);

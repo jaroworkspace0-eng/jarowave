@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\GuardianResponseController;
 use App\Http\Controllers\Api\HouseholdPairingController;
 use App\Http\Controllers\Api\UserNotificationController;
 use App\Http\Controllers\BlockedHouseholdController;
+use App\Http\Controllers\ChannelBillingController;
 use App\Http\Controllers\CheckpointController;
 use App\Http\Controllers\DvRecordingController;
 use App\Http\Controllers\HouseholdSettingController;
@@ -43,6 +44,7 @@ use App\Http\Controllers\StatusController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\VisitorCodeController;
 use App\Models\Channel;
+use App\Models\ChannelBillingContact;
 use App\Models\User;
 // use Illuminate\Container\Attributes\Auth;
 use Illuminate\Http\Request;
@@ -417,11 +419,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/user/update-status', [StatusController::class, 'updateStatus']) ->name('user.update-status');
     Route::resource('clients', ClientController::class);
     Route::patch('/users/{user}/toggle-status', [UserController::class, 'toggleStatus'])->name('users.toggle-status');
-    Route::patch('/channels/{channel}/toggle-status', [ChannelController::class, 'toggleStatus']);
     Route::patch('/clients/{client}/toggle-status', [ClientController::class, 'toggleStatus']);
     Route::resource('employees', EmployeeController::class);
     Route::get('clients/list', [ClientController::class, 'clients']);
-    Route::get('/channels-list', [ChannelController::class, 'getChannels']);
     Route::post('/emergency-alerts', [EmergencyAlertController::class, 'store']);
     Route::patch('/emergency-alerts/{alert}', [EmergencyAlertController::class, 'update']);
     Route::patch('/emergency-resolutions', [EmergencyAlertController::class, 'emergencyResolutionUpdate']);
@@ -494,7 +494,32 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
 
+    Route::get('/estate/my-channel', function (Request $request) {
+    $contact = ChannelBillingContact::where('user_id', $request->user()->id)
+        ->where('is_active', true)
+        ->with('channel')
+        ->firstOrFail();
+
+        return response()->json(['channel' => $contact->channel]);
+    });
+
+
     Route::resource('channels', ChannelController::class);
+
+    Route::patch('/channels/{channel}/toggle-status', [ChannelController::class, 'toggleStatus']);
+    Route::get('/channels-list', [ChannelController::class, 'getChannels']);
+
+    // Channel Billing
+    Route::prefix('channels/{channel}/billing')->group(function () {
+        Route::get('summary',                    [ChannelBillingController::class, 'summary']);
+        Route::get('opted-in-households',        [ChannelBillingController::class, 'optedInHouseholds']);
+        Route::get('payment-history',            [ChannelBillingController::class, 'paymentHistory']);
+        Route::post('billing-contact',           [ChannelBillingController::class, 'storeBillingContact']);
+        Route::patch('billing-contact',          [ChannelBillingController::class, 'updateBillingContact']);
+        Route::post('opt-in',                    [ChannelBillingController::class, 'optIn']);
+        Route::post('opt-out',                   [ChannelBillingController::class, 'optOut']);
+        Route::post('mark-eft-paid',             [ChannelBillingController::class, 'markEftPaid']);
+    });
 
 
     // ── Notifications ───────────────────────────────────────
