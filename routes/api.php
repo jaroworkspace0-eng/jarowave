@@ -145,7 +145,7 @@ Route::post('/login', function (Request $request) {
             'unit_number' => $user->unit_number,
             'plan'              => $user->plan,
             'is_estate' => $user->is_estate,
-            'is_estate_opted_in' => $user->subscriptions()
+            'is_estate_opted_in' => $user->subscription()
                 ->where('cancellation_reason', 'estate_optin')
                 ->whereNotNull('channel_subscription_id')
                 ->exists(),
