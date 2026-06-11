@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class ChannelBillingController extends Controller
@@ -65,7 +66,7 @@ class ChannelBillingController extends Controller
             ]);
 
             // TODO: Send invite email with password reset link
-            // Mail::to($user->email)->queue(new EstateBillingInviteMail($user, $channel));
+            Mail::to($user->email)->queue(new EstateBillingInviteMail($user, $channel));
         });
 
         return response()->json([
