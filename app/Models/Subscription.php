@@ -32,6 +32,8 @@ class Subscription extends Model
         'conduct_block_reason',
         'activation_fee_paid',
         'activation_fee_paid_at',
+        'cancellation_reason',
+        'channel_subscription_id'
     ];
 
     protected $casts = [
