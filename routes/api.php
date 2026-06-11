@@ -119,6 +119,7 @@ Route::post('/login', function (Request $request) {
         return [
             'id'   => $channel->id,
             'name' => $channel->name,
+            'billing_model' => $channel->billing_model,
         ];
     }) ?? collect([]);
 
@@ -144,6 +145,10 @@ Route::post('/login', function (Request $request) {
             'unit_number' => $user->unit_number,
             'plan'              => $user->plan,
             'is_estate' => $user->is_estate,
+            'is_estate_opted_in' => $user->subscriptions()
+                ->where('cancellation_reason', 'estate_optin')
+                ->whereNotNull('channel_subscription_id')
+                ->exists(),
         ],
         'channels' => $channels,
         'token'    => $token,
