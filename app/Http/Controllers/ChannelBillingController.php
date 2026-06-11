@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\EstateBillingInviteMail;
 use App\Models\Channel;
 use App\Models\ChannelBillingContact;
 use App\Models\ChannelSubscription;
