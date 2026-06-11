@@ -29,6 +29,6 @@ class EstateBillingInviteMail extends Mailable
 
     public function content(): Content
     {
-        return new Content(view: 'emails.estate-billing-invite');
+        return new Content(markdown: 'emails.estate-billing-invite');
     }
 }
