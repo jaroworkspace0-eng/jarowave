@@ -269,11 +269,17 @@ const removeHousehold = async () => {
     isRemoving.value = true;
 
     try {
+        // await axios.post(
+        //     `${base()}/opt-out`,
+        //     { user_id: householdToRemove.value.id },
+        //     getHeaders(),
+        // );
         await axios.post(
-            `${base()}/opt-out`,
+            `${base()}/remove-household`,
             { user_id: householdToRemove.value.id },
             getHeaders(),
         );
+
         showFlash(
             `${householdToRemove.value.name} has been removed from estate billing.`,
         );
