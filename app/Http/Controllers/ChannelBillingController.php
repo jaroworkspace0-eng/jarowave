@@ -170,6 +170,23 @@ class ChannelBillingController extends Controller
         ]);
     }
 
+
+    public function removeHousehold(Request $request, Channel $channel)
+    {
+        $request->validate([
+            'user_id' => 'required|exists:users,id',
+        ]);
+
+        $user = User::findOrFail($request->user_id);
+
+        $this->billingService->optOutHousehold($user, $channel);
+
+        return response()->json([
+            'success' => true,
+            'message' => "{$user->name} has been removed from estate billing.",
+        ]);
+    }
+
     // -------------------------------------------------------------------------
     // EFT Payment
     // -------------------------------------------------------------------------

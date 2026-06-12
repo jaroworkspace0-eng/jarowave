@@ -61,21 +61,45 @@ class ChannelBillingService
      * Opt a household out of estate bulk billing.
      * Restores them to individual billing with a fresh subscription.
      */
-    public function optOutHousehold(User $user, Channel $channel): void
+   public function optOutHousehold(User $user, Channel $channel): void
     {
         DB::transaction(function () use ($user, $channel) {
-            // Create a fresh individual subscription
-            Subscription::create([
-                'user_id'     => $user->id,
-                'client_id'   => $channel->client_id,
-                'status'      => 'trialing',
-                'price'       => BillingService::UNIT_PRICE / 100,
-                'currency'    => 'ZAR',
-                'billing_cycle' => 'monthly',
-            ]);
+            $subscription = Subscription::where('user_id', $user->id)
+                ->where('cancellation_reason', 'estate_optin')
+                ->latest()
+                ->first();
+
+            $periodEnd = ChannelSubscription::where('channel_id', $channel->id)
+                ->where('status', 'active')
+                ->where('current_period_end', '>=', now())
+                ->value('current_period_end');
+
+            $newStatus = $periodEnd ? 'active' : 'past_due';
+
+            if ($subscription) {
+                $subscription->update([
+                    'status'                  => $newStatus,
+                    'cancelled_at'            => null,
+                    'ends_at'                 => $periodEnd ?? null,
+                    'cancellation_reason'     => null,
+                    'channel_subscription_id' => null,
+                    'current_period_end'      => $periodEnd ?? null,
+                ]);
+            } else {
+                Subscription::create([
+                    'user_id'            => $user->id,
+                    'client_id'          => $channel->client_id,
+                    'status'             => $newStatus,
+                    'price'              => BillingService::UNIT_PRICE / 100,
+                    'currency'           => 'ZAR',
+                    'billing_cycle'      => 'monthly',
+                    'current_period_end' => $periodEnd ?? null,
+                    'ends_at'            => $periodEnd ?? null,
+                ]);
+            }
 
             $user->update([
-                'subscription_status' => 'trialing',
+                'subscription_status' => $newStatus,
             ]);
         });
 
