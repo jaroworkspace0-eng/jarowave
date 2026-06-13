@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Mail\EstatePaymentApprovedMail;
+use App\Mail\EstatePaymentRejectedMail;
 use App\Models\Channel;
 use App\Models\ChannelSubscription;
 use App\Models\ChannelSubscriptionPayment;
@@ -19,41 +21,59 @@ class ChannelBillingService
     // Opt-In / Opt-Out
     // -------------------------------------------------------------------------
 
+
+    private function cancelPayfastSubscription(string $token): void
+    {
+        try {
+            app(\App\Services\PayFastService::class)->cancelSubscription($token);
+        } catch (\Exception $e) {
+            Log::error('PayFast subscription cancel failed during estate opt-in', [
+                'token' => $token,
+                'error' => $e->getMessage(),
+            ]);
+
+            throw new \RuntimeException(
+                'Could not cancel PayFast subscription. Opt-in aborted.'
+            );
+        }
+    }
+
     /**
      * Opt a household into estate bulk billing.
      * Cancels their individual subscription and links them to the channel subscription.
      */
     public function optInHousehold(User $user, Channel $channel): void
     {
-        $channelSubscription = $this->resolveActiveChannelSubscription($channel);
+        DB::transaction(function () use ($user, $channel) {
+            $channelSubscription = $this->resolveActiveChannelSubscription($channel);
 
-        DB::transaction(function () use ($user, $channel, $channelSubscription) {
-            // Cancel individual subscription
             $subscription = Subscription::where('user_id', $user->id)
-                ->whereNotIn('status', ['cancelled'])
+                ->whereIn('status', ['active', 'trialing', 'past_due'])
                 ->latest()
                 ->first();
 
             if ($subscription) {
+                if ($subscription->payfast_token) {
+                    $this->cancelPayfastSubscription($subscription->payfast_token);
+                }
+
                 $subscription->update([
-                    'status'                   => 'cancelled',
-                    'cancelled_at'             => now(),
-                    'ends_at'                  => $subscription->current_period_end,
-                    'cancellation_reason'      => 'estate_optin',
-                    'channel_subscription_id'  => $channelSubscription?->id,
+                    'status'                  => 'cancelled',
+                    'cancelled_at'            => now(),
+                    'ends_at'                 => $subscription->current_period_end,
+                    'cancellation_reason'     => 'estate_optin',
+                    'channel_subscription_id' => $channelSubscription?->id,
                 ]);
             }
 
-            // Update user status — inherit from channel subscription
             $user->update([
                 'subscription_status' => $channelSubscription?->status === 'active' ? 'active' : 'pending',
             ]);
         });
 
         Log::info('Household opted into estate billing', [
-            'user_id'                  => $user->id,
-            'channel_id'               => $channel->id,
-            'channel_subscription_id'  => $channelSubscription?->id,
+            'user_id'                 => $user->id,
+            'channel_id'              => $channel->id,
         ]);
     }
 
@@ -61,7 +81,7 @@ class ChannelBillingService
      * Opt a household out of estate bulk billing.
      * Restores them to individual billing with a fresh subscription.
      */
-   public function optOutHousehold(User $user, Channel $channel): void
+    public function optOutHousehold(User $user, Channel $channel): void
     {
         DB::transaction(function () use ($user, $channel) {
             $subscription = Subscription::where('user_id', $user->id)
@@ -190,40 +210,71 @@ class ChannelBillingService
      * Creates payment record, activates all opted-in households,
      * generates estate invoice + per-household invoices, and earnings record.
      */
+  
     public function markEftPaid(
-        ChannelSubscription $channelSubscription,
-        array $data,
-        string $proofPath,
-        string $ipAddress
+    ChannelSubscription $channelSubscription,
+    array $data,
+    string $proofPath,
+    string $ipAddress
     ): ChannelSubscriptionPayment {
-        // Snapshot count and amount at time of payment
         $this->refreshChannelSubscription($channelSubscription);
         $channelSubscription->refresh();
 
         $merchantReference = 'CEFT-' . strtoupper(uniqid());
-        $periodStart       = $channelSubscription->current_period_start ?? now();
-        $periodEnd         = $channelSubscription->current_period_end ?? now()->addDays(30);
 
         $payment = DB::transaction(function () use (
-            $channelSubscription, $data, $proofPath, $ipAddress,
-            $merchantReference, $periodStart, $periodEnd
+            $channelSubscription, $data, $proofPath, $ipAddress, $merchantReference
         ) {
-            // Create payment record
             $payment = ChannelSubscriptionPayment::create([
                 'channel_subscription_id' => $channelSubscription->id,
                 'amount'                  => $channelSubscription->total_amount,
                 'household_count'         => $channelSubscription->household_count,
                 'amount_per_household'    => $channelSubscription->amount_per_household,
                 'payment_method'          => 'eft',
-                'status'                  => 'paid',
+                'status'                  => 'pending_review',
                 'merchant_reference'      => $merchantReference,
                 'proof_of_payment'        => $proofPath,
                 'notes'                   => $data['note'] ?? null,
                 'ip_address'              => $ipAddress,
-                'paid_at'                 => now(),
+                'paid_at'                 => null,
             ]);
 
-            // Activate channel subscription
+            // Keep channel subscription as pending until admin approves
+            $channelSubscription->update([
+                'status' => 'pending',
+            ]);
+
+            return $payment;
+        });
+
+        Log::info('Estate EFT submitted — awaiting admin review', [
+            'channel_subscription_id' => $channelSubscription->id,
+            'payment_id'              => $payment->id,
+            'amount'                  => $channelSubscription->total_amount,
+        ]);
+
+        return $payment;
+    }
+
+
+    public function approveEftPayment(
+    ChannelSubscriptionPayment $payment,
+    string $ipAddress
+    ): void {
+        $channelSubscription = $payment->channelSubscription;
+
+        $this->refreshChannelSubscription($channelSubscription);
+        $channelSubscription->refresh();
+
+        $periodStart = $channelSubscription->current_period_start ?? now();
+        $periodEnd   = $channelSubscription->current_period_end ?? now()->addDays(30);
+
+        DB::transaction(function () use ($payment, $channelSubscription, $periodStart, $periodEnd, $ipAddress) {
+            $payment->update([
+                'status'  => 'paid',
+                'paid_at' => now(),
+            ]);
+
             $channelSubscription->update([
                 'status'               => 'active',
                 'paid_at'              => now(),
@@ -231,16 +282,47 @@ class ChannelBillingService
                 'current_period_end'   => $periodEnd,
             ]);
 
-            // Activate all opted-in households
             $this->activateOptedInHouseholds($channelSubscription, $periodStart, $periodEnd);
-
-            return $payment;
         });
+        
 
-        // Side effects outside transaction
         $this->handlePaymentSideEffects($payment, $channelSubscription);
 
-        return $payment;
+
+        // Email billing contact
+        $channelSubscription = $payment->channelSubscription;
+        $billingContact = $channelSubscription->channel->billingContact?->user;
+        if ($billingContact) {
+            Mail::to($billingContact->email)->queue(new EstatePaymentApprovedMail($billingContact, $channelSubscription, $payment));
+        }
+
+        Log::info('Estate EFT approved', [
+            'payment_id'              => $payment->id,
+            'channel_subscription_id' => $channelSubscription->id,
+        ]);
+    }
+
+    public function rejectEftPayment(
+        ChannelSubscriptionPayment $payment,
+        string $reason
+    ): void {
+        $payment->update([
+            'status' => 'rejected',
+            'notes'  => $payment->notes . ' | Rejected: ' . $reason,
+        ]);
+
+
+        // Email billing contact
+        $channelSubscription = $payment->channelSubscription;
+        $billingContact = $channelSubscription->channel->billingContact?->user;
+        if ($billingContact) {
+            Mail::to($billingContact->email)->queue(new EstatePaymentRejectedMail($billingContact, $channelSubscription, $payment, $reason));
+        }
+
+        Log::info('Estate EFT rejected', [
+            'payment_id' => $payment->id,
+            'reason'     => $reason,
+        ]);
     }
 
     // -------------------------------------------------------------------------

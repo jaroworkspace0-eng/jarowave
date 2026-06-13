@@ -261,42 +261,42 @@ class HouseholdController extends Controller
 
     // ── POST /api/household/subscription/cancel ───────────────────────────────
    public function cancelSubscription(Request $request)
-{
-    $subscription = Subscription::where('user_id', $request->user()->id)
-        ->whereIn('status', ['active', 'trialing', 'past_due'])
-        ->latest()
-        ->first();
+    {
+        $subscription = Subscription::where('user_id', $request->user()->id)
+            ->whereIn('status', ['active', 'trialing', 'past_due'])
+            ->latest()
+            ->first();
 
-    if (!$subscription) {
-        return response()->json(['message' => 'No active subscription found.'], 404);
-    }
-
-    if ($subscription->payfast_token) {
-        try {
-            $payfastService = app(\App\Services\PayFastService::class);
-            $payfastService->cancelSubscription($subscription->payfast_token);
-        } catch (\Exception $e) {
-            Log::warning('PayFast cancellation failed: ' . $e->getMessage());
+        if (!$subscription) {
+            return response()->json(['message' => 'No active subscription found.'], 404);
         }
+
+        if ($subscription->payfast_token) {
+            try {
+                $payfastService = app(\App\Services\PayFastService::class);
+                $payfastService->cancelSubscription($subscription->payfast_token);
+            } catch (\Exception $e) {
+                Log::warning('PayFast cancellation failed: ' . $e->getMessage());
+            }
+        }
+
+        $accessEnd = $subscription->current_period_end
+            ?? $subscription->trial_ends_at
+            ?? now();
+
+        $subscription->update([
+            'status'       => 'cancelled',
+            'cancelled_at' => now(),
+            'ends_at'      => $accessEnd,
+        ]);
+
+        $this->notifyNode('POST', '/subscription-cancelled', [
+            'userId'    => $subscription->user_id,
+            'accessEnd' => $accessEnd->toIso8601String(),
+        ]);
+
+        return response()->json(['message' => 'Subscription cancelled successfully.']);
     }
-
-    $accessEnd = $subscription->current_period_end
-        ?? $subscription->trial_ends_at
-        ?? now();
-
-    $subscription->update([
-        'status'       => 'cancelled',
-        'cancelled_at' => now(),
-        'ends_at'      => $accessEnd,
-    ]);
-
-    $this->notifyNode('POST', '/subscription-cancelled', [
-        'userId'    => $subscription->user_id,
-        'accessEnd' => $accessEnd->toIso8601String(),
-    ]);
-
-    return response()->json(['message' => 'Subscription cancelled successfully.']);
-}
 
     // ── GET /api/household/invoices ───────────────────────────────────────────
     public function invoices(Request $request)

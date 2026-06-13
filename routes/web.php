@@ -95,6 +95,10 @@ Route::get('/estate/dashboard', function () {
     return inertia('Estate/EstateBillingDashboard');
 });
 
+Route::get('/admin/estate-payments', function () {
+    return inertia('Admin/EstatePayments');
+});
+
 
 
 require __DIR__.'/settings.php';

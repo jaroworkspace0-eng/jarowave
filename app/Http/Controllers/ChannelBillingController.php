@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Mail\EstateBillingInviteMail;
+use App\Mail\EstatePaymentApprovedMail;
+use App\Mail\EstatePaymentRejectedMail;
 use App\Models\Channel;
 use App\Models\ChannelBillingContact;
 use App\Models\ChannelSubscription;
@@ -214,9 +216,9 @@ class ChannelBillingController extends Controller
         );
 
         return response()->json([
-            'success'   => true,
-            'message'   => 'Estate EFT payment recorded. All opted-in households activated.',
-            'payment'   => $payment,
+            'success' => true,
+            'message' => 'EFT proof submitted. An Echo Link admin will review and activate your households shortly.',
+            'payment' => $payment,
         ]);
     }
 
@@ -265,5 +267,45 @@ class ChannelBillingController extends Controller
             'success'    => true,
             'households' => $households,
         ]);
+    }
+
+
+    public function approveEftPayment(Request $request, ChannelSubscriptionPayment $payment)
+    {
+        $this->billingService->approveEftPayment($payment, $request->ip());
+
+        
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Payment approved. All opted-in households have been activated.',
+        ]);
+    }
+
+    public function rejectEftPayment(Request $request, ChannelSubscriptionPayment $payment)
+    {
+        $request->validate([
+            'reason' => 'required|string|max:255',
+        ]);
+
+        $this->billingService->rejectEftPayment($payment, $request->reason);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Payment rejected.',
+        ]);
+    }
+
+    public function pendingEftPayments()
+    {
+        $payments = ChannelSubscriptionPayment::with([
+                'channelSubscription.channel.billingContact.user',
+            ])
+            ->whereIn('status', ['pending_review', 'paid', 'rejected'])
+            ->orderByRaw("FIELD(status, 'pending_review', 'paid', 'rejected')")
+            ->orderBy('created_at', 'desc')
+            ->paginate(20);
+
+        return response()->json(['success' => true, 'payments' => $payments]);
     }
 }

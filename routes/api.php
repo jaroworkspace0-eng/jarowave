@@ -285,6 +285,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
 
+    Route::post('channel-payments/{payment}/approve', [ChannelBillingController::class, 'approveEftPayment']);
+    Route::post('channel-payments/{payment}/reject',  [ChannelBillingController::class, 'rejectEftPayment']);
+
     // ── ADD THESE ROUTES inside the existing Route::middleware(['auth:sanctum']) group ──
     Route::prefix('admin/payouts')->group(function () {
         Route::get('/clients',                          [AdminPayoutController::class, 'clients']);
@@ -387,6 +390,15 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/incident-reports', [SosIncidentReportController::class, 'adminIndex']);
         Route::get('/incident-reports/{report}', [SosIncidentReportController::class, 'show']);
         Route::post('/incident-reports/{report}/action', [SosIncidentReportController::class, 'action']);
+
+        // Payment simulator — non-production only;
+        Route::post('/simulate-payment', [PaymentSimulatorController::class, 'simulate']);
+        Route::get('/simulate-payment/users', [PaymentSimulatorController::class, 'users']);
+
+        // Pending EFT payments for admin to approve/reject
+        Route::get('/estate-payments', [ChannelBillingController::class, 'pendingEftPayments']);
+        Route::post('/channel-payments/{payment}/approve', [ChannelBillingController::class, 'approveEftPayment']);
+        Route::post('/channel-payments/{payment}/reject', [ChannelBillingController::class, 'rejectEftPayment']);
     });
 
     // Household — view reports on their own alerts
@@ -407,10 +419,6 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
 
-    // Payment simulator — non-production only
-    // Route::get('/admin/simulate-payment/users', [PaymentSimulatorController::class, 'index']);
-    Route::post('/admin/simulate-payment', [PaymentSimulatorController::class, 'simulate']);
-    Route::get('/admin/simulate-payment/users', [PaymentSimulatorController::class, 'users']);
 
     // Invite management for employees to invite households/residents
     Route::get('/invite', [InviteController::class, 'show']);

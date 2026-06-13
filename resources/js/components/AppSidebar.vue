@@ -19,6 +19,7 @@ import {
     ArrowsUpFromLineIcon,
     Briefcase,
     Building,
+    Building2,
     DollarSign,
     HomeIcon,
     Megaphone,
@@ -68,6 +69,11 @@ const mainNavItems: NavItem[] = [
                   title: 'Process Payouts',
                   href: '/admin/process-payouts',
                   icon: ArrowsUpFromLineIcon,
+              },
+              {
+                  title: 'Estate Payments',
+                  href: '/admin/estate-payments',
+                  icon: Building2,
               },
               {
                   title: 'Incident Reports',
