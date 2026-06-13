@@ -3,14 +3,17 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import {
+    AlertTriangle,
     Building2,
     CheckCircle,
     Clock,
     Eye,
+    Filter,
     RefreshCw,
+    Search,
     XCircle,
 } from 'lucide-vue-next';
-import { onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 
 interface Payment {
     id: number;
@@ -32,18 +35,26 @@ interface Payment {
             id: number;
             name: string;
             billing_contact: {
-                user: {
-                    name: string;
-                    email: string;
-                };
+                user: { name: string; email: string };
             } | null;
         };
     };
 }
 
 const payments = ref<Payment[]>([]);
+const allPayments = ref<Payment[]>([]);
 const isLoading = ref(true);
 const flash = ref<{ msg: string; type: 'success' | 'error' } | null>(null);
+
+// Filters
+const filterStatus = ref('all');
+const filterSearch = ref('');
+const filterDateFrom = ref('');
+const filterDateTo = ref('');
+
+// Pagination
+const currentPage = ref(1);
+const perPage = 15;
 
 // Reject modal
 const showRejectModal = ref(false);
@@ -54,6 +65,7 @@ const isRejecting = ref(false);
 // Proof modal
 const showProofModal = ref(false);
 const proofUrl = ref('');
+const proofIsPdf = ref(false);
 
 // Processing
 const processingId = ref<number | null>(null);
@@ -88,7 +100,7 @@ const fetchPayments = async () => {
             `${import.meta.env.VITE_APP_URL}/api/admin/estate-payments`,
             getHeaders(),
         );
-        payments.value = res.data.payments.data ?? res.data.payments;
+        allPayments.value = res.data.payments.data ?? res.data.payments;
     } catch (err: any) {
         showFlash(
             err.response?.data?.message ?? 'Failed to load payments.',
@@ -99,6 +111,92 @@ const fetchPayments = async () => {
     }
 };
 
+// ── Stats ─────────────────────────────────────────────────────────────────
+const stats = computed(() => {
+    const pending = allPayments.value.filter(
+        (p) => p.status === 'pending_review',
+    );
+    const approved = allPayments.value.filter((p) => p.status === 'paid');
+    const rejected = allPayments.value.filter((p) => p.status === 'rejected');
+    const totalApprovedAmount = approved.reduce(
+        (sum, p) => sum + Number(p.amount),
+        0,
+    );
+    return {
+        pending: pending.length,
+        approved: approved.length,
+        rejected: rejected.length,
+        totalApprovedAmount,
+    };
+});
+
+// ── Filtering ─────────────────────────────────────────────────────────────
+const filtered = computed(() => {
+    let result = [...allPayments.value];
+
+    if (filterStatus.value !== 'all') {
+        result = result.filter((p) => p.status === filterStatus.value);
+    }
+
+    if (filterSearch.value.trim()) {
+        const q = filterSearch.value.toLowerCase();
+        result = result.filter(
+            (p) =>
+                p.channel_subscription?.channel?.name
+                    ?.toLowerCase()
+                    .includes(q) ||
+                p.merchant_reference?.toLowerCase().includes(q) ||
+                p.channel_subscription?.channel?.billing_contact?.user?.name
+                    ?.toLowerCase()
+                    .includes(q) ||
+                p.channel_subscription?.channel?.billing_contact?.user?.email
+                    ?.toLowerCase()
+                    .includes(q),
+        );
+    }
+
+    if (filterDateFrom.value) {
+        const from = new Date(filterDateFrom.value);
+        result = result.filter((p) => new Date(p.created_at) >= from);
+    }
+
+    if (filterDateTo.value) {
+        const to = new Date(filterDateTo.value);
+        to.setHours(23, 59, 59);
+        result = result.filter((p) => new Date(p.created_at) <= to);
+    }
+
+    return result;
+});
+
+// ── Pagination ────────────────────────────────────────────────────────────
+const totalPages = computed(() => Math.ceil(filtered.value.length / perPage));
+
+const paginated = computed(() => {
+    const start = (currentPage.value - 1) * perPage;
+    return filtered.value.slice(start, start + perPage);
+});
+
+watch([filterStatus, filterSearch, filterDateFrom, filterDateTo], () => {
+    currentPage.value = 1;
+});
+
+const clearFilters = () => {
+    filterStatus.value = 'all';
+    filterSearch.value = '';
+    filterDateFrom.value = '';
+    filterDateTo.value = '';
+};
+
+const hasActiveFilters = computed(
+    () =>
+        filterStatus.value !== 'all' ||
+        filterSearch.value ||
+        filterDateFrom.value ||
+        filterDateTo.value,
+);
+
+// ── Actions ───────────────────────────────────────────────────────────────
 const approve = async (payment: Payment) => {
     processingId.value = payment.id;
     try {
@@ -149,6 +247,7 @@ const submitReject = async () => {
 
 const viewProof = (payment: Payment) => {
     proofUrl.value = `${import.meta.env.VITE_APP_URL}/storage/${payment.proof_of_payment}`;
+    proofIsPdf.value = payment.proof_of_payment?.endsWith('.pdf') ?? false;
     showProofModal.value = true;
 };
 
@@ -199,6 +298,118 @@ onMounted(fetchPayments);
                 {{ flash.type === 'success' ? '✓' : '⚠' }} {{ flash.msg }}
             </div>
 
+            <!-- STATS -->
+            <div class="stats-row">
+                <div
+                    class="stat-card"
+                    @click="filterStatus = 'pending_review'"
+                    :class="{ active: filterStatus === 'pending_review' }"
+                >
+                    <div class="stat-icon orange">
+                        <Clock :size="18" stroke-width="2" />
+                    </div>
+                    <div>
+                        <div class="stat-val">{{ stats.pending }}</div>
+                        <div class="stat-lbl">Pending Review</div>
+                    </div>
+                </div>
+                <div
+                    class="stat-card"
+                    @click="filterStatus = 'paid'"
+                    :class="{ active: filterStatus === 'paid' }"
+                >
+                    <div class="stat-icon green">
+                        <CheckCircle :size="18" stroke-width="2" />
+                    </div>
+                    <div>
+                        <div class="stat-val">{{ stats.approved }}</div>
+                        <div class="stat-lbl">Approved</div>
+                    </div>
+                </div>
+                <div
+                    class="stat-card"
+                    @click="filterStatus = 'rejected'"
+                    :class="{ active: filterStatus === 'rejected' }"
+                >
+                    <div class="stat-icon red">
+                        <XCircle :size="18" stroke-width="2" />
+                    </div>
+                    <div>
+                        <div class="stat-val">{{ stats.rejected }}</div>
+                        <div class="stat-lbl">Rejected</div>
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon blue">
+                        <AlertTriangle :size="18" stroke-width="2" />
+                    </div>
+                    <div>
+                        <div class="stat-val">
+                            {{ fmt(stats.totalApprovedAmount) }}
+                        </div>
+                        <div class="stat-lbl">Total Approved</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FILTERS -->
+            <div class="filters-bar">
+                <!-- Search -->
+                <div class="search-wrap">
+                    <Search :size="14" stroke-width="2" color="#aaa" />
+                    <input
+                        class="search-input"
+                        type="text"
+                        v-model="filterSearch"
+                        placeholder="Search estate, reference, contact..."
+                    />
+                </div>
+
+                <!-- Status filter -->
+                <select class="filter-select" v-model="filterStatus">
+                    <option value="all">All Statuses</option>
+                    <option value="pending_review">Pending Review</option>
+                    <option value="paid">Approved</option>
+                    <option value="rejected">Rejected</option>
+                </select>
+
+                <!-- Date from -->
+                <div class="date-wrap">
+                    <label class="date-label">From</label>
+                    <input
+                        class="filter-select"
+                        type="date"
+                        v-model="filterDateFrom"
+                    />
+                </div>
+
+                <!-- Date to -->
+                <div class="date-wrap">
+                    <label class="date-label">To</label>
+                    <input
+                        class="filter-select"
+                        type="date"
+                        v-model="filterDateTo"
+                    />
+                </div>
+
+                <!-- Clear -->
+                <button
+                    v-if="hasActiveFilters"
+                    class="btn-clear"
+                    @click="clearFilters"
+                >
+                    <XCircle :size="13" stroke-width="2" />
+                    Clear
+                </button>
+
+                <div class="filter-count">
+                    {{ filtered.length }} result{{
+                        filtered.length !== 1 ? 's' : ''
+                    }}
+                </div>
+            </div>
+
             <!-- LOADING -->
             <div v-if="isLoading" class="loading">
                 <div class="spinner"></div>
@@ -206,23 +417,30 @@ onMounted(fetchPayments);
             </div>
 
             <!-- EMPTY -->
-            <div v-else-if="!payments.length" class="empty-card">
-                <Building2 :size="32" stroke-width="1.5" color="#bbb" />
-                <div class="empty-title">No estate payments yet</div>
+            <div v-else-if="!filtered.length" class="empty-card">
+                <Filter :size="32" stroke-width="1.5" color="#bbb" />
+                <div class="empty-title">No payments found</div>
                 <div class="empty-desc">
-                    EFT submissions from estate billing contacts will appear
-                    here.
+                    Try adjusting your filters or search query.
                 </div>
+                <button
+                    v-if="hasActiveFilters"
+                    class="btn-ghost"
+                    style="margin-top: 8px"
+                    @click="clearFilters"
+                >
+                    Clear Filters
+                </button>
             </div>
 
             <!-- PAYMENT LIST -->
             <div v-else class="payment-list">
                 <div
-                    v-for="payment in payments"
+                    v-for="payment in paginated"
                     :key="payment.id"
-                    class="payment-card"
+                    :class="['payment-card', payment.status]"
                 >
-                    <!-- Left: estate info -->
+                    <!-- Left -->
                     <div class="pc-left">
                         <div class="pc-estate-icon">
                             {{
@@ -238,10 +456,10 @@ onMounted(fetchPayments);
                                 }}
                             </div>
                             <div class="pc-meta">
-                                {{
+                                <strong>{{
                                     payment.channel_subscription?.channel
                                         ?.billing_contact?.user?.name
-                                }}
+                                }}</strong>
                                 ·
                                 {{
                                     payment.channel_subscription?.channel
@@ -249,34 +467,48 @@ onMounted(fetchPayments);
                                 }}
                             </div>
                             <div class="pc-meta">
-                                Ref: {{ payment.merchant_reference ?? '—' }} ·
-                                {{ payment.household_count }} households ·
-                                Submitted {{ formatDate(payment.created_at) }}
+                                Ref:
+                                <span class="mono">{{
+                                    payment.merchant_reference ?? '—'
+                                }}</span>
+                                · {{ payment.household_count }} households ·
+                                {{
+                                    fmt(payment.amount_per_household)
+                                }}/household
                             </div>
-                            <div class="pc-meta" v-if="payment.notes">
-                                Note: {{ payment.notes }}
+                            <div class="pc-meta">
+                                Submitted: {{ formatDate(payment.created_at) }}
+                                <span v-if="payment.paid_at">
+                                    · Approved:
+                                    {{ formatDate(payment.paid_at) }}</span
+                                >
+                            </div>
+                            <div class="pc-meta pc-period">
+                                Period:
+                                {{
+                                    formatDate(
+                                        payment.channel_subscription
+                                            ?.current_period_start,
+                                    )
+                                }}
+                                →
+                                {{
+                                    formatDate(
+                                        payment.channel_subscription
+                                            ?.current_period_end,
+                                    )
+                                }}
+                            </div>
+                            <div v-if="payment.notes" class="pc-note">
+                                "{{ payment.notes }}"
                             </div>
                         </div>
                     </div>
 
-                    <!-- Right: amount + status + actions -->
+                    <!-- Right -->
                     <div class="pc-right">
                         <div class="pc-amount">{{ fmt(payment.amount) }}</div>
-                        <div class="pc-period">
-                            {{
-                                formatDate(
-                                    payment.channel_subscription
-                                        ?.current_period_start,
-                                )
-                            }}
-                            →
-                            {{
-                                formatDate(
-                                    payment.channel_subscription
-                                        ?.current_period_end,
-                                )
-                            }}
-                        </div>
+
                         <span
                             :class="['badge', statusConfig(payment.status).cls]"
                         >
@@ -289,7 +521,6 @@ onMounted(fetchPayments);
                         </span>
 
                         <div class="pc-actions">
-                            <!-- View Proof -->
                             <button
                                 class="btn-proof"
                                 @click="viewProof(payment)"
@@ -298,8 +529,6 @@ onMounted(fetchPayments);
                                 <Eye :size="13" stroke-width="2" />
                                 View Proof
                             </button>
-
-                            <!-- Approve -->
                             <button
                                 v-if="payment.status === 'pending_review'"
                                 class="btn-approve"
@@ -317,8 +546,6 @@ onMounted(fetchPayments);
                                 />
                                 Approve
                             </button>
-
-                            <!-- Reject -->
                             <button
                                 v-if="payment.status === 'pending_review'"
                                 class="btn-reject"
@@ -333,6 +560,27 @@ onMounted(fetchPayments);
                 </div>
             </div>
 
+            <!-- PAGINATION -->
+            <div v-if="totalPages > 1" class="pagination">
+                <button
+                    class="pg-btn"
+                    :disabled="currentPage === 1"
+                    @click="currentPage--"
+                >
+                    ← Prev
+                </button>
+                <span class="pg-info"
+                    >Page {{ currentPage }} of {{ totalPages }}</span
+                >
+                <button
+                    class="pg-btn"
+                    :disabled="currentPage === totalPages"
+                    @click="currentPage++"
+                >
+                    Next →
+                </button>
+            </div>
+
             <!-- PROOF MODAL -->
             <div
                 v-if="showProofModal"
@@ -343,7 +591,7 @@ onMounted(fetchPayments);
                     <div class="modal-title">Proof of Payment</div>
                     <div class="proof-wrap">
                         <iframe
-                            v-if="proofUrl.endsWith('.pdf')"
+                            v-if="proofIsPdf"
                             :src="proofUrl"
                             class="proof-iframe"
                         ></iframe>
@@ -372,7 +620,7 @@ onMounted(fetchPayments);
                 <div class="modal modal-sm">
                     <div class="modal-title">Reject Payment</div>
                     <p class="modal-note">
-                        Provide a reason for rejection. This will be sent to
+                        Provide a reason for rejection. This will be emailed to
                         <strong>{{
                             rejectingPayment?.channel_subscription?.channel
                                 ?.billing_contact?.user?.name
@@ -380,12 +628,13 @@ onMounted(fetchPayments);
                         >.
                     </p>
                     <div class="mf">
-                        <label class="ml">Reason</label>
+                        <label class="ml">Reason for Rejection</label>
                         <input
                             class="mi"
                             type="text"
                             v-model="rejectReason"
                             placeholder="e.g. Amount does not match, unclear image..."
+                            autofocus
                         />
                     </div>
                     <div class="modal-actions">
@@ -412,12 +661,13 @@ onMounted(fetchPayments);
 
 <style scoped>
 .ep-root {
-    max-width: 1060px;
+    max-width: 1400px;
     margin: 0 auto;
     padding: 36px 24px 64px;
     font-family: 'Segoe UI', sans-serif;
     color: #111;
 }
+
 .ep-header {
     display: flex;
     align-items: center;
@@ -451,6 +701,7 @@ onMounted(fetchPayments);
     color: #888;
     margin: 0;
 }
+
 .btn-icon {
     padding: 8px;
     border: 1.5px solid #e5e5e5;
@@ -485,6 +736,153 @@ onMounted(fetchPayments);
     color: #dc2626;
 }
 
+/* Stats */
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+}
+.stat-card {
+    background: #fff;
+    border: 1.5px solid #ebebeb;
+    border-radius: 14px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.stat-card:hover {
+    border-color: #f97316;
+}
+.stat-card.active {
+    border-color: #f97316;
+    background: #fff7ed;
+}
+.stat-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.stat-icon.orange {
+    background: rgba(249, 115, 22, 0.1);
+    color: #f97316;
+}
+.stat-icon.green {
+    background: rgba(22, 163, 74, 0.1);
+    color: #16a34a;
+}
+.stat-icon.red {
+    background: rgba(220, 38, 38, 0.1);
+    color: #dc2626;
+}
+.stat-icon.blue {
+    background: rgba(37, 99, 235, 0.1);
+    color: #2563eb;
+}
+.stat-val {
+    font-size: 20px;
+    font-weight: 800;
+    color: #111;
+    letter-spacing: -0.5px;
+}
+.stat-lbl {
+    font-size: 11px;
+    color: #aaa;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+}
+
+/* Filters */
+.filters-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    background: #fff;
+    border: 1.5px solid #ebebeb;
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+}
+.search-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f9f9f9;
+    border: 1.5px solid #ebebeb;
+    border-radius: 10px;
+    padding: 8px 12px;
+    flex: 1;
+    min-width: 200px;
+}
+.search-input {
+    border: none;
+    background: none;
+    outline: none;
+    font-size: 13px;
+    color: #111;
+    width: 100%;
+    font-family: 'Segoe UI', sans-serif;
+}
+.filter-select {
+    padding: 8px 12px;
+    border: 1.5px solid #ebebeb;
+    border-radius: 10px;
+    font-size: 13px;
+    color: #111;
+    background: #f9f9f9;
+    outline: none;
+    font-family: 'Segoe UI', sans-serif;
+    cursor: pointer;
+}
+.date-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.date-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+.btn-clear {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 8px 14px;
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1.5px solid #fecaca;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Segoe UI', sans-serif;
+    transition: all 0.15s;
+}
+.btn-clear:hover {
+    background: rgba(220, 38, 38, 0.12);
+}
+.filter-count {
+    font-size: 12px;
+    color: #aaa;
+    font-weight: 600;
+    margin-left: auto;
+    white-space: nowrap;
+}
+
 .loading {
     display: flex;
     flex-direction: column;
@@ -517,12 +915,12 @@ onMounted(fetchPayments);
     line-height: 1.6;
 }
 
+/* Payment cards */
 .payment-list {
     display: flex;
     flex-direction: column;
     gap: 12px;
 }
-
 .payment-card {
     background: #fff;
     border: 1.5px solid #ebebeb;
@@ -533,6 +931,16 @@ onMounted(fetchPayments);
     justify-content: space-between;
     gap: 16px;
     flex-wrap: wrap;
+    transition: border-color 0.15s;
+}
+.payment-card.pending_review {
+    border-left: 4px solid #f97316;
+}
+.payment-card.paid {
+    border-left: 4px solid #16a34a;
+}
+.payment-card.rejected {
+    border-left: 4px solid #dc2626;
 }
 
 .pc-left {
@@ -542,7 +950,6 @@ onMounted(fetchPayments);
     flex: 1;
     min-width: 0;
 }
-
 .pc-estate-icon {
     width: 44px;
     height: 44px;
@@ -556,7 +963,6 @@ onMounted(fetchPayments);
     justify-content: center;
     flex-shrink: 0;
 }
-
 .pc-info {
     flex: 1;
     min-width: 0;
@@ -565,12 +971,28 @@ onMounted(fetchPayments);
     font-size: 15px;
     font-weight: 800;
     color: #111;
-    margin-bottom: 3px;
+    margin-bottom: 4px;
 }
 .pc-meta {
     font-size: 12px;
     color: #888;
-    margin-top: 2px;
+    margin-top: 3px;
+}
+.pc-period {
+    color: #aaa;
+}
+.pc-note {
+    font-size: 12px;
+    color: #666;
+    font-style: italic;
+    background: #f9f9f9;
+    border-radius: 8px;
+    padding: 6px 10px;
+    margin-top: 6px;
+}
+.mono {
+    font-family: 'Courier New', monospace;
+    font-size: 11px;
 }
 
 .pc-right {
@@ -580,17 +1002,11 @@ onMounted(fetchPayments);
     gap: 8px;
     flex-shrink: 0;
 }
-
 .pc-amount {
-    font-size: 20px;
+    font-size: 22px;
     font-weight: 800;
     color: #f97316;
     letter-spacing: -0.5px;
-}
-.pc-period {
-    font-size: 11px;
-    color: #aaa;
-    font-weight: 600;
 }
 
 .badge {
@@ -693,6 +1109,40 @@ onMounted(fetchPayments);
 .btn-reject:disabled {
     opacity: 0.4;
     cursor: not-allowed;
+}
+
+/* Pagination */
+.pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    margin-top: 24px;
+}
+.pg-btn {
+    padding: 8px 18px;
+    background: #fff;
+    border: 1.5px solid #ebebeb;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #555;
+    cursor: pointer;
+    font-family: 'Segoe UI', sans-serif;
+    transition: all 0.15s;
+}
+.pg-btn:hover:not(:disabled) {
+    border-color: #f97316;
+    color: #f97316;
+}
+.pg-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.pg-info {
+    font-size: 13px;
+    color: #888;
+    font-weight: 600;
 }
 
 /* Proof modal */
@@ -870,6 +1320,11 @@ onMounted(fetchPayments);
     }
 }
 
+@media (max-width: 900px) {
+    .stats-row {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
 @media (max-width: 640px) {
     .payment-card {
         flex-direction: column;
@@ -879,6 +1334,13 @@ onMounted(fetchPayments);
     }
     .pc-actions {
         justify-content: flex-start;
+    }
+    .filters-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .search-wrap {
+        min-width: unset;
     }
 }
 </style>
