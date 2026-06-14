@@ -295,6 +295,55 @@ const removeHousehold = async () => {
         isRemoving.value = false;
     }
 };
+
+// Payment filters
+const paySearch = ref('');
+const payStatusFilter = ref('all');
+const payDateFrom = ref('');
+const payDateTo = ref('');
+
+const hasPayFilters = computed(
+    () =>
+        payStatusFilter.value !== 'all' ||
+        paySearch.value ||
+        payDateFrom.value ||
+        payDateTo.value,
+);
+
+const clearPayFilters = () => {
+    paySearch.value = '';
+    payStatusFilter.value = 'all';
+    payDateFrom.value = '';
+    payDateTo.value = '';
+};
+
+const filteredPayments = computed(() => {
+    let result = [...payments.value];
+
+    if (payStatusFilter.value !== 'all') {
+        result = result.filter((p) => p.status === payStatusFilter.value);
+    }
+
+    if (paySearch.value.trim()) {
+        const q = paySearch.value.toLowerCase();
+        result = result.filter((p) =>
+            p.merchant_reference?.toLowerCase().includes(q),
+        );
+    }
+
+    if (payDateFrom.value) {
+        const from = new Date(payDateFrom.value);
+        result = result.filter((p) => new Date(p.created_at) >= from);
+    }
+
+    if (payDateTo.value) {
+        const to = new Date(payDateTo.value);
+        to.setHours(23, 59, 59);
+        result = result.filter((p) => new Date(p.created_at) <= to);
+    }
+
+    return result;
+});
 </script>
 
 <template>
@@ -378,9 +427,19 @@ const removeHousehold = async () => {
                         </div>
                         <div>
                             <div class="sum-val">
-                                {{ fmt(summary.total_amount) }}
+                                {{
+                                    summary.status === 'active'
+                                        ? 'Paid'
+                                        : fmt(summary.total_amount)
+                                }}
                             </div>
-                            <div class="sum-lbl">Amount Due</div>
+                            <div class="sum-lbl">
+                                {{
+                                    summary.status === 'active'
+                                        ? 'Current Period'
+                                        : 'Amount Due'
+                                }}
+                            </div>
                         </div>
                     </div>
                     <div class="sum-card">
@@ -520,20 +579,65 @@ const removeHousehold = async () => {
                 </div>
 
                 <!-- PAYMENTS TAB -->
+                <!-- PAYMENTS TAB -->
                 <div v-if="activeTab === 'payments'">
-                    <div v-if="!payments.length" class="empty-card">
+                    <!-- Filters -->
+                    <div class="pay-filters">
+                        <div class="pf-search-wrap">
+                            <input
+                                class="pf-search"
+                                type="text"
+                                v-model="paySearch"
+                                placeholder="Search reference..."
+                            />
+                        </div>
+                        <select class="pf-select" v-model="payStatusFilter">
+                            <option value="all">All Statuses</option>
+                            <option value="paid">Paid</option>
+                            <option value="pending_review">
+                                Pending Review
+                            </option>
+                            <option value="rejected">Rejected</option>
+                            <option value="failed">Failed</option>
+                        </select>
+                        <div class="pf-date-wrap">
+                            <label class="pf-date-label">From</label>
+                            <input
+                                class="pf-select"
+                                type="date"
+                                v-model="payDateFrom"
+                            />
+                        </div>
+                        <div class="pf-date-wrap">
+                            <label class="pf-date-label">To</label>
+                            <input
+                                class="pf-select"
+                                type="date"
+                                v-model="payDateTo"
+                            />
+                        </div>
+                        <button
+                            v-if="hasPayFilters"
+                            class="btn-clear-pay"
+                            @click="clearPayFilters"
+                        >
+                            ✕ Clear
+                        </button>
+                    </div>
+
+                    <div v-if="!filteredPayments.length" class="empty-card">
                         <FileText :size="32" stroke-width="1.5" color="#bbb" />
-                        <div class="empty-title">No payments yet</div>
+                        <div class="empty-title">No payments found</div>
                         <div class="empty-desc">
-                            Payment records will appear here once submitted.
+                            Try adjusting your filters.
                         </div>
                     </div>
 
                     <div v-else class="payment-list">
                         <div
-                            v-for="payment in payments"
+                            v-for="payment in filteredPayments"
                             :key="payment.id"
-                            class="payment-card"
+                            :class="['payment-card', payment.status]"
                         >
                             <div class="pay-left">
                                 <div class="pay-ref">
@@ -542,21 +646,32 @@ const removeHousehold = async () => {
                                 <div class="pay-meta">
                                     {{ payment.payment_method?.toUpperCase() }}
                                     · {{ payment.household_count }} households ·
-                                    {{
-                                        formatDate(
-                                            payment.paid_at ??
-                                                payment.created_at,
-                                        )
-                                    }}
+                                    Submitted
+                                    {{ formatDate(payment.created_at) }}
+                                </div>
+                                <div class="pay-meta" v-if="payment.paid_at">
+                                    Approved {{ formatDate(payment.paid_at) }}
+                                </div>
+                                <div
+                                    class="pay-meta pay-note"
+                                    v-if="payment.notes"
+                                >
+                                    "{{ payment.notes }}"
                                 </div>
                             </div>
                             <div class="pay-right">
                                 <div class="pay-amount">
                                     {{ fmt(payment.amount) }}
                                 </div>
-                                <span :class="['pay-badge', payment.status]">{{
-                                    payment.status
-                                }}</span>
+                                <span :class="['pay-badge', payment.status]">
+                                    {{
+                                        payment.status === 'pending_review'
+                                            ? 'Pending Review'
+                                            : payment.status === 'paid'
+                                              ? 'Approved'
+                                              : payment.status
+                                    }}
+                                </span>
                             </div>
                         </div>
                     </div>
@@ -1207,6 +1322,17 @@ const removeHousehold = async () => {
     border: 1px solid rgba(220, 38, 38, 0.2);
 }
 
+.pay-badge.pending_review {
+    background: rgba(249, 115, 22, 0.1);
+    color: #f97316;
+    border: 1px solid rgba(249, 115, 22, 0.2);
+}
+.pay-badge.rejected {
+    background: rgba(220, 38, 38, 0.1);
+    color: #dc2626;
+    border: 1px solid rgba(220, 38, 38, 0.2);
+}
+
 /* Empty */
 .empty-card {
     display: flex;
@@ -1531,5 +1657,97 @@ const removeHousehold = async () => {
     .summary-row {
         grid-template-columns: 1fr 1fr;
     }
+}
+
+.pay-filters {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    background: #fff;
+    border: 1.5px solid #ebebeb;
+    border-radius: 14px;
+    padding: 12px 16px;
+}
+.pf-search-wrap {
+    flex: 1;
+    min-width: 160px;
+}
+.pf-search {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1.5px solid #ebebeb;
+    border-radius: 10px;
+    font-size: 13px;
+    color: #111;
+    background: #f9f9f9;
+    outline: none;
+    font-family: 'Segoe UI', sans-serif;
+    box-sizing: border-box;
+}
+.pf-search:focus {
+    border-color: #f97316;
+}
+.pf-select {
+    padding: 8px 12px;
+    border: 1.5px solid #ebebeb;
+    border-radius: 10px;
+    font-size: 13px;
+    color: #111;
+    background: #f9f9f9;
+    outline: none;
+    font-family: 'Segoe UI', sans-serif;
+    cursor: pointer;
+}
+.pf-date-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.pf-date-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+.btn-clear-pay {
+    padding: 8px 14px;
+    background: #fef2f2;
+    color: #dc2626;
+    border: 1.5px solid #fecaca;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'Segoe UI', sans-serif;
+}
+.payment-card.pending_review {
+    border-left: 4px solid #f97316;
+}
+.payment-card.paid {
+    border-left: 4px solid #16a34a;
+}
+.payment-card.rejected {
+    border-left: 4px solid #dc2626;
+}
+.payment-card.failed {
+    border-left: 4px solid #dc2626;
+}
+.pay-badge.pending_review {
+    background: rgba(249, 115, 22, 0.1);
+    color: #f97316;
+    border: 1px solid rgba(249, 115, 22, 0.2);
+}
+.pay-badge.rejected {
+    background: rgba(220, 38, 38, 0.1);
+    color: #dc2626;
+    border: 1px solid rgba(220, 38, 38, 0.2);
+}
+.pay-note {
+    font-style: italic;
+    margin-top: 4px;
 }
 </style>
