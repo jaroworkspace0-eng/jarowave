@@ -19,28 +19,28 @@ class ChannelController extends Controller
      * Display a listing of the resource.
      */
    
-   public function index()
-{
-    $user = Auth::user();
+    public function index()
+    {
+        $user = Auth::user();
 
-    $query = Channel::with('client.user')
-        ->orderBy('created_at', 'desc');
+        $query = Channel::with('client.user')
+            ->orderBy('created_at', 'desc');
 
-    // If not admin, restrict to channels belonging to the user's client
-    if ($user->role !== 'admin') {
-        $clientId = $user->client->id; // user → client via clients.user_id
-        $query->where('client_id', $clientId);
+        // If not admin, restrict to channels belonging to the user's client
+        if ($user->role !== 'admin') {
+            $clientId = $user->client->id; // user → client via clients.user_id
+            $query->where('client_id', $clientId);
+        }
+
+        $channels = $query->paginate(10);
+
+        return response()->json([
+            'channels' => $channels,
+        ]);
     }
 
-    $channels = $query->paginate(10);
 
-    return response()->json([
-        'channels' => $channels,
-    ]);
-}
-
-
-// fetch channels for the app
+    // fetch channels for the app
     public function getChannels(Request $request)
     {
         // 1. Get user with relationship (mimicking login)

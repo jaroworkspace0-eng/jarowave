@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Mail\HouseholdWelcomeMail;
 use App\Mail\InvoiceMail;
+use App\Models\Channel;
 use App\Models\Employee;
 use App\Models\HouseholdInvite;
 use App\Models\Invoice;
@@ -90,6 +91,9 @@ class HouseholdController extends Controller
             return response()->json(['message' => 'This invite link has reached its limit.'], 422);
         }
 
+
+        $channel = $invite->channel_id ? Channel::find($invite->channel_id) : null;
+
         // Determine org type from the client's user record
         $orgType = $invite->client->user->organisation_type ?? 'watch';
 
@@ -135,7 +139,8 @@ class HouseholdController extends Controller
             'status'             => 'trialing',
             'plan'               => null,
             'billing_cycle'      => 'monthly',
-            'price'              => BillingService::UNIT_PRICE, // 80.00
+            // 'price'              => BillingService::UNIT_PRICE, // 80.00
+            'price' => BillingService::unitPrice($channel->amount_per_household),
             'trial_ends_at'      => now()->addDays(14), // 14-day trial
             'merchant_reference' => $merchantReference,
         ]);
@@ -378,16 +383,21 @@ class HouseholdController extends Controller
         }
 
         $payfast = new \App\Services\PayFastService();
-        $fields  = $payfast->buildSubscriptionFields([
-            'billing_date'     => $subscription->trial_ends_at->format('Y-m-d'),
-            'name_first'       => explode(' ', $user->name)[0],
-            'name_last'        => explode(' ', $user->name, 2)[1] ?? '',
-            'email_address'    => $user->email,
-            'cell_number'      => $this->formatPhone($user->phone ?? ''),
-            'm_payment_id'     => $merchantReference,
-            'item_name'        => 'Echo Link Community Protection',
-            'item_description' => '14-day free trial then R80 per month neighbourhood watch subscription',
-            'custom_str1'      => (string) $user->id,
+        
+        $channel = $user->employee?->channels()->first();
+        $amountPerHousehold = BillingService::unitPrice($channel?->amount_per_household);
+
+        $fields = $payfast->buildSubscriptionFields([
+            'billing_date'         => $subscription->trial_ends_at->format('Y-m-d'),
+            'name_first'           => explode(' ', $user->name)[0],
+            'name_last'            => explode(' ', $user->name, 2)[1] ?? '',
+            'email_address'        => $user->email,
+            'cell_number'          => $this->formatPhone($user->phone ?? ''),
+            'm_payment_id'         => $merchantReference,
+            'item_name'            => 'Echo Link Community Protection',
+            'item_description'     => "14-day free trial then R{$amountPerHousehold} per month neighbourhood watch subscription",
+            'custom_str1'          => (string) $user->id,
+            'amount_per_household' => $channel?->amount_per_household,
         ]);
 
         return response()->json(['type' => 'new', 'fields' => $fields, 'action' => 'https://www.payfast.co.za/eng/process']);
@@ -413,58 +423,64 @@ class HouseholdController extends Controller
     }
 
    public function reactivate(Request $request)
-{
-    $user         = $request->user();
-    $subscription = Subscription::where('user_id', $user->id)->latest()->first();
+    {
+        $user         = $request->user();
+        $subscription = Subscription::where('user_id', $user->id)->latest()->first();
 
-    if (!$subscription) {
-        return response()->json(['message' => 'No subscription found.'], 404);
+        if (!$subscription) {
+            return response()->json(['message' => 'No subscription found.'], 404);
+        }
+
+        if ($subscription->status !== 'cancelled') {
+            return response()->json(['message' => 'Subscription is not cancelled.'], 400);
+        }
+
+        $now                 = now();
+        $trialStillValid     = $subscription->trial_ends_at && $subscription->trial_ends_at->isFuture();
+        $originalTrialEndsAt = $subscription->trial_ends_at; // ← capture before update nulls it
+
+        $merchantReference = 'HH-' . $user->id . '-' . time();
+
+
+        $subscription->update([
+            'status'               => $trialStillValid ? 'trialing' : 'active',
+            'payfast_token'        => null,
+            'merchant_reference'   => $merchantReference,
+            'gateway_status'       => null,
+            'cancelled_at'         => null,
+            'ends_at'              => null,
+            'sos_suspended_at'     => null,
+            'trial_ends_at'        => $trialStillValid ? $originalTrialEndsAt : null,
+            'current_period_start' => $trialStillValid ? null : $now,
+            'current_period_end'   => $trialStillValid ? null : $now->copy()->addMonth(),
+        ]);
+
+        $payfast = new \App\Services\PayFastService();
+        $channel = $user->employee?->channels()->first();
+        $amountPerHousehold = BillingService::unitPrice($channel?->amount_per_household);
+        $formattedAmount = number_format($amountPerHousehold, 2, '.', '');
+
+        $fields = $payfast->buildSubscriptionFields([
+            'billing_date'         => $trialStillValid
+                    ? $originalTrialEndsAt->format('Y-m-d')
+                    : $now->format('Y-m-d'),
+            'name_first'           => explode(' ', $user->name)[0],
+            'name_last'            => explode(' ', $user->name, 2)[1] ?? '',
+            'email_address'        => $user->email,
+            'cell_number'          => $this->formatPhone($user->phone ?? ''),
+            'm_payment_id'         => $merchantReference,
+            'item_name'            => 'Echo Link Community Protection',
+            'item_description'     => "R{$amountPerHousehold} per month neighbourhood watch reactivation",
+            'custom_str1'          => (string) $user->id,
+            'amount_per_household' => $channel?->amount_per_household,
+        ], $trialStillValid ? '0.00' : $formattedAmount);
+
+        return response()->json([
+            'type'   => 'new',
+            'fields' => $fields,
+            'action' => 'https://www.payfast.co.za/eng/process',
+        ]);
     }
-
-    if ($subscription->status !== 'cancelled') {
-        return response()->json(['message' => 'Subscription is not cancelled.'], 400);
-    }
-
-    $now                 = now();
-    $trialStillValid     = $subscription->trial_ends_at && $subscription->trial_ends_at->isFuture();
-    $originalTrialEndsAt = $subscription->trial_ends_at; // ← capture before update nulls it
-
-    $merchantReference = 'HH-' . $user->id . '-' . time();
-
-    $subscription->update([
-        'status'               => $trialStillValid ? 'trialing' : 'active',
-        'payfast_token'        => null,
-        'merchant_reference'   => $merchantReference,
-        'gateway_status'       => null,
-        'cancelled_at'         => null,
-        'ends_at'              => null,
-        'sos_suspended_at'     => null,
-        'trial_ends_at'        => $trialStillValid ? $originalTrialEndsAt : null,
-        'current_period_start' => $trialStillValid ? null : $now,
-        'current_period_end'   => $trialStillValid ? null : $now->copy()->addMonth(),
-    ]);
-
-    $payfast = new \App\Services\PayFastService();
-    $fields  = $payfast->buildSubscriptionFields([
-        'billing_date'     => $trialStillValid
-            ? $originalTrialEndsAt->format('Y-m-d')
-            : $now->format('Y-m-d'),
-        'name_first'       => explode(' ', $user->name)[0],
-        'name_last'        => explode(' ', $user->name, 2)[1] ?? '',
-        'email_address'    => $user->email,
-        'cell_number'      => $this->formatPhone($user->phone ?? ''),
-        'm_payment_id'     => $merchantReference,
-        'item_name'        => 'Echo Link Community Protection',
-        'item_description' => 'R80 per month neighbourhood watch reactivation',
-        'custom_str1'      => (string) $user->id,
-    ], $trialStillValid ? '0.00' : '80.00');
-
-    return response()->json([
-        'type'   => 'new',
-        'fields' => $fields,
-        'action' => 'https://www.payfast.co.za/eng/process',
-    ]);
-}
 
     public function payNow(Request $request)
     {
@@ -518,6 +534,7 @@ class HouseholdController extends Controller
         $merchantReference = 'OT-' . $user->id . '-' . time();
 
         $payfast = new \App\Services\PayFastService();
+        $channel = $user->employee?->channels()->first();
         $fields  = $payfast->buildOneTimeFields([
             'name_first'       => explode(' ', $user->name)[0],
             'name_last'        => explode(' ', $user->name, 2)[1] ?? '',
@@ -527,6 +544,7 @@ class HouseholdController extends Controller
             'item_name'        => 'Echo Link Community Protection',
             'item_description' => 'Monthly neighbourhood watch subscription',
             'custom_str1'      => (string) $user->id,
+            'amount_per_household' => $channel?->amount_per_household,
         ]);
 
         return response()->json([

@@ -151,7 +151,8 @@ class AdminSubscriptionController extends Controller
                 $subscription->update([
                     'activation_fee_paid'    => true,
                     'activation_fee_paid_at' => now(),
-                    'price'                  => BillingService::UNIT_PRICE / 100,
+                    // 'price'                  => BillingService::UNIT_PRICE / 100,
+                    'price' => BillingService::unitPrice($user->employee?->channels->first()?->amount_per_household),
                 ]);
             }
         } catch (\Throwable $e) {

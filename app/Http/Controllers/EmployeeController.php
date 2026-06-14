@@ -371,6 +371,8 @@ class EmployeeController extends Controller
         $client  = Client::with('user')->find($clientId);
         $orgType = $client?->user?->organisation_type ?? 'watch';
 
+        $channel = $client?->channels()->first();
+
         Subscription::create([
             'user_id'              => $user->id,
             'client_id'            => $clientId,
@@ -378,7 +380,8 @@ class EmployeeController extends Controller
             'status'               => 'trialing',
             'plan'               => null,
             'billing_cycle'        => 'monthly',
-            'price'                => BillingService::UNIT_PRICE,
+            // 'price'                => BillingService::UNIT_PRICE,
+            'price' => BillingService::unitPrice($channel->amount_per_household ?? null),
             'trial_ends_at'        => now()->addDays(14), // 14-day trial for households
             'merchant_reference'   => 'HH-' . $user->id . '-' . time(),
             'activation_fee_paid'    => $activationFeePaid ?? null,

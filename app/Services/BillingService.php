@@ -50,4 +50,14 @@ class BillingService
             'platform' => $split['platform'] / 100,         // R28 or R50
         ];
     }
+
+
+    /**
+     * Get the amount per household for a channel.
+     * Falls back to UNIT_PRICE if not set on the channel.
+     */
+    public static function unitPrice(?float $amountPerHousehold = null): float
+    {
+        return $amountPerHousehold ?? self::UNIT_PRICE / 100;
+    }
 }

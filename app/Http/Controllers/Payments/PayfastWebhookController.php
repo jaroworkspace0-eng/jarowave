@@ -161,7 +161,8 @@ class PayfastWebhookController extends Controller
                             'activation_fee_paid'    => true,
                             'activation_fee_paid_at' => now(),
                             // NOTE: Sets price to system default. Revisit if custom pricing is added.
-                            'price'                  => BillingService::UNIT_PRICE / 100,
+                            // 'price'                  => BillingService::UNIT_PRICE / 100,
+                            'price'                     => BillingService::unitPrice($subscription->user->employee?->channels->first()?->amount_per_household),
                         ]);
                     }
                 } catch (\Throwable $e) {

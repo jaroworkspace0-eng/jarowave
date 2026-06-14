@@ -282,6 +282,12 @@ const editChannel = (channel: any) => {
         category: channel.category,
         type: channel.type,
         client_id: channel.client_id || channel.client?.id,
+        billing_model: channel.billing_model,
+        billing_contact_name: channel.billing_contact_name,
+        billing_contact_email: channel.billing_contact_email,
+        billing_contact_phone: channel.billing_contact_phone,
+        amount_per_household: channel.amount_per_household,
+        channel_type: channel.channel_type,
     };
     showModal.value = true;
 };
@@ -535,42 +541,41 @@ const confirmDelete = (channel: any) => {
                                                         class="focus:ring-opacity-50 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
                                                     />
                                                 </div>
-
-                                                <div class="grid gap-3">
-                                                    <Label
-                                                        >Amount Per Household
-                                                        (R)</Label
-                                                    >
-                                                    <input
-                                                        type="number"
-                                                        v-model="
-                                                            form.amount_per_household
-                                                        "
-                                                        placeholder="80"
-                                                        min="1"
-                                                        step="0.01"
-                                                        class="focus:ring-opacity-50 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
-                                                    />
-                                                    <p
-                                                        class="text-xs text-gray-400"
-                                                    >
-                                                        Default is
-                                                        R80/household/month.
-                                                        Override if needed.
-                                                    </p>
-                                                    <p
-                                                        v-if="
-                                                            errors.amount_per_household
-                                                        "
-                                                        class="text-sm text-red-600"
-                                                    >
-                                                        {{
-                                                            errors
-                                                                .amount_per_household[0]
-                                                        }}
-                                                    </p>
-                                                </div>
                                             </template>
+                                            <div class="grid gap-3">
+                                                <Label
+                                                    >Amount Per Household
+                                                    (R)</Label
+                                                >
+                                                <input
+                                                    type="number"
+                                                    v-model="
+                                                        form.amount_per_household
+                                                    "
+                                                    placeholder="80"
+                                                    min="1"
+                                                    step="0.01"
+                                                    class="focus:ring-opacity-50 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
+                                                />
+                                                <p
+                                                    class="text-xs text-gray-400"
+                                                >
+                                                    Default is
+                                                    R80/household/month.
+                                                    Override if needed.
+                                                </p>
+                                                <p
+                                                    v-if="
+                                                        errors.amount_per_household
+                                                    "
+                                                    class="text-sm text-red-600"
+                                                >
+                                                    {{
+                                                        errors
+                                                            .amount_per_household[0]
+                                                    }}
+                                                </p>
+                                            </div>
                                             <div class="flex w-max items-end">
                                                 <button
                                                     type="button"

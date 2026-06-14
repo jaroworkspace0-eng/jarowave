@@ -110,7 +110,8 @@ class ChannelBillingService
                     'user_id'            => $user->id,
                     'client_id'          => $channel->client_id,
                     'status'             => $newStatus,
-                    'price'              => BillingService::UNIT_PRICE / 100,
+                    // 'price'              => BillingService::UNIT_PRICE / 100,
+                    'price'              => BillingService::unitPrice($channel->amount_per_household),
                     'currency'           => 'ZAR',
                     'billing_cycle'      => 'monthly',
                     'current_period_end' => $periodEnd ?? null,
@@ -139,7 +140,8 @@ class ChannelBillingService
     public function calculateBillingAmount(Channel $channel): array
     {
         $householdCount = $this->getOptedInCount($channel);
-        $amountPerHousehold = BillingService::UNIT_PRICE / 100; // R80
+        // $amountPerHousehold = BillingService::UNIT_PRICE / 100; // R80
+        $amountPerHousehold = BillingService::unitPrice($channel->amount_per_household);
         $totalAmount = $householdCount * $amountPerHousehold;
 
         return [
@@ -410,6 +412,13 @@ class ChannelBillingService
             ->get();
 
         foreach ($subscriptions as $subscription) {
+
+            // If the subscription was already active (e.g. from a previous period), just update the period end
+            $subscription->update([
+                'status' => 'active',
+            ]);
+
+            // Update the user subscription status if they are linked to this subscription
             $subscription->user?->update([
                 'subscription_status' => 'active',
             ]);
