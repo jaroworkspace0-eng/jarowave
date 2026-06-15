@@ -272,16 +272,24 @@ class ChannelBillingService
         $periodEnd   = $channelSubscription->current_period_end ?? now()->addDays(30);
 
         DB::transaction(function () use ($payment, $channelSubscription, $periodStart, $periodEnd, $ipAddress) {
-            $payment->update([
+            $paymentResult = $payment->update([
                 'status'  => 'paid',
                 'paid_at' => now(),
             ]);
 
-            $channelSubscription->update([
+            $subResult = $channelSubscription->update([
                 'status'               => 'active',
                 'paid_at'              => now(),
                 'current_period_start' => $periodStart,
                 'current_period_end'   => $periodEnd,
+            ]);
+
+            Log::info('Transaction update results', [
+                'payment_result' => $paymentResult,
+                'sub_result'     => $subResult,
+                'sub_id'         => $channelSubscription->id,
+                'period_start'   => $periodStart,
+                'period_end'     => $periodEnd,
             ]);
 
             $this->activateOptedInHouseholds($channelSubscription, $periodStart, $periodEnd);
