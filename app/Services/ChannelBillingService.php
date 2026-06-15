@@ -292,7 +292,8 @@ class ChannelBillingService
 
 
         // Email billing contact
-        $channelSubscription = $payment->channelSubscription;
+        // $channelSubscription = $payment->channelSubscription;
+        $channelSubscription->refresh();
         $billingContact = $channelSubscription->channel->billingContact?->user;
         if ($billingContact) {
             Mail::to($billingContact->email)->queue(new EstatePaymentApprovedMail($billingContact, $channelSubscription, $payment));
