@@ -280,14 +280,14 @@ const editChannel = (channel: any) => {
         id: channel.id,
         name: channel.name,
         category: channel.category,
-        type: channel.type,
         client_id: channel.client_id || channel.client?.id,
         billing_model: channel.billing_model,
-        billing_contact_name: channel.billing_contact_name,
-        billing_contact_email: channel.billing_contact_email,
-        billing_contact_phone: channel.billing_contact_phone,
-        amount_per_household: channel.amount_per_household,
+        billing_contact_name: channel.billing_contact?.user?.name ?? '',
+        billing_contact_email: channel.billing_contact?.user?.email ?? '',
+        billing_contact_phone: channel.billing_contact?.user?.phone ?? '',
+        amount_per_household: channel.amount_per_household ?? 80,
         channel_type: channel.channel_type,
+        type: channel.type,
     };
     showModal.value = true;
 };

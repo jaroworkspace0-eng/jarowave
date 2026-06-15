@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\ChannelResource;
 use App\Models\Channel;
+use App\Models\ChannelSubscription;
 use App\Models\Client;
 use App\Models\Employee;
 use Illuminate\Http\Request;
@@ -23,7 +24,7 @@ class ChannelController extends Controller
     {
         $user = Auth::user();
 
-        $query = Channel::with('client.user')
+        $query = Channel::with('client.user', 'billingContact.user')
             ->orderBy('created_at', 'desc');
 
         // If not admin, restrict to channels belonging to the user's client
@@ -131,14 +132,24 @@ public function update(Request $request, Channel $channel)
         'amount_per_household'   => 'nullable|numeric|min:1',
     ]);
 
+    // Update the channel with the validated data
     $channel->update([
         'name'                 => $validated['name'],
         'category'             => $validated['category'],
         'channel_type'         => $validated['channel_type'],
         'client_id'            => $validated['client_id'],
         'billing_model'        => $validated['billing_model'] ?? $channel->billing_model,
-        'amount_per_household' => $validated['amount_per_household'] ?? $channel->amount_per_household,
+        'amount_per_household' => $validated['amount_per_household'] ?? $channel->amount_per_household, // Update the amount_per_household if provided
     ]);
+
+
+    // Update all active or pending subscriptions for this channel with the new amount_per_household
+    ChannelSubscription::where('channel_id', $channel->id)
+        ->whereIn('status', ['pending', 'active'])
+        ->update([
+            'amount_per_household' => $validated['amount_per_household'] ?? $channel->amount_per_household,
+        ]);
+    
 
     if (($validated['billing_model'] ?? null) === 'bulk') {
         $existingContact = $channel->billingContact()->where('is_active', true)->first();
