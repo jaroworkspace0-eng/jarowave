@@ -271,29 +271,35 @@ class ChannelBillingService
         $periodStart = $channelSubscription->current_period_start ?? now();
         $periodEnd   = $channelSubscription->current_period_end ?? now()->addDays(30);
 
-        DB::transaction(function () use ($payment, $channelSubscription, $periodStart, $periodEnd, $ipAddress) {
-            $paymentResult = $payment->update([
-                'status'  => 'paid',
-                'paid_at' => now(),
-            ]);
+        try {
+            DB::transaction(function () use ($payment, $channelSubscription, $periodStart, $periodEnd, $ipAddress) {
+                $paymentResult = $payment->update([
+                    'status'  => 'paid',
+                    'paid_at' => now(),
+                ]);
 
-            $subResult = $channelSubscription->update([
-                'status'               => 'active',
-                'paid_at'              => now(),
-                'current_period_start' => $periodStart,
-                'current_period_end'   => $periodEnd,
-            ]);
+                $subResult = $channelSubscription->update([
+                    'status'               => 'active',
+                    'paid_at'              => now(),
+                    'current_period_start' => $periodStart,
+                    'current_period_end'   => $periodEnd,
+                ]);
 
-            Log::info('Transaction update results', [
-                'payment_result' => $paymentResult,
-                'sub_result'     => $subResult,
-                'sub_id'         => $channelSubscription->id,
-                'period_start'   => $periodStart,
-                'period_end'     => $periodEnd,
-            ]);
+                Log::info('Transaction update results', [
+                    'payment_result' => $paymentResult,
+                    'sub_result'     => $subResult,
+                    'sub_id'         => $channelSubscription->id,
+                ]);
 
-            $this->activateOptedInHouseholds($channelSubscription, $periodStart, $periodEnd);
-        });
+                $this->activateOptedInHouseholds($channelSubscription, $periodStart, $periodEnd);
+            });
+        } catch (\Throwable $e) {
+            Log::error('Transaction failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
         
 
         $this->handlePaymentSideEffects($payment, $channelSubscription);
