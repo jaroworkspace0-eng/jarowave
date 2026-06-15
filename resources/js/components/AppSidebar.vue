@@ -21,6 +21,7 @@ import {
     Building,
     Building2,
     DollarSign,
+    FileText,
     HomeIcon,
     Megaphone,
     Newspaper,
@@ -38,7 +39,23 @@ const mainNavItems: NavItem[] = [
               { title: 'Dashboard', href: dashboard(), icon: HomeIcon },
               { title: 'Personnels', href: '/employees', icon: Briefcase },
           ]
-        : [{ title: 'Dashboard', href: '', icon: HomeIcon }]),
+        : []),
+
+    ...(auth.user?.role === 'estate_billing'
+        ? [
+              {
+                  title: 'Dashboard',
+                  href: '/estate/dashboard',
+                  icon: HomeIcon,
+              },
+              {
+                  title: 'Invoices',
+                  href: '/estate/invoices',
+                  icon: FileText,
+              },
+          ]
+        : []),
+
     ...(auth.user?.role === 'admin'
         ? [
               { title: 'Clients', href: '/clients', icon: Building },

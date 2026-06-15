@@ -45,6 +45,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\VisitorCodeController;
 use App\Models\Channel;
 use App\Models\ChannelBillingContact;
+use App\Models\Invoice;
 use App\Models\User;
 // use Illuminate\Container\Attributes\Auth;
 use Illuminate\Http\Request;
@@ -514,6 +515,21 @@ Route::middleware(['auth:sanctum'])->group(function () {
         ->firstOrFail();
 
         return response()->json(['channel' => $contact->channel]);
+    });
+
+    Route::get('/estate/invoices', function (Request $request) {
+        $contact = ChannelBillingContact::where('user_id', $request->user()->id)
+            ->where('is_active', true)
+            ->with('channel')
+            ->firstOrFail();
+
+        $invoices = Invoice::where('client_id', $request->user()->id)
+            ->where('invoice_type', 'estate_bulk')
+            ->with('channelSubscriptionPayment', 'channelSubscription.channel')
+            ->orderBy('created_at', 'desc')
+            ->paginate(20);
+
+        return response()->json(['invoices' => $invoices]);
     });
 
 
