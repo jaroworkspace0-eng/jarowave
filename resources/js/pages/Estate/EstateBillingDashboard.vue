@@ -859,6 +859,7 @@ const filteredPayments = computed(() => {
     padding: 36px 24px 64px;
     font-family: 'Segoe UI', sans-serif;
     color: #111;
+    width: 100%;
 }
 
 .eb-header {
