@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Log;
 
 class Earning extends Model
 {
@@ -127,7 +128,8 @@ class Earning extends Model
 
     /**
      * Create an earning from an estate bulk payment.
-     * One record per channel payment — security company earns their cut of the total.
+     * One record per channel payment — security company earns their cut
+     * based on the channel's custom split (or client default if not set).
      *
      * Usage:
      *   Earning::createFromChannelPayment($payment, $client);
@@ -136,10 +138,17 @@ class Earning extends Model
         ChannelSubscriptionPayment $payment,
         Client $client,
     ): self {
-        $commissionPct  = $client->revenue_share_percentage;
+        $channelSubscription = $payment->channelSubscription;
+        $channel             = $channelSubscription->channel;
+
+        $split = \App\Services\BillingService::calculateChannelSplit(
+            $channel,
+            $payment->household_count
+        );
+
         $totalAmount    = $payment->amount;
-        $earnedAmount   = round($totalAmount * ($commissionPct / 100), 2);
-        $platformAmount = round($totalAmount - $earnedAmount, 2);
+        $earnedAmount   = round($split['security_payout'], 2);
+        $platformAmount = round($totalAmount - $earnedAmount - $split['guard_pool_total'], 2);
 
         return self::create([
             'client_id'                       => $client->user_id,
@@ -147,13 +156,69 @@ class Earning extends Model
             'subscription_payment_id'         => null,
             'resident_id'                     => null,
             'resident_amount'                 => $totalAmount,
-            'commission_percentage'           => $commissionPct,
+            'commission_percentage'           => $split['security_percentage'],
             'earned_amount'                   => $earnedAmount,
             'platform_amount'                 => $platformAmount,
             'status'                          => 'pending',
-            'period_start'                    => $payment->channelSubscription->current_period_start,
-            'period_end'                      => $payment->channelSubscription->current_period_end,
+            'period_start'                    => $channelSubscription->current_period_start,
+            'period_end'                      => $channelSubscription->current_period_end,
         ]);
+    }
+
+    /**
+     * Create individual gate guard earnings for an estate bulk payment.
+     * Splits the guard pool evenly among all gate guards in the channel.
+     *
+     * Usage:
+     *   Earning::createGateGuardEarnings($payment);
+     */
+    public static function createGateGuardEarnings(ChannelSubscriptionPayment $payment): \Illuminate\Support\Collection
+    {
+        $channelSubscription = $payment->channelSubscription;
+        $channel             = $channelSubscription->channel;
+
+        $split = \App\Services\BillingService::calculateChannelSplit(
+            $channel,
+            $payment->household_count
+        );
+
+        if ($split['guard_pool_total'] <= 0) {
+            return collect();
+        }
+
+        $gateGuards = User::where('role', 'field_unit')
+            ->where('is_gate_guard', true)
+            ->whereHas('employee.channels', fn($q) => $q->where('channels.id', $channel->id))
+            ->get();
+
+        if ($gateGuards->isEmpty()) {
+            Log::warning('No gate guards found for channel - guard pool unallocated, flagging for review', [
+                'channel_id'       => $channel->id,
+                'guard_pool_total' => $split['guard_pool_total'],
+            ]);
+
+            // No guards to pay - money stays unallocated, do not silently lose it.
+            // Admin should be alerted via this log / a dashboard flag.
+            return collect();
+        }
+
+        $amountPerGuard = round($split['guard_pool_total'] / $gateGuards->count(), 2);
+
+        return $gateGuards->map(function ($guard) use ($payment, $channelSubscription, $amountPerGuard) {
+            return self::create([
+                'client_id'                       => null,
+                'channel_subscription_payment_id' => $payment->id,
+                'subscription_payment_id'         => null,
+                'resident_id'                     => $guard->id,
+                'resident_amount'                 => $amountPerGuard,
+                'commission_percentage'           => 100,
+                'earned_amount'                   => $amountPerGuard,
+                'platform_amount'                 => 0,
+                'status'                          => 'pending',
+                'period_start'                    => $channelSubscription->current_period_start,
+                'period_end'                      => $channelSubscription->current_period_end,
+            ]);
+        });
     }
 
     /**

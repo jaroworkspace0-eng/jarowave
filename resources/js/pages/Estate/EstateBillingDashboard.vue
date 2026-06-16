@@ -854,7 +854,7 @@ const filteredPayments = computed(() => {
 
 <style scoped>
 .eb-root {
-    max-width: 1060px;
+    max-width: 1400px;
     margin: 0 auto;
     padding: 36px 24px 64px;
     font-family: 'Segoe UI', sans-serif;

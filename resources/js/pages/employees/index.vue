@@ -472,6 +472,7 @@ const form = ref({
     duress_pin: '',
     activation_fee_paid: false,
     is_estate: false,
+    is_gate_guard: false,
 });
 
 // ─── watchers ─────────────────────────────────────────────────────────────────
@@ -697,6 +698,8 @@ const openModal = (forceHousehold = false) => {
         safe_cancel_pin: forceHousehold ? generatePin() : '',
         duress_pin: forceHousehold ? generatePin() : '',
         activation_fee_paid: false,
+        is_gate_guard: false,
+        is_estate: false,
     });
     if (forceHousehold)
         selectedRole.value = { text: 'Household', value: 'household' } as any;
@@ -722,6 +725,8 @@ const editEmployee = (employee: any) => {
     form.value.safe_cancel_pin = employee.user.safe_cancel_pin || '';
     form.value.duress_pin = employee.user.duress_pin || '';
     form.value.unit_number = employee.user.unit_number || '';
+    form.value.is_gate_guard = employee.user.is_gate_guard ?? false;
+    form.value.is_estate = employee.user.is_estate ?? false;
     // inComplex.value = !!employee.user.complex_name;
     form.value.activation_fee_paid =
         employee.user.subscription?.activation_fee_paid ?? false;
@@ -2261,6 +2266,36 @@ const hideSuggestions = () => {
                         >
                             {{ errors.occupation[0] }}
                         </p>
+
+                        <!-- Gate Guard checkbox -->
+                        <div
+                            v-if="
+                                form.occupation === 'security_guard' ||
+                                form.occupation === 'patrol_officer'
+                            "
+                            class="mt-2 flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3"
+                        >
+                            <input
+                                id="is_gate_guard"
+                                v-model="form.is_gate_guard"
+                                type="checkbox"
+                                class="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600"
+                                style="width: auto !important"
+                            />
+                            <label
+                                for="is_gate_guard"
+                                class="cursor-pointer text-sm text-blue-800 select-none"
+                            >
+                                <span class="font-semibold"
+                                    >This is a gate guard
+                                </span>
+                                <span class="ml-1 block text-xs text-blue-600">
+                                    Gate guards are paid a fixed share of the
+                                    estate's guard fee, separate from responding
+                                    security earnings.
+                                </span>
+                            </label>
+                        </div>
                     </div>
 
                     <div

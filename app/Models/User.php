@@ -44,6 +44,7 @@ class User extends Authenticatable
         'fcm_token_updated_at',
         'is_estate',
         'sos_suspended_at',
+        'is_gate_guard',
     ];
 
     protected $hidden = [
@@ -60,6 +61,8 @@ class User extends Authenticatable
             'password'                => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'fcm_token_updated_at'    => 'datetime',
+            'is_gate_guard' => 'boolean',
+            'is_estate' => 'boolean',
         ];
     }
 

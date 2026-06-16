@@ -453,8 +453,8 @@ class ChannelBillingService
      * - Earnings record for security company
      */
     private function handlePaymentSideEffects(
-        ChannelSubscriptionPayment $payment,
-        ChannelSubscription $channelSubscription
+    ChannelSubscriptionPayment $payment,
+    ChannelSubscription $channelSubscription
     ): void {
         try {
             // Estate-level invoice
@@ -480,6 +480,9 @@ class ChannelBillingService
             if ($client) {
                 Earning::createFromChannelPayment($payment, $client);
             }
+
+            // Earnings for gate guards
+            Earning::createGateGuardEarnings($payment);
 
         } catch (\Throwable $e) {
             Log::warning('Channel payment: side effect failed', [

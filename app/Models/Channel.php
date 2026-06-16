@@ -20,6 +20,9 @@ class Channel extends Model
         'billing_model',
         'amount_per_household',
         'is_active',
+        'guard_fixed_amount',
+        'security_pool',
+        'security_percentage',
     ];
     // ── Relationships ──
 

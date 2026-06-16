@@ -42,6 +42,9 @@ const defaultForm = {
     billing_contact_phone: '',
     amount_per_household: 80,
     channel_type: '',
+    guard_fixed_amount: 0,
+    security_pool: null,
+    security_percentage: null,
 };
 
 const form = ref({ ...defaultForm });
@@ -288,6 +291,9 @@ const editChannel = (channel: any) => {
         amount_per_household: channel.amount_per_household ?? 80,
         channel_type: channel.channel_type,
         type: channel.type,
+        guard_fixed_amount: channel.guard_fixed_amount ?? 0,
+        security_pool: channel.security_pool,
+        security_percentage: channel.security_percentage,
     };
     showModal.value = true;
 };
@@ -575,6 +581,240 @@ const confirmDelete = (channel: any) => {
                                                             .amount_per_household[0]
                                                     }}
                                                 </p>
+                                            </div>
+                                            <div class="grid gap-3">
+                                                <Label
+                                                    >Guard Fixed Amount (R)
+                                                    <span
+                                                        class="text-xs font-normal text-gray-400"
+                                                        >(optional — gate
+                                                        guards)</span
+                                                    ></Label
+                                                >
+                                                <input
+                                                    type="number"
+                                                    v-model="
+                                                        form.guard_fixed_amount
+                                                    "
+                                                    placeholder="0"
+                                                    min="0"
+                                                    step="0.01"
+                                                    class="focus:ring-opacity-50 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
+                                                />
+                                                <p
+                                                    class="text-xs text-gray-400"
+                                                >
+                                                    Fixed amount per household
+                                                    that goes to gate guards,
+                                                    split evenly among them.
+                                                </p>
+                                                <p
+                                                    v-if="
+                                                        errors.guard_fixed_amount
+                                                    "
+                                                    class="text-sm text-red-600"
+                                                >
+                                                    {{
+                                                        errors
+                                                            .guard_fixed_amount[0]
+                                                    }}
+                                                </p>
+                                            </div>
+
+                                            <div class="grid gap-3">
+                                                <Label
+                                                    >Security Pool (R)
+                                                    <span
+                                                        class="text-xs font-normal text-gray-400"
+                                                        >(optional — overrides
+                                                        default)</span
+                                                    ></Label
+                                                >
+                                                <input
+                                                    type="number"
+                                                    v-model="form.security_pool"
+                                                    :placeholder="
+                                                        String(
+                                                            form.amount_per_household -
+                                                                (form.guard_fixed_amount ||
+                                                                    0),
+                                                        )
+                                                    "
+                                                    min="0"
+                                                    step="0.01"
+                                                    class="focus:ring-opacity-50 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
+                                                />
+                                                <p
+                                                    class="text-xs text-gray-400"
+                                                >
+                                                    Amount the security
+                                                    percentage is calculated on.
+                                                    Leave blank to use remaining
+                                                    amount after guard fee.
+                                                </p>
+                                                <p
+                                                    v-if="errors.security_pool"
+                                                    class="text-sm text-red-600"
+                                                >
+                                                    {{
+                                                        errors.security_pool[0]
+                                                    }}
+                                                </p>
+                                            </div>
+
+                                            <div class="grid gap-3">
+                                                <Label
+                                                    >Security Cut (%)
+                                                    <span
+                                                        class="text-xs font-normal text-gray-400"
+                                                        >(optional — overrides
+                                                        client default)</span
+                                                    ></Label
+                                                >
+                                                <input
+                                                    type="number"
+                                                    v-model="
+                                                        form.security_percentage
+                                                    "
+                                                    placeholder="e.g. 60"
+                                                    min="0"
+                                                    max="100"
+                                                    step="0.01"
+                                                    class="focus:ring-opacity-50 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
+                                                />
+                                                <p
+                                                    class="text-xs text-gray-400"
+                                                >
+                                                    % of the security pool paid
+                                                    to the responding security
+                                                    company. Leave blank to use
+                                                    client's default revenue
+                                                    share.
+                                                </p>
+                                                <p
+                                                    v-if="
+                                                        errors.security_percentage
+                                                    "
+                                                    class="text-sm text-red-600"
+                                                >
+                                                    {{
+                                                        errors
+                                                            .security_percentage[0]
+                                                    }}
+                                                </p>
+                                            </div>
+
+                                            <!-- Split preview -->
+                                            <div
+                                                v-if="form.amount_per_household"
+                                                class="space-y-1 rounded-lg border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600"
+                                            >
+                                                <div
+                                                    class="mb-1 font-semibold text-gray-700"
+                                                >
+                                                    Split Preview (per
+                                                    household)
+                                                </div>
+                                                <div
+                                                    class="flex justify-between"
+                                                >
+                                                    <span>Household pays</span
+                                                    ><strong
+                                                        >R{{
+                                                            Number(
+                                                                form.amount_per_household,
+                                                            ).toFixed(2)
+                                                        }}</strong
+                                                    >
+                                                </div>
+                                                <div
+                                                    class="flex justify-between"
+                                                    v-if="
+                                                        form.guard_fixed_amount >
+                                                        0
+                                                    "
+                                                >
+                                                    <span
+                                                        >Gate guards
+                                                        (flat)</span
+                                                    ><strong
+                                                        >R{{
+                                                            Number(
+                                                                form.guard_fixed_amount,
+                                                            ).toFixed(2)
+                                                        }}</strong
+                                                    >
+                                                </div>
+                                                <div
+                                                    class="flex justify-between"
+                                                >
+                                                    <span>Security pool</span
+                                                    ><strong
+                                                        >R{{
+                                                            Number(
+                                                                form.security_pool ||
+                                                                    form.amount_per_household -
+                                                                        (form.guard_fixed_amount ||
+                                                                            0),
+                                                            ).toFixed(2)
+                                                        }}</strong
+                                                    >
+                                                </div>
+                                                <div
+                                                    class="flex justify-between"
+                                                >
+                                                    <span
+                                                        >Security gets ({{
+                                                            form.security_percentage ||
+                                                            0
+                                                        }}%)</span
+                                                    ><strong
+                                                        >R{{
+                                                            (
+                                                                Number(
+                                                                    form.security_pool ||
+                                                                        form.amount_per_household -
+                                                                            (form.guard_fixed_amount ||
+                                                                                0),
+                                                                ) *
+                                                                (Number(
+                                                                    form.security_percentage ||
+                                                                        0,
+                                                                ) /
+                                                                    100)
+                                                            ).toFixed(2)
+                                                        }}</strong
+                                                    >
+                                                </div>
+                                                <div
+                                                    class="flex justify-between font-semibold text-orange-600"
+                                                >
+                                                    <span>Echo Link keeps</span
+                                                    ><strong
+                                                        >R{{
+                                                            (
+                                                                Number(
+                                                                    form.amount_per_household,
+                                                                ) -
+                                                                Number(
+                                                                    form.guard_fixed_amount ||
+                                                                        0,
+                                                                ) -
+                                                                Number(
+                                                                    form.security_pool ||
+                                                                        form.amount_per_household -
+                                                                            (form.guard_fixed_amount ||
+                                                                                0),
+                                                                ) *
+                                                                    (Number(
+                                                                        form.security_percentage ||
+                                                                            0,
+                                                                    ) /
+                                                                        100)
+                                                            ).toFixed(2)
+                                                        }}</strong
+                                                    >
+                                                </div>
                                             </div>
                                             <div class="flex w-max items-end">
                                                 <button

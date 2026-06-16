@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\Channel;
+
 class BillingService
 {
     // Total monthly fee per household unit — R80
@@ -51,7 +53,6 @@ class BillingService
         ];
     }
 
-
     /**
      * Get the amount per household for a channel.
      * Falls back to UNIT_PRICE if not set on the channel.
@@ -59,5 +60,54 @@ class BillingService
     public static function unitPrice(?float $amountPerHousehold = null): float
     {
         return $amountPerHousehold ?? self::UNIT_PRICE / 100;
+    }
+
+    /**
+     * Resolve the effective security percentage for a channel.
+     * Falls back to the client's revenue_share_percentage if not set on the channel.
+     */
+    public static function resolveSecurityPercentage(Channel $channel): float
+    {
+        return $channel->security_percentage ?? $channel->client?->revenue_share_percentage ?? 0;
+    }
+
+    /**
+     * Resolve the security pool for a channel.
+     * Falls back to (amount_per_household - guard_fixed_amount) if not set.
+     */
+    public static function resolveSecurityPool(Channel $channel): float
+    {
+        if ($channel->security_pool !== null) {
+            return (float) $channel->security_pool;
+        }
+
+        return (float) $channel->amount_per_household - (float) ($channel->guard_fixed_amount ?? 0);
+    }
+
+    /**
+     * Calculate the full billing breakdown for a channel given a household count.
+     * Returns all split amounts in Rands.
+     */
+    public static function calculateChannelSplit(Channel $channel, int $householdCount): array
+    {
+        $amountPerHousehold = (float) $channel->amount_per_household;
+        $guardFixedAmount   = (float) ($channel->guard_fixed_amount ?? 0);
+        $securityPool       = self::resolveSecurityPool($channel);
+        $securityPercentage = self::resolveSecurityPercentage($channel);
+
+        $totalCollected   = $amountPerHousehold * $householdCount;
+        $guardPoolTotal    = $guardFixedAmount * $householdCount;
+        $securityPoolTotal = $securityPool * $householdCount;
+        $securityPayout    = $securityPoolTotal * ($securityPercentage / 100);
+        $echoLinkPayout    = $totalCollected - $guardPoolTotal - $securityPayout;
+
+        return [
+            'total_collected'      => $totalCollected,
+            'guard_pool_total'     => $guardPoolTotal,
+            'security_pool_total'  => $securityPoolTotal,
+            'security_percentage'  => $securityPercentage,
+            'security_payout'      => $securityPayout,
+            'echo_link_payout'     => $echoLinkPayout,
+        ];
     }
 }

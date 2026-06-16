@@ -47,6 +47,7 @@ class Subscription extends Model
         'original_price'         => 'integer',
         'discount_amount'        => 'integer',
         'discount_percentage'    => 'integer',
+        'activation_fee_paid'  => 'boolean',
     ];
 
     // ── Relationships ──

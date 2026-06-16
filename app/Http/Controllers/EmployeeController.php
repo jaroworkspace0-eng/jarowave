@@ -168,6 +168,7 @@ class EmployeeController extends Controller
             'safe_cancel_pin' => 'nullable|string|size:6',
             'duress_pin'      => 'nullable|string|size:6',
             'is_estate' => 'boolean',
+            'is_gate_guard'   => 'boolean',
         ], [
             'phone.regex' => 'The phone number must include a country code starting with +',
         ]);
@@ -194,6 +195,7 @@ class EmployeeController extends Controller
                 'safe_cancel_pin' => $isHousehold ? ($validated['safe_cancel_pin'] ?? null)  : null,
                 'duress_pin'      => $isHousehold ? ($validated['duress_pin'] ?? null)       : null,
                 'is_estate' => $isHousehold ? $request->boolean('is_estate', false) : false,
+                'is_gate_guard'   => !$isHousehold ? $request->boolean('is_gate_guard', false) : false,
             ]);
 
             $clientId = $this->resolveClientId($request->channel_ids);
@@ -260,6 +262,7 @@ class EmployeeController extends Controller
             'safe_cancel_pin'           => 'nullable|string|size:6',
             'duress_pin'                => 'nullable|string|size:6',
             'is_estate' => 'boolean',
+            'is_gate_guard'             => 'boolean',
         ]);
 
         // Verify current password if user is changing their own password
@@ -282,6 +285,7 @@ class EmployeeController extends Controller
                 'phone'      => $validated['phone'],
                 'occupation' => $validated['occupation'],
                 'role'       => $finalRole,
+                'is_gate_guard' => $validated['is_gate_guard'] ?? false,
             ];
 
             // Only overwrite address/pin fields from dashboard — never from app
