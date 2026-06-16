@@ -186,10 +186,10 @@ class Earning extends Model
             return collect();
         }
 
-        $gateGuards = User::where('role', 'field_unit')
-            ->where('is_gate_guard', true)
-            ->whereHas('employee.channels', fn($q) => $q->where('channels.id', $channel->id))
-            ->get();
+        $gateGuards = User::where('role', 'employee')
+        ->where('is_gate_guard', true)
+        ->whereHas('employee.channels', fn($q) => $q->where('channels.id', $channel->id))
+        ->get();
 
         if ($gateGuards->isEmpty()) {
             Log::warning('No gate guards found for channel - guard pool unallocated, flagging for review', [

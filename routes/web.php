@@ -103,6 +103,10 @@ Route::get('/admin/estate-payments', function () {
     return inertia('Admin/EstatePayments');
 });
 
+Route::get('/admin/gate-guard-payouts', function () {
+    return inertia('Admin/GateGuardPayouts');
+});
+
 
 
 require __DIR__.'/settings.php';

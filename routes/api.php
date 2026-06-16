@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountDeletionController;
+use App\Http\Controllers\Admin\AdminGuardPayoutController;
 use App\Http\Controllers\Admin\AdminPayoutController;
 use App\Http\Controllers\Admin\AdminSubscriptionController;
 use App\Http\Controllers\Admin\PaymentSimulatorController;
@@ -291,10 +292,19 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     // ── ADD THESE ROUTES inside the existing Route::middleware(['auth:sanctum']) group ──
     Route::prefix('admin/payouts')->group(function () {
+
+        // Client payouts
         Route::get('/clients',                          [AdminPayoutController::class, 'clients']);
         Route::get('/clients/{clientId}/earnings',      [AdminPayoutController::class, 'clientEarnings']);
         Route::post('/process',                         [AdminPayoutController::class, 'process']);
         Route::post('/notify-bank-details',             [AdminPayoutController::class, 'notifyBankDetails']);
+
+
+        // Gate guard payouts
+        Route::get('/guards',                           [AdminGuardPayoutController::class, 'guards']);
+        Route::get('/guards/{userId}/earnings',         [AdminGuardPayoutController::class, 'guardEarnings']);
+        Route::post('/guards/process',                  [AdminGuardPayoutController::class, 'process']);
+        Route::post('/guards/notify-bank-details',      [AdminGuardPayoutController::class, 'notifyBankDetails']);
     });
 
     // ── Checkpoint routes (admin only) ────────────────────────────────────────────

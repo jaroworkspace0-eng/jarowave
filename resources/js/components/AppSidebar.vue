@@ -26,7 +26,8 @@ import {
     Megaphone,
     Newspaper,
     Radio,
-    RadioIcon, // ← add this
+    RadioIcon,
+    Shield, // ← add this
     Trash2,
 } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
@@ -86,6 +87,11 @@ const mainNavItems: NavItem[] = [
                   title: 'Process Payouts',
                   href: '/admin/process-payouts',
                   icon: ArrowsUpFromLineIcon,
+              },
+              {
+                  title: 'Gate Guard Payouts',
+                  href: '/admin/gate-guard-payouts',
+                  icon: Shield, // or whatever icon fits
               },
               {
                   title: 'Estate Payments',
