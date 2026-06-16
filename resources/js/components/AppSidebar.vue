@@ -6,6 +6,9 @@ import {
     Sidebar,
     SidebarContent,
     SidebarFooter,
+    SidebarGroup,
+    SidebarGroupContent,
+    SidebarGroupLabel,
     SidebarHeader,
     SidebarMenu,
     SidebarMenuButton,
@@ -14,12 +17,13 @@ import {
 import { dashboard } from '@/routes';
 import { useAuthStore } from '@/stores/auth';
 import { type NavItem } from '@/types';
-import { Link } from '@inertiajs/vue3'; // ← back to Inertia Link
+import { Link } from '@inertiajs/vue3';
 import {
     ArrowsUpFromLineIcon,
     Briefcase,
     Building,
     Building2,
+    ClipboardList,
     DollarSign,
     FileText,
     HomeIcon,
@@ -27,112 +31,136 @@ import {
     Newspaper,
     Radio,
     RadioIcon,
-    Shield, // ← add this
+    Shield,
     Trash2,
 } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 
 const auth = useAuthStore();
 
-const mainNavItems: NavItem[] = [
-    ...(auth.user?.role === 'client' || auth.user?.role === 'admin'
-        ? [
-              { title: 'Dashboard', href: dashboard(), icon: HomeIcon },
-              { title: 'Personnels', href: '/employees', icon: Briefcase },
-          ]
-        : []),
+type NavGroup = {
+    label: string;
+    items: NavItem[];
+};
 
-    ...(auth.user?.role === 'estate_billing'
-        ? [
-              {
-                  title: 'Dashboard',
-                  href: '/estate/dashboard',
-                  icon: HomeIcon,
-              },
-              {
-                  title: 'Invoices',
-                  href: '/estate/invoices',
-                  icon: FileText,
-              },
-          ]
-        : []),
-
-    ...(auth.user?.role === 'admin'
-        ? [
-              { title: 'Clients', href: '/clients', icon: Building },
-              {
-                  title: 'Channels',
-                  href: '/channels',
-                  icon: RadioIcon,
-              },
-          ]
-        : []),
-
-    // Estate users see Subscription + Invoices
-    // ...(auth.user?.organisation_type === 'estate'
-    //     ? [
-    //           { title: 'Subscription', href: '/billing', icon: MonitorCheck },
-    //           { title: 'Invoices', href: '/invoices', icon: Paperclip },
-    //       ]
-    //     : []),
-
-    // Watch groups see Payouts
-    ...(auth.user?.role === 'client'
-        ? [{ title: 'Payouts', href: '/payouts', icon: DollarSign }]
-        : []),
-
-    ...(auth.user?.role === 'admin'
-        ? [
-              {
-                  title: 'Process Payouts',
-                  href: '/admin/process-payouts',
-                  icon: ArrowsUpFromLineIcon,
-              },
-              {
-                  title: 'Gate Guard Payouts',
-                  href: '/admin/gate-guard-payouts',
-                  icon: Shield, // or whatever icon fits
-              },
-              {
-                  title: 'Estate Payments',
-                  href: '/admin/estate-payments',
-                  icon: Building2,
-              },
-              {
-                  title: 'Incident Reports',
-                  href: '/admin/incident-reports',
-                  icon: Newspaper,
-              },
-              {
-                  title: 'Guardian Reports',
-                  href: '/guardian-reports',
-                  icon: Newspaper,
-              },
-
-              {
-                  title: 'Deletion Requests',
-                  href: '/deletion-requests',
-                  icon: Trash2,
-              },
-          ]
-        : []),
-    ...(auth.user?.role !== 'estate_billing'
-        ? [
-              {
-                  title: 'Announcements',
-                  href: '/announcements',
-                  icon: Megaphone,
-              },
-              {
-                  title: 'DV Recordings',
-                  href: '/dv-recordings',
-                  icon: Radio,
-              },
-          ]
-        : []),
+const adminGroups: NavGroup[] = [
+    {
+        label: 'Overview',
+        items: [
+            { title: 'Dashboard', href: dashboard(), icon: HomeIcon },
+            { title: 'Channels', href: '/channels', icon: RadioIcon },
+        ],
+    },
+    {
+        label: 'Operations',
+        items: [
+            { title: 'Clients', href: '/clients', icon: Building },
+            { title: 'Personnels', href: '/employees', icon: Briefcase },
+        ],
+    },
+    {
+        label: 'Finance',
+        items: [
+            {
+                title: 'Process Payouts',
+                href: '/admin/process-payouts',
+                icon: ArrowsUpFromLineIcon,
+            },
+            {
+                title: 'Gate Guard Payouts',
+                href: '/admin/gate-guard-payouts',
+                icon: Shield,
+            },
+            {
+                title: 'Estate Payments',
+                href: '/admin/estate-payments',
+                icon: Building2,
+            },
+        ],
+    },
+    {
+        label: 'Reports',
+        items: [
+            {
+                title: 'Incident Reports',
+                href: '/admin/incident-reports',
+                icon: Newspaper,
+            },
+            {
+                title: 'Guardian Reports',
+                href: '/guardian-reports',
+                icon: ClipboardList,
+            },
+        ],
+    },
+    {
+        label: 'Community',
+        items: [
+            { title: 'Announcements', href: '/announcements', icon: Megaphone },
+            { title: 'DV Recordings', href: '/dv-recordings', icon: Radio },
+        ],
+    },
+    {
+        label: 'System',
+        items: [
+            {
+                title: 'Deletion Requests',
+                href: '/deletion-requests',
+                icon: Trash2,
+            },
+        ],
+    },
 ];
 
+const clientGroups: NavGroup[] = [
+    {
+        label: 'Overview',
+        items: [{ title: 'Dashboard', href: dashboard(), icon: HomeIcon }],
+    },
+    {
+        label: 'Team',
+        items: [{ title: 'Personnels', href: '/employees', icon: Briefcase }],
+    },
+    {
+        label: 'Finance',
+        items: [{ title: 'Payouts', href: '/payouts', icon: DollarSign }],
+    },
+    {
+        label: 'Community',
+        items: [
+            { title: 'Announcements', href: '/announcements', icon: Megaphone },
+            { title: 'DV Recordings', href: '/dv-recordings', icon: Radio },
+        ],
+    },
+];
+
+const estateBillingGroups: NavGroup[] = [
+    {
+        label: 'Overview',
+        items: [
+            { title: 'Dashboard', href: '/estate/dashboard', icon: HomeIcon },
+        ],
+    },
+    {
+        label: 'Finance',
+        items: [
+            { title: 'Invoices', href: '/estate/invoices', icon: FileText },
+        ],
+    },
+];
+
+const navGroups = computed<NavGroup[]>(() => {
+    if (auth.user?.role === 'admin') return adminGroups;
+    if (auth.user?.role === 'estate_billing') return estateBillingGroups;
+    if (auth.user?.role === 'client') return clientGroups;
+    return [];
+});
+
 const footerNavItems: NavItem[] = [];
+</script>
+
+<script lang="ts">
+import { computed } from 'vue';
 </script>
 
 <template>
@@ -142,7 +170,6 @@ const footerNavItems: NavItem[] = [];
                 <SidebarMenuItem>
                     <SidebarMenuButton size="lg" as-child>
                         <Link :href="dashboard()">
-                            <!-- ← Inertia Link uses href not to -->
                             <AppLogo />
                         </Link>
                     </SidebarMenuButton>
@@ -151,7 +178,14 @@ const footerNavItems: NavItem[] = [];
         </SidebarHeader>
 
         <SidebarContent>
-            <NavMain :items="mainNavItems" />
+            <template v-for="group in navGroups" :key="group.label">
+                <SidebarGroup>
+                    <SidebarGroupLabel>{{ group.label }}</SidebarGroupLabel>
+                    <SidebarGroupContent>
+                        <NavMain :items="group.items" />
+                    </SidebarGroupContent>
+                </SidebarGroup>
+            </template>
         </SidebarContent>
 
         <SidebarFooter>

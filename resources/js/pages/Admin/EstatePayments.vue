@@ -661,11 +661,12 @@ onMounted(fetchPayments);
 
 <style scoped>
 .ep-root {
-    max-width: 1400px;
+    max-width: 1400;
     margin: 0 auto;
     padding: 36px 24px 64px;
     font-family: 'Segoe UI', sans-serif;
     color: #111;
+    width: 100%;
 }
 
 .ep-header {

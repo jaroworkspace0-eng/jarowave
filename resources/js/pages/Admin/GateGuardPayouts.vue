@@ -693,11 +693,12 @@ const notifyNoBankDetails = async (guard: Guard) => {
 <style scoped>
 /* identical to AdminPayouts.vue — no changes needed */
 .ap-root {
-    max-width: 1060px;
+    max-width: 1400px;
     margin: 0 auto;
     padding: 36px 24px 64px;
     font-family: 'Segoe UI', sans-serif;
     color: #111;
+    width: 100%;
 }
 .ap-header {
     display: flex;
