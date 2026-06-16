@@ -543,6 +543,29 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
 
+    Route::get('/estate/invoices/{invoice}/download', function (Request $request, Invoice $invoice) {
+        // Ensure this invoice belongs to the authenticated user
+        if ($invoice->client_id !== $request->user()->id || $invoice->invoice_type !== 'estate_bulk') {
+            abort(403);
+        }
+
+        $subscription = $invoice->channelSubscription()->with('channel')->first();
+        $payment = $invoice->channelSubscriptionPayment()->first();
+        $contact = ChannelBillingContact::where('user_id', $request->user()->id)
+            ->where('is_active', true)
+            ->first();
+
+        $pdf = Barryvdh\DomPDF\Facade\Pdf::loadView('pdfs.estate-invoice', [
+            'invoice'      => $invoice,
+            'subscription' => $subscription,
+            'payment'      => $payment,
+            'contact'      => $contact,
+        ]);
+
+        return $pdf->download("invoice-{$invoice->invoice_number}.pdf");
+    });
+
+
     Route::resource('channels', ChannelController::class);
 
     Route::patch('/channels/{channel}/toggle-status', [ChannelController::class, 'toggleStatus']);
