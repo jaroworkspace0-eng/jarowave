@@ -47,15 +47,17 @@ class InvoiceController extends Controller
     public function download(Invoice $invoice)
     {
         $this->authorise($invoice);
-
-        $invoice->load(['client.user', 'payment.subscription']);
-
+        $invoice->load(['client.user', 'payment.subscription', 'channelSubscription.channel', 'channelSubscriptionPayment']);
         $pdf = Pdf::loadView('invoices.pdf', ['invoice' => $invoice])
-            ->setPaper('a4');
-
+                    ->setPaper('a4')
+                    ->setOptions([
+                        'defaultFont'          => 'DejaVu Sans',
+                        'isHtml5ParserEnabled' => true,
+                        'isRemoteEnabled'      => false,
+                        'dpi'                  => 96,
+                    ]);
         return $pdf->download("invoice-{$invoice->invoice_number}.pdf");
     }
-
     // GET /api/invoices/{invoice}/print
     public function print(Invoice $invoice)
     {

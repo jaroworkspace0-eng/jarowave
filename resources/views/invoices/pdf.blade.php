@@ -155,18 +155,37 @@
         <div class="meta-item">
             <div class="meta-lbl">Billing Period</div>
             <div class="meta -val" style="font-size: 12px;">
-                {{ optional($invoice->payment)->billing_period_start?->format('d M Y') ?? '—' }}
-                –
-                {{ optional($invoice->payment)->billing_period_end?->format('d M Y') ?? '—' }}
+                {{-- Billing Period --}}
+                @if($invoice->channel_subscription_id)
+                    {{ optional($invoice->channelSubscription)->current_period_start?->format('d M Y') ?? '—' }}
+                    –
+                    {{ optional($invoice->channelSubscription)->current_period_end?->format('d M Y') ?? '—' }}
+                @else
+                    {{ optional($invoice->payment)->billing_period_start?->format('d M Y') ?? '—' }}
+                    –
+                    {{ optional($invoice->payment)->billing_period_end?->format('d M Y') ?? '—' }}
+                @endif
             </div>
         </div>
         <div class="meta-item">
             <div class="meta-lbl">Gateway</div>
-            <div class="meta-val" style="font-size: 12px;">{{ ucfirst(optional($invoice->payment)->gateway ?? '—') }}</div>
+            <div class="meta-val" style="font-size: 12px;">
+                @if($invoice->channel_subscription_id)
+                    {{ ucfirst(optional($invoice->channelSubscriptionPayment)->payment_method ?? '—') }}
+                @else
+                    {{ ucfirst(optional($invoice->payment)->gateway ?? '—') }}
+                @endif
+            </div>
         </div>
         <div class="meta-item">
             <div class="meta-lbl">Transaction ID</div>
-            <div class="meta- val">{{ optional($invoice->payment)->gateway_transaction_id ?? '—' }}</div>
+            <div class="meta- val">
+                @if($invoice->channel_subscription_id)
+                    {{ optional($invoice->channelSubscriptionPayment)->merchant_reference ?? '—' }}
+                @else
+                    {{ optional($invoice->payment)->gateway_transaction_id ?? '—' }}
+                @endif
+            </div>
         </div>
         <div class="meta-item">
             <div class="meta-lbl">Currency</div>
@@ -187,15 +206,32 @@
         <tbody>
             <tr>
                 <td>
-                    <div class="td-title">Echo Link Subscription</div>
+                    <div class="td-title">
+                        @if($invoice->channel_subscription_id)
+                            Echo Link Estate Subscription
+                        @else
+                            Echo Link Subscription
+                        @endif
+                    </div>
                     <div class="td-sub">
-                        {{ optional($invoice->payment)->billing_period_start?->format('d M Y') ?? '—' }}
-                        –
-                        {{ optional($invoice->payment)->billing_period_end?->format('d M Y') ?? '—' }}
+                        @if($invoice->channel_subscription_id)
+                            {{ optional($invoice->channelSubscription)->current_period_start?->format('d M Y') ?? '—' }}
+                            –
+                            {{ optional($invoice->channelSubscription)->current_period_end?->format('d M Y') ?? '—' }}
+                        @else
+                            {{ optional($invoice->payment)->billing_period_start?->format('d M Y') ?? '—' }}
+                            –
+                            {{ optional($invoice->payment)->billing_period_end?->format('d M Y') ?? '—' }}
+                        @endif
                     </div>
                 </td>
-                <td>{{ ucfirst(optional($invoice->payment)->subscription->plan ?? 'Watch Group') }}</td>
-                <td>{{ ucfirst(optional($invoice->payment)->subscription->billing_cycle ?? 'Monthly') }}</td>
+                @if($invoice->channel_subscription_id)
+                    <td>Estate Household</td>
+                    <td>Monthly</td>
+                @else
+                    <td>{{ ucfirst(optional($invoice->payment)->subscription->plan ?? 'Watch Group') }}</td>
+                    <td>{{ ucfirst(optional($invoice->payment)->subscription->billing_cycle ?? 'Monthly') }}</td>
+                @endif
                 <td class="right">R{{ number_format($invoice->subtotal, 2) }}</td>
             </tr>
         </tbody>
