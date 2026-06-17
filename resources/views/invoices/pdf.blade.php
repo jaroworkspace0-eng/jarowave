@@ -367,9 +367,9 @@
         <div class="meta-item">
             <div class="meta-lbl">Billing Period</div>
             <div class="meta -val" style="font-size: 12px;">
-                {{ $invoice->payment->billing_period_start?->format('d M Y') }}
-                –
-                {{ $invoice->payment->billing_period_end?->format('d M Y') }}
+                 {{ $invoice->payment->billing_period_start?->format('d M Y') ?? '—' }}
+            –
+            {{ $invoice->payment->billing_period_end?->format('d M Y') ?? '—' }}
             </div>
         </div>
         <div class="meta-item">
