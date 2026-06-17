@@ -364,14 +364,14 @@
             <div class="meta-lbl">Issue Date</div>
             <div class="meta -val">{{ $invoice->issued_at?->format('d M Y') ?? '—' }}</div>
         </div>
-        <div class="meta-item">
-            <div class="meta-lbl">Billing Period</div>
-            <div class="meta -val" style="font-size: 12px;">
-                 {{ $invoice->payment->billing_period_start?->format('d M Y') ?? '—' }}
-            –
-            {{ $invoice->payment->billing_period_end?->format('d M Y') ?? '—' }}
-            </div>
-        </div>
+       <div class="meta-item">
+    <div class="meta-lbl">Billing Period</div>
+    <div class="meta-val" style="font-size: 12px;">
+        {{ optional($invoice->payment)->billing_period_start?->format('d M Y') ?? '—' }}
+        –
+        {{ optional($invoice->payment)->billing_period_end?->format('d M Y') ?? '—' }}
+    </div>
+</div>
         <div class="meta-item">
             <div class="meta-lbl">Gateway</div>
             <div class="meta -val" style="font-size: 12px;">{{ ucfirst($invoice->payment->gateway) }}</div>
