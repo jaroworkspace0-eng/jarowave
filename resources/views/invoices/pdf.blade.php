@@ -169,7 +169,7 @@
         </div>
         <div class="meta-item">
             <div class="meta-lbl">Gateway</div>
-            <div class="meta-val" style="font-size: 12px;">
+            <div class="meta -val" style="font-size: 12px;">
                 @if($invoice->channel_subscription_id)
                     {{ ucfirst(optional($invoice->channelSubscriptionPayment)->payment_method ?? '—') }}
                 @else

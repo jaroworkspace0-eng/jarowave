@@ -32,8 +32,36 @@
     <tr>
         <td style="padding:4px 0; font-size:13px; color:#888;">Plan</td>
         <td style="padding:4px 0; font-size:13px; font-weight:700; color:#1a1a2e; text-align:right;">
-            {{ ucfirst($invoice->payment->subscription->plan ?? 'Watch Group') }}
-            · {{ ucfirst($invoice->payment->subscription->billing_cycle ?? 'Monthly') }}
+            @if($invoice->channel_subscription_id)
+                Estate Household · Monthly
+            @else
+                {{ ucfirst(optional($invoice->payment)->subscription->plan ?? 'Watch Group') }}
+                · {{ ucfirst(optional($invoice->payment)->subscription->billing_cycle ?? 'Monthly') }}
+            @endif
+        </td>
+    </tr>
+    <tr>
+        <td style="padding:4px 0; font-size:13px; color:#888;">Billing Period</td>
+        <td style="padding:4px 0; font-size:13px; font-weight:700; color:#1a1a2e; text-align:right;">
+            @if($invoice->channel_subscription_id)
+                {{ optional($invoice->channelSubscription)->current_period_start?->format('d M Y') ?? '—' }}
+                –
+                {{ optional($invoice->channelSubscription)->current_period_end?->format('d M Y') ?? '—' }}
+            @else
+                {{ optional($invoice->payment)->billing_period_start?->format('d M Y') ?? '—' }}
+                –
+                {{ optional($invoice->payment)->billing_period_end?->format('d M Y') ?? '—' }}
+            @endif
+        </td>
+    </tr>
+    <tr>
+        <td style="padding:4px 0; font-size:13px; color:#888;">Payment Method</td>
+        <td style="padding:4px 0; font-size:13px; font-weight:700; color:#1a1a2e; text-align:right;">
+            @if($invoice->channel_subscription_id)
+                {{ ucfirst(optional($invoice->channelSubscriptionPayment)->payment_method ?? 'EFT') }}
+            @else
+                {{ ucfirst(optional($invoice->payment)->gateway ?? '—') }}
+            @endif
         </td>
     </tr>
     <tr>

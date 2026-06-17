@@ -348,15 +348,26 @@ class HouseholdController extends Controller
     }
 
     // ── POST /api/household/invoices/{id}/send ────────────────────────────────
-    public function invoiceSend(Request $request, $id)
+   public function invoiceSend(Request $request, $id)
     {
         $subscription = Subscription::where('user_id', $request->user()->id)->latest()->first();
-        $invoice = Invoice::where('id', $id)
-            ->where('subscription_id', $subscription?->id)
-            ->firstOrFail();
-        Mail::to($request->user()->email)->send(new InvoiceMail($invoice));
 
-        return response()->json(['message' => 'Invoice sent to ' . $request->user()->email]);
+        $invoice = Invoice::where('id', $id)
+            ->where(function ($q) use ($subscription) {
+                $q->where('subscription_id', $subscription?->id)
+                ->orWhere('client_id', request()->user()->id);
+            })
+            ->firstOrFail();
+
+        $invoice->load(['client.user', 'payment.subscription', 'channelSubscription.channel', 'channelSubscriptionPayment']);
+
+        try {
+            Mail::to($request->user()->email)->send(new InvoiceMail($invoice));
+            return response()->json(['message' => 'Invoice sent to ' . $request->user()->email]);
+        } catch (\Exception $e) {
+            Log::error('InvoiceMail failed: ' . $e->getMessage());
+            return response()->json(['message' => 'Failed to send invoice.'], 500);
+        }
     }
 
 
