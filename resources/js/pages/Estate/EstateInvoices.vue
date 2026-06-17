@@ -85,11 +85,19 @@ const fetchInvoices = async () => {
     }
 };
 
-const downloadInvoice = (invoice: Invoice) => {
-    window.open(
-        `${import.meta.env.VITE_APP_URL}/api/estate/invoices/${invoice.id}/download`,
-        '_blank',
-    );
+const downloadInvoice = async (invoice: Invoice) => {
+    try {
+        const res = await axios.get(
+            `${import.meta.env.VITE_APP_URL}/api/estate/invoices/${invoice.id}/download-link`,
+            getHeaders(),
+        );
+        window.open(res.data.url, '_blank');
+    } catch (err: any) {
+        showFlash(
+            err.response?.data?.message ?? 'Failed to generate download link.',
+            'error',
+        );
+    }
 };
 
 onMounted(fetchInvoices);

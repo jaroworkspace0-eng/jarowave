@@ -543,26 +543,22 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
 
-    Route::get('/estate/invoices/{invoice}/download', function (Request $request, Invoice $invoice) {
-        // Ensure this invoice belongs to the authenticated user
+    // api.php — inside auth:sanctum group
+    Route::get('/estate/invoices/{invoice}/download-link', function (Request $request, Invoice $invoice) {
         if ($invoice->client_id !== $request->user()->id || $invoice->invoice_type !== 'estate_bulk') {
             abort(403);
         }
 
-        $subscription = $invoice->channelSubscription()->with('channel')->first();
-        $payment = $invoice->channelSubscriptionPayment()->first();
-        $contact = ChannelBillingContact::where('user_id', $request->user()->id)
-            ->where('is_active', true)
-            ->first();
+        $url = \Illuminate\Support\Facades\URL::temporarySignedRoute(
+            'estate.invoice.download',
+            now()->addMinutes(5),
+            [
+                'invoice' => $invoice->id,
+                'uid'     => $request->user()->id,  // bind user to the URL
+            ]
+        );
 
-        $pdf = Barryvdh\DomPDF\Facade\Pdf::loadView('invoices.estate-bulk', [
-            'invoice'      => $invoice,
-            'subscription' => $subscription,
-            'payment'      => $payment,
-            'contact'      => $contact,
-        ]);
-
-        return $pdf->download("invoice-{$invoice->invoice_number}.pdf");
+        return response()->json(['url' => $url]);
     });
 
 

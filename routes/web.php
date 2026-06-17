@@ -108,6 +108,34 @@ Route::get('/admin/gate-guard-payouts', function () {
 });
 
 
+Route::get('/estate/invoices/{invoice}/download', function (\App\Models\Invoice $invoice) {
+    if (! request()->hasValidSignature()) {
+        abort(403, 'Invalid or expired link.');
+    }
+
+    // Ownership check — uid was signed into the URL so it can't be tampered with
+    if ((int) request()->query('uid') !== $invoice->client_id) {
+        abort(403, 'Access denied.');
+    }
+
+    $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('invoices.estate-bulk', [
+        'invoice'      => $invoice,
+        'subscription' => $invoice->channelSubscription()->with('channel')->first(),
+        'payment'      => $invoice->channelSubscriptionPayment()->first(),
+        'contact'      => \App\Models\ChannelBillingContact::where('user_id', $invoice->client_id)
+                            ->where('is_active', true)->first(),
+    ])->setPaper('a4', 'portrait')
+      ->setOptions([
+          'defaultFont'          => 'DejaVu Sans',
+          'isHtml5ParserEnabled' => true,
+          'isRemoteEnabled'      => false,
+          'dpi'                  => 96,
+      ]);
+
+    return $pdf->download("invoice-{$invoice->invoice_number}.pdf");
+})->name('estate.invoice.download');
+
+
 
 require __DIR__.'/settings.php';
 
