@@ -150,11 +150,11 @@
     <div class="meta-strip">
         <div class="meta-item">
             <div class="meta-lbl">Issue Date</div>
-            <div class="meta-val">{{ $invoice->issued_at?->format('d M Y') ?? now()->format('d M Y') }}</div>
+            <div class="meta -val">{{ $invoice->issued_at?->format('d M Y') ?? now()->format('d M Y') }}</div>
         </div>
         <div class="meta-item">
             <div class="meta-lbl">Billing Period</div>
-            <div class="meta-val" style="font-size: 12px;">
+            <div class="meta -val" style="font-size: 12px;">
                 {{ optional($invoice->payment)->billing_period_start?->format('d M Y') ?? '—' }}
                 –
                 {{ optional($invoice->payment)->billing_period_end?->format('d M Y') ?? '—' }}
@@ -166,11 +166,11 @@
         </div>
         <div class="meta-item">
             <div class="meta-lbl">Transaction ID</div>
-            <div class="meta-val">{{ optional($invoice->payment)->gateway_transaction_id ?? '—' }}</div>
+            <div class="meta- val">{{ optional($invoice->payment)->gateway_transaction_id ?? '—' }}</div>
         </div>
         <div class="meta-item">
             <div class="meta-lbl">Currency</div>
-            <div class="meta-val">{{ $invoice->currency }}</div>
+            <div class="meta -val">{{ $invoice->currency }}</div>
         </div>
     </div>
 
