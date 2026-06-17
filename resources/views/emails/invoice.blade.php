@@ -26,7 +26,7 @@
     <tr>
         <td style="padding:4px 0; font-size:13px; color:#888;">Amount Paid</td>
         <td style="padding:4px 0; font-size:18px; font-weight:800; color:#f97316; text-align:right;">
-            {{ $invoice->total > 0 ? 'R' . number_format($invoice->total, 2) : 'Free' }}
+            {{ $invoice->total > 0 ? 'R' . number_format($invoice->total / 100, 2) : 'Free' }}
         </td>
     </tr>
     <tr>
