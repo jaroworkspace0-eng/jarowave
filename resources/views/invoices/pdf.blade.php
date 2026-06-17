@@ -12,105 +12,27 @@
             background: #fff;
         }
 
-        .top-bar {
-            height: 5px;
-            background: #f97316;
-            width: 100%;
-        }
+        .top-bar { height: 5px; background: #f97316; width: 100%; }
 
-        @page {
-            margin: 35px 35px; /* Pulls everything neatly inside the printable bounds */
-        }
+        @page { margin: 35px 35px; }
 
-        .page {
-            padding: 35px 35px; 
-        }
+        .page { padding: 35px 35px; }
 
-
-        /* ── HEADER ── */
-        .header-inner {
-            display: table;
-            width: 100%;
-            margin-bottom: 32px;
-        }
-
-        .logo-cell {
-            display: table-cell;
-            vertical-align: middle;
-        }
-
-        .invoice-cell {
-            display: table-cell;
-            vertical-align: top;
-            text-align: right;
-        }
-
-        .logo-row {
-            display: table;
-        }
-
-        .logo-img-cell {
-            display: table-cell;
-            vertical-align: middle;
-            padding-right: 12px;
-        }
-
-        .logo-img {
-            width: 42px;
-            height: 42px;
-            border-radius: 10px;
-        }
-
-        .logo-text-cell {
-            display: table-cell;
-            vertical-align: middle;
-        }
-
-        .logo-name {
-            font-size: 22px;
-            font-weight: 700;
-            color: #111;
-            letter-spacing: -0.5px;
-            line-height: 1.1;
-        }
-
+        .header-inner { display: table; width: 100%; margin-bottom: 32px; }
+        .logo-cell { display: table-cell; vertical-align: middle; }
+        .invoice-cell { display: table-cell; vertical-align: top; text-align: right; }
+        .logo-row { display: table; }
+        .logo-img-cell { display: table-cell; vertical-align: middle; padding-right: 12px; }
+        .logo-img { width: 42px; height: 42px; border-radius: 10px; }
+        .logo-text-cell { display: table-cell; vertical-align: middle; }
+        .logo-name { font-size: 22px; font-weight: 700; color: #111; letter-spacing: -0.5px; line-height: 1.1; }
         .logo-name span { color: #f97316; }
+        .logo-tagline { font-size: 9px; color: #aaa; letter-spacing: 1.5px; text-transform: uppercase; margin-top: 3px; }
 
-        .logo-tagline {
-            font-size: 9px;
-            color: #aaa;
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-            margin-top: 3px;
-        }
+        .inv-word { font-size: 9px; font-weight: 700; color: #aaa; letter-spacing: 2.5px; text-transform: uppercase; margin-bottom: 6px; }
+        .inv-number { font-size: 16px; font-weight: 700; color: #111; margin-bottom: 10px; }
 
-        .inv-word {
-            font-size: 9px;
-            font-weight: 700;
-            color: #aaa;
-            letter-spacing: 2.5px;
-            text-transform: uppercase;
-            margin-bottom: 6px;
-        }
-
-        .inv-number {
-            font-size: 16px;
-            font-weight: 700;
-            color: #111;
-            margin-bottom: 10px;
-            font-family: 'DejaVu Sans, sans-serif' !important;
-        }
-
-        .status-pill {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 9px;
-            font-weight: 700;
-            letter-spacing: 1.5px;
-            text-transform: uppercase;
-        }
-
+        .status-pill { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 9px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; }
         .status-paid   { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
         .status-issued { background: #fff7ed; color: #f97316; border: 1px solid #fed7aa; }
         .status-void   { background: #f5f5f5; color: #888;    border: 1px solid #e5e5e5; }
@@ -118,188 +40,53 @@
 
         .divider { height: 1px; background: #f0f0f0; margin-bottom: 28px; }
 
-        /* ── PARTIES ── */
-        .parties {
-            display: table;
-            width: 100%;
-            margin-bottom: 28px;
-        }
-
+        .parties { display: table; width: 100%; margin-bottom: 28px; }
         .party-from { display: table-cell; width: 50%; vertical-align: top; }
         .party-to   { display: table-cell; width: 50%; vertical-align: top; text-align: right; }
+        .party-lbl { font-size: 9px; font-weight: 700; color: #f97316; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
+        .party-name { font-size: 14px; font-weight: 700; color: #111; margin-bottom: 5px; }
+        .party-detail { font-size: 11px; color: #777; line-height: 1.8; }
 
-        .party-lbl {
-            font-size: 9px;
-            font-weight: 700;
-            color: #f97316;
-            letter-spacing: 2px;
-            text-transform: uppercase;
-            margin-bottom: 8px;
-        }
-
-        .party-name {
-            font-size: 14px;
-            font-weight: 700;
-            color: #111;
-            margin-bottom: 5px;
-        }
-
-        .party-detail {
-            font-size: 11px;
-            color: #777;
-            line-height: 1.8;
-        }
-
-        /* ── META STRIP ── */
-        .meta-strip {
-            background: #fafafa;
-            border: 1px solid #f0f0f0;
-            border-radius: 0px;
-            margin-bottom: 28px;
-            display: table;
-            width: 100%;
-            padding-left 15px;
-            padding-right 15px;
-        }
-       .meta-strip div {
-            font-family: 'DejaVu Sans, sans-serif' !important;
-        }
-
-        .meta-item {
-            display: table-cell;
-            padding: 14px 16px;
-            border-right: 1px solid #efefef;
-            vertical-align: top;
-        }
-
-        .meta-item div {
-            font-family: 'DejaVu Sans, sans-serif' !important;
-        }
-
+        .meta-strip { background: #fafafa; border: 1px solid #f0f0f0; margin-bottom: 28px; display: table; width: 100%; }
+        .meta-item { display: table-cell; padding: 14px 16px; border-right: 1px solid #efefef; vertical-align: top; }
         .meta-item:last-child { border-right: none; }
+        .meta-lbl { font-size: 8px; font-weight: 700; color: #999; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 5px; }
+        .meta-val { font-size: 11px; font-weight: 600; color: #111; line-height: 1.4; }
 
-        .meta-lbl {
-            font-size: 8px;
-            font-weight: 700;
-            color: #999999;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            margin-bottom: 5px;
-            font-family: 'DejaVu Sans, sans-serif' !important;
-        }
-
-        .meta-val {
-            font-size: 11px;
-            font-weight: 600;
-            color: #111;
-            line-height: 1.4;
-            font-family: 'DejaVu Sans, sans-serif' !important;
-        }
-
-        .meta-val-mono {
-            font-size: 10px;
-            font-weight: 600;
-            color: #999999;
-            font-family: 'DejaVu Sans, sans-serif' !important;
-        }
-
-        /* ── TABLE ── */
         table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
         thead tr { background: #111; }
-
-        th {
-            text-align: left;
-            font-size: 8px;
-            font-weight: 700;
-            color: #fff;
-            text-transform: uppercase;
-            letter-spacing: 1.5px;
-            padding: 11px 14px;
-        }
-
+        th { text-align: left; font-size: 8px; font-weight: 700; color: #fff; text-transform: uppercase; letter-spacing: 1.5px; padding: 11px 14px; }
         th.right { text-align: right; }
         tbody tr { border-bottom: 1px solid #f5f5f5; }
-
-        td {
-            padding: 15px 14px;
-            font-size: 12px;
-            color: #333;
-            vertical-align: top;
-        }
-
+        td { padding: 15px 14px; font-size: 12px; color: #333; vertical-align: top; }
         td.right { text-align: right; font-weight: 700; color: #111; }
-
         .td-title { font-weight: 700; color: #111; font-size: 13px; margin-bottom: 3px; }
-        .td-sub   { font-size: 10px; color: #999999; }
+        .td-sub { font-size: 10px; color: #999; }
 
-        /* ── TOTALS ── */
-        .totals-outer  { text-align: right; margin-bottom: 36px; padding-right:15px }
-        .totals-inner  { display: inline-block; width: 240px; text-align: left; }
-
-        .total-row {
-            display: table;
-            width: 100%;
-            padding: 7px 0;
-            font-size: 12px;
-            color: #777;
-            border-bottom: 1px solid #f5f5f5;
-        }
-
-        .total-row-label { display: table-cell; font-family: 'DejaVu Sans, sans-serif' }
-        .total-row-value { display: table-cell; text-align: right; font-family: 'DejaVu Sans, sans-serif';}
-
+        .totals-outer { text-align: right; margin-bottom: 36px; padding-right: 15px; }
+        .totals-inner { display: inline-block; width: 260px; text-align: left; }
+        .total-row { display: table; width: 100%; padding: 7px 0; font-size: 12px; color: #777; border-bottom: 1px solid #f5f5f5; }
+        .total-row-label { display: table-cell; }
+        .total-row-value { display: table-cell; text-align: right; }
         .total-row.discount .total-row-label,
-        .total-row.discount .total-row-value { color: #16a34a; font-weight: 600; font-family: 'DejaVu Sans, sans-serif';}
-
+        .total-row.discount .total-row-value { color: #16a34a; font-weight: 600; }
         .total-row.vat .total-row-label,
-        .total-row.vat .total-row-value { color: #999999; font-size: 10px; font-family: 'DejaVu Sans, sans-serif'; }
+        .total-row.vat .total-row-value { color: #999; font-size: 10px; }
 
-        .grand-block {
-            background: #111;
-            border-radius: 10px;
-            padding: 14px 16px;
-            margin-top: 8px;
-            display: table;
-            width: 100%;
-        }
-
+        .grand-block { background: #111; border-radius: 10px; padding: 14px 16px; margin-top: 8px; display: table; width: 100%; }
         .grand-left  { display: table-cell; vertical-align: middle; }
         .grand-right { display: table-cell; vertical-align: middle; text-align: right; }
+        .grand-lbl { font-size: 9px; color: rgba(255,255,255,0.5); text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+        .grand-amt { font-size: 22px; font-weight: 700; color: #f97316; letter-spacing: -1px; }
 
-        .grand-lbl {
-            font-size: 9px;
-            color: rgba(255,255,255,0.5);
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            font-weight: 700;
-        }
-
-        .grand-amt {
-            font-size: 22px;
-            font-weight: 700;
-            color: #f97316;
-            letter-spacing: -1px;
-        }
-
-        /* ── FOOTER ── */
-        .footer {
-            border-top: 1px solid #f0f0f0;
-            padding-top: 18px;
-            display: table;
-            width: 100%;
-            padding: 15px 15px /* Extra top padding to push footer content inside printable area */
-        }
-
+        .footer { border-top: 1px solid #f0f0f0; display: table; width: 100%; padding: 15px 15px; }
         .footer-left  { display: table-cell; vertical-align: bottom; }
         .footer-right { display: table-cell; vertical-align: bottom; text-align: right; }
-
-        .footer-note { font-size: 10px; color: #999999; line-height: 1.8; }
-        .footer-note strong { color: #999999; }
-
-        .footer-brand { font-size: 14px; font-weight: 700; color: #999999; }
+        .footer-note { font-size: 10px; color: #999; line-height: 1.8; }
+        .footer-note strong { color: #999; }
+        .footer-brand { font-size: 14px; font-weight: 700; color: #999; }
         .footer-brand span { color: #f97316; }
-        .footer-url { font-size: 10px; color: #999999; margin-top: 2px; }
-
+        .footer-url { font-size: 10px; color: #999; margin-top: 2px; }
         .bottom-bar { height: 4px; background: #f97316; width: 100%; margin-top: 28px; }
     </style>
 </head>
@@ -346,13 +133,14 @@
         </div>
         <div class="party-to">
             <div class="party-lbl">Bill To</div>
-                <div class="party-name">{{ $invoice->client->name }}</div>
+            <div class="party-name">{{ $invoice->client->name }}</div>
+            <div class="party-detail">
                 {{ $invoice->client->email }}<br>
                 @if($invoice->client->phone)
                     {{ $invoice->client->phone }}<br>
                 @endif
-                @if($invoice->client->addres_line_1)
-                    {{ trim(Str::replace(', South Africa', '', $invoice->client->addres_line_1), ', ') }}<br>
+                @if($invoice->client->address_line_1)
+                    {{ trim(Str::replace(', South Africa', '', $invoice->client->address_line_1), ', ') }}<br>
                 @endif
             </div>
         </div>
@@ -362,16 +150,16 @@
     <div class="meta-strip">
         <div class="meta-item">
             <div class="meta-lbl">Issue Date</div>
-            <div class="meta -val">{{ $invoice->issued_at?->format('d M Y') ?? '—' }}</div>
+            <div class="meta-val">{{ $invoice->issued_at?->format('d M Y') ?? now()->format('d M Y') }}</div>
         </div>
-       <div class="meta-item">
-    <div class="meta-lbl">Billing Period</div>
-    <div class="meta-val" style="font-size: 12px;">
-        {{ optional($invoice->payment)->billing_period_start?->format('d M Y') ?? '—' }}
-        –
-        {{ optional($invoice->payment)->billing_period_end?->format('d M Y') ?? '—' }}
-    </div>
-</div>
+        <div class="meta-item">
+            <div class="meta-lbl">Billing Period</div>
+            <div class="meta-val" style="font-size: 12px;">
+                {{ optional($invoice->payment)->billing_period_start?->format('d M Y') ?? '—' }}
+                –
+                {{ optional($invoice->payment)->billing_period_end?->format('d M Y') ?? '—' }}
+            </div>
+        </div>
         <div class="meta-item">
             <div class="meta-lbl">Gateway</div>
             <div class="meta-val" style="font-size: 12px;">{{ ucfirst(optional($invoice->payment)->gateway ?? '—') }}</div>
@@ -382,7 +170,7 @@
         </div>
         <div class="meta-item">
             <div class="meta-lbl">Currency</div>
-            <div class="meta-val" style="font-size: 12px;">{{ $invoice->currency }}</div>
+            <div class="meta-val">{{ $invoice->currency }}</div>
         </div>
     </div>
 
@@ -402,7 +190,7 @@
                     <div class="td-title">Echo Link Subscription</div>
                     <div class="td-sub">
                         {{ optional($invoice->payment)->billing_period_start?->format('d M Y') ?? '—' }}
-                            –
+                        –
                         {{ optional($invoice->payment)->billing_period_end?->format('d M Y') ?? '—' }}
                     </div>
                 </td>
@@ -424,10 +212,10 @@
 
             @if($invoice->discount_amount > 0)
             <div class="total-row discount">
-                <div class="total-row- label" style="color:green;font-family: DejaVu Sans, sans-serif !important;">
+                <div class="total-row-label">
                     Annual discount ({{ optional($invoice->payment)->subscription->discount_percentage ?? 0 }}% off)
                 </div>
-                <div class="total-row-valu" style="color:green;display: table-cell; text-align: right; font-family: 'DejaVu Sans, sans-serif';">− {{ $invoice->discount_in_rands }}</div>
+                <div class="total-row-value">− {{ $invoice->discount_in_rands }}</div>
             </div>
             @endif
 
