@@ -306,14 +306,14 @@ class HouseholdController extends Controller
     // ── GET /api/household/invoices ───────────────────────────────────────────
     public function invoices(Request $request)
     {
-        $subscription = Subscription::where('user_id', $request->user()->id)->latest()->first();
+        $userId = $request->user()->id;
+        $subscription = Subscription::where('user_id', $userId)->latest()->first();
 
-        if (!$subscription) {
-            return response()->json(['invoices' => []]);
-        }
-
-        $invoices = Invoice::where('subscription_id', $subscription->id)
-            ->with('payment:id,billing_period_start,billing_period_end')
+        $invoices = Invoice::where('client_id', $userId)
+            ->with([
+                'payment:id,billing_period_start,billing_period_end',
+                'channelSubscription:id,current_period_start,current_period_end',
+            ])
             ->latest()
             ->paginate(20);
 
