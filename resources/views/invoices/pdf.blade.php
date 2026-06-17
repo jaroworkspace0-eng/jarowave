@@ -374,15 +374,15 @@
 </div>
         <div class="meta-item">
             <div class="meta-lbl">Gateway</div>
-            <div class="meta -val" style="font-size: 12px;">{{ ucfirst($invoice->payment->gateway) }}</div>
+            <div class="meta-val" style="font-size: 12px;">{{ ucfirst(optional($invoice->payment)->gateway ?? '—') }}</div>
         </div>
         <div class="meta-item">
             <div class="meta-lbl">Transaction ID</div>
-            <div class="meta -val">{{ $invoice->payment->gateway_transaction_id ?? '—' }}</div>
+            <div class="meta-val">{{ optional($invoice->payment)->gateway_transaction_id ?? '—' }}</div>
         </div>
         <div class="meta-item">
             <div class="meta-lbl">Currency</div>
-            <div class="meta -val" style="font-size: 12px;">{{ $invoice->currency }}</div>
+            <div class="meta-val" style="font-size: 12px;">{{ $invoice->currency }}</div>
         </div>
     </div>
 
@@ -401,13 +401,13 @@
                 <td>
                     <div class="td-title">Echo Link Subscription</div>
                     <div class="td-sub">
-                        {{ $invoice->payment->billing_period_start?->format('d M Y') }}
-                        to
-                        {{ $invoice->payment->billing_period_end?->format('d M Y') }}
+                        {{ optional($invoice->payment)->billing_period_start?->format('d M Y') ?? '—' }}
+                            –
+                        {{ optional($invoice->payment)->billing_period_end?->format('d M Y') ?? '—' }}
                     </div>
                 </td>
-                <td>{{ ucfirst($invoice->payment->subscription->plan ?? 'Watch Group') }}</td>
-                <td>{{ ucfirst($invoice->payment->subscription->billing_cycle ?? 'Monthly') }}</td>
+                <td>{{ ucfirst(optional($invoice->payment)->subscription->plan ?? 'Watch Group') }}</td>
+                <td>{{ ucfirst(optional($invoice->payment)->subscription->billing_cycle ?? 'Monthly') }}</td>
                 <td class="right">R{{ number_format($invoice->subtotal, 2) }}</td>
             </tr>
         </tbody>
@@ -425,7 +425,7 @@
             @if($invoice->discount_amount > 0)
             <div class="total-row discount">
                 <div class="total-row- label" style="color:green;font-family: DejaVu Sans, sans-serif !important;">
-                    Annual discount ({{ $invoice->payment->subscription->discount_percentage }}% off)
+                    Annual discount ({{ optional($invoice->payment)->subscription->discount_percentage ?? 0 }}% off)
                 </div>
                 <div class="total-row-valu" style="color:green;display: table-cell; text-align: right; font-family: 'DejaVu Sans, sans-serif';">− {{ $invoice->discount_in_rands }}</div>
             </div>
