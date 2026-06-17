@@ -17,7 +17,7 @@ class InvoiceMail extends Mailable
     public function build(): self
     {
         $invoice = $this->invoice;
-        $invoice->load(['client.user', 'payment.subscription', 'channelSubscription.channel', 'channelSubscriptionPayment']);
+        $invoice->load(['client', 'payment.subscription', 'channelSubscription.channel', 'channelSubscriptionPayment']);
 
         $pdf = Pdf::loadView('invoices.pdf', ['invoice' => $invoice])
                     ->setPaper('a4')

@@ -64,20 +64,6 @@
             @endif
         </td>
     </tr>
-    <tr>
-        <td style="padding:4px 0; font-size:13px; color:#888;">Billing Period</td>
-        <td style="padding:4px 0; font-size:13px; font-weight:700; color:#1a1a2e; text-align:right;">
-            {{ $invoice->payment->billing_period_start?->format('d M Y') }}
-            –
-            {{ $invoice->payment->billing_period_end?->format('d M Y') }}
-        </td>
-    </tr>
-    <tr>
-        <td style="padding:4px 0; font-size:13px; color:#888;">Payment Method</td>
-        <td style="padding:4px 0; font-size:13px; font-weight:700; color:#1a1a2e; text-align:right;">
-            {{ ucfirst($invoice->payment->gateway) }}
-        </td>
-    </tr>
 </table>
 
 ---
