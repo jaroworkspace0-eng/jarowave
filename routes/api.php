@@ -555,7 +555,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
             ->where('is_active', true)
             ->first();
 
-        $pdf = Barryvdh\DomPDF\Facade\Pdf::loadView('pdfs.estate-invoice', [
+        $pdf = Barryvdh\DomPDF\Facade\Pdf::loadView('invoices.estate-bulk', [
             'invoice'      => $invoice,
             'subscription' => $subscription,
             'payment'      => $payment,
