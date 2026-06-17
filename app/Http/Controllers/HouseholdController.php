@@ -359,8 +359,7 @@ class HouseholdController extends Controller
             })
             ->firstOrFail();
 
-        $invoice->load(['client.user', 'payment.subscription', 'channelSubscription.channel', 'channelSubscriptionPayment']);
-
+        $invoice->load(['client', 'payment.subscription', 'channelSubscription.channel', 'channelSubscriptionPayment']);
         try {
             Mail::to($request->user()->email)->send(new InvoiceMail($invoice));
             return response()->json(['message' => 'Invoice sent to ' . $request->user()->email]);
