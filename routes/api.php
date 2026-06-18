@@ -25,6 +25,7 @@ use App\Http\Controllers\BlockedHouseholdController;
 use App\Http\Controllers\ChannelBillingController;
 use App\Http\Controllers\CheckpointController;
 use App\Http\Controllers\DvRecordingController;
+use App\Http\Controllers\GuardBankDetailController;
 use App\Http\Controllers\HouseholdSettingController;
 use App\Http\Controllers\InviteController;
 use App\Http\Controllers\LiveKitController;
@@ -287,7 +288,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
         return $request->user();
     });
 
-    Route::get('/guard/earnings', [GuardEarningController::class, 'index']);
+        Route::get('/guard/earnings', [GuardEarningController::class, 'index']);
+        Route::get('/guard/bank-details',  [GuardBankDetailController::class, 'show']);
+        Route::post('/guard/bank-details', [GuardBankDetailController::class, 'store']);
+   
 
     Route::post('channel-payments/{payment}/approve', [ChannelBillingController::class, 'approveEftPayment']);
     Route::post('channel-payments/{payment}/reject',  [ChannelBillingController::class, 'rejectEftPayment']);
