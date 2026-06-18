@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\BankDetail;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class GuardBankDetailController extends Controller
 {
@@ -16,7 +17,7 @@ class GuardBankDetailController extends Controller
 
     public function store(Request $request)
     {
-        $user_id      = auth()->id();
+        $user      = $request->user();
         $validated = $request->validate([
             'bank_name'      => 'required|string|max:100',
             'account_holder' => 'required|string|max:150',
@@ -25,13 +26,12 @@ class GuardBankDetailController extends Controller
             'branch_code'    => 'required|string|max:10',
         ]);
 
-        $validated['user_id'] = $user_id;
+        Log::info('user:', ['user' => $user]);
 
         $bankDetails = BankDetail::updateOrCreate(
-            ['user_id' => $user_id],
+            ['user_id' => $user->id],
             $validated,
         );
-
 
         return response()->json([
             'bank_details' => $bankDetails,
