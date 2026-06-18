@@ -60,17 +60,17 @@ class Earning extends Model
 
     public function getEarnedAmountInRandsAttribute(): string
     {
-        return 'R' . number_format($this->earned_amount / 100, 2);
+        return 'R' . number_format($this->earned_amount, 2);
     }
 
     public function getResidentAmountInRandsAttribute(): string
     {
-        return 'R' . number_format($this->resident_amount / 100, 2);
+        return 'R' . number_format($this->resident_amount, 2);
     }
 
     public function getPlatformAmountInRandsAttribute(): string
     {
-        return 'R' . number_format($this->platform_amount / 100, 2);
+        return 'R' . number_format($this->platform_amount, 2);
     }
 
     // ── Status checks ──

@@ -15,6 +15,7 @@ use App\Http\Controllers\EmergencyAlertController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\HouseholdController;
 use App\Http\Controllers\Admin\IncidentReportExportController;
+use App\Http\Controllers\Api\GuardEarningController;
 use App\Http\Controllers\Api\GuardianIncidentController;
 use App\Http\Controllers\Api\GuardianReportController;
 use App\Http\Controllers\Api\GuardianResponseController;
@@ -267,10 +268,10 @@ Route::middleware('auth:sanctum')->prefix('guard')->group(function () {
 
 // Earnings
 Route::middleware('auth:sanctum')->prefix('earnings')->group(function () {
-Route::get('/',          [EarningController::class, 'index']);
-Route::get('/summary',  [EarningController::class, 'summary']);
-Route::get('/export',   [EarningController::class, 'export']); 
-Route::get('/{earning}', [EarningController::class, 'show']);
+    Route::get('/',          [EarningController::class, 'index']);
+    Route::get('/summary',  [EarningController::class, 'summary']);
+    Route::get('/export',   [EarningController::class, 'export']); 
+    Route::get('/{earning}', [EarningController::class, 'show']);
 });
 
 
@@ -286,6 +287,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         return $request->user();
     });
 
+    Route::get('/guard/earnings', [GuardEarningController::class, 'index']);
 
     Route::post('channel-payments/{payment}/approve', [ChannelBillingController::class, 'approveEftPayment']);
     Route::post('channel-payments/{payment}/reject',  [ChannelBillingController::class, 'rejectEftPayment']);
