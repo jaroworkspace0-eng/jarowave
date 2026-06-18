@@ -16,6 +16,7 @@ class BankDetail extends Model
         'account_type',
         'branch_code',
     ];
+    
 
     public function client(): BelongsTo
     {
