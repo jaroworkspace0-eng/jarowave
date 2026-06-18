@@ -25,10 +25,13 @@ class GuardBankDetailController extends Controller
             'branch_code'    => 'required|string|max:10',
         ]);
 
+        $validated['user_id'] = $user_id;
+
         $bankDetails = BankDetail::updateOrCreate(
             ['user_id' => $user_id],
             $validated,
         );
+
 
         return response()->json([
             'bank_details' => $bankDetails,
