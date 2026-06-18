@@ -10,7 +10,7 @@ class GuardBankDetailController extends Controller
       public function show(Request $request)
     {
         $user        = $request->user();
-        $bankDetails = BankDetail::where('client_id', $user->id)->first();
+        $bankDetails = BankDetail::where('user_id', $user->id)->first();
         return response()->json(['bank_details' => $bankDetails]);
     }
 
@@ -26,7 +26,7 @@ class GuardBankDetailController extends Controller
         ]);
 
         $bankDetails = BankDetail::updateOrCreate(
-            ['client_id' => $user->id],
+            ['user_id' => $user->id],
             $validated,
         );
 
