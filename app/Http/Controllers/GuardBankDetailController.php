@@ -16,7 +16,7 @@ class GuardBankDetailController extends Controller
 
     public function store(Request $request)
     {
-        $user      = $request->user();
+        $user_id      = auth()->id();
         $validated = $request->validate([
             'bank_name'      => 'required|string|max:100',
             'account_holder' => 'required|string|max:150',
@@ -26,7 +26,7 @@ class GuardBankDetailController extends Controller
         ]);
 
         $bankDetails = BankDetail::updateOrCreate(
-            ['user_id' => $user->id],
+            ['user_id' => $user_id],
             $validated,
         );
 
