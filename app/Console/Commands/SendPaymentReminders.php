@@ -26,6 +26,7 @@ class SendPaymentReminders extends Command
             $trialExpiring = Subscription::with('user')
                 ->where('status', 'trialing')
                 ->whereNotNull('trial_ends_at')
+                ->whereNull('channel_subscription_id')
                 ->whereDate('trial_ends_at', '>=', $targetDate)
                 ->whereDate('trial_ends_at', '<',  $targetDateEnd)
                 ->get();
@@ -45,6 +46,7 @@ class SendPaymentReminders extends Command
             $billingDue = Subscription::with('user')
                 ->where('status', 'active')
                 ->whereNotNull('current_period_end')
+                ->whereNull('channel_subscription_id')
                 ->whereDate('current_period_end', '>=', $targetDate)
                 ->whereDate('current_period_end', '<',  $targetDateEnd)
                 ->get();
@@ -64,6 +66,7 @@ class SendPaymentReminders extends Command
             $pastDue = Subscription::with('user')
                 ->where('status', 'past_due')
                 ->whereNotNull('current_period_end')
+                ->whereNull('channel_subscription_id')
                 ->whereDate('current_period_end', '>=', now()->subDays($days + 1)->toDateString())
                 ->whereDate('current_period_end', '<',  now()->subDays($days)->toDateString())
                 ->get();

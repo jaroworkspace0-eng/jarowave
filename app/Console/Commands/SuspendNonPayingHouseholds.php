@@ -28,6 +28,7 @@ class SuspendNonPayingHouseholds extends Command
             ->where('status', 'trialing')
             ->whereNull('sos_suspended_at')
             ->whereNotNull('trial_ends_at')
+            ->whereNull('channel_subscription_id')
             ->whereDate('trial_ends_at', '<', now()->toDateString())
             ->get();
 
@@ -35,6 +36,7 @@ class SuspendNonPayingHouseholds extends Command
             ->where('status', 'past_due')
             ->whereNull('sos_suspended_at')
             ->whereNotNull('current_period_end')
+            ->whereNull('channel_subscription_id')
             ->whereDate('current_period_end', '<', now()->subDays(3)->toDateString())
             ->get();
 
