@@ -81,7 +81,10 @@ class SuspendNonPayingHouseholds extends Command
                 'sos_suspended_at' => now(),
             ]);
 
-            $user->update(['sos_suspended_at' => now()]);
+            $user->update([
+            'sos_suspended_at'    => now(),
+            'subscription_status' => 'cancelled',
+        ]);
 
             $this->notifyNode('POST', '/payment-failed', [
                 'userId'       => $subscription->user_id,
