@@ -45,6 +45,20 @@ class ChannelBillingService
     public function optInHousehold(User $user, Channel $channel): void
     {
         DB::transaction(function () use ($user, $channel) {
+
+        // Block opt-in if household has an outstanding past_due subscription.
+        // This prevents the exploit of opting out before estate payment then re-opting in for free coverage.
+        $pastDue = Subscription::where('user_id', $user->id)
+            ->where('status', 'past_due')
+            ->exists();
+
+        if ($pastDue) {
+            throw new \Exception('Your individual subscription has an outstanding balance. Please settle it before opting into estate billing.');
+        }
+
+        $channelSubscription = $this->resolveActiveChannelSubscription($channel);
+
+
             $channelSubscription = $this->resolveActiveChannelSubscription($channel);
 
             $subscription = Subscription::where('user_id', $user->id)
@@ -84,16 +98,25 @@ class ChannelBillingService
     public function optOutHousehold(User $user, Channel $channel): void
     {
         DB::transaction(function () use ($user, $channel) {
+            $channelSubscription = ChannelSubscription::where('channel_id', $channel->id)
+                ->where('status', 'active')
+                ->where('current_period_end', '>=', now())
+                ->first();
+
+            // Block opt-out within 7 days of billing period end to prevent exploitation.
+            if ($channelSubscription && now()->diffInDays($channelSubscription->current_period_end, false) <= 7) {
+                throw new \Exception(
+                    'You cannot opt out within 7 days of the estate billing date. Please try again after ' .
+                    $channelSubscription->current_period_end->addDay()->format('d M Y') . '.'
+                );
+            }
+
             $subscription = Subscription::where('user_id', $user->id)
                 ->where('cancellation_reason', 'estate_optin')
                 ->latest()
                 ->first();
 
-            $periodEnd = ChannelSubscription::where('channel_id', $channel->id)
-                ->where('status', 'active')
-                ->where('current_period_end', '>=', now())
-                ->value('current_period_end');
-
+            $periodEnd = $channelSubscription?->current_period_end;
             $newStatus = $periodEnd ? 'active' : 'past_due';
 
             if ($subscription) {
@@ -110,7 +133,6 @@ class ChannelBillingService
                     'user_id'            => $user->id,
                     'client_id'          => $channel->client_id,
                     'status'             => $newStatus,
-                    // 'price'              => BillingService::UNIT_PRICE / 100,
                     'price'              => BillingService::unitPrice($channel->amount_per_household),
                     'currency'           => 'ZAR',
                     'billing_cycle'      => 'monthly',
@@ -186,7 +208,12 @@ class ChannelBillingService
             'status'               => 'pending',
             'billing_model'        => $channel->billing_model,
             'current_period_start' => now(),
-            'current_period_end'   => now()->addDays(30),
+
+            // Bill to end of current month if created on or before the 20th,
+            // otherwise extend to end of next month to align with SA month-end salary cycles.
+            'current_period_end' => now()->day <= 20
+                ? now()->endOfMonth()
+                : now()->addMonthNoOverflow()->endOfMonth(),
         ]);
     }
 
