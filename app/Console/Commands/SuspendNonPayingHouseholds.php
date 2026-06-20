@@ -44,11 +44,36 @@ class SuspendNonPayingHouseholds extends Command
 
         foreach ($targets as $subscription) {
             $user = $subscription->user;
-
             if (!$user) continue;
 
-            $reason = $expiredTrials->contains($subscription) ? 'trial_expired' : 'payment_failed';
+            $isExpiredTrial = $expiredTrials->contains($subscription);
 
+            if ($isExpiredTrial) {
+                // Transition to past_due with month-end aligned billing period
+                // giving them until month end to pay before suspension kicks in.
+                $trialEnd = $subscription->trial_ends_at;
+                $periodEnd = $trialEnd->day <= 20
+                    ? $trialEnd->copy()->endOfMonth()
+                    : $trialEnd->copy()->addMonthNoOverflow()->endOfMonth();
+
+                $subscription->update([
+                    'status'             => 'past_due',
+                    'current_period_end' => $periodEnd,
+                ]);
+
+                $user->update(['subscription_status' => 'past_due']);
+
+                // Notify node of trial expiry (soft suspend — limited access)
+                $this->notifyNode('POST', '/payment-failed', [
+                    'userId'       => $subscription->user_id,
+                    'forceSuspend' => false,
+                    'reason'       => 'trial_expired',
+                ]);
+
+                continue;
+            }
+
+            // past_due and current_period_end has lapsed — hard suspend
             $subscription->update([
                 'status'           => 'cancelled',
                 'cancelled_at'     => now(),
@@ -61,12 +86,12 @@ class SuspendNonPayingHouseholds extends Command
             $this->notifyNode('POST', '/payment-failed', [
                 'userId'       => $subscription->user_id,
                 'forceSuspend' => true,
-                'reason'       => $reason,
+                'reason'       => 'payment_failed',
             ]);
 
             if ($user->email) {
                 Mail::to($user->email)->queue(new HouseholdSuspendedMail($user, $subscription));
-                $this->info("Suspended ({$reason}) & emailed: {$user->email}");
+                $this->info("Suspended (payment_failed) & emailed: {$user->email}");
             }
         }
 

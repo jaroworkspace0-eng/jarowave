@@ -100,14 +100,26 @@ class SuspendNonPayingEstates extends Command
             $user = $subscription->user;
             if (!$user) continue;
 
+            // Align their individual past_due period to month-end
+            // so they can self-recover by paying their own subscription.
+            $periodEnd = now()->day <= 20
+                ? now()->endOfMonth()
+                : now()->addMonthNoOverflow()->endOfMonth();
+
             $subscription->update([
-                'status'           => 'cancelled',
-                'cancelled_at'     => now(),
-                'ends_at'          => now(),
-                'sos_suspended_at' => now(),
+                'status'                  => 'past_due',
+                'cancelled_at'            => null,
+                'ends_at'                 => $periodEnd,
+                'current_period_end'      => $periodEnd,
+                'cancellation_reason'     => null,
+                'channel_subscription_id' => null,
+                'sos_suspended_at'        => now(), // still suspend access until they pay
             ]);
 
-            $user->update(['sos_suspended_at' => now()]);
+            $user->update([
+                'sos_suspended_at'    => now(),
+                'subscription_status' => 'past_due',
+            ]);
 
             $this->notifyNode('POST', '/payment-failed', [
                 'userId'       => $subscription->user_id,
