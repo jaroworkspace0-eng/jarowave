@@ -233,7 +233,7 @@ class HouseholdController extends Controller
     public function subscription(Request $request)
     {
         $subscription = Subscription::where('user_id', $request->user()->id)
-            ->with('client.user')
+            ->with(['client.user', 'channelSubscription.channel'])
             ->latest()
             ->first();
 
@@ -243,6 +243,8 @@ class HouseholdController extends Controller
 
         $orgType = $subscription->client_type ?? $subscription->client?->user?->organisation_type ?? 'watch';
         $amounts = BillingService::getDisplayAmounts($orgType);
+
+        $channel = $subscription->channelSubscription?->channel;
 
         return response()->json([
             'subscription' => [
@@ -262,6 +264,10 @@ class HouseholdController extends Controller
                     'organisation_name' => $subscription->client->user->organisation_name,
                     'organisation_type' => $orgType,
                 ] : null,
+                'channel_name'          => $channel->name,
+                'amount_per_household'  => $channel->amount_per_household,
+                'billing_model'         => $channel->billing_model,
+                'is_active'             => $channel->is_active
             ],
         ]);
     }
