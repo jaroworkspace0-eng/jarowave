@@ -271,7 +271,7 @@ class HouseholdController extends Controller
                     'organisation_type' => $orgType,
                 ] : null,
                 'channel_name' => $channel?->name,
-                'amount_per_household'  => $channel?->amount_per_household,
+                'amount_per_household'  => number_format($channel?->amount_per_household, 0),
                 'billing_model'         => $channel?->billing_model,
                 'is_active'             => $channel?->is_active
             ],
