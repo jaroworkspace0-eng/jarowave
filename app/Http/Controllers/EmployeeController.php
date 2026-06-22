@@ -332,6 +332,10 @@ class EmployeeController extends Controller
                 $clientId = Channel::where('id', $validated['channel_ids'][0])->value('client_id');
                 $employee->update(['client_id' => $clientId]);
 
+                if ($employee->user->subscription) {
+                    $employee->user->subscription->update(['client_id' => $clientId]);
+                }
+
                 $previousChannelIds = $employee->channels()->pluck('channels.id')->toArray();
 
                 // ── Household relocation billing ────────────────────────────────
