@@ -156,6 +156,7 @@ Route::post('/login', function (Request $request) {
         ],
         'channels' => $channels,
         'token'    => $token,
+        'is_gate_guard' => $user->is_gate_guard
     ]);
 });
 
