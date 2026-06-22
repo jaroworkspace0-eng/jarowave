@@ -153,7 +153,7 @@ Route::post('/login', function (Request $request) {
                 ->where('cancellation_reason', 'estate_optin')
                 ->whereNotNull('channel_subscription_id')
                 ->exists(),
-            'is_gate_guard' => $user->is_gate_guard,
+            // 'is_gate_guard' => $user->is_gate_guard,
         ],
         'channels' => $channels,
         'token'    => $token,
