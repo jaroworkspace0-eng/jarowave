@@ -148,6 +148,7 @@ Route::post('/login', function (Request $request) {
             'duress_pin' => $user->duress_pin,
             'unit_number' => $user->unit_number,
             'plan'              => $user->plan,
+            'is_gate_guard' => $user->is_gate_guard,
             'is_estate' => $user->is_estate,
             'is_estate_opted_in' => $user->subscription()
                 ->where('cancellation_reason', 'estate_optin')
@@ -156,7 +157,6 @@ Route::post('/login', function (Request $request) {
         ],
         'channels' => $channels,
         'token'    => $token,
-        'is_gate_guard' => $user->is_gate_guard
     ]);
 });
 
