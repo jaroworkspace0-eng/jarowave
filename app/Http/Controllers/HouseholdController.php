@@ -264,10 +264,10 @@ class HouseholdController extends Controller
                     'organisation_name' => $subscription->client->user->organisation_name,
                     'organisation_type' => $orgType,
                 ] : null,
-                'channel_name'          => $channel->name,
-                'amount_per_household'  => $channel->amount_per_household,
-                'billing_model'         => $channel->billing_model,
-                'is_active'             => $channel->is_active
+                'channel_name' => $channel?->name,
+                'amount_per_household'  => $channel?->amount_per_household,
+                'billing_model'         => $channel?->billing_model,
+                'is_active'             => $channel?->is_active
             ],
         ]);
     }
