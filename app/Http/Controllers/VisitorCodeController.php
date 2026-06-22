@@ -111,13 +111,22 @@ class VisitorCodeController extends Controller
         if (!$visitorCode) {
             return response()->json(['message' => 'Invalid code.'], 404);
         }
+        
 
         // ── Estate scope check ────────────────────────────────────────────────────
         $guardClient = Employee::where('user_id', $guard->id)->first();
 
+
+
+        Log::debug('Scope check', [
+            'guard_user_id'       => $guard->id,
+            'guardClient'         => $guardClient,
+            'visitorCode_client'  => $visitorCode->client_id,
+        ]);
+
         if (!$guardClient || (string) $visitorCode->client_id !== (string) $guardClient->client_id) {
             return response()->json([
-                'message' => 'Invalid code..'// Generic message to avoid leaking info about code existence,
+                'message' => 'Invalid code.'// Generic message to avoid leaking info about code existence,
             ], 404);
         }
         // ─────────────────────────────────────────────────────────────────────────
@@ -167,28 +176,28 @@ class VisitorCodeController extends Controller
 
         // Handle depart
         // Handle depart
-    if ($request->action === 'depart') {
-        if ($visitorCode->status === 'departed') {
-            return response()->json(['message' => 'Visitor has already departed.'], 400);
+        if ($request->action === 'depart') {
+            if ($visitorCode->status === 'departed') {
+                return response()->json(['message' => 'Visitor has already departed.'], 400);
+            }
+
+            if (!$visitorCode->isArrived()) {
+                return response()->json(['message' => 'Visitor has not arrived yet.'], 400);
+            }
+
+            $visitorCode->update([
+                'status'               => 'departed',
+                'departed_at'          => now(),
+                'departed_verified_by' => $guard->id,
+            ]);
+
+            $this->notifyTenant($visitorCode, 'visitor_departed');
+
+            return response()->json([
+                'message'      => 'Visitor marked as departed.',
+                'visitor_code' => $this->formatCode($visitorCode),
+            ]);
         }
-
-        if (!$visitorCode->isArrived()) {
-            return response()->json(['message' => 'Visitor has not arrived yet.'], 400);
-        }
-
-        $visitorCode->update([
-            'status'               => 'departed',
-            'departed_at'          => now(),
-            'departed_verified_by' => $guard->id,
-        ]);
-
-        $this->notifyTenant($visitorCode, 'visitor_departed');
-
-        return response()->json([
-            'message'      => 'Visitor marked as departed.',
-            'visitor_code' => $this->formatCode($visitorCode),
-        ]);
-    }
     }
 
     // ── SA Driver's Licence Parser ────────────────────────────────────────────────
