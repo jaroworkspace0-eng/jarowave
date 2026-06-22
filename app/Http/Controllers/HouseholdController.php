@@ -224,7 +224,7 @@ class HouseholdController extends Controller
                 'organisation_name' => $invite->client->user->organisation_name,
                 'area'              => $invite->client->user->address_line_1 ?? null,
                 'channel_name'      => $invite->channel?->name ?? $invite->client->user->organisation_name,
-                'amount_per_household' => $invite->channel?->amount_per_household ?? 80,
+                'amount_per_household' => number_format($invite->channel?->amount_per_household, 0) ?? 80,
             ],
         ]);
     }
