@@ -8,7 +8,7 @@ use App\Models\Client;
 use App\Models\Employee;
 use App\Models\Subscription;
 use App\Models\User;
-use App\Services\BillingService;
+use App\Services\ChannelBillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +20,13 @@ use Illuminate\Validation\Rule;
 
 class EmployeeController extends Controller
 {
+
+    private ChannelBillingService $estateBilling;
+
+    public function __construct(ChannelBillingService $estateBilling)
+    {
+        $this->estateBilling = $estateBilling;
+    }
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private function isHouseholdRole(string $role): bool
@@ -318,11 +325,68 @@ class EmployeeController extends Controller
 
             // Update client_id from first channel if channels provided
             $clientId = $employee->client_id;
+            $billingOutcome = null;
+            $billingNotes   = [];
+
             if (!empty($validated['channel_ids'])) {
                 $clientId = Channel::where('id', $validated['channel_ids'][0])->value('client_id');
                 $employee->update(['client_id' => $clientId]);
 
                 $previousChannelIds = $employee->channels()->pluck('channels.id')->toArray();
+
+                // ── Household relocation billing ────────────────────────────────
+                // Must resolve old/new channel BEFORE sync() overwrites the pivot.
+                if ($isHousehold) {
+                    $oldPrimaryId = $previousChannelIds[0] ?? null;
+                    $newPrimaryId = $validated['channel_ids'][0] ?? null;
+
+                    if ($oldPrimaryId && $newPrimaryId && $oldPrimaryId !== $newPrimaryId) {
+                        $oldChannel = Channel::find($oldPrimaryId);
+                        $newChannel = Channel::find($newPrimaryId);
+
+                        // Step 1: opt out of old estate billing, if applicable
+                        if ($oldChannel && $oldChannel->billing_model === 'bulk') {
+                            try {
+                                $this->estateBilling->optOutHousehold($employee->user, $oldChannel);
+                                $billingOutcome = 'opted_out';
+                            } catch (\Exception $e) {
+                                $billingOutcome = 'opt_out_blocked';
+                                $billingNotes[] = $e->getMessage();
+                                Log::warning('Relocation opt-out blocked', [
+                                    'user_id'    => $employee->user_id,
+                                    'channel_id' => $oldChannel->id,
+                                    'reason'     => $e->getMessage(),
+                                ]);
+                            }
+                        }
+
+                        // Step 2: opt into new estate billing, if applicable
+                        if ($newChannel && $newChannel->billing_model === 'bulk') {
+                            try {
+                                $this->estateBilling->optInHousehold($employee->user, $newChannel);
+                                $billingOutcome = $billingOutcome === 'opted_out' ? 'opted_out_and_opted_in' : 'opted_in';
+                            } catch (\Exception $e) {
+                                $billingOutcome = $billingOutcome === 'opted_out'
+                                    ? 'opted_out_then_opt_in_blocked'
+                                    : 'opt_in_blocked';
+                                $billingNotes[] = $e->getMessage();
+                                Log::warning('Relocation opt-in blocked', [
+                                    'user_id'    => $employee->user_id,
+                                    'channel_id' => $newChannel->id,
+                                    'reason'     => $e->getMessage(),
+                                ]);
+                            }
+                        } elseif ($billingOutcome === 'opted_out') {
+                            // Moved to a non-estate channel — flag if no individual sub exists
+                            $hasActiveSub = $employee->user->subscription
+                                && in_array($employee->user->subscription->status, ['active', 'trialing']);
+                            if (!$hasActiveSub) {
+                                $billingOutcome = 'opted_out_individual_required';
+                            }
+                        }
+                    }
+                }
+
                 $employee->channels()->sync($validated['channel_ids']);
                 $removedIds = array_diff($previousChannelIds, $validated['channel_ids']);
 
@@ -341,9 +405,11 @@ class EmployeeController extends Controller
             }
 
             return response()->json([
-                'success'  => true,
-                'message'  => ucfirst($finalRole) . ' updated successfully!',
-                'employee' => $employee->load('channels', 'user', 'client'),
+                'success'         => true,
+                'message'         => ucfirst($finalRole) . ' updated successfully!',
+                'employee'        => $employee->load('channels', 'user', 'client'),
+                'billing_outcome' => $billingOutcome,
+                'billing_notes'   => $billingNotes,
             ]);
         });
     }

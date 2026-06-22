@@ -204,7 +204,7 @@ class HouseholdController extends Controller
     public function validateInvite($token)
     {
         $invite = HouseholdInvite::where('token', $token)
-            ->with('client.user')
+            ->with('client.user', 'channel')
             ->first();
 
         if (!$invite) {
@@ -223,6 +223,8 @@ class HouseholdController extends Controller
             'group' => [
                 'organisation_name' => $invite->client->user->organisation_name,
                 'area'              => $invite->client->user->address_line_1 ?? null,
+                'channel_name'      => $invite->channel?->name ?? $invite->client->user->organisation_name,
+                'amount_per_household' => $invite->channel?->amount_per_household ?? 80,
             ],
         ]);
     }

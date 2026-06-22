@@ -830,6 +830,47 @@ const handlePhoneInput = (val: string) => {
 const hideSuggestions = () => {
     setTimeout(() => (showSuggestions.value = false), 200);
 };
+
+const confirmNoCoverage = ref(null);
+
+const deactivateNoCoverage = (employee) => {
+    confirmNoCoverage.value = employee;
+    subActionMenu.value = null;
+};
+
+const proceedNoCoverage = async () => {
+    const employee = confirmNoCoverage.value;
+    if (!employee) return;
+
+    try {
+        subLoading.value = employee.user.subscription?.id ?? 'no_coverage';
+        const { data } = await axios.post(
+            `/api/users/${employee.user.id}/deactivate-no-coverage`,
+        );
+        employee.user.is_active = false;
+        if (employee.user.subscription) {
+            employee.user.subscription.status = 'cancelled';
+        }
+        confirmNoCoverage.value = null;
+        if (data.billing_notes?.length) {
+            alert(
+                `Deactivated with notes:\n\n${data.billing_notes.join('\n')}`,
+            );
+        }
+    } catch (e) {
+        console.log(
+            '❌ deactivateNoCoverage error:',
+            e.response?.status,
+            e.response?.data,
+        );
+        alert(
+            e.response?.data?.message ??
+                'Deactivation failed. Please try again.',
+        );
+    } finally {
+        subLoading.value = null;
+    }
+};
 </script>
 
 <template>
@@ -2002,6 +2043,32 @@ const hideSuggestions = () => {
                                                     </div>
                                                 </button>
 
+                                                <!-- No Coverage Deactivation -->
+                                                <!-- No Coverage Deactivation -->
+                                                <button
+                                                    @click="
+                                                        deactivateNoCoverage(
+                                                            employee,
+                                                        )
+                                                    "
+                                                    class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-red-700 transition-colors hover:bg-red-50"
+                                                >
+                                                    <div>
+                                                        <div
+                                                            class="font-semibold"
+                                                        >
+                                                            No Coverage —
+                                                            Deactivate
+                                                        </div>
+                                                        <div
+                                                            class="text-xs opacity-70"
+                                                        >
+                                                            Moved to non-Echo
+                                                            Link area
+                                                        </div>
+                                                    </div>
+                                                </button>
+
                                                 <div
                                                     class="my-1 border-t border-gray-100"
                                                 ></div>
@@ -3158,6 +3225,69 @@ const hideSuggestions = () => {
                     ></div>
                     <span>{{
                         subLoading !== null ? 'Processing...' : 'Confirm'
+                    }}</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- No Coverage Deactivation Modal -->
+    <div
+        v-if="confirmNoCoverage"
+        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+    >
+        <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <div class="mb-4 flex items-center gap-3">
+                <div
+                    class="flex h-10 w-10 items-center justify-center rounded-full bg-red-100"
+                >
+                    <span class="text-xl">🏚</span>
+                </div>
+                <div>
+                    <h3 class="text-base font-bold text-gray-900">
+                        No Coverage - Deactivate Household
+                    </h3>
+                    <p class="text-sm text-gray-500">
+                        {{ confirmNoCoverage.user.name }}
+                    </p>
+                </div>
+            </div>
+
+            <div
+                class="mb-5 rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-800"
+            >
+                This household has moved to an area with no Echo Link coverage.
+                Taking this action will:
+                <ul class="mt-2 list-disc space-y-1 pl-4">
+                    <li>Opt them out of estate billing (if applicable)</li>
+                    <li>Cancel their subscription immediately</li>
+                    <li>Remove their channel assignment</li>
+                    <li>Deactivate their account</li>
+                    <li>Send them an email explaining why</li>
+                </ul>
+                <p class="mt-3 font-semibold">
+                    This cannot be automatically undone.
+                </p>
+            </div>
+
+            <div class="flex justify-end gap-3">
+                <button
+                    @click="confirmNoCoverage = null"
+                    class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                >
+                    Cancel
+                </button>
+                <button
+                    @click="proceedNoCoverage"
+                    :disabled="subLoading !== null"
+                    class="flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2 text-sm font-bold text-white shadow hover:bg-red-700 disabled:opacity-60"
+                >
+                    <div
+                        v-if="subLoading !== null"
+                        class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
+                    ></div>
+                    <span>{{
+                        subLoading !== null ? 'Processing...' : 'Deactivate'
                     }}</span>
                 </button>
             </div>

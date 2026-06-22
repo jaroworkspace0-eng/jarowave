@@ -38,6 +38,37 @@ class ChannelBillingService
         }
     }
 
+
+    // 
+    public function cancelIndividualSubscriptionForUser(User $user, string $reason = 'cancelled'): ?array
+    {
+        $subscription = $user->subscription;
+
+        if (!$subscription || !in_array($subscription->status, ['active', 'trialing', 'past_due'])) {
+            return null;
+        }
+
+        if ($subscription->payfast_token) {
+            try {
+                $this->cancelPayfastSubscription($subscription->payfast_token);
+            } catch (\RuntimeException $e) {
+                // Don't block deactivation on a PayFast API failure — log and proceed.
+                Log::warning('PayFast cancellation failed during forced deactivation', [
+                    'user_id' => $user->id,
+                    'reason'  => $e->getMessage(),
+                ]);
+            }
+        }
+
+        $subscription->update([
+            'status'              => 'cancelled',
+            'cancelled_at'        => now(),
+            'cancellation_reason' => $reason,
+        ]);
+
+        return ['cancelled' => true, 'subscription_id' => $subscription->id];
+    }
+
     /**
      * Opt a household into estate bulk billing.
      * Cancels their individual subscription and links them to the channel subscription.
@@ -95,15 +126,14 @@ class ChannelBillingService
      * Opt a household out of estate bulk billing.
      * Restores them to individual billing with a fresh subscription.
      */
-    public function optOutHousehold(User $user, Channel $channel): void
+    public function optOutHousehold(User $user, Channel $channel, bool $deactivating = false): void
     {
-        DB::transaction(function () use ($user, $channel) {
+        DB::transaction(function () use ($user, $channel, $deactivating) {
             $channelSubscription = ChannelSubscription::where('channel_id', $channel->id)
                 ->where('status', 'active')
                 ->where('current_period_end', '>=', now())
                 ->first();
 
-            // Block opt-out within 7 days of billing period end to prevent exploitation.
             if ($channelSubscription && now()->diffInDays($channelSubscription->current_period_end, false) <= 7) {
                 throw new \Exception(
                     'You cannot opt out within 7 days of the estate billing date. Please try again after ' .
@@ -116,30 +146,25 @@ class ChannelBillingService
                 ->latest()
                 ->first();
 
-            $periodEnd = $channelSubscription?->current_period_end;
-            $newStatus = $periodEnd ? 'active' : 'past_due';
-
-            if ($subscription) {
-                $subscription->update([
-                    'status'                  => $newStatus,
-                    'cancelled_at'            => null,
-                    'ends_at'                 => $periodEnd ?? null,
-                    'cancellation_reason'     => null,
-                    'channel_subscription_id' => null,
-                    'current_period_end'      => $periodEnd ?? null,
+            if (!$subscription) {
+                Log::warning('optOutHousehold: no estate_optin subscription found to restore', [
+                    'user_id'    => $user->id,
+                    'channel_id' => $channel->id,
                 ]);
-            } else {
-                Subscription::create([
-                    'user_id'            => $user->id,
-                    'client_id'          => $channel->client_id,
-                    'status'             => $newStatus,
-                    'price'              => BillingService::unitPrice($channel->amount_per_household),
-                    'currency'           => 'ZAR',
-                    'billing_cycle'      => 'monthly',
-                    'current_period_end' => $periodEnd ?? null,
-                    'ends_at'            => $periodEnd ?? null,
-                ]);
+                return;
             }
+
+            $periodEnd = $channelSubscription?->current_period_end;
+            $newStatus = $deactivating ? 'cancelled' : 'past_due';
+
+            $subscription->update([
+                'status'                  => $newStatus,
+                'cancelled_at'            => $deactivating ? now() : null,
+                'ends_at'                 => $periodEnd ?? null,
+                'cancellation_reason'     => $deactivating ? 'no_coverage_relocation' : null,
+                'channel_subscription_id' => null,
+                'current_period_end'      => $periodEnd ?? null,
+            ]);
 
             $user->update([
                 'subscription_status' => $newStatus,
@@ -147,8 +172,9 @@ class ChannelBillingService
         });
 
         Log::info('Household opted out of estate billing', [
-            'user_id'    => $user->id,
-            'channel_id' => $channel->id,
+            'user_id'      => $user->id,
+            'channel_id'   => $channel->id,
+            'deactivating' => $deactivating,
         ]);
     }
 

@@ -288,9 +288,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
         return $request->user();
     });
 
-        Route::get('/guard/earnings', [GuardEarningController::class, 'index']);
-        Route::get('/guard/bank-details',  [GuardBankDetailController::class, 'show']);
-        Route::post('/guard/bank-details', [GuardBankDetailController::class, 'store']);
+    
+    Route::post('/users/{user}/deactivate-no-coverage', [UserController::class, 'deactivateNoCoverage']);
+
+    // 
+    Route::get('/guard/earnings', [GuardEarningController::class, 'index']);
+    Route::get('/guard/bank-details',  [GuardBankDetailController::class, 'show']);
+    Route::post('/guard/bank-details', [GuardBankDetailController::class, 'store']);
    
 
     Route::post('channel-payments/{payment}/approve', [ChannelBillingController::class, 'approveEftPayment']);

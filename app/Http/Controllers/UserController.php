@@ -2,15 +2,34 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\HouseholdNoCoverageMail;
+use App\Models\Employee;
 use App\Models\User;
+use App\Services\ChannelBillingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Inertia\Inertia;
 
 class UserController extends Controller
 {
+
+    private ChannelBillingService $estateBilling;
+
+    public function __construct(ChannelBillingService $estateBilling)
+    {
+        $this->estateBilling = $estateBilling;
+    }
+
+    private function isHouseholdRole(string $role): bool
+    {
+        return in_array($role, ['household', 'resident']);
+    }
+
+
     /**
      * Display a listing of the resource.
      */
@@ -71,6 +90,7 @@ class UserController extends Controller
         //
     }
 
+
     public function toggleStatus(User $user)
     {
         $user->update([
@@ -98,6 +118,91 @@ class UserController extends Controller
             ]);
 
     }
+
+
+    public function deactivateNoCoverage(User $user)
+    {
+        if (!$this->isHouseholdRole($user->role)) {
+            return response()->json(['message' => 'User is not a household'], 422);
+        }
+
+        $employee = Employee::where('user_id', $user->id)->first();
+
+        if (!$employee) {
+            return response()->json(['message' => 'No employee record found for this user'], 422);
+        }
+
+        $billingOutcome = null;
+        $billingNotes   = [];
+
+        return DB::transaction(function () use ($user, $employee, &$billingOutcome, &$billingNotes) {
+            $currentChannel = $employee->channels()->first();
+
+            // ── Step 1: opt out of estate billing or cancel individual subscription ──
+            if ($currentChannel && $currentChannel->billing_model === 'bulk') {
+                try {
+                    $this->estateBilling->optOutHousehold($user, $currentChannel, deactivating: true);
+                    $billingOutcome = 'opted_out';
+                    $billingNotes[] = 'Opted out of estate billing — subscription cancelled.';
+                } catch (\Exception $e) {
+                    $billingOutcome = 'opt_out_blocked';
+                    $billingNotes[] = $e->getMessage();
+                    Log::warning('No-coverage deactivation opt-out blocked', [
+                        'user_id'    => $user->id,
+                        'channel_id' => $currentChannel->id,
+                        'reason'     => $e->getMessage(),
+                    ]);
+                }
+            } else {
+                $this->estateBilling->cancelIndividualSubscriptionForUser($user, 'no_coverage_relocation');
+                $billingOutcome = 'cancelled';
+                $billingNotes[] = 'Individual subscription cancelled — no coverage at new address.';
+            }
+
+            // ── Step 2: remove channel assignment ────────────────────────────────────
+            $employee->channels()->sync([]);
+            $employee->update(['client_id' => null]);
+
+            // ── Step 3: deactivate the user ──────────────────────────────────────────
+            $user->update([
+                'is_active'           => false,
+                'subscription_status' => 'cancelled',
+            ]);
+
+            // ── Step 4: force-disconnect ──────────────────────────────────────────────
+            try {
+                Http::timeout(5)
+                    ->withHeaders(['Authorization' => 'Bearer ' . env('ASSIGN_SECRET')])
+                    ->post(env('PTT_SERVER_URL') . '/force-disconnect', [
+                        'userId' => $user->id,
+                        'reason' => 'user_inactive',
+                    ]);
+            } catch (\Exception $e) {
+                Log::warning('PTT force-disconnect failed', [
+                    'user_id' => $user->id,
+                    'reason'  => $e->getMessage(),
+                ]);
+            }
+
+            // ── Step 5: notify user ───────────────────────────────────────────────────
+            try {
+                Mail::to($user->email)->send(new HouseholdNoCoverageMail($user));
+            } catch (\Exception $e) {
+                Log::warning('No-coverage deactivation email failed', [
+                    'user_id' => $user->id,
+                    'reason'  => $e->getMessage(),
+                ]);
+            }
+
+            return response()->json([
+                'success'         => true,
+                'message'         => 'Household deactivated — no Echo Link coverage at new address.',
+                'billing_outcome' => $billingOutcome,
+                'billing_notes'   => $billingNotes,
+            ]);
+        });
+    }
+
 
     public function users()
     {
