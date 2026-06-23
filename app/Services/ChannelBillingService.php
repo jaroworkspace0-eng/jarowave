@@ -84,7 +84,7 @@ class ChannelBillingService
             ->exists();
 
         if ($pastDue) {
-            throw new \Exception('Your individual subscription has an outstanding balance. Please settle it before opting into estate billing.');
+            throw new \Exception('Your individual subscription has an outstanding balance of R' . number_format($pastDue->price, 0) .'. Please settle it before opting into estate billing.');
         }
 
         $channelSubscription = $this->resolveActiveChannelSubscription($channel);
