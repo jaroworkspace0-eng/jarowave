@@ -149,7 +149,15 @@ class ChannelBillingController extends Controller
             return response()->json(['success' => false, 'message' => 'You do not belong to this channel.'], 403);
         }
 
-        $this->billingService->optInHousehold($user, $channel);
+        try {
+            $this->billingService->optInHousehold($user, $channel);
+        } catch (\Exception $e) {
+            // Intercepts the "outstanding balance" exception from the service
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 400); // 400 Bad Request indicates a client-side validation/business rule failure
+        }
 
         return response()->json([
             'success' => true,
