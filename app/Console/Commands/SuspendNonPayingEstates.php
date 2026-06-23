@@ -96,6 +96,12 @@ class SuspendNonPayingEstates extends Command
             ->where('cancellation_reason', 'estate_optin')
             ->get();
 
+        // $subscriptions = Subscription::with('user')
+        //     ->where('channel_subscription_id', $channelSubscription->id)
+        //     ->where('cancellation_reason', 'estate_optin')
+        //     ->whereNotIn('status', ['active'])
+        //     ->get();
+
         foreach ($subscriptions as $subscription) {
             $user = $subscription->user;
             if (!$user) continue;
