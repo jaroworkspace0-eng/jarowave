@@ -9,6 +9,7 @@ use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class EmergencyAlertController extends Controller
@@ -439,29 +440,69 @@ class EmergencyAlertController extends Controller
 
         try {
             $alert = EmergencyAlert::find($id);
-
             if (!$alert) {
                 return response()->json([
                     'status'  => 'error',
                     'message' => 'Alert ID not found in DB'
                 ], 404);
             }
-            
-            $alert->cancel_pin_used = $request->cancel_pin_used ?? $alert->cancel_pin_used; // Only update if provided
+
+            $alert->cancel_pin_used = $request->cancel_pin_used ?? $alert->cancel_pin_used;
             $alert->is_resolved     = true;
-            $alert->resolved_at     = now(); 
+            $alert->resolved_at     = now();
             $alert->save();
+
+            // ── Notify guardian pairs if this was a guardian-to-guardian alert ──
+            $this->notifyGuardianPairsOfCancellation($alert);
 
             return response()->json([
                 'status'  => 'success',
                 'message' => 'GPS Synced'
             ]);
-
         } catch (\Exception $e) {
             return response()->json([
                 'status'  => 'error',
                 'message' => $e->getMessage()
             ], 500);
+        }
+    }
+
+    private function notifyGuardianPairsOfCancellation(EmergencyAlert $alert): void
+    {
+        try {
+            $senderUserId = $alert->user_id;
+
+            // People paired with the sender (either side of the pairing)
+            $pairedIds = DB::table('household_pairings')
+                ->where('status', 'active')
+                ->where(function ($q) use ($senderUserId) {
+                    $q->where('requester_id', $senderUserId)
+                    ->orWhere('receiver_id', $senderUserId);
+                })
+                ->get()
+                ->map(function ($row) use ($senderUserId) {
+                    // Return the OTHER person in the pairing
+                    return $row->requester_id == $senderUserId
+                        ? $row->receiver_id
+                        : $row->requester_id;
+                })
+                ->unique()
+                ->values();
+
+            if ($pairedIds->isEmpty()) return;
+
+            Http::withHeaders(['Authorization' => 'Bearer ' . env('ASSIGN_SECRET')])
+                ->timeout(5)
+                ->post(env('NODE_URL') . '/notify-guardian-alert-cancelled', [
+                    'recipientUserIds' => $pairedIds->all(),
+                    'alertId'          => $alert->id,
+                    'cancelledBy'      => [
+                        'userId'   => $senderUserId,
+                        'username' => $alert->user?->name ?? 'Unknown',
+                    ],
+                ]);
+        } catch (\Exception $e) {
+            Log::warning("Guardian cancel notify failed for alert {$alert->id}: " . $e->getMessage());
         }
     }
 
@@ -480,5 +521,37 @@ class EmergencyAlertController extends Controller
         return response()->json(['id' => $alert->id]);
     }
 
+
+    // In your alert cancellation logic in Laravel
+    protected function notifyGuardianAlertCancelled(EmergencyAlert $alert): void
+    {
+        // Get all guardian pairings involved in this alert
+        // Both the sender's guardians AND the people the sender is guardian for
+        $senderUser = $alert->user;
+        
+        $recipientIds = collect();
+        
+        // People who watch over the sender (guardians of sender)
+        $recipientIds = $recipientIds->merge(
+            $senderUser->guardians()->pluck('guardian_user_id')
+        );
+        
+        // People the sender watches over (sender is guardian of these)  
+        $recipientIds = $recipientIds->merge(
+            $senderUser->guardianOf()->pluck('user_id')
+        );
+        
+        if ($recipientIds->isEmpty()) return;
+
+        Http::withToken(config('services.node.secret'))
+            ->post(config('services.node.url') . '/notify-guardian-alert-cancelled', [
+                'recipientUserIds' => $recipientIds->unique()->values()->all(),
+                'alertId'          => $alert->id,
+                'cancelledBy'      => [
+                    'userId'   => $senderUser->id,
+                    'username' => $senderUser->name,
+                ],
+            ]);
+    }
 
 }
