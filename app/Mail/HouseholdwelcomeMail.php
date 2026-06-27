@@ -19,7 +19,7 @@ class HouseholdWelcomeMail extends Mailable
         public string $gateway,           // 'payfast' | 'ozow' | 'none'
         public bool   $adminAdded = false, // true = added by admin, false = self-registered
         public ?string $tempPassword = null, // only set for admin-added households
-        public ?string $amountPerHousehold,
+        public ?string $amountPerHousehold = null,
         public ?string $channelName = null,
     ) {}
 
