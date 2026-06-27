@@ -51,11 +51,11 @@ const benefits = [
         title: 'Panic & Emergency Alerts',
         desc: 'One-tap panic with live GPS to all responders, instantly.',
     },
-    {
-        icon: '💰',
-        title: 'Earn from Your Community',
-        desc: 'Watch groups earn 65% · Estates earn 37.5% of every R80 unit subscription.',
-    },
+    // {
+    //     icon: '💰',
+    //     title: 'Earn from Your Community',
+    //     desc: 'Watch groups earn 65% · Estates earn 37.5% of every R80 unit subscription.',
+    // },
     {
         icon: '📊',
         title: 'Live Command Dashboard',
@@ -178,7 +178,7 @@ const handleSubmit = async () => {
                                 R80/unit/month · Paid out 1st of each month
                             </div>
                         </div>
-                        <div
+                        <!-- <div
                             v-else-if="!selfRegistrationOpen"
                             class="split-card split-card-contact"
                         >
@@ -203,7 +203,7 @@ const handleSubmit = async () => {
                             <div class="split-note">
                                 R80/unit/month · Paid out 1st of each month
                             </div>
-                        </div>
+                        </div> -->
                         <div v-else class="split-placeholder">
                             <div class="sp-text">
                                 ← Select your organisation type to see your
