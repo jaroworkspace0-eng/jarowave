@@ -13,7 +13,7 @@
 </h1>
 
 <p style="text-align:center; font-size:14px; color:#888; margin:0 0 28px;">
-    Hi {{ $user->name }}, your Echo Link account has been created and you are now connected to <strong style="color:#1a1a2e;">{{ $organisationName }}</strong>.
+    Hi {{ $user->name }}, your Echo Link account has been created and you are now connected to <strong style="color:#1a1a2e;">{{ $channel_name }}</strong> channel.
 </p>
 
 ---
@@ -62,7 +62,7 @@
 <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 24px;">
     <tr>
         <td style="padding:6px 0; font-size:13px; color:#888;">Monthly fee</td>
-        <td style="padding:6px 0; font-size:13px; font-weight:700; color:#f97316; text-align:right;">R80/month</td>
+        <td style="padding:6px 0; font-size:13px; font-weight:700; color:#f97316; text-align:right;">R{{ $amount_per_household }}/month</td>
     </tr>
     <tr>
         <td style="padding:6px 0; font-size:13px; color:#888;">Free trial</td>

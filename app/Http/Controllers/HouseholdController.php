@@ -132,7 +132,7 @@ class HouseholdController extends Controller
         $merchantReference = 'HH-' . $user->id . '-' . time();
 
         // Create subscription with correct split based on org type
-        Subscription::create([
+        $subscription = Subscription::create([
             'user_id'            => $user->id,
             'client_id'          => $invite->client_id,
             'client_type'        => $orgType,
@@ -145,6 +145,8 @@ class HouseholdController extends Controller
             'merchant_reference' => $merchantReference,
         ]);
 
+        $channelName = $channel?->name ?? $invite->client->user->organisation_name;
+        $amountPerHousehold = $channel->amount_per_household;
         $token = $user->createToken('household-token')->plainTextToken;
 
 
@@ -156,6 +158,8 @@ class HouseholdController extends Controller
             gateway: $request->gateway ?? 'payfast',
             adminAdded: false,
             tempPassword: null,
+            amountPerHousehold: $amountPerHousehold,
+            channelName: $channelName
         ));
 
         // Build PayFast payment URL

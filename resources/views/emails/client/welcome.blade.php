@@ -74,45 +74,22 @@
 {{-- ── HOW IT WORKS ── --}}
 <p style="font-size:13px; font-weight:700; color:#1a1a2e; margin:24px 0 12px;">How Echo Link works for you</p>
 
-@if($user->organisation_type === 'estate')
-<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 24px;">
+<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 12px;">
     <tr>
-        <td style="padding:6px 0; font-size:13px; color:#888;">Unit fee</td>
-        <td style="padding:6px 0; font-size:18px; font-weight:800; color:#f97316; text-align:right;">R80/unit/month</td>
+        <td style="padding:6px 0; font-size:13px; color:#888;">{{ $user->organisation_type === 'estate' ? 'Unit fee' : 'Household fee' }}</td>
+        <td style="padding:6px 0; font-size:18px; font-weight:800; color:#f97316; text-align:right;">
+            R80/{{ $user->organisation_type === 'estate' ? 'unit' : 'household' }}/month
+        </td>
     </tr>
-    <tr>
-        <td style="padding:6px 0; font-size:13px; color:#888;">Your estate earns</td>
-        <td style="padding:6px 0; font-size:13px; font-weight:700; color:#16a34a; text-align:right;">R30 per unit (37.5%)</td>
-    </tr>
-    <tr>
-        <td style="padding:6px 0; font-size:13px; color:#888;">Echo Link fee</td>
-        <td style="padding:6px 0; font-size:13px; font-weight:700; color:#1a1a2e; text-align:right;">R50 per unit (62.5%)</td>
-    </tr>
-    <tr>
+    {{-- <tr>
         <td style="padding:6px 0; font-size:13px; color:#888;">Payouts</td>
         <td style="padding:6px 0; font-size:13px; font-weight:700; color:#1a1a2e; text-align:right;">1st of every month</td>
-    </tr>
+    </tr> --}}
 </table>
-@else
-<table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 24px;">
-    <tr>
-        <td style="padding:6px 0; font-size:13px; color:#888;">Household fee</td>
-        <td style="padding:6px 0; font-size:18px; font-weight:800; color:#f97316; text-align:right;">R80/household/month</td>
-    </tr>
-    <tr>
-        <td style="padding:6px 0; font-size:13px; color:#888;">Your watch group earns</td>
-        <td style="padding:6px 0; font-size:13px; font-weight:700; color:#16a34a; text-align:right;">R52 per household (65%)</td>
-    </tr>
-    <tr>
-        <td style="padding:6px 0; font-size:13px; color:#888;">Echo Link fee</td>
-        <td style="padding:6px 0; font-size:13px; font-weight:700; color:#1a1a2e; text-align:right;">R28 per household (35%)</td>
-    </tr>
-    <tr>
-        <td style="padding:6px 0; font-size:13px; color:#888;">Payouts</td>
-        <td style="padding:6px 0; font-size:13px; font-weight:700; color:#1a1a2e; text-align:right;">1st of every month</td>
-    </tr>
-</table>
-@endif
+
+<p style="font-size:12px; color:#888; margin:0 0 24px;">
+    * R80 is the default monthly fee per {{ $user->organisation_type === 'estate' ? 'unit' : 'household' }}. You can set a custom amount per channel from your dashboard — your earnings are paid out monthly based on active subscriptions.
+</p>
 
 ---
 

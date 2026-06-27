@@ -19,12 +19,14 @@ class HouseholdWelcomeMail extends Mailable
         public string $gateway,           // 'payfast' | 'ozow' | 'none'
         public bool   $adminAdded = false, // true = added by admin, false = self-registered
         public ?string $tempPassword = null, // only set for admin-added households
+        public ?string $amountPerHousehold,
+        public ?string $channelName = null,
     ) {}
 
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Welcome to Echo Link - ' . $this->organisationName,
+            subject: 'Welcome to Echo Link - ' . ($this->channelName ?? $this->organisationName),
         );
     }
 
@@ -32,6 +34,12 @@ class HouseholdWelcomeMail extends Mailable
     {
         return new Content(
             markdown: 'emails.household.welcome',
+            with: [
+                'amount_per_household' => $this->amountPerHousehold 
+                ? number_format($this->amountPerHousehold, 0) 
+                : 'R80',
+                'channel_name' => $this->channelName
+            ]
         );
     }
 }
