@@ -168,8 +168,10 @@ class EmployeeController extends Controller
             'role'            => 'required|string',
             'address_line_1'  => 'required_if:role,household,resident|nullable|string',
             'suburb'          => 'required_if:role,household,resident|nullable|string',
-            'latitude'        => 'required_if:role,household,resident|nullable|numeric',
-            'longitude'       => 'required_if:role,household,resident|nullable|numeric',
+            // 'latitude'        => 'required_if:role,household,resident|nullable|numeric',
+            // 'longitude'       => 'required_if:role,household,resident|nullable|numeric',
+            'latitude'        => 'nullable|numeric',
+            'longitude'       => 'nullable|numeric',
             'complex_name'    => 'nullable|string',
             'access_code'     => 'nullable|string',
             'unit_number'     => 'nullable|string',
@@ -214,10 +216,11 @@ class EmployeeController extends Controller
             ]);
 
             $employee->channels()->sync($request->channel_ids);
+            $channel = Channel::find($request->channel_ids[0]);
 
             if ($isHousehold) {
                 $this->createHouseholdSubscription($user, $clientId, $request->boolean('activation_fee_paid', false));
-                $this->sendHouseholdWelcomeMail($user, $clientId, $plainPassword);
+                $this->sendHouseholdWelcomeMail($user, $clientId, $plainPassword, $channel);
             }
 
             return response()->json([
@@ -464,7 +467,7 @@ class EmployeeController extends Controller
         ]);
     }
 
-    private function sendHouseholdWelcomeMail(User $user, ?int $clientId, string $plainPassword): void
+    private function sendHouseholdWelcomeMail(User $user, ?int $clientId, string $plainPassword, ?Channel $channel = null): void
     {
         $client  = Client::with('user')->find($clientId);
         $orgName = $client?->user?->organisation_name
@@ -477,6 +480,8 @@ class EmployeeController extends Controller
             gateway:          'payfast',
             adminAdded:       true,
             tempPassword:     $plainPassword,
+            amountPerHousehold: $channel?->amount_per_household ?? 80,
+            channelName: $channel?->name
         ));
     }
 
