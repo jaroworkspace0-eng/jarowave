@@ -82,15 +82,12 @@
 
 @if($adminAdded)
 <div style="background:#eff4ff; border:1px solid #bfdbfe; border-radius:10px; padding:14px 16px; margin-bottom:24px;">
-    <p style="font-size:13px; color:#1d4ed8; margin:0;">
+    <p style="font-size:13px; color:#1d4ed8; margin:0 0 12px;">
         <strong>Action required:</strong> Please visit your account dashboard to add a payment method before your 14-day trial ends to avoid losing access.
     </p>
-    <p>
-        {{-- ── DASHBOARD BUTTON ── --}}
-        @component('mail::button', ['url' => 'https://account.jaroworkspace.com/dashboard.html', 'color' => 'primary'])
-        Take me to the dashboard
-        @endcomponent
-    </p>
+    @component('mail::button', ['url' => 'https://account.jaroworkspace.com/dashboard.html', 'color' => 'primary'])
+    Take me to the dashboard
+    @endcomponent
 </div>
 @endif
 
