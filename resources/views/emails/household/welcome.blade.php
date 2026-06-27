@@ -37,7 +37,7 @@
     </tr>
     @endif
     <tr>
-        <td style="padding:6px 0; font-size:13px; color:#888;">Watch Group</td>
+        <td style="padding:6px 0; font-size:13px; color:#888;">Estate/Watch Group</td>
         <td style="padding:6px 0; font-size:13px; font-weight:700; color:#f97316; text-align:right;">{{ $organisationName }}</td>
     </tr>
     @if($adminAdded && $tempPassword)
@@ -50,7 +50,7 @@
 
 @if($adminAdded && $tempPassword)
 <div style="background:#fef3e2; border:1px solid #fed7aa; border-radius:10px; padding:14px 16px; margin-bottom:24px;">
-    <p style="font-size:13px; color:#b45309; margin:0; font-weight:600;">⚠ Please change your password after your first login in Echo Link App.</p>
+    <p style="font-size:13px; color:#b45309; margin:0; font-weight:600;">Please change your password after your first login in Echo Link App.</p>
 </div>
 @endif
 
@@ -81,14 +81,11 @@
 </table>
 
 @if($adminAdded)
-<div style="background:#eff4ff; border:1px solid #bfdbfe; border-radius:10px; padding:14px 16px; margin-bottom:24px;">
-    <p style="font-size:13px; color:#1d4ed8; margin:0 0 12px;">
-        <strong>Action required:</strong> Please visit your account dashboard to add a payment method before your 14-day trial ends to avoid losing access.
-    </p>
-    @component('mail::button', ['url' => 'https://account.jaroworkspace.com/dashboard.html', 'color' => 'primary'])
-    Take me to the dashboard
-    @endcomponent
-</div>
+**Action required:** Please visit your account dashboard to add a payment method before your 14-day trial ends to avoid losing access.
+
+@component('mail::button', ['url' => 'https://account.jaroworkspace.com/dashboard.html', 'color' => 'primary'])
+Take me to the dashboard
+@endcomponent
 @endif
 
 ---
@@ -133,18 +130,15 @@
     @endif
 </table>
 
-{{-- ── APP DOWNLOAD BUTTON ── --}}
 @component('mail::button', ['url' => 'https://play.google.com/store/apps/details?id=com.jaro.wave&hl=en', 'color' => 'primary'])
 Download Echo Link on Google Play
 @endcomponent
 
-{{-- ── DASHBOARD LINK ── --}}
 <p style="text-align:center; font-size:13px; color:#888; margin:16px 0 0;">
     Manage your subscription at
     <a href="https://account.jaroworkspace.com/login.html" style="color:#f97316; text-decoration:none; font-weight:600;">account.jaroworkspace.com</a>
 </p>
 
----
 
 <p style="font-size:12px; color:#ccc; text-align:center; margin-top:24px;">
     Questions? Contact us at

@@ -65,7 +65,7 @@
 
 @if($adminCreated && $tempPassword)
 <div style="background:#fef3e2; border:1px solid #fed7aa; border-radius:10px; padding:14px 16px; margin-bottom:24px;">
-    <p style="font-size:13px; color:#b45309; margin:0; font-weight:600;">⚠ Please change your password after your first login.</p>
+    <p style="font-size:13px; color:#b45309; margin:0; font-weight:600;">Please change your password after your first login.</p>
 </div>
 @endif
 
