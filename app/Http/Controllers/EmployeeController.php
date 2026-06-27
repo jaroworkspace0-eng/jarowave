@@ -480,7 +480,7 @@ class EmployeeController extends Controller
             gateway:          'payfast',
             adminAdded:       true,
             tempPassword:     $plainPassword,
-            amountPerHousehold: $channel?->amount_per_household ?? 80,
+            amountPerHousehold: $channel?->amount_per_household,
             channelName: $channel?->name
         ));
     }
