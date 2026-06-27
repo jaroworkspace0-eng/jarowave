@@ -265,8 +265,11 @@ class EmployeeController extends Controller
             'new_password_confirmation' => 'nullable|string',
             'address_line_1'            => ($fromApp ? 'nullable' : 'required_if:role,household,resident') . '|nullable|string',
             'suburb'                    => ($fromApp ? 'nullable' : 'required_if:role,household,resident') . '|nullable|string',
-            'latitude'                  => ($fromApp ? 'nullable' : 'required_if:role,household,resident') . '|nullable|numeric',
-            'longitude'                 => ($fromApp ? 'nullable' : 'required_if:role,household,resident') . '|nullable|numeric',
+            // 'latitude'                  => ($fromApp ? 'nullable' : 'required_if:role,household,resident') . '|nullable|numeric',
+            // 'longitude'                 => ($fromApp ? 'nullable' : 'required_if:role,household,resident') . '|nullable|numeric',
+
+            'latitude'                  => 'nullable|numeric',
+            'longitude'                 => 'nullable|numeric',
             'complex_name'              => 'nullable|string',
             'access_code'               => 'nullable|string',
             'unit_number'               => 'nullable|string',
