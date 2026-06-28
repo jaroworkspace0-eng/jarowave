@@ -12,6 +12,7 @@ use App\Models\Invoice;
 use App\Models\Subscription;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -119,6 +120,29 @@ class ChannelBillingService
                 'subscription_status' => $channelSubscription?->status === 'active' ? 'active' : 'pending',
             ]);
         });
+
+
+        // Clear any payment failure suspension on Node
+        try {
+            Http::timeout(5)
+                ->withHeaders([
+                    'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
+                    'Content-Type'  => 'application/json',
+                ])
+                ->post(rtrim(env('PTT_SERVER_URL'), '/') . '/payment-resolved', [
+                    'userId' => $user->id,
+                ]);
+        } catch (\Throwable $e) {
+            Log::warning('optInHousehold: failed to notify Node of payment restoration', [
+                'user_id' => $user->id,
+                'error'   => $e->getMessage(),
+            ]);
+        }
+
+        Log::info('Household opted into estate billing', [
+            'user_id'   => $user->id,
+            'channel_id' => $channel->id,
+        ]);
 
         Log::info('Household opted into estate billing', [
             'user_id'                 => $user->id,
