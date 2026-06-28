@@ -28,7 +28,14 @@ class VisitorCodeController extends Controller
 
         $user         = $request->user();
         $subscription = Subscription::where('user_id', $user->id)
-            ->whereIn('status', ['active', 'trialing'])
+            ->where(function ($q) {
+                $q->whereIn('status', ['active', 'trialing'])
+                  ->orWhere(function ($q2) {
+                      $q2->where('status', 'cancelled')
+                         ->where('cancellation_reason', 'estate_optin')
+                         ->whereNotNull('channel_subscription_id');
+                  });
+            })
             ->latest()
             ->first();
 
