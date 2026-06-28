@@ -16,11 +16,12 @@ class VisitorCodeController extends Controller
     public function generate(Request $request)
     {
         $request->validate([
-            'visit_type'           => 'required|in:normal,ehailing',
+            'visit_type'           => 'required|in:normal,ehailing,delivery',
             'visitor_name'         => 'required|string|max:100',
-            'visitor_phone'        => 'nullable|string|max:20',
+            'visitor_phone'        => 'required|string|max:20',
             'visitor_id_number'    => 'nullable|string|max:20',
             'vehicle_registration' => 'nullable|string|max:20',
+            'delivery_company'     => 'required_if:visit_type,delivery|nullable|string|max:100',
             'notes'                => 'nullable|string|max:255',
             'expected_at'          => 'nullable|date',
         ]);
@@ -35,10 +36,12 @@ class VisitorCodeController extends Controller
             return response()->json(['message' => 'No active subscription found.'], 403);
         }
 
-        // E-hailing expires in 30 min, normal in 24 hours
-        $expiresAt = $request->visit_type === 'ehailing'
-            ? now()->addMinutes(30)
-            : now()->addHours(24);
+        // Expiry: ehailing = 30 min, delivery = 2 hours, normal = 24 hours
+        $expiresAt = match ($request->visit_type) {
+            'ehailing' => now()->addMinutes(30),
+            'delivery' => now()->addHours(2),
+            default    => now()->addHours(24),
+        };
 
         $visitorCode = VisitorCode::create([
             'user_id'              => $user->id,
@@ -48,6 +51,7 @@ class VisitorCodeController extends Controller
             'visitor_phone'        => $request->visitor_phone,
             'visitor_id_number'    => $request->visitor_id_number,
             'vehicle_registration' => $request->vehicle_registration,
+            'delivery_company'     => $request->visit_type === 'delivery' ? $request->delivery_company : null,
             'notes'                => $request->notes,
             'expected_at'          => $request->expected_at,
             'code'                 => VisitorCode::generateUniqueCode(),
@@ -111,25 +115,20 @@ class VisitorCodeController extends Controller
         if (!$visitorCode) {
             return response()->json(['message' => 'Invalid code.'], 404);
         }
-        
 
-        // ── Estate scope check ────────────────────────────────────────────────────
+        // ── Estate scope check ────────────────────────────────────────────
         $guardClient = Employee::where('user_id', $guard->id)->first();
 
-
-
         Log::debug('Scope check', [
-            'guard_user_id'       => $guard->id,
-            'guardClient'         => $guardClient,
-            'visitorCode_client'  => $visitorCode->client_id,
+            'guard_user_id'      => $guard->id,
+            'guardClient'        => $guardClient,
+            'visitorCode_client' => $visitorCode->client_id,
         ]);
 
         if (!$guardClient || (string) $visitorCode->client_id !== (string) $guardClient->client_id) {
-            return response()->json([
-                'message' => 'Invalid code.'// Generic message to avoid leaking info about code existence,
-            ], 404);
+            return response()->json(['message' => 'Invalid code.'], 404);
         }
-        // ─────────────────────────────────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────
 
         // Check expiry
         if ($visitorCode->isExpired()) {
@@ -175,7 +174,6 @@ class VisitorCodeController extends Controller
         }
 
         // Handle depart
-        // Handle depart
         if ($request->action === 'depart') {
             if ($visitorCode->status === 'departed') {
                 return response()->json(['message' => 'Visitor has already departed.'], 400);
@@ -200,12 +198,11 @@ class VisitorCodeController extends Controller
         }
     }
 
-    // ── SA Driver's Licence Parser ────────────────────────────────────────────────
+    // ── SA Driver's Licence Parser ────────────────────────────────────────
 
     private function parseSALicence(string $raw): array
     {
         try {
-            // Decode from base64 (app should always send base64)
             $data = base64_decode($raw, strict: true);
             if ($data === false) {
                 $data = $raw;
@@ -223,12 +220,7 @@ class VisitorCodeController extends Controller
                 return [];
             }
 
-            // SA eNaTIS PDF-417 binary layout:
-            // Bytes 0–9   : header / cert number
-            // Bytes 10–137: RSA-1024 signature (128 bytes)
-            // Bytes 138+  : zlib-compressed field data
-            $compressed = substr($data, 138);
-
+            $compressed   = substr($data, 138);
             $decompressed = @gzuncompress($compressed);
 
             if ($decompressed === false) {
@@ -262,21 +254,6 @@ class VisitorCodeController extends Controller
 
     private function parseLicenceFields(string $data): array
     {
-        // Fixed-offset ASCII layout after decompression (SA eNaTIS spec):
-        // 0   - 13 : ID number
-        // 13  - 25 : surname (space-padded)
-        // 38  - 25 : first names (space-padded)
-        // 63  - 8  : birth date (CCYYMMDD)
-        // 71  - 1  : gender (M/F)
-        // 72  - 4  : licence issue number
-        // 76  - 2  : vehicle codes (e.g. "B ")
-        // 78  - 4  : prdp codes
-        // 82  - 8  : issue date (CCYYMMDD)
-        // 90  - 8  : expiry date (CCYYMMDD)
-        // 98  - 4  : ID country code
-        // 102 - 4  : licence country code
-        // 106 - 2  : driver restrictions
-
         return [
             'id_number'     => trim($this->extractField($data, 0,   13)),
             'surname'       => trim($this->extractField($data, 13,  25)),
@@ -291,9 +268,7 @@ class VisitorCodeController extends Controller
 
     private function extractField(string $data, int $offset, int $length): string
     {
-        if (strlen($data) < $offset + $length) {
-            return '';
-        }
+        if (strlen($data) < $offset + $length) return '';
         return substr($data, $offset, $length);
     }
 
@@ -308,6 +283,7 @@ class VisitorCodeController extends Controller
             return null;
         }
     }
+
     // ── Private helpers ───────────────────────────────────────────────────
 
     private function formatCode(VisitorCode $code): array
@@ -319,6 +295,7 @@ class VisitorCodeController extends Controller
             'visitor_phone'        => $code->visitor_phone,
             'visitor_id_number'    => $code->visitor_id_number,
             'vehicle_registration' => $code->vehicle_registration,
+            'delivery_company'     => $code->delivery_company,
             'notes'                => $code->notes,
             'code'                 => $code->code,
             'qr_token'             => $code->qr_token,
@@ -341,11 +318,12 @@ class VisitorCodeController extends Controller
             Http::withHeaders([
                 'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
             ])->post(env('PTT_SERVER_URL') . $endpoint, [
-                'userId'      => $code->user_id,
-                'visitorName' => $code->visitor_name,
-                'visitType'   => $code->visit_type,
-                'arrivedAt'   => $code->arrived_at?->toIso8601String(),
-                'departedAt'  => $code->departed_at?->toIso8601String(),
+                'userId'          => $code->user_id,
+                'visitorName'     => $code->visitor_name,
+                'visitType'       => $code->visit_type,
+                'deliveryCompany' => $code->delivery_company,
+                'arrivedAt'       => $code->arrived_at?->toIso8601String(),
+                'departedAt'      => $code->departed_at?->toIso8601String(),
             ]);
         } catch (\Exception $e) {
             Log::warning("Failed to notify tenant of {$event}: " . $e->getMessage());

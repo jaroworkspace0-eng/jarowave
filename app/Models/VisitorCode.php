@@ -16,6 +16,7 @@ class VisitorCode extends Model
         'visitor_phone',
         'visitor_id_number',
         'vehicle_registration',
+        'delivery_company',
         'notes',
         'code',
         'qr_token',
@@ -37,14 +38,14 @@ class VisitorCode extends Model
     ];
 
     protected $casts = [
-        'expected_at'  => 'datetime',
-        'expires_at'   => 'datetime',
+        'expected_at'    => 'datetime',
+        'expires_at'     => 'datetime',
         'day_expires_at' => 'datetime',
-        'arrived_at'   => 'datetime',
-        'departed_at'  => 'datetime',
+        'arrived_at'     => 'datetime',
+        'departed_at'    => 'datetime',
     ];
 
-    // ── Relationships ──
+    // ── Relationships ──────────────────────────────────────────────────────────
 
     public function tenant(): BelongsTo
     {
@@ -66,7 +67,7 @@ class VisitorCode extends Model
         return $this->belongsTo(User::class, 'departed_verified_by');
     }
 
-    // ── Helpers ──
+    // ── Helpers ───────────────────────────────────────────────────────────────
 
     public function isExpired(): bool
     {
@@ -76,11 +77,11 @@ class VisitorCode extends Model
         return false;
     }
 
-    public function isPending(): bool { return $this->status === 'pending'; }
-    public function isArrived(): bool { return $this->status === 'arrived'; }
+    public function isPending(): bool  { return $this->status === 'pending';  }
+    public function isArrived(): bool  { return $this->status === 'arrived';  }
     public function isDeparted(): bool { return $this->status === 'departed'; }
 
-    // ── Static generators ──
+    // ── Static generators ─────────────────────────────────────────────────────
 
     public static function generateUniqueCode(): string
     {
