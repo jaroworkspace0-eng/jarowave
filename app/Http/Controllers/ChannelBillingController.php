@@ -172,7 +172,14 @@ class ChannelBillingController extends Controller
     {
         $user = $request->user();
 
-        $this->billingService->optOutHousehold($user, $channel);
+        try {
+            $this->billingService->optOutHousehold($user, $channel);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 400);
+        }
 
         return response()->json([
             'success' => true,
