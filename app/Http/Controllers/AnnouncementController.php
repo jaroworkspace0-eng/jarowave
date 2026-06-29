@@ -83,24 +83,31 @@ class AnnouncementController extends Controller
         $sender = auth()->user();
 
         // Resolve target user IDs for socket delivery + email
+        // Resolve target user IDs for socket delivery + email
         $targetUserIds = null;
+        $emailTargetUserIds = null;
 
         if ($validated['target'] === 'all') {
-            $targetUserIds = \App\Models\User::pluck('id')->toArray();
+            $emailTargetUserIds = \App\Models\User::pluck('id')->toArray();
+            // $targetUserIds stays null — Node will broadcast to all connected sockets
         } elseif ($validated['target'] === 'client' && !empty($validated['target_client_ids'])) {
             $targetUserIds = \App\Models\Client::whereIn('id', $validated['target_client_ids'])
                 ->pluck('user_id')
                 ->toArray();
+            $emailTargetUserIds = $targetUserIds;
         } elseif ($validated['target'] === 'users' && !empty($validated['target_user_ids'])) {
             $targetUserIds = $validated['target_user_ids'];
+            $emailTargetUserIds = $targetUserIds;
         } elseif ($validated['target'] === 'household' && !empty($validated['target_household_ids'])) {
             $targetUserIds = Employee::whereIn('id', $validated['target_household_ids'])
                 ->pluck('user_id')
                 ->toArray();
+            $emailTargetUserIds = $targetUserIds;
         } elseif ($validated['target'] === 'field_unit' && !empty($validated['target_patroller_ids'])) {
             $targetUserIds = Employee::whereIn('id', $validated['target_patroller_ids'])
                 ->pluck('user_id')
                 ->toArray();
+            $emailTargetUserIds = $targetUserIds;
         } elseif ($validated['target'] === 'channel' && !empty($validated['target_channel_ids'])) {
             $roleFilter = $validated['channel_role_filter'] ?? 'all';
 
@@ -115,9 +122,10 @@ class AnnouncementController extends Controller
             }
 
             $targetUserIds = $query->pluck('employees.user_id')->unique()->values()->toArray();
+            $emailTargetUserIds = $targetUserIds;
         }
 
-        // Guard: prevent silently sending to nobody
+        // Guard: prevent silently sending to nobody (skip for 'all' — always has recipients)
         if ($validated['target'] !== 'all' && empty($targetUserIds)) {
             return response()->json([
                 'message' => 'No recipients matched this selection. Please check your audience and try again.',
@@ -148,11 +156,13 @@ class AnnouncementController extends Controller
 
         // Push to Node
         try {
+
             $payload = [
-                'title'   => $validated['title'],
-                'message' => $validated['message'],
-                'type'    => $validated['type'],
-                'from'    => $sender->name,
+                'title'      => $validated['title'],
+                'message'    => $validated['message'],
+                'type'       => $validated['type'],
+                'from'       => $sender->name,
+                'department' => $validated['department'] ?? 'Administrator',
             ];
 
             if ($targetUserIds) {
@@ -172,9 +182,10 @@ class AnnouncementController extends Controller
             Log::warning('PTT announcement push failed: ' . $e->getMessage());
         }
 
+
         // Email delivery
-        if (!empty($validated['send_email']) && $targetUserIds) {
-            $emailUsers = \App\Models\User::whereIn('id', $targetUserIds)
+        if (!empty($validated['send_email']) && $emailTargetUserIds) {
+            $emailUsers = \App\Models\User::whereIn('id', $emailTargetUserIds)
                 ->whereNotNull('email')
                 ->get();
 
