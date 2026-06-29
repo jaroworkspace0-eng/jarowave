@@ -23,6 +23,10 @@ export default {
             patrollers: [],
             householdSearchLoading: false,
             householdSearchTimer: null,
+            channels: [],
+            channelSearch: '',
+            channelSearchLoading: false,
+            channelSearchTimer: null,
             showCompose: false,
             sending: false,
             loading: true,
@@ -34,6 +38,8 @@ export default {
             households: [],
             deleteTargetId: null,
             showDeleteModal: false,
+            showDetailModal: false,
+            detailAnnouncement: null,
             showClientAnnouncements: false,
             clientAnnouncements: [],
             clientAnnouncementsLoading: false,
@@ -62,11 +68,68 @@ export default {
                 target_client_ids: [],
                 target_household_ids: [],
                 target_patroller_ids: [],
+                target_channel_ids: [],
+                channel_role_filter: 'all',
+                department: '',
+                send_email: false,
                 app_version: '',
                 playstore_url: '',
                 min_version_code: null,
                 force_update: false,
             },
+            departmentGroups: [
+                {
+                    label: 'Corporate',
+                    options: [
+                        'Administration',
+                        'Management',
+                        'Communications',
+                        'Operations',
+                        'Office',
+                        'Support',
+                        'Echo Link Team',
+                    ],
+                },
+                {
+                    label: 'Estate/Community Focus',
+                    options: [
+                        'Community Management',
+                        'Estate Administration',
+                        'Estate Management',
+                        'Security Operations',
+                        'Community Relations',
+                        'Resident Services',
+                        'Control Centre',
+                    ],
+                },
+                {
+                    label: 'Financial',
+                    options: [
+                        'Finance Department',
+                        'Accounts Department',
+                        'Billing Department',
+                        'Finance & Accounts',
+                    ],
+                },
+                {
+                    label: 'Technical',
+                    options: [
+                        'IT Department',
+                        'Technical Support',
+                        'System Administration',
+                        'Platform Operations',
+                    ],
+                },
+                {
+                    label: 'Executive',
+                    options: [
+                        'Executive Office',
+                        'Management Office',
+                        'Office of the CEO',
+                        'Executive Communications',
+                    ],
+                },
+            ],
             types: [
                 {
                     value: 'general',
@@ -149,6 +212,7 @@ export default {
         this.loadClients();
         this.loadHouseholds();
         this.loadPatrollers();
+        this.loadChannels();
     },
 
     watch: {
@@ -162,6 +226,13 @@ export default {
             clearTimeout(this.patrollerSearchTimer);
             this.patrollerSearchTimer = setTimeout(() => {
                 this.loadPatrollers(val);
+            }, 350);
+        },
+
+        channelSearch(val) {
+            clearTimeout(this.channelSearchTimer);
+            this.channelSearchTimer = setTimeout(() => {
+                this.loadChannels(val);
             }, 350);
         },
     },
@@ -187,14 +258,16 @@ export default {
             if (this.isAdmin) {
                 return [
                     { value: 'all', label: 'All Operators' },
-                    { value: 'client', label: 'Specific Client' },
-                    { value: 'household', label: 'Household' },
-                    { value: 'field_unit', label: 'Field Unit' },
+                    { value: 'client', label: 'Clients' },
+                    { value: 'household', label: 'Households' },
+                    { value: 'field_unit', label: 'Field Units' },
+                    { value: 'channel', label: 'Channels' },
                 ];
             }
             return [
                 { value: 'household', label: 'Household' },
                 { value: 'field_unit', label: 'Field Unit' },
+                { value: 'channel', label: 'Channel' },
             ];
         },
 
@@ -238,6 +311,25 @@ export default {
 
         filteredPatrollers() {
             return this.patrollers;
+        },
+
+        filteredChannels() {
+            return this.channels;
+        },
+
+        allChannelsSelected() {
+            return (
+                this.filteredChannels.length > 0 &&
+                this.filteredChannels.every((c) =>
+                    this.form.target_channel_ids.includes(c.id),
+                )
+            );
+        },
+        someChannelsSelected() {
+            return (
+                this.form.target_channel_ids.length > 0 &&
+                !this.allChannelsSelected
+            );
         },
 
         allClientsSelected() {
@@ -442,6 +534,52 @@ export default {
             }
         },
 
+        toggleChannel(id) {
+            const idx = this.form.target_channel_ids.indexOf(id);
+            if (idx === -1) this.form.target_channel_ids.push(id);
+            else this.form.target_channel_ids.splice(idx, 1);
+        },
+
+        toggleAllChannels() {
+            if (this.allChannelsSelected) {
+                const visibleIds = this.filteredChannels.map((c) => c.id);
+                this.form.target_channel_ids =
+                    this.form.target_channel_ids.filter(
+                        (id) => !visibleIds.includes(id),
+                    );
+            } else {
+                const visibleIds = this.filteredChannels.map((c) => c.id);
+                this.form.target_channel_ids = [
+                    ...new Set([
+                        ...this.form.target_channel_ids,
+                        ...visibleIds,
+                    ]),
+                ];
+            }
+        },
+
+        async loadChannels(search = '') {
+            this.channelSearchLoading = true;
+            try {
+                const params = {};
+                if (search) params.search = search;
+                if (!this.isAdmin) params.scoped = 1;
+                const { data } = await axios.get(
+                    `${import.meta.env.VITE_APP_URL}/api/channels/list`,
+                    { headers: authHeaders(), params },
+                );
+                this.channels = Array.isArray(data) ? data : data.data || [];
+            } catch (e) {
+                console.error('[Channels]', e?.response?.status, e?.message);
+            } finally {
+                this.channelSearchLoading = false;
+            }
+        },
+
+        channelDisplayName(c) {
+            return c.name || `Channel #${c.id}`;
+        },
+
         openCompose() {
             this.form.target = this.isAdmin ? 'all' : 'household';
             this.showCompose = true;
@@ -581,6 +719,25 @@ export default {
             this.showDeleteModal = true;
         },
 
+        openDetail(a) {
+            this.detailAnnouncement = a;
+            this.showDetailModal = true;
+        },
+
+        closeDetail() {
+            this.showDetailModal = false;
+            this.detailAnnouncement = null;
+        },
+
+        isLongMessage(msg) {
+            return (msg || '').length > 120;
+        },
+
+        truncatedMessage(msg) {
+            if (!msg) return '';
+            return msg.length > 120 ? msg.slice(0, 120).trim() + '…' : msg;
+        },
+
         async executeDelete() {
             try {
                 await axios.delete(
@@ -604,6 +761,7 @@ export default {
             this.clientSearch = '';
             this.householdSearch = '';
             this.patrollerSearch = '';
+            this.channelSearch = '';
             this.form = {
                 title: '',
                 message: '',
@@ -613,6 +771,9 @@ export default {
                 target_client_ids: [],
                 target_household_ids: [],
                 target_patroller_ids: [],
+                target_channel_ids: [],
+                channel_role_filter: 'all',
+                send_email: false,
                 app_version: '',
                 playstore_url: '',
                 min_version_code: null,
@@ -676,8 +837,37 @@ export default {
                 if (ids.length === 1) return `Field Unit #${ids[0]}`;
                 return `${ids.length} Field Units`;
             }
+
+            if (a.target === 'channel') {
+                const ids = a.target_channel_ids || [];
+                if (!ids.length) return 'Channels';
+                if (ids.length === 1) {
+                    const c = this.channels.find((c) => c.id == ids[0]);
+                    return c
+                        ? this.channelDisplayName(c)
+                        : `Channel #${ids[0]}`;
+                }
+                return `${ids.length} Channels`;
+            }
             if (a.target === 'email') return a.target_email || 'Email';
             return 'All Operators';
+        },
+        fromLabel(a) {
+            if (a.department) {
+                return `${a.sender?.name || 'Admin'}`;
+                // return `${a.department} · ${a.sender?.name || 'Admin'}`;
+            }
+            return a.sender?.name || 'Admin';
+        },
+
+        formatSentAt(ts) {
+            if (!ts) return '—';
+            return new Date(ts).toLocaleString('en-ZA', {
+                day: 'numeric',
+                month: 'short',
+                hour: '2-digit',
+                minute: '2-digit',
+            });
         },
 
         timeAgo(ts) {
@@ -845,6 +1035,7 @@ export default {
                         <tr>
                             <th>Type</th>
                             <th>Announcement</th>
+                            <th>Department</th>
                             <th>Audience</th>
                             <th>Sender</th>
                             <th>Sent</th>
@@ -887,8 +1078,24 @@ export default {
                                     {{ a.title }}
                                 </div>
                                 <div class="td-announce__sub">
-                                    {{ a.message }}
+                                    {{ truncatedMessage(a.message) }}
+                                    <button
+                                        v-if="isLongMessage(a.message)"
+                                        type="button"
+                                        class="read-more-link"
+                                        @click="openDetail(a)"
+                                    >
+                                        Read more
+                                    </button>
                                 </div>
+                            </td>
+                            <td>
+                                <span
+                                    v-if="a.department"
+                                    class="department-badge"
+                                    >{{ a.department }}</span
+                                >
+                                <span v-else class="td-muted">—</span>
                             </td>
                             <td>
                                 <span class="audience-badge">{{
@@ -896,10 +1103,10 @@ export default {
                                 }}</span>
                             </td>
                             <td class="td-muted">
-                                {{ a.sender?.name || 'Admin' }}
+                                {{ fromLabel(a) }}
                             </td>
                             <td class="td-time">
-                                {{ timeAgo(a.sent_at || a.created_at) }}
+                                {{ formatSentAt(a.sent_at || a.created_at) }}
                             </td>
                             <td>
                                 <button
@@ -1034,6 +1241,57 @@ export default {
                                     />
                                 </svg>
                             </div>
+                        </div>
+
+                        <!-- Department -->
+                        <div class="field">
+                            <label class="field__label"
+                                >Sent By (Department)</label
+                            >
+                            <div class="select-wrapper">
+                                <select
+                                    v-model="form.department"
+                                    class="field__select"
+                                    :class="{
+                                        'field__input--error': !form.department,
+                                    }"
+                                    required
+                                >
+                                    <option value="" disabled>
+                                        Select a department…
+                                    </option>
+                                    <optgroup
+                                        v-for="group in departmentGroups"
+                                        :key="group.label"
+                                        :label="group.label"
+                                    >
+                                        <option
+                                            v-for="opt in group.options"
+                                            :key="opt"
+                                            :value="opt"
+                                        >
+                                            {{ opt }}
+                                        </option>
+                                    </optgroup>
+                                </select>
+                                <svg
+                                    class="select-caret"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        d="M19 9l-7 7-7-7"
+                                    />
+                                </svg>
+                            </div>
+                            <span v-if="!form.department" class="field__error"
+                                >Please select a department</span
+                            >
                         </div>
 
                         <!-- Payment subtype panel -->
@@ -1280,6 +1538,50 @@ export default {
                                 </div>
                             </div>
                         </transition>
+
+                        <!-- ▼▼▼ INSERT HERE — email delivery toggle ▼▼▼ -->
+                        <div class="field">
+                            <label class="field__label">Delivery</label>
+                            <div
+                                class="email-toggle-row"
+                                @click="form.send_email = !form.send_email"
+                            >
+                                <span
+                                    class="multi-checkbox"
+                                    :class="{
+                                        'multi-checkbox--checked':
+                                            form.send_email,
+                                    }"
+                                >
+                                    <svg
+                                        v-if="form.send_email"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        class="h-3 w-3"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        stroke-width="3"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            d="M5 13l4 4L19 7"
+                                        />
+                                    </svg>
+                                </span>
+                                <div class="email-toggle-row__text">
+                                    <span class="email-toggle-row__label"
+                                        >Also send via email</span
+                                    >
+                                    <span class="email-toggle-row__hint"
+                                        >Recipients will get this announcement
+                                        in their inbox as well as a push
+                                        notification</span
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                        <!-- ▲▲▲ END INSERT ▲▲▲ -->
 
                         <!-- Title -->
                         <div class="field">
@@ -1868,6 +2170,229 @@ export default {
                             </div>
                         </transition>
 
+                        <!-- Channel picker - multi select -->
+                        <transition name="slide-down">
+                            <div class="field" v-if="form.target === 'channel'">
+                                <label class="field__label">
+                                    Select Channels
+                                    <span
+                                        class="field__count"
+                                        v-if="form.target_channel_ids.length"
+                                    >
+                                        {{ form.target_channel_ids.length }}
+                                        selected
+                                    </span>
+                                </label>
+
+                                <!-- ▼▼▼ INSERT HERE — role sub-filter ▼▼▼ -->
+                                <div
+                                    class="toggle-row"
+                                    style="margin-bottom: 10px"
+                                >
+                                    <button
+                                        type="button"
+                                        class="toggle-btn"
+                                        :class="{
+                                            'toggle-btn--on':
+                                                form.channel_role_filter ===
+                                                'all',
+                                        }"
+                                        @click="
+                                            form.channel_role_filter = 'all'
+                                        "
+                                    >
+                                        All
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="toggle-btn"
+                                        :class="{
+                                            'toggle-btn--on':
+                                                form.channel_role_filter ===
+                                                'household',
+                                        }"
+                                        @click="
+                                            form.channel_role_filter =
+                                                'household'
+                                        "
+                                    >
+                                        Households
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="toggle-btn"
+                                        :class="{
+                                            'toggle-btn--on':
+                                                form.channel_role_filter ===
+                                                'field_unit',
+                                        }"
+                                        @click="
+                                            form.channel_role_filter =
+                                                'field_unit'
+                                        "
+                                    >
+                                        Field Units
+                                    </button>
+                                </div>
+                                <div class="search-select-wrapper">
+                                    <div class="search-input-row">
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            class="search-icon"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                                            />
+                                        </svg>
+                                        <input
+                                            v-model="channelSearch"
+                                            type="text"
+                                            class="search-input"
+                                            placeholder="Search channels…"
+                                        />
+                                        <span
+                                            v-if="channelSearch"
+                                            class="search-clear"
+                                            @click="channelSearch = ''"
+                                            >×</span
+                                        >
+                                    </div>
+
+                                    <div
+                                        class="select-all-row"
+                                        @click="toggleAllChannels"
+                                    >
+                                        <span
+                                            class="multi-checkbox"
+                                            :class="{
+                                                'multi-checkbox--checked':
+                                                    allChannelsSelected,
+                                                'multi-checkbox--indeterminate':
+                                                    someChannelsSelected,
+                                            }"
+                                        >
+                                            <svg
+                                                v-if="allChannelsSelected"
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                class="h-3 w-3"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="3"
+                                            >
+                                                <path
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    d="M5 13l4 4L19 7"
+                                                />
+                                            </svg>
+                                            <svg
+                                                v-else-if="someChannelsSelected"
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                class="h-3 w-3"
+                                                viewBox="0 0 24 24"
+                                                fill="currentColor"
+                                            >
+                                                <rect
+                                                    x="4"
+                                                    y="11"
+                                                    width="16"
+                                                    height="2"
+                                                    rx="1"
+                                                />
+                                            </svg>
+                                        </span>
+                                        <span class="select-all-label">{{
+                                            allChannelsSelected
+                                                ? 'Deselect All'
+                                                : 'Select All'
+                                        }}</span>
+                                    </div>
+
+                                    <div class="search-list">
+                                        <div
+                                            v-if="
+                                                filteredChannels.length === 0 &&
+                                                channelSearch
+                                            "
+                                            class="search-list__empty"
+                                        >
+                                            No results for "{{ channelSearch }}"
+                                        </div>
+                                        <div
+                                            v-else-if="
+                                                filteredChannels.length === 0
+                                            "
+                                            class="search-list__empty"
+                                        >
+                                            No channels found
+                                        </div>
+                                        <div
+                                            v-for="c in filteredChannels"
+                                            :key="c.id"
+                                            class="search-list__item"
+                                            :class="{
+                                                'search-list__item--active':
+                                                    form.target_channel_ids.includes(
+                                                        c.id,
+                                                    ),
+                                            }"
+                                            @click="toggleChannel(c.id)"
+                                        >
+                                            <span
+                                                class="multi-checkbox"
+                                                :class="{
+                                                    'multi-checkbox--checked':
+                                                        form.target_channel_ids.includes(
+                                                            c.id,
+                                                        ),
+                                                }"
+                                            >
+                                                <svg
+                                                    v-if="
+                                                        form.target_channel_ids.includes(
+                                                            c.id,
+                                                        )
+                                                    "
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    class="h-3 w-3"
+                                                    viewBox="0 0 24 24"
+                                                    fill="none"
+                                                    stroke="currentColor"
+                                                    stroke-width="3"
+                                                >
+                                                    <path
+                                                        stroke-linecap="round"
+                                                        stroke-linejoin="round"
+                                                        d="M5 13l4 4L19 7"
+                                                    />
+                                                </svg>
+                                            </span>
+                                            <span class="search-list__name">
+                                                {{ channelDisplayName(c) }}
+                                                <span
+                                                    class="search-list__email"
+                                                >
+                                                    {{
+                                                        c.client?.user
+                                                            ?.organisation_name ||
+                                                        c.client?.user?.name ||
+                                                        ''
+                                                    }}
+                                                </span>
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </transition>
+
                         <!-- Actions -->
                         <div class="modal-actions">
                             <button
@@ -1880,11 +2405,17 @@ export default {
                             <button
                                 type="submit"
                                 class="btn-primary"
-                                :disabled="sending || !isAppUpdateValid"
+                                :disabled="
+                                    sending ||
+                                    !isAppUpdateValid ||
+                                    !form.department
+                                "
                                 :title="
-                                    !isAppUpdateValid
-                                        ? 'Fill in all App Update fields before sending'
-                                        : ''
+                                    !form.department
+                                        ? 'Please select a department before sending'
+                                        : !isAppUpdateValid
+                                          ? 'Fill in all App Update fields before sending'
+                                          : ''
                                 "
                             >
                                 <svg
@@ -1954,6 +2485,121 @@ export default {
                         </button>
                         <button @click="executeDelete" class="btn-danger">
                             Delete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
+        <!-- DETAIL MODAL -->
+        <transition name="modal">
+            <div
+                v-if="showDetailModal"
+                class="modal-backdrop"
+                @click.self="closeDetail"
+            >
+                <div class="detail-modal" v-if="detailAnnouncement">
+                    <div class="detail-modal__header">
+                        <div>
+                            <span
+                                class="type-badge"
+                                :class="typeInfo(detailAnnouncement.type).badge"
+                            >
+                                {{ typeInfo(detailAnnouncement.type).label }}
+                            </span>
+                            <span
+                                v-if="
+                                    detailAnnouncement.type === 'payment' &&
+                                    detailAnnouncement.payment_subtype
+                                "
+                                class="payment-sub-badge"
+                                style="margin-left: 6px"
+                            >
+                                {{
+                                    paymentSubtypeInfo(
+                                        detailAnnouncement.payment_subtype,
+                                    )?.label ||
+                                    detailAnnouncement.payment_subtype
+                                }}
+                            </span>
+                        </div>
+                        <button class="close-btn" @click="closeDetail">
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M6 18L18 6M6 6l12 12"
+                                />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="detail-modal__body">
+                        <h2 class="detail-modal__title">
+                            {{ detailAnnouncement.title }}
+                        </h2>
+                        <p class="detail-modal__message">
+                            {{ detailAnnouncement.message }}
+                        </p>
+
+                        <div class="detail-modal__meta">
+                            <div class="detail-modal__meta-row">
+                                <span class="detail-modal__meta-label"
+                                    >From</span
+                                >
+                                <span class="detail-modal__meta-value">{{
+                                    fromLabel(detailAnnouncement)
+                                }}</span>
+                            </div>
+                            <div class="detail-modal__meta-row">
+                                <span class="detail-modal__meta-label"
+                                    >Audience</span
+                                >
+                                <span class="detail-modal__meta-value">{{
+                                    targetLabel(detailAnnouncement)
+                                }}</span>
+                            </div>
+                            <div class="detail-modal__meta-row">
+                                <span class="detail-modal__meta-label"
+                                    >Sent</span
+                                >
+                                <span class="detail-modal__meta-value">{{
+                                    new Date(
+                                        detailAnnouncement.sent_at ||
+                                            detailAnnouncement.created_at,
+                                    ).toLocaleString('en-ZA', {
+                                        day: 'numeric',
+                                        month: 'short',
+                                        year: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                    })
+                                }}</span>
+                            </div>
+                            <div
+                                class="detail-modal__meta-row"
+                                v-if="detailAnnouncement.type === 'update_app'"
+                            >
+                                <span class="detail-modal__meta-label"
+                                    >Version</span
+                                >
+                                <span class="detail-modal__meta-value">{{
+                                    detailAnnouncement.app_version || '—'
+                                }}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="detail-modal__footer">
+                        <button class="btn-ghost" @click="closeDetail">
+                            Close
                         </button>
                     </div>
                 </div>
@@ -2770,9 +3416,14 @@ export default {
 .td-announce__sub {
     font-size: 12px;
     color: #64748b;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 4px;
+    line-height: 1.5;
 }
 .audience-badge {
     background: #f1f5f9;
@@ -3642,5 +4293,131 @@ export default {
     .table-card {
         overflow-x: auto;
     }
+}
+
+.email-toggle-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 11px 14px;
+    background: #f8fafc;
+    border: 1.5px solid #e4e8ef;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.email-toggle-row:hover {
+    border-color: #cbd5e1;
+}
+.email-toggle-row__text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.email-toggle-row__label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1a2332;
+}
+.email-toggle-row__hint {
+    font-size: 11px;
+    color: #94a3b8;
+    line-height: 1.4;
+}
+
+.department-badge {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border-radius: 6px;
+    padding: 3px 9px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    display: inline-block;
+}
+.read-more-link {
+    background: none;
+    border: none;
+    color: #ea580c;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    padding: 0;
+    margin-left: 4px;
+    font-family: inherit;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.read-more-link:hover {
+    color: #c2410c;
+}
+
+.detail-modal {
+    background: #ffffff !important;
+    border-radius: 20px;
+    width: 100%;
+    max-width: 520px;
+    max-height: 85vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+    border: 1px solid #e4e8ef;
+    overflow: hidden;
+}
+.detail-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e4e8ef;
+    flex-shrink: 0;
+}
+.detail-modal__body {
+    padding: 24px;
+    overflow-y: auto;
+    flex: 1;
+}
+.detail-modal__title {
+    font-size: 18px;
+    font-weight: 800;
+    color: #1a2332;
+    margin: 0 0 12px;
+    letter-spacing: -0.3px;
+}
+.detail-modal__message {
+    font-size: 14px;
+    color: #475569;
+    line-height: 1.7;
+    white-space: pre-line;
+    margin: 0 0 24px;
+}
+.detail-modal__meta {
+    border-top: 1px solid #f1f5f9;
+    padding-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.detail-modal__meta-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+}
+.detail-modal__meta-label {
+    color: #94a3b8;
+    font-weight: 600;
+}
+.detail-modal__meta-value {
+    color: #1a2332;
+    font-weight: 700;
+    text-align: right;
+}
+.detail-modal__footer {
+    padding: 16px 24px;
+    border-top: 1px solid #e4e8ef;
+    display: flex;
+    justify-content: flex-end;
+    flex-shrink: 0;
 }
 </style>

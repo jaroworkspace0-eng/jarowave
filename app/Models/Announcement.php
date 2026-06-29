@@ -14,6 +14,8 @@ class Announcement extends Model
         'target_client_ids',
         'target_user_ids',
         'target_employee_ids',
+        'target_channel_ids',
+        'department',
         'payment_subtype',
         'app_version',
         'playstore_url',
@@ -27,6 +29,7 @@ class Announcement extends Model
         'target_client_ids'    => 'array',
         'target_user_ids'      => 'array',
         'target_employee_ids' => 'array',
+        'target_channel_ids' => 'array',
         'force_update'         => 'boolean',
         'sent_at'              => 'datetime',
     ];

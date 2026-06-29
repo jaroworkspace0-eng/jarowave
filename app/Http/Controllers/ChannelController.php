@@ -199,6 +199,37 @@ class ChannelController extends Controller
            return Channel::where('is_active', 1)->get();
     }
 
+
+    /**
+     * Lightweight list for pickers (e.g. announcement composer).
+     */
+    public function list(Request $request)
+    {
+        $user = $request->user();
+
+        $query = Channel::where('is_active', 1)
+            ->with('client.user')
+            ->orderBy('name');
+
+        if ($user->role !== 'admin') {
+            $clientId = $user->client->id;
+            $query->where('client_id', $clientId);
+        }
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                ->orWhereHas('client.user', function ($q2) use ($search) {
+                    $q2->where('name', 'like', "%{$search}%")
+                        ->orWhere('organisation_name', 'like', "%{$search}%");
+                });
+            });
+        }
+
+        return response()->json($query->get());
+    }
+
     /**
      * Show the form for editing the specified resource.
      */

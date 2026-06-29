@@ -573,6 +573,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     });
 
 
+    Route::get('/channels/list', [ChannelController::class, 'list']);
     Route::resource('channels', ChannelController::class);
 
     Route::patch('/channels/{channel}/toggle-status', [ChannelController::class, 'toggleStatus']);

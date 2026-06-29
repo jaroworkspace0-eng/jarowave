@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\AnnouncementMail;
 use App\Models\Announcement;
 use App\Models\Employee;
 use App\Models\User;
@@ -9,6 +10,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class AnnouncementController extends Controller
 {
@@ -28,26 +30,40 @@ class AnnouncementController extends Controller
      * Send a new announcement.
      * Pushes to Node server which handles socket + FCM delivery.
      */
-   public function send(Request $request)
+
+    public function send(Request $request)
     {
         $validated = $request->validate([
-            'title'                => 'required|string|max:100',
-            'message'              => 'required|string|max:1000',
-            'type'                 => 'required|in:general,urgent,update,policy,payment,update_app',
-            'target' => 'required|in:all,client,users,household,field_unit',
-            'target_client_ids'    => 'nullable|array',
-            'target_client_ids.*'  => 'integer|exists:clients,id',
-            'target_user_ids'      => 'nullable|array',
-            'target_user_ids.*'    => 'integer|exists:users,id',
-            'target_household_ids' => 'nullable|array',
-            'target_household_ids.*'=> 'integer|exists:employees,id',
-            'payment_subtype'      => 'nullable|string',
-            'app_version'          => 'nullable|string',
-            'playstore_url'        => 'nullable|url',
-            'min_version_code'     => 'nullable|integer|min:1',
-            'force_update'         => 'nullable|boolean',
+            'title'                  => 'required|string|max:100',
+            'message'                => 'required|string|max:1000',
+            'type'                   => 'required|in:general,urgent,update,policy,payment,update_app',
+            'target'                 => 'required|in:all,client,users,household,field_unit,channel',
+            'target_client_ids'      => 'nullable|array',
+            'target_client_ids.*'    => 'integer|exists:clients,id',
+            'target_user_ids'        => 'nullable|array',
+            'target_user_ids.*'      => 'integer|exists:users,id',
+            'target_household_ids'   => 'nullable|array',
+            'target_household_ids.*' => 'integer|exists:employees,id',
+            'target_channel_ids'     => 'nullable|array',
+            'target_channel_ids.*'   => 'integer|exists:channels,id',
+            'channel_role_filter'    => 'nullable|in:all,household,field_unit',
+            'payment_subtype'        => 'nullable|string',
+            'app_version'            => 'nullable|string',
+            'playstore_url'          => 'nullable|url',
+            'min_version_code'       => 'nullable|integer|min:1',
+            'force_update'           => 'nullable|boolean',
             'target_patroller_ids'   => 'nullable|array',
             'target_patroller_ids.*' => 'integer|exists:employees,id',
+            'send_email'             => 'nullable|boolean',
+
+            'department' => 'required|string|max:100|in:'
+            . 'Administration,Management,Communications,'
+            . 'Operations,Office,Support,Echo Link Team,'
+            . 'Community Management,Estate Administration,Estate Management,'
+            . 'Security Operations,Community Relations,Resident Services,Control Centre,'
+            . 'Finance Department,Accounts Department,Billing Department,Finance & Accounts,'
+            . 'IT Department,Technical Support,System Administration,Platform Operations,'
+            . 'Executive Office,Management Office,Office of the CEO,Executive Communications',
         ]);
 
         // Extra validation: update_app requires app_version + playstore_url
@@ -66,10 +82,13 @@ class AnnouncementController extends Controller
 
         $sender = auth()->user();
 
-        // Resolve target user IDs for socket delivery
+        // Resolve target user IDs for socket delivery + email
         $targetUserIds = null;
-        if ($validated['target'] === 'client' && !empty($validated['target_client_ids'])) {
-            $targetUserIds = Employee::whereIn('client_id', $validated['target_client_ids'])
+
+        if ($validated['target'] === 'all') {
+            $targetUserIds = \App\Models\User::pluck('id')->toArray();
+        } elseif ($validated['target'] === 'client' && !empty($validated['target_client_ids'])) {
+            $targetUserIds = \App\Models\Client::whereIn('id', $validated['target_client_ids'])
                 ->pluck('user_id')
                 ->toArray();
         } elseif ($validated['target'] === 'users' && !empty($validated['target_user_ids'])) {
@@ -82,9 +101,31 @@ class AnnouncementController extends Controller
             $targetUserIds = Employee::whereIn('id', $validated['target_patroller_ids'])
                 ->pluck('user_id')
                 ->toArray();
+        } elseif ($validated['target'] === 'channel' && !empty($validated['target_channel_ids'])) {
+            $roleFilter = $validated['channel_role_filter'] ?? 'all';
+
+            $query = Employee::whereHas('channels', function ($q) use ($validated) {
+                $q->whereIn('channels.id', $validated['target_channel_ids']);
+            })->join('users', 'users.id', '=', 'employees.user_id');
+
+            if ($roleFilter === 'household') {
+                $query->where('users.role', 'household');
+            } elseif ($roleFilter === 'field_unit') {
+                $query->where('users.role', 'employee');
+            }
+
+            $targetUserIds = $query->pluck('employees.user_id')->unique()->values()->toArray();
+        }
+
+        // Guard: prevent silently sending to nobody
+        if ($validated['target'] !== 'all' && empty($targetUserIds)) {
+            return response()->json([
+                'message' => 'No recipients matched this selection. Please check your audience and try again.',
+            ], 422);
         }
 
         Log::info('send payload', $request->all());
+
 
         $announcement = Announcement::create([
             'title'                => $validated['title'],
@@ -94,6 +135,8 @@ class AnnouncementController extends Controller
             'target_client_ids'    => $validated['target_client_ids'] ?? null,
             'target_user_ids'      => $targetUserIds ? $targetUserIds : null,
             'target_employee_ids'  => $validated['target_household_ids'] ?? null,
+            'target_channel_ids'   => $validated['target_channel_ids'] ?? null,
+            'department'           => $validated['department'],
             'payment_subtype'      => $validated['payment_subtype'] ?? null,
             'app_version'          => $validated['app_version'] ?? null,
             'playstore_url'        => $validated['playstore_url'] ?? null,
@@ -129,11 +172,154 @@ class AnnouncementController extends Controller
             Log::warning('PTT announcement push failed: ' . $e->getMessage());
         }
 
+        // Email delivery
+        if (!empty($validated['send_email']) && $targetUserIds) {
+            $emailUsers = \App\Models\User::whereIn('id', $targetUserIds)
+                ->whereNotNull('email')
+                ->get();
+
+            foreach ($emailUsers as $user) {
+                Mail::to($user->email)->queue(
+                    new \App\Mail\AnnouncementMail($announcement, $user->name ?? 'there')
+                );
+            }
+        }
+
         return response()->json([
             'success'      => true,
             'announcement' => $announcement->load('sender:id,name'),
         ]);
     }
+
+    // public function send(Request $request)
+    // {
+    //     $validated = $request->validate([
+    //         'title'                => 'required|string|max:100',
+    //         'message'              => 'required|string|max:1000',
+    //         'type'                 => 'required|in:general,urgent,update,policy,payment,update_app',
+    //         'target'                => 'required|in:all,client,users,household,field_unit,channel',
+    //         'target_client_ids'    => 'nullable|array',
+    //         'target_client_ids.*'  => 'integer|exists:clients,id',
+    //         'target_user_ids'      => 'nullable|array',
+    //         'target_user_ids.*'    => 'integer|exists:users,id',
+    //         'target_household_ids' => 'nullable|array',
+    //         'target_household_ids.*'=> 'integer|exists:employees,id',
+    //         'target_channel_ids'    => 'nullable|array',
+    //         'target_channel_ids.*'  => 'integer|exists:channels,id',
+    //         'payment_subtype'      => 'nullable|string',
+    //         'app_version'          => 'nullable|string',
+    //         'playstore_url'        => 'nullable|url',
+    //         'min_version_code'     => 'nullable|integer|min:1',
+    //         'force_update'         => 'nullable|boolean',
+    //         'target_patroller_ids'   => 'nullable|array',
+    //         'target_patroller_ids.*' => 'integer|exists:employees,id',
+    //         'send_email'             => 'nullable|boolean',
+    //     ]);
+
+    //     // Extra validation: update_app requires app_version + playstore_url
+    //     if ($validated['type'] === 'update_app') {
+    //         if (empty($validated['app_version']) || empty($validated['playstore_url'])) {
+    //             return response()->json([
+    //                 'message' => 'app_version and playstore_url are required for update_app announcements.',
+    //             ], 422);
+    //         }
+    //         if (!empty($validated['force_update']) && empty($validated['min_version_code'])) {
+    //             return response()->json([
+    //                 'message' => 'min_version_code is required when force_update is enabled.',
+    //             ], 422);
+    //         }
+    //     }
+
+    //     $sender = auth()->user();
+
+    //     // Resolve target user IDs for socket delivery
+    //     $targetUserIds = null;
+    //     if ($validated['target'] === 'client' && !empty($validated['target_client_ids'])) {
+    //         $targetUserIds = Employee::whereIn('client_id', $validated['target_client_ids'])
+    //             ->pluck('user_id')
+    //             ->toArray();
+    //     } elseif ($validated['target'] === 'users' && !empty($validated['target_user_ids'])) {
+    //         $targetUserIds = $validated['target_user_ids'];
+    //     } elseif ($validated['target'] === 'household' && !empty($validated['target_household_ids'])) {
+    //         $targetUserIds = Employee::whereIn('id', $validated['target_household_ids'])
+    //             ->pluck('user_id')
+    //             ->toArray();
+    //     } elseif ($validated['target'] === 'field_unit' && !empty($validated['target_patroller_ids'])) {
+    //         $targetUserIds = Employee::whereIn('id', $validated['target_patroller_ids'])
+    //             ->pluck('user_id')
+    //             ->toArray();
+    //     } elseif ($validated['target'] === 'channel' && !empty($validated['target_channel_ids'])) {
+    //         $targetUserIds = Employee::whereHas('channels', function ($q) use ($validated) {
+    //             $q->whereIn('channels.id', $validated['target_channel_ids']);
+    //         })
+    //             ->pluck('user_id')
+    //             ->toArray();
+    //     }
+
+    //     Log::info('send payload', $request->all());
+
+    //     $announcement = Announcement::create([
+    //         'title'                => $validated['title'],
+    //         'message'              => $validated['message'],
+    //         'type'                 => $validated['type'],
+    //         'target'               => $validated['target'],
+    //         'target_client_ids'    => $validated['target_client_ids'] ?? null,
+    //         'target_user_ids'      => $targetUserIds ? $targetUserIds : null,
+    //         'target_employee_ids'  => $validated['target_household_ids'] ?? null,
+    //         'target_channel_ids'   => $validated['target_channel_ids'] ?? null,
+    //         'payment_subtype'      => $validated['payment_subtype'] ?? null,
+    //         'app_version'          => $validated['app_version'] ?? null,
+    //         'playstore_url'        => $validated['playstore_url'] ?? null,
+    //         'min_version_code'     => $validated['min_version_code'] ?? null,
+    //         'force_update'         => $validated['force_update'] ?? false,
+    //         'sent_by'              => $sender->id,
+    //         'sent_at'              => now(),
+    //     ]);
+
+    //     // Push to Node
+    //     try {
+    //         $payload = [
+    //             'title'   => $validated['title'],
+    //             'message' => $validated['message'],
+    //             'type'    => $validated['type'],
+    //             'from'    => $sender->name,
+    //         ];
+
+    //         if ($targetUserIds) {
+    //             $payload['targetUserIds'] = $targetUserIds;
+    //         }
+
+    //         $response = Http::timeout(10)
+    //             ->withHeaders(['Authorization' => 'Bearer ' . env('ASSIGN_SECRET')])
+    //             ->post(env('PTT_SERVER_URL') . '/send-announcement', $payload);
+
+    //         $delivered = $response->json('socketDelivered', false);
+    //         $fcmSent   = $response->json('fcmSent', 0);
+
+    //         Log::info("Announcement sent: socketDelivered={$delivered} fcmSent={$fcmSent}");
+
+    //     } catch (\Exception $e) {
+    //             Log::warning('PTT announcement push failed: ' . $e->getMessage());
+    //         }
+
+    //     // Email delivery
+    //     if (!empty($validated['send_email']) && $targetUserIds) {
+    //         $emailUsers = \App\Models\User::whereIn('id', $targetUserIds)
+    //             ->whereNotNull('email')
+    //             ->get();
+
+    //         foreach ($emailUsers as $user) {
+    //             Mail::to($user->email)->queue(
+    //                 new \App\Mail\AnnouncementMail($announcement, $user->name ?? 'there')
+    //             );
+    //         }
+    //     }
+
+    //     return response()->json([
+    //         'success'      => true,
+    //         'announcement' => $announcement->load('sender:id,name'),
+    //     ]);
+    // }
 
     /**
      * Delete an announcement.
