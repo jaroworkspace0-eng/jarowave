@@ -15,11 +15,14 @@ use App\Http\Controllers\EmergencyAlertController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\HouseholdController;
 use App\Http\Controllers\Admin\IncidentReportExportController;
+use App\Http\Controllers\Api\Admin\PlatformTicketController;
+use App\Http\Controllers\Api\Estate\EstateTicketController;
 use App\Http\Controllers\Api\GuardEarningController;
 use App\Http\Controllers\Api\GuardianIncidentController;
 use App\Http\Controllers\Api\GuardianReportController;
 use App\Http\Controllers\Api\GuardianResponseController;
 use App\Http\Controllers\Api\HouseholdPairingController;
+use App\Http\Controllers\Api\TicketController;
 use App\Http\Controllers\Api\UserNotificationController;
 use App\Http\Controllers\BlockedHouseholdController;
 use App\Http\Controllers\ChannelBillingController;
@@ -282,6 +285,32 @@ Route::middleware('auth:sanctum')->prefix('payouts')->group(function () {
 Route::get('/', [PayoutController::class, 'index']);
 Route::get('/export',    [PayoutController::class, 'export']); 
 });
+
+
+
+    Route::middleware('auth:sanctum')->group(function () {
+        // mobile app — household tickets
+        Route::get('/tickets', [TicketController::class, 'index']);
+        Route::get('/tickets/{ticket}', [TicketController::class, 'show']);
+        Route::post('/tickets', [TicketController::class, 'store']);
+        Route::post('/tickets/{ticket}/reply', [TicketController::class, 'reply']);
+
+        // admin — platform tickets
+        Route::prefix('admin')->group(function () {
+            Route::get('/platform-tickets', [PlatformTicketController::class, 'index']);
+            Route::get('/platform-tickets/{ticket}', [PlatformTicketController::class, 'show']);
+            Route::post('/platform-tickets/{ticket}/reply', [PlatformTicketController::class, 'reply']);
+            Route::patch('/platform-tickets/{ticket}/status', [PlatformTicketController::class, 'updateStatus']);
+        });
+
+        // estate_billing — estate tickets
+        Route::prefix('estate')->group(function () {
+            Route::get('/tickets', [EstateTicketController::class, 'index']);
+            Route::get('/tickets/{ticket}', [EstateTicketController::class, 'show']);
+            Route::post('/tickets/{ticket}/reply', [EstateTicketController::class, 'reply']);
+            Route::patch('/tickets/{ticket}/status', [EstateTicketController::class, 'updateStatus']);
+        });
+    });
 
 
 Route::middleware(['auth:sanctum'])->group(function () { 

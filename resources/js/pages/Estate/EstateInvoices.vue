@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head } from '@inertiajs/vue3';
+import { useAuthStore } from '@/stores/auth';
+import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import {
     CheckCircle,
@@ -10,6 +11,14 @@ import {
     RefreshCw,
 } from 'lucide-vue-next';
 import { onMounted, ref } from 'vue';
+
+const auth = useAuthStore();
+
+onMounted(() => {
+    if (auth.user?.role !== 'estate_billing') {
+        router.visit('/dashboard');
+    }
+});
 
 interface Invoice {
     id: number;

@@ -2,7 +2,7 @@
 import Label from '@/components/ui/label/Label.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useAuthStore } from '@/stores/auth';
-import { Head } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import 'intl-tel-input/build/css/intlTelInput.css';
 import { computed, onMounted, ref, watch } from 'vue';
@@ -12,6 +12,12 @@ import 'vue-tel-input/vue-tel-input.css';
 import '../../../css/style.css';
 
 const auth = useAuthStore();
+
+onMounted(() => {
+    if (auth.user?.role !== 'admin' && auth.user?.role !== 'client') {
+        router.visit('/dashboard');
+    }
+});
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const generatePin = () => String(Math.floor(100000 + Math.random() * 900000));

@@ -11,6 +11,8 @@ Route::get('/', function () {
     return Inertia::render('auth/Login'); 
 })->name('home');
 
+
+
 // Route::middleware([])->group(function () {
 Route::get('/dashboard', function(){
     return Inertia::render('Dashboard');
@@ -134,6 +136,28 @@ Route::get('/estate/invoices/{invoice}/download', function (\App\Models\Invoice 
 
     return $pdf->download("invoice-{$invoice->invoice_number}.pdf");
 })->name('estate.invoice.download');
+
+
+
+
+// routes/web.php additions
+Route::get('/admin/platform-tickets', function () {
+    return inertia('Admin/PlatformTickets');
+});
+
+Route::get('/estate/tickets', function () {
+    return inertia('Estate/EstateTickets');
+});
+
+
+
+Route::get('/admin/platform-tickets', function () {
+    return inertia('Admin/PlatformTickets');
+});
+
+Route::get('/estate/tickets', function () {
+    return inertia('Estate/EstateTickets');
+});
 
 
 

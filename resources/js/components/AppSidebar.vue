@@ -32,6 +32,7 @@ import {
     Radio,
     RadioIcon,
     Shield,
+    Ticket as TicketIcon,
     Trash2,
 } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
@@ -110,6 +111,16 @@ const adminGroups: NavGroup[] = [
             },
         ],
     },
+    {
+        label: 'Support',
+        items: [
+            {
+                title: 'Platform Tickets',
+                href: '/admin/platform-tickets',
+                icon: TicketIcon,
+            },
+        ],
+    },
 ];
 
 const clientGroups: NavGroup[] = [
@@ -145,6 +156,12 @@ const estateBillingGroups: NavGroup[] = [
         label: 'Finance',
         items: [
             { title: 'Invoices', href: '/estate/invoices', icon: FileText },
+        ],
+    },
+    {
+        label: 'Support',
+        items: [
+            { title: 'Tickets', href: '/estate/tickets', icon: TicketIcon },
         ],
     },
 ];

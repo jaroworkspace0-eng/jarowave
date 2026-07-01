@@ -1,8 +1,17 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head } from '@inertiajs/vue3';
+import { useAuthStore } from '@/stores/auth';
+import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
+
+const auth = useAuthStore();
+
+onMounted(() => {
+    if (auth.user?.role !== 'admin') {
+        router.visit('/dashboard'); // redirect non-admins away
+    }
+});
 
 const reports = ref<any>({ data: [], total: 0, from: 0, to: 0, links: [] });
 const reportList = ref<any[]>([]);

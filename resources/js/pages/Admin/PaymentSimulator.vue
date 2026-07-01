@@ -1,8 +1,18 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
+import { useAuthStore } from '@/stores/auth';
 import { type BreadcrumbItem } from '@/types';
+import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { onMounted, ref } from 'vue';
+
+const auth = useAuthStore();
+
+onMounted(() => {
+    if (auth.user?.role !== 'admin') {
+        router.visit('/dashboard'); // redirect non-admins away
+    }
+});
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: '/dashboard' },

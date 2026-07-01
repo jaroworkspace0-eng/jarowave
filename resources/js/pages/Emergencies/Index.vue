@@ -1,7 +1,17 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
+import { useAuthStore } from '@/stores/auth';
+import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
+
+const auth = useAuthStore();
+
+onMounted(() => {
+    if (auth.user?.role !== 'admin' && auth.user?.role !== 'client') {
+        router.visit('/dashboard');
+    }
+});
 
 const alerts = ref<any[]>([]);
 const loading = ref(true);
