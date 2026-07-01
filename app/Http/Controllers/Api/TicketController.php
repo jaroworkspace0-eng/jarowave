@@ -1,4 +1,3 @@
-// app/Http/Controllers/Api/TicketController.php
 <?php
 
 namespace App\Http\Controllers\Api;
