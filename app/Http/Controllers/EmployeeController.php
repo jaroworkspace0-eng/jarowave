@@ -163,7 +163,16 @@ class EmployeeController extends Controller
             'phone'           => ['required', 'unique:users,phone', 'min:10', 'max:15', 'regex:/^\+[1-9]\d{1,14}$/'],
             'occupation'      => 'required|string',
             'password'        => 'required|string|min:8',
-            'channel_ids'     => 'required|array',
+            // 'channel_ids'     => 'required|array',
+             'channel_ids'     => [
+                'required',
+                'array',
+                function ($attribute, $value, $fail) use ($request) {
+                    if ($request->boolean('is_gate_guard') && count($value) > 1) {
+                        $fail('A gate guard can only be assigned to one channel.');
+                    }
+                },
+            ],
             'channel_ids.*'   => 'exists:channels,id',
             'role'            => 'required|string',
             'address_line_1'  => 'required_if:role,household,resident|nullable|string',
@@ -257,7 +266,15 @@ class EmployeeController extends Controller
             'phone'                     => ['required', 'min:10', 'max:15', Rule::unique('users', 'phone')->ignore($employee->user_id), 'regex:/^\+[1-9]\d{1,14}$/'],
             'occupation'                => 'required|string',
             'role'                      => 'required|string',
-            'channel_ids'               => 'array',
+            // 'channel_ids'               => 'array',
+            'channel_ids'   => [
+                'array',
+                function ($attribute, $value, $fail) use ($request) {
+                    if ($request->boolean('is_gate_guard') && count($value) > 1) {
+                        $fail('A gate guard can only be assigned to one channel.');
+                    }
+                },
+            ],
             'channel_ids.*'             => 'integer|exists:channels,id',
             'password'                  => 'nullable|string|min:8',
             'current_password'          => 'nullable|string',
@@ -293,14 +310,23 @@ class EmployeeController extends Controller
             $finalRole   = $this->isHouseholdRole($validated['role']) ? $validated['role'] : 'employee';
             $isHousehold = $this->isHouseholdRole($finalRole);
 
+            // $userData = [
+            //     'name'       => $validated['name'],
+            //     'email'      => $validated['email'],
+            //     'phone'      => $validated['phone'],
+            //     'occupation' => $validated['occupation'],
+            //     'role'       => $finalRole,
+            //     'is_gate_guard' => $validated['is_gate_guard'] ?? false,
+            // ];
+
             $userData = [
-                'name'       => $validated['name'],
-                'email'      => $validated['email'],
-                'phone'      => $validated['phone'],
-                'occupation' => $validated['occupation'],
-                'role'       => $finalRole,
-                'is_gate_guard' => $validated['is_gate_guard'] ?? false,
-            ];
+            'name'       => $validated['name'],
+            'email'      => $validated['email'],
+            'phone'      => $validated['phone'],
+            'occupation' => $validated['occupation'],
+            'role'       => $finalRole,
+            'is_gate_guard' => $isHousehold ? false : ($validated['is_gate_guard'] ?? false),
+        ];
 
             // Only overwrite address/pin fields from dashboard — never from app
             if (!$fromApp) {

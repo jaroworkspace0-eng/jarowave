@@ -57,7 +57,6 @@ let debounceTimeout: any = null;
 const confirmToggleEmployee = ref<any>(null);
 const clientChannels = ref<any[]>([]);
 
-// With these:
 const personnel = ref<any>({ data: [], from: 0, to: 0, total: 0, links: [] });
 const households = ref<any>({ data: [], from: 0, to: 0, total: 0, links: [] });
 const personnelList = ref<any[]>([]);
@@ -68,9 +67,9 @@ const householdTotal = ref(0);
 const employees = ref<any>({ data: [], from: 0, to: 0, total: 0, links: [] });
 
 // ── Subscription management state ─────────────────────────────────────────────
-const subActionMenu = ref<number | null>(null); // which row has open dropdown
+const subActionMenu = ref<number | null>(null);
 const menuPosition = ref({ top: 0, right: 0 });
-const subLoading = ref<number | null>(null); // subscription id being actioned
+const subLoading = ref<number | null>(null);
 const subFlash = ref<{ msg: string; type: 'success' | 'error' } | null>(null);
 const showPayHistory = ref(false);
 const payHistorySub = ref<any>(null);
@@ -129,14 +128,14 @@ function toggleSubMenu(subId: number, event: MouseEvent) {
     }
     const btn = event.currentTarget as HTMLElement;
     const rect = btn.getBoundingClientRect();
-    const dropdownHeight = 320; // approx height of dropdown
+    const dropdownHeight = 320;
     const spaceBelow = window.innerHeight - rect.bottom;
 
     menuPosition.value = {
         top:
             spaceBelow > dropdownHeight
-                ? rect.bottom + 4 // open downward
-                : rect.top - dropdownHeight - 4, // flip upward
+                ? rect.bottom + 4
+                : rect.top - dropdownHeight - 4,
         right: window.innerWidth - rect.right,
     };
     subActionMenu.value = subId;
@@ -290,8 +289,6 @@ async function toggleActivationFee(employee: any) {
 // ─── computed lists ───────────────────────────────────────────────────────────
 
 const clientOrgType = computed(() => {
-    // Get org type from the first household's subscription client_type
-    // or fall back from the employees list if available
     const first = householdList.value.find(
         (e) => e.user?.subscription?.client_type,
     );
@@ -308,7 +305,6 @@ const platformShare = computed(() =>
     clientOrgType.value === 'estate' ? 50 : 28,
 );
 
-// Earnings strip computed values
 const activeHouseholds = computed(
     () =>
         householdList.value.filter(
@@ -323,7 +319,6 @@ const trialingHouseholds = computed(
         ).length,
 );
 
-// Channels that don't yet have an invite link
 const channelsWithoutInvite = computed(() => {
     const usedChannelIds = new Set(invites.value.map((i) => i.channel_id));
     return clientChannels.value.filter((ch) => !usedChannelIds.has(ch.id));
@@ -498,6 +493,17 @@ watch(
                 form.value.safe_cancel_pin = '';
                 form.value.duress_pin = '';
             }
+        }
+    },
+);
+
+// Gate guards can only be tied to a single channel (single client/estate),
+// since their pay is a fixed share of that specific estate's guard fee.
+watch(
+    () => form.value.is_gate_guard,
+    (isGateGuard) => {
+        if (isGateGuard && form.value.channel_ids.length > 1) {
+            form.value.channel_ids = [form.value.channel_ids[0]];
         }
     },
 );
@@ -733,7 +739,14 @@ const editEmployee = (employee: any) => {
     form.value.unit_number = employee.user.unit_number || '';
     form.value.is_gate_guard = employee.user.is_gate_guard ?? false;
     form.value.is_estate = employee.user.is_estate ?? false;
-    // inComplex.value = !!employee.user.complex_name;
+
+    // Safety net for pre-fix data: a gate guard should only ever have one
+    // channel. If an older record somehow has more than one, keep just the
+    // first so the single-select UI and payload stay consistent.
+    if (form.value.is_gate_guard && form.value.channel_ids.length > 1) {
+        form.value.channel_ids = [form.value.channel_ids[0]];
+    }
+
     form.value.activation_fee_paid =
         employee.user.subscription?.activation_fee_paid ?? false;
     const allOptions = roleGroups.flatMap((g) => g.options);
@@ -2465,16 +2478,24 @@ const proceedNoCoverage = async () => {
                                 <Label for="channels">{{
                                     isHousehold
                                         ? 'Channel (one only)'
-                                        : 'Channels'
+                                        : form.is_gate_guard
+                                          ? 'Channel (one only — gate guard)'
+                                          : 'Channels'
                                 }}</Label>
                                 <span
                                     v-if="isHousehold"
                                     class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber-700 uppercase"
                                     >Household — 1 channel max</span
                                 >
+                                <span
+                                    v-else-if="form.is_gate_guard"
+                                    class="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold tracking-wide text-blue-700 uppercase"
+                                    >Gate Guard — 1 channel max</span
+                                >
                             </div>
                             <Multiselect
-                                v-if="isHousehold"
+                                v-if="isHousehold || form.is_gate_guard"
+                                :key="'single-' + form.client_id"
                                 v-model="form.channel_ids[0]"
                                 :options="filteredChannels"
                                 :multiple="false"
@@ -2495,6 +2516,7 @@ const proceedNoCoverage = async () => {
                             />
                             <Multiselect
                                 v-else
+                                :key="'multi-' + form.client_id"
                                 v-model="form.channel_ids"
                                 :options="filteredChannels"
                                 :multiple="true"
