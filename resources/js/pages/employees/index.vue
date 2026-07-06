@@ -32,6 +32,7 @@ const invites = ref<any[]>([]);
 const inviteLoading = ref(true);
 const isGenerating = ref(false);
 const selectedChannelId = ref('');
+const selectedAdminClientId = ref('');
 const inviteFlash = ref<{ msg: string; type: 'success' | 'error' } | null>(
     null,
 );
@@ -508,6 +509,16 @@ watch(
     },
 );
 
+watch(selectedAdminClientId, (clientId) => {
+    if (clientId) {
+        loadClientChannels(clientId);
+        loadInvites(clientId);
+    } else {
+        clientChannels.value = [];
+        invites.value = [];
+    }
+});
+
 // ─── computed ─────────────────────────────────────────────────────────────────
 const isHousehold = computed(() => isHouseholdRole(form.value.role));
 const filteredChannels = computed(() => {
@@ -569,11 +580,12 @@ const handleClients = async () => {
     } catch {}
 };
 
-const loadClientChannels = async () => {
+const loadClientChannels = async (clientId?: string) => {
     try {
+        const params = clientId ? { client_id: clientId } : {};
         const { data } = await axios.get(
             `${import.meta.env.VITE_APP_URL}/api/channels/mine`,
-            getHeaders(),
+            { ...getHeaders(), params },
         );
         clientChannels.value = data;
     } catch (err) {
@@ -581,12 +593,12 @@ const loadClientChannels = async () => {
     }
 };
 
-// ─── invite links ─────────────────────────────────────────────────────────────
-const loadInvites = async () => {
+const loadInvites = async (clientId?: string) => {
     try {
+        const params = clientId ? { client_id: clientId } : {};
         const { data } = await axios.get(
             `${import.meta.env.VITE_APP_URL}/api/invite`,
-            getHeaders(),
+            { ...getHeaders(), params },
         );
         invites.value = data.invites ?? [];
     } catch {
@@ -596,6 +608,30 @@ const loadInvites = async () => {
     }
 };
 
+// const generateInviteLink = async () => {
+//     if (!selectedChannelId.value) {
+//         showInviteFlash('Please select a channel first.', 'error');
+//         return;
+//     }
+//     try {
+//         isGenerating.value = true;
+//         const { data } = await axios.post(
+//             `${import.meta.env.VITE_APP_URL}/api/invite/generate`,
+//             { channel_id: selectedChannelId.value },
+//             getHeaders(),
+//         );
+//         invites.value.push(data);
+//         selectedChannelId.value = '';
+//         showInviteFlash(`Invite link generated for ${data.channel_name}.`);
+//     } catch (err: any) {
+//         const msg =
+//             err.response?.data?.message ?? 'Failed to generate invite link.';
+//         showInviteFlash(msg, 'error');
+//     } finally {
+//         isGenerating.value = false;
+//     }
+// };
+
 const generateInviteLink = async () => {
     if (!selectedChannelId.value) {
         showInviteFlash('Please select a channel first.', 'error');
@@ -603,9 +639,13 @@ const generateInviteLink = async () => {
     }
     try {
         isGenerating.value = true;
+        const payload: any = { channel_id: selectedChannelId.value };
+        if (auth.user?.role === 'admin') {
+            payload.client_id = selectedAdminClientId.value;
+        }
         const { data } = await axios.post(
             `${import.meta.env.VITE_APP_URL}/api/invite/generate`,
-            { channel_id: selectedChannelId.value },
+            payload,
             getHeaders(),
         );
         invites.value.push(data);
@@ -681,8 +721,12 @@ onMounted(() => {
     reloadEmployees();
     handleClients();
     handleChannels();
-    loadInvites();
-    loadClientChannels();
+    if (auth.user?.role === 'admin') {
+        inviteLoading.value = false;
+    } else {
+        loadInvites();
+        loadClientChannels();
+    }
 });
 
 // ─── modal ────────────────────────────────────────────────────────────────────
@@ -1421,6 +1465,28 @@ const proceedNoCoverage = async () => {
                             </div>
                         </div>
 
+                        <!-- ADMIN: choose which client this invite link is for -->
+                        <div v-if="auth.user?.role === 'admin'" class="mb-4">
+                            <div
+                                class="mb-2 text-xs font-bold tracking-wide text-gray-500 uppercase"
+                            >
+                                Acting on behalf of client
+                            </div>
+                            <select
+                                v-model="selectedAdminClientId"
+                                class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
+                            >
+                                <option value="">-- Select a client --</option>
+                                <option
+                                    v-for="client in clients"
+                                    :key="client.id"
+                                    :value="client.id"
+                                >
+                                    {{ client.user?.name }}
+                                </option>
+                            </select>
+                        </div>
+
                         <!-- GENERATE NEW LINK -->
                         <div v-if="channelsWithoutInvite.length > 0">
                             <div
@@ -1474,16 +1540,16 @@ const proceedNoCoverage = async () => {
                     </template>
                 </div>
 
-                <div
+                <!-- <div
                     class="mb-4 rounded-lg border border-amber-100 bg-amber-50 px-4 py-2.5 text-xs text-amber-700"
                 >
                     Earnings below reflect
                     <strong>all registered households</strong>. Actual payouts
                     will only include households with an active paid
                     subscription after their 30-day trial ends.
-                </div>
+                </div> -->
                 <!-- EARNINGS STRIP -->
-                <div class="mb-6 grid grid-cols-4 gap-3">
+                <!-- <div class="mb-6 grid grid-cols-4 gap-3">
                     <div class="rounded-xl bg-gray-900 p-4 text-center">
                         <div class="text-xl font-bold text-white">
                             {{ householdList.length }}
@@ -1545,7 +1611,7 @@ const proceedNoCoverage = async () => {
                             projected
                         </div>
                     </div>
-                </div>
+                </div> -->
 
                 <!-- HOUSEHOLDS TABLE -->
                 <div

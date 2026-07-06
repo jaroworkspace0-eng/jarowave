@@ -1,4 +1,3 @@
-
 @component('mail::message')
 
 {{-- ── BADGE ── --}}
@@ -22,7 +21,7 @@
 
 {{-- ── GRACE PERIOD WARNING ── --}}
 <div style="background:#fef3e2; border:1px solid #fed7aa; border-radius:10px; padding:14px 16px; margin-bottom:24px;">
-    <p style="font-size:13px; color:#b45309; margin:0; font-weight:600;">⚠ You have a 24-hour grace period before your SOS is suspended.</p>
+    <p style="font-size:13px; color:#b45309; margin:0; font-weight:600;">⚠ You have until {{ $graceEndsAtFormatted }} before your SOS is suspended.</p>
 </div>
 
 {{-- ── WHAT THIS MEANS ── --}}
@@ -34,7 +33,7 @@
             <span style="display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; background:#fff7ed; border:1px solid #fed7aa; border-radius:50%; font-size:11px; font-weight:800; color:#f97316;">1</span>
         </td>
         <td style="padding:8px 0; font-size:13px; color:#444; vertical-align:top;">
-            <strong style="color:#1a1a2e;">Now - 24 hours</strong> - your SOS button remains active. Use this time to update your payment details.
+            <strong style="color:#1a1a2e;">Now until {{ $graceEndsAtFormatted }}</strong> - your SOS button remains active. Use this time to update your payment details.
         </td>
     </tr>
     <tr>
@@ -42,7 +41,7 @@
             <span style="display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; background:#fef2f2; border:1px solid #fecaca; border-radius:50%; font-size:11px; font-weight:800; color:#dc2626;">2</span>
         </td>
         <td style="padding:8px 0; font-size:13px; color:#444; vertical-align:top;">
-            <strong style="color:#1a1a2e;">After 24 hours</strong> - your SOS emergency alert will be suspended until payment is resolved.
+            <strong style="color:#1a1a2e;">After {{ $graceEndsAtFormatted }}</strong> - your SOS emergency alert will be suspended until payment is resolved.
         </td>
     </tr>
     <tr>
@@ -75,7 +74,7 @@
     @endif
     <tr>
         <td style="padding:6px 0; font-size:13px; color:#888;">Grace period ends</td>
-        <td style="padding:6px 0; font-size:13px; font-weight:700; color:#1a1a2e; text-align:right;">{{ now()->addHours(24)->format('d M Y, H:i') }}</td>
+        <td style="padding:6px 0; font-size:13px; font-weight:700; color:#1a1a2e; text-align:right;">{{ $graceEndsAtFormatted }}</td>
     </tr>
     <tr>
         <td style="padding:6px 0; font-size:13px; color:#888;">Subscription</td>

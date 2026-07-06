@@ -10,6 +10,7 @@ use App\Services\PayFastService;
 use App\Mail\PaymentFailedMail;
 use App\Mail\PaymentSuccessMail;
 use App\Mail\SubscriptionCancelledMail;
+use App\Mail\TrialCardFailedMail;
 use App\Services\BillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -183,15 +184,7 @@ class PayfastWebhookController extends Controller
 
                 break;
 
-            // -------------------------------------------------------------------------
             case 'FAILED':
-            // -------------------------------------------------------------------------
-
-                $subscription->update([
-                    'status'            => 'past_due',
-                    'payment_failed_at' => now(),
-                    'gateway_status'    => 'FAILED',
-                ]);
 
                 $subscription->payments()->create(
                     $this->buildPaymentData($data, 'failed', $request) + [
@@ -199,24 +192,48 @@ class PayfastWebhookController extends Controller
                     ]
                 );
 
+                $stillInTrial = $subscription->trial_ends_at && $subscription->trial_ends_at->isFuture();
+
+                if ($stillInTrial) {
+                    // Card/tokenisation failed while still in trial — don't touch status
+                    // or threaten suspension; trial access continues regardless.
+                    Mail::to($user->email)->queue(
+                        new TrialCardFailedMail($user->name, $subscription->trial_ends_at)
+                    );
+
+                    Log::warning('PayFast payment failed during trial — card verification notice sent', [
+                        'subscription_id' => $subscription->id,
+                    ]);
+                    break;
+                }
+
+                $subscription->update([
+                    'status'            => 'past_due',
+                    'payment_failed_at' => now(),
+                    'gateway_status'    => 'FAILED',
+                ]);
+
+                $graceEndsAt = now()->addDays(3);
+
                 Mail::to($user->email)->queue(new PaymentFailedMail(
-                    userName: $user->name,
-                    amount:   $data['amount_gross'] ?? null,
-                    reason:   'Payment failed',
+                    userName:    $user->name,
+                    amount:      $data['amount_gross'] ?? null,
+                    reason:      'Payment failed',
+                    graceEndsAt: $graceEndsAt,
                 ));
 
                 Log::warning('PayFast payment failed', ['subscription_id' => $subscription->id]);
 
-                if (!$subscription->trial_ends_at || $subscription->trial_ends_at->isPast()) {
-                    $this->notifyNode('POST', '/payment-failed', [
-                        'userId'      => $user->id,
-                        'userEmail'   => $user->email,
-                        'userName'    => $user->name,
-                        'amount'      => $data['amount_gross'] ?? null,
-                        'reason'      => 'Payment failed',
-                        'trialEndsAt' => $subscription->trial_ends_at?->toISOString(),
-                    ]);
-                }
+                $this->notifyNode('POST', '/payment-failed', [
+                    'userId'            => $user->id,
+                    'userEmail'         => $user->email,
+                    'userName'          => $user->name,
+                    'amount'            => $data['amount_gross'] ?? null,
+                    'reason'            => 'Payment failed',
+                    'trialEndsAt'       => $subscription->trial_ends_at?->toISOString(),
+                    'forceSuspend'      => false,
+                    'gracePeriodEndsAt' => $graceEndsAt->timestamp * 1000,
+                ]);
 
                 break;
 

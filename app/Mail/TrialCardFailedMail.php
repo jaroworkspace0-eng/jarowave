@@ -10,37 +10,32 @@ use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 use Carbon\Carbon;
 
-class PaymentFailedMail extends Mailable
+class TrialCardFailedMail extends Mailable
 {
     use Queueable, SerializesModels;
 
     public string $userName;
-    public ?string $amount;
-    public ?string $reason;
-    public Carbon $graceEndsAt;
+    public Carbon $trialEndsAt;
 
-    public function __construct(string $userName, ?string $amount = null, ?string $reason = null, ?Carbon $graceEndsAt = null)
+    public function __construct(string $userName, Carbon $trialEndsAt)
     {
         $this->userName    = $userName;
-        $this->amount      = $amount;
-        $this->reason      = $reason;
-        // Matches the 3-day grace enforced by echo:suspend-non-paying
-        $this->graceEndsAt = $graceEndsAt ?? now()->addDays(3);
+        $this->trialEndsAt = $trialEndsAt;
     }
 
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Payment Failed — Action Required Within 3 Days',
+            subject: 'We couldn\'t verify your card — your trial is unaffected',
         );
     }
 
     public function content(): Content
     {
         return new Content(
-            markdown: 'emails.payment.failed',
+            markdown: 'emails.payment.trial-card-failed',
             with: [
-                'graceEndsAtFormatted' => $this->graceEndsAt->format('d M Y'),
+                'trialEndsAtFormatted' => $this->trialEndsAt->format('d M Y'),
             ],
         );
     }

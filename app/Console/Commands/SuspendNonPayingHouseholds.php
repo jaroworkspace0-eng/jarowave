@@ -68,6 +68,7 @@ class SuspendNonPayingHouseholds extends Command
                     'userId'       => $subscription->user_id,
                     'forceSuspend' => false,
                     'reason'       => 'trial_expired',
+                    'gracePeriodEndsAt' => $periodEnd->timestamp * 1000, // Laravel's real deadline
                 ]);
 
                 continue;

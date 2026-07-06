@@ -544,16 +544,25 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('/invoices/{invoice}/send',  [InvoiceController::class, 'send']);
 
 
-
     Route::get('/channels/mine', function (Request $request) {
-        $client = $request->user()->client;
+        $user = $request->user();
 
+        if ($user->role === 'admin') {
+            $clientId = $request->query('client_id');
+
+            if (!$clientId) {
+                return response()->json([]);
+            }
+
+            return response()->json(Channel::where('client_id', $clientId)->get());
+        }
+
+        $client = $user->client;
         if (!$client) {
             return response()->json([]);
         }
 
         $channels = Channel::where('client_id', $client->id)->get();
-
         return response()->json($channels);
     });
 

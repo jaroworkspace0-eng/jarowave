@@ -451,6 +451,7 @@ class EmployeeController extends Controller
         });
     }
 
+
     // ── Destroy ───────────────────────────────────────────────────────────────
 
     public function destroy(Employee $employee)
