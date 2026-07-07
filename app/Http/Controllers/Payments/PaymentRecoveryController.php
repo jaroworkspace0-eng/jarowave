@@ -225,9 +225,9 @@ class PaymentRecoveryController extends Controller
 
 
     // In PaymentRecoveryController
+
     public function activeFailures(Request $request)
     {
-        // Internal only — verify PTT secret
         if ($request->header('X-PTT-Secret') !== env('ASSIGN_SECRET')) {
             return response()->json(['error' => 'Unauthorized'], 401);
         }
@@ -236,15 +236,53 @@ class PaymentRecoveryController extends Controller
             ->whereHas('user', fn($q) => $q->whereIn('role', ['household', 'resident']))
             ->with('user')
             ->get()
-            ->map(fn($sub) => [
-                'user_id'          => $sub->user_id,
-                'payment_failed_at'=> $sub->payment_failed_at ?? $sub->updated_at,
-                'grace_period_ends'=> $sub->payment_failed_at
-                    ? \Carbon\Carbon::parse($sub->payment_failed_at)->addHours(24)->toISOString()
-                    : now()->toISOString(),
-                'sos_suspended_at' => $sub->sos_suspended_at,
-            ]);
+            ->map(function ($sub) {
+                if ($sub->status === 'cancelled') {
+                    // Already suspended — deadline must read as past, not recomputed.
+                    $graceEndsAt = $sub->sos_suspended_at
+                        ? \Carbon\Carbon::parse($sub->sos_suspended_at)
+                        : now()->subMinute();
+                } else {
+                    // past_due — still within (or approaching) grace.
+                    $isTrialDerived = $sub->trial_ends_at !== null;
+
+                    $graceEndsAt = $isTrialDerived
+                        ? $sub->current_period_end
+                        : ($sub->payment_failed_at
+                            ? \Carbon\Carbon::parse($sub->payment_failed_at)->addDays(3)
+                            : now()->addDays(3));
+                }
+
+                return [
+                    'user_id'           => $sub->user_id,
+                    'payment_failed_at' => $sub->payment_failed_at ?? $sub->updated_at,
+                    'grace_period_ends' => $graceEndsAt->toISOString(),
+                    'sos_suspended_at'  => $sub->sos_suspended_at,
+                ];
+            });
 
         return response()->json($failures);
     }
+    // public function activeFailures(Request $request)
+    // {
+    //     // Internal only — verify PTT secret
+    //     if ($request->header('X-PTT-Secret') !== env('ASSIGN_SECRET')) {
+    //         return response()->json(['error' => 'Unauthorized'], 401);
+    //     }
+
+    //     $failures = Subscription::whereIn('status', ['past_due', 'cancelled'])
+    //         ->whereHas('user', fn($q) => $q->whereIn('role', ['household', 'resident']))
+    //         ->with('user')
+    //         ->get()
+    //         ->map(fn($sub) => [
+    //             'user_id'          => $sub->user_id,
+    //             'payment_failed_at'=> $sub->payment_failed_at ?? $sub->updated_at,
+    //             'grace_period_ends'=> $sub->payment_failed_at
+    //                 ? \Carbon\Carbon::parse($sub->payment_failed_at)->addHours(24)->toISOString()
+    //                 : now()->toISOString(),
+    //             'sos_suspended_at' => $sub->sos_suspended_at,
+    //         ]);
+
+    //     return response()->json($failures);
+    // }
 }
