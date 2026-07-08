@@ -33,7 +33,7 @@ class HouseholdController extends Controller
         ]);
 
         $user = User::where('email', $request->email)
-            ->whereIn('role', ['household', 'resident'])
+            // ->whereIn('role', ['household', 'resident'])
             ->first();
 
         if (!$user || !Hash::check($request->password, $user->password)) {
@@ -44,17 +44,63 @@ class HouseholdController extends Controller
             return response()->json(['message' => 'Your account has been deactivated. Please contact your watch group.'], 403);
         }
 
+       if ($user->role !== 'household' && $user->role !== 'resident') {
+            return response()->json(['message' => 'You are not authorized to access this dashboard.'], 403);
+        }
+
         $token = $user->createToken('household-token')->plainTextToken;
 
+
+        $channels = $user->employee?->channels->map(function ($channel) {
+            return [
+                'id'   => $channel->id,
+                'name' => $channel->name,
+                'billing_model' => $channel->billing_model,
+            ];
+        }) ?? collect([]);
+
+        // return response()->json([
+        //     'token' => $token,
+        //     'user'  => [
+        //         'id'    => $user->id,
+        //         'name'  => $user->name,
+        //         'email' => $user->email,
+        //         'phone' => $user->phone,
+        //         'role'  => $user->role,
+        //     ],
+        // ]);
+
+
         return response()->json([
-            'token' => $token,
-            'user'  => [
-                'id'    => $user->id,
-                'name'  => $user->name,
-                'email' => $user->email,
-                'phone' => $user->phone,
-                'role'  => $user->role,
+            'user' => [
+                'id' => $user->id,
+                'user_id'   => $user->id,
+                'employee_id' => $user->employee?->id,
+                'name'      => $user->name,
+                'organisation_type' => $user->organisation_type,
+                'organisation_name' => $user->organisation_name,
+                'email'     => $user->email,
+                'phone'     => $user->phone,
+                'occupation'=> $user->occupation,
+                'role'      => $user->role,
+                'address' => $user->address_line_1,
+                'suburb' => $user->suburb,
+                'longitude' => $user->longitude,
+                'latitude' => $user->latitude,
+                'complex' => $user->complex_name,
+                'safe_cancel_pin' => $user->safe_cancel_pin,
+                'duress_pin' => $user->duress_pin,
+                'unit_number' => $user->unit_number,
+                'plan'              => $user->plan,
+                'is_estate' => $user->is_estate,
+                'is_estate_opted_in' => $user->subscription()
+                    ->where('cancellation_reason', 'estate_optin')
+                    ->whereNotNull('channel_subscription_id')
+                    ->exists(),
+                'is_gate_guard' => $user->is_gate_guard,
             ],
+            'channels' => $channels,
+            'token'    => $token,
         ]);
     }
 
