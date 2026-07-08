@@ -51,13 +51,13 @@ class HouseholdController extends Controller
         $token = $user->createToken('household-token')->plainTextToken;
 
 
-        $channels = $user->employee?->channels->map(function ($channel) {
-            return [
-                'id'   => $channel->id,
-                'name' => $channel->name,
-                'billing_model' => $channel->billing_model,
-            ];
-        }) ?? collect([]);
+       $channel = $user->employee?->ch->first();
+
+        $channelData = $channel ? [
+            'id'   => $channel->id,
+            'name' => $channel->name,
+            'billing_model' => $channel->billing_model,
+        ] : null;
 
         // return response()->json([
         //     'token' => $token,
@@ -99,7 +99,7 @@ class HouseholdController extends Controller
                     ->exists(),
                 'is_gate_guard' => $user->is_gate_guard,
             ],
-            'channels' => $channels,
+            'channel' => $channelData,
             'token'    => $token,
         ]);
     }
