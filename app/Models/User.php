@@ -25,6 +25,7 @@ class User extends Authenticatable
         'billing_cycle',
         'email',
         'role',
+        'is_on_duty',
         'phone',
         'occupation',
         'password',

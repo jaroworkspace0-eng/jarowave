@@ -472,6 +472,15 @@ class EmployeeController extends Controller
         ]);
     }
 
+    // EmployeeController.php
+    public function updateDutyStatus(Request $request)
+    {
+        $request->validate(['is_on_duty' => 'required|boolean']);
+        $employee = $request->user();
+        $employee->update(['is_on_duty' => $request->is_on_duty]);
+        return response()->json(['is_on_duty' => $employee->is_on_duty]);
+    }
+
     // ── Private helpers ───────────────────────────────────────────────────────
 
     private function createHouseholdSubscription(User $user, ?int $clientId, bool $activationFeePaid = false): void
