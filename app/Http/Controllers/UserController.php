@@ -123,10 +123,9 @@ class UserController extends Controller
     {
         $user = auth()->user();
         $request->validate(['is_on_duty' => 'required|boolean']);
-        User::update(['is_on_duty' => $request->is_on_duty]);
+        $user->update(['is_on_duty' => $request->is_on_duty]);
         return response()->json(['is_on_duty' => $user->is_on_duty]);
     }
-
 
     public function deactivateNoCoverage(User $user)
     {
