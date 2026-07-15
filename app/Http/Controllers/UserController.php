@@ -127,6 +127,12 @@ class UserController extends Controller
         return response()->json(['is_on_duty' => $user->is_on_duty]);
     }
 
+    public function getDutyStatus(Request $request)
+    {
+        $user = auth()->user();
+        return response()->json(['is_on_duty' => $user->is_on_duty]);
+    }
+
     public function deactivateNoCoverage(User $user)
     {
         if (!$this->isHouseholdRole($user->role)) {
