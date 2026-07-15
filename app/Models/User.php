@@ -64,6 +64,7 @@ class User extends Authenticatable
             'fcm_token_updated_at'    => 'datetime',
             'is_gate_guard' => 'boolean',
             'is_estate' => 'boolean',
+            'is_on_duty' => 'boolean',
         ];
     }
 
