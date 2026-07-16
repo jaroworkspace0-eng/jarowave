@@ -65,4 +65,20 @@ class HouseholdSettingController extends Controller
 
         return response()->json(['message' => 'Settings updated']);
     }
+
+
+    public function getSosAlertsForUser(Request $request, int $userId)
+    {
+        // Internal only — verify PTT secret
+        if ($request->header('X-PTT-Secret') !== env('ASSIGN_SECRET')) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $settings = HouseholdSetting::where('user_id', $userId)->first();
+
+        // If no settings row exists yet, default to enabled (matches firstOrCreate default in show())
+        return response()->json([
+            'sosAlerts' => $settings ? (bool) $settings->sos_alerts : true,
+        ]);
+    }
 }

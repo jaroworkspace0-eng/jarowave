@@ -221,6 +221,8 @@ Route::get('/dv-recordings/{alertId}/stream', [DvRecordingController::class, 'st
 
 // ── Internal endpoints (Node server only, protected by PTT secret) ──────────
 Route::get('internal/users/{userId}/fcm-token', [UserController::class, 'getFcmToken']);
+Route::get('internal/users/{userId}/sos-alerts', [HouseholdSettingController::class, 'getSosAlertsForUser']);
+
 // Route::get('users/{user}/fcm-token', [UserController::class, 'getFcmToken']);
 
 // Household routes (require auth)
