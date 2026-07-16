@@ -384,6 +384,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::post('users/fcm-token', [UserController::class, 'updateFcmToken']);
 
     Route::get('users/search-community', [HouseholdPairingController::class, 'searchCommunity']);
+    Route::get('/users/search-by-phone', [HouseholdPairingController::class, 'searchByPhone']);
 
 
     // ── Household settings ───────────────────────────────────────

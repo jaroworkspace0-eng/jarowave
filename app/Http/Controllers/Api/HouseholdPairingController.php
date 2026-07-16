@@ -403,4 +403,50 @@ class HouseholdPairingController extends Controller
 
         return response()->json($results);
     }
+
+    public function searchByPhone(Request $request): JsonResponse
+    {
+        $request->validate([
+            'phone' => 'required|string|min:10|max:15',
+        ]);
+
+        $phone  = trim($request->input('phone'));
+        $selfId = $request->user()->id;
+
+        // Normalize input to the same +27XXXXXXXXX format as stored
+        $normalized = preg_replace('/[\s\-\(\)]/', '', $phone); // strip spaces/dashes/parens only
+
+        if (str_starts_with($normalized, '0')) {
+            $normalized = '+27' . substr($normalized, 1);
+        } elseif (!str_starts_with($normalized, '+')) {
+            $normalized = '+27' . $normalized;
+        }
+
+        $user = User::where('id', '!=', $selfId)
+            ->whereIn('role', ['household', 'resident'])
+            ->where('is_active', true)
+            ->whereDoesntHave('blockedByHouseholds', function ($b) use ($selfId) {
+                $b->where('user_id', $selfId);
+            })
+            ->whereDoesntHave('blockedHouseholds', function ($b) use ($selfId) {
+                $b->where('blocked_user_id', $selfId);
+            })
+            ->where('phone', $normalized)
+            ->select('id', 'name', 'suburb', 'complex_name', 'address_line_1', 'unit_number')
+            ->with('householdSetting')
+            ->first();
+
+        if (!$user) {
+            return response()->json([]);
+        }
+
+        return response()->json([[
+            'id'      => $user->id,
+            'name'    => $user->name,
+            'suburb'  => ($user->householdSetting?->show_suburb ?? true) ? $user->suburb : null,
+            'complex' => $user->complex_name,
+            'address' => $user->address_line_1,
+            'unit'    => $user->unit_number,
+        ]]);
+    }
 }

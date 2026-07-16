@@ -269,4 +269,5 @@ class UserController extends Controller
             'device_id' => $user->fcm_device_id,
         ]);
     }
+    
 }
