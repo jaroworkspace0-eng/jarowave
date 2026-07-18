@@ -21,6 +21,21 @@ class EmergencyAlert extends Model
         'resolved_by',
         'alert_type',
         'cancel_pin_used',
+        'trigger_lat',
+        'trigger_lng',
+        'last_lat',
+        'last_lng',
+        'location_updated_at',
+        'first_ack_at',
+        'muted',
+    ];
+
+    protected $casts = [
+        'muted' => 'boolean',
+        'is_resolved' => 'boolean',
+        'resolved_at' => 'datetime',
+        'first_ack_at' => 'datetime',
+        'location_updated_at' => 'datetime',
     ];
 
     public function user()
@@ -40,7 +55,7 @@ class EmergencyAlert extends Model
 
     public function resolver()
     {
-        return $this->belongsTo(User::class, 'resolved_by'); // Assuming the resolver is also a user (user_id)
+        return $this->belongsTo(User::class, 'resolved_by');
     }
 
     public function resolution()
@@ -48,7 +63,18 @@ class EmergencyAlert extends Model
         return $this->hasOne(EmergencyResolution::class);
     }
 
-    public function dvRecording() {
+    public function dvRecording()
+    {
         return $this->hasOne(DvRecording::class, 'alert_id');
+    }
+
+    public function events()
+    {
+        return $this->hasMany(AlertEvent::class);
+    }
+
+    public function guardianNotifications()
+    {
+        return $this->hasMany(AlertGuardianNotification::class);
     }
 }

@@ -14,40 +14,44 @@ class AdminAlertController extends Controller
      * anything the live feed couldn't have delivered while disconnected.
      */
     public function open(Request $request)
-    {
-        $user = $request->user();
+{
+    $user = $request->user();
 
-        $alerts = EmergencyAlert::query()
-            ->whereNull('resolved_at')
-            ->when($user->role !== 'admin', function ($q) use ($user) {
-                $q->whereIn('channel_id', $user->accessibleChannelIds());
-            })
-            ->with([
-                'household:id,name,phone,home_address',
-                'channel:id,name',
-                'events' => fn ($q) => $q->orderBy('created_at'),
-                'guardianNotifications:id,alert_id,guardian_id,notified_at,responded_at,response_type',
-            ])
-            ->orderByDesc('created_at')
-            ->get();
+    $alerts = EmergencyAlert::query()
+        ->whereNull('resolved_at')
+        ->when($user->role !== 'admin', function ($q) use ($user) {
+            $q->whereIn('channel_id', $user->accessibleChannelIds());
+        })
+        ->with([
+            'user:id,name,phone,address_line_1,complex_name,suburb',
+            'channel:id,name',
+            'events' => fn ($q) => $q->orderBy('created_at'),
+            'guardianNotifications:id,emergency_alert_id,guardian_id,notified_at,responded_at,response_type',
+        ])
+        ->orderByDesc('created_at')
+        ->get();
 
-        return response()->json($alerts->map(fn ($alert) => [
-            'id' => $alert->id,
-            'type' => $alert->type,
-            'household_name' => $alert->household->name,
-            'household_phone' => $alert->household->phone,
-            'home_address' => $alert->household->home_address,
-            'channel_name' => $alert->channel->name,
-            'created_at' => $alert->created_at,
-            'first_ack_at' => $alert->first_ack_at,
-            'last_lat' => $alert->last_lat,
-            'last_lng' => $alert->last_lng,
-            'muted' => $alert->muted,
-            'guardian_count' => $alert->guardianNotifications->count(),
-            'guardian_ids' => $alert->guardianNotifications->pluck('guardian_id'),
-            'events' => $alert->events,
-        ]));
-    }
+    return response()->json($alerts->map(fn ($alert) => [
+        'id' => $alert->id,
+        'type' => $alert->alert_type,
+        'household_name' => $alert->user->name,
+        'household_phone' => $alert->user->phone,
+        'home_address' => collect([
+            $alert->user->complex_name,
+            $alert->user->address_line_1,
+            $alert->user->suburb,
+        ])->filter()->implode(', '),
+        'channel_name' => $alert->channel->name,
+        'created_at' => $alert->created_at,
+        'first_ack_at' => $alert->first_ack_at,
+        'last_lat' => $alert->last_lat,
+        'last_lng' => $alert->last_lng,
+        'muted' => $alert->muted,
+        'guardian_count' => $alert->guardianNotifications->count(),
+        'guardian_ids' => $alert->guardianNotifications->pluck('guardian_id'),
+        'events' => $alert->events,
+    ]));
+}
 
     public function mute(Request $request, EmergencyAlert $alert)
     {
