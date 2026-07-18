@@ -71,6 +71,13 @@ Route::get('/dv-recordings', function() {
 });
 
 
+// ── Live Alerts (admin) ───────────────────────────────────
+ 
+Route::get('/live-alerts', function() {
+    return inertia('LiveAlertsPage');
+});
+ 
+
 // ── Guardian Reports (admin) ──────────────────────────────
 
 Route::get('/guardian-reports', function() {

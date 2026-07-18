@@ -169,4 +169,15 @@ class User extends Authenticatable
     {
         return $this->hasMany(BlockedHousehold::class, 'blocked_user_id');
     }
+
+   public function accessibleChannelIds(): \Illuminate\Support\Collection
+   {
+        return match ($this->role) {
+            'client' => Channel::where('client_id', $this->client?->id)->pluck('id'),
+            'estate_billing' => ChannelBillingContact::where('user_id', $this->id)
+                ->where('is_active', true)
+                ->pluck('channel_id'),
+            default => collect(),
+        };
+    }
 }

@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountDeletionController;
+use App\Http\Controllers\Admin\AdminAlertController;
 use App\Http\Controllers\Admin\AdminGuardPayoutController;
 use App\Http\Controllers\Admin\AdminPayoutController;
 use App\Http\Controllers\Admin\AdminSubscriptionController;
@@ -30,6 +31,7 @@ use App\Http\Controllers\CheckpointController;
 use App\Http\Controllers\DvRecordingController;
 use App\Http\Controllers\GuardBankDetailController;
 use App\Http\Controllers\HouseholdSettingController;
+use App\Http\Controllers\Internal\InternalDashboardUserController;
 use App\Http\Controllers\InviteController;
 use App\Http\Controllers\LiveKitController;
 use App\Http\Controllers\PatrolController;
@@ -222,8 +224,21 @@ Route::get('/dv-recordings/{alertId}/stream', [DvRecordingController::class, 'st
 // ── Internal endpoints (Node server only, protected by PTT secret) ──────────
 Route::get('internal/users/{userId}/fcm-token', [UserController::class, 'getFcmToken']);
 Route::get('internal/users/{userId}/sos-alerts', [HouseholdSettingController::class, 'getSosAlertsForUser']);
+Route::get('internal/dashboard-users/me', [InternalDashboardUserController::class, 'me']);
 
 // Route::get('users/{user}/fcm-token', [UserController::class, 'getFcmToken']);
+
+
+
+Route::middleware('auth:sanctum')->prefix('api/admin/alerts')->group(function () {
+    Route::get('open', [AdminAlertController::class, 'open']);
+    Route::post('{alert}/mute', [AdminAlertController::class, 'mute']);
+    Route::post('{alert}/call-log', [AdminAlertController::class, 'callLog']);
+    Route::post('{alert}/resolve', [AdminAlertController::class, 'resolve']);
+    Route::post('{alert}/reassign', [AdminAlertController::class, 'reassign']);
+});
+
+
 
 // Household routes (require auth)
 Route::middleware('auth:sanctum')->prefix('household')->group(function () {

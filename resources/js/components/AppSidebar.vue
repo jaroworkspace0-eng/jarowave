@@ -19,6 +19,7 @@ import { useAuthStore } from '@/stores/auth';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/vue3';
 import {
+    AlertTriangle,
     ArrowsUpFromLineIcon,
     Briefcase,
     Building,
@@ -50,6 +51,12 @@ const adminGroups: NavGroup[] = [
         items: [
             { title: 'Dashboard', href: dashboard(), icon: HomeIcon },
             { title: 'Channels', href: '/channels', icon: RadioIcon },
+        ],
+    },
+    {
+        label: 'Live Monitoring',
+        items: [
+            { title: 'Live Alerts', href: '/live-alerts', icon: AlertTriangle },
         ],
     },
     {
@@ -129,6 +136,12 @@ const clientGroups: NavGroup[] = [
         items: [{ title: 'Dashboard', href: dashboard(), icon: HomeIcon }],
     },
     {
+        label: 'Live Monitoring',
+        items: [
+            { title: 'Live Alerts', href: '/live-alerts', icon: AlertTriangle },
+        ],
+    },
+    {
         label: 'Team',
         items: [{ title: 'Personnels', href: '/employees', icon: Briefcase }],
     },
@@ -150,6 +163,12 @@ const estateBillingGroups: NavGroup[] = [
         label: 'Overview',
         items: [
             { title: 'Dashboard', href: '/estate/dashboard', icon: HomeIcon },
+        ],
+    },
+    {
+        label: 'Live Monitoring',
+        items: [
+            { title: 'Live Alerts', href: '/live-alerts', icon: AlertTriangle },
         ],
     },
     {
