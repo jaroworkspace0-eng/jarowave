@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 
 const props = defineProps({
     alert: { type: Object, required: true },
@@ -11,6 +11,15 @@ const mapFullscreen = ref(false);
 
 const isDV = computed(() => props.alert.type === 'dv');
 const isPanicLike = computed(() => ['panic', 'sos'].includes(props.alert.type));
+
+const isNew = ref(!!props.alert.justArrived);
+onMounted(() => {
+    if (isNew.value) {
+        setTimeout(() => {
+            isNew.value = false;
+        }, 6000);
+    }
+});
 
 const secondsSinceAck = computed(() => {
     if (props.alert.first_ack_at) return null;
@@ -35,6 +44,18 @@ const typeMeta = computed(
         },
 );
 
+const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+
+const staticMapUrl = computed(() => {
+    if (!props.alert.last_lat) return null;
+    return `https://maps.googleapis.com/maps/api/staticmap?center=${props.alert.last_lat},${props.alert.last_lng}&zoom=15&size=400x150&markers=${props.alert.last_lat},${props.alert.last_lng}&key=${mapsApiKey}`;
+});
+
+const embedMapUrl = computed(() => {
+    if (!props.alert.last_lat) return null;
+    return `https://www.google.com/maps/embed/v1/view?center=${props.alert.last_lat},${props.alert.last_lng}&zoom=16&key=${mapsApiKey}`;
+});
+
 function logCall(outcome) {
     window.location.href = `tel:${props.alert.household_phone}`;
     emit('call-log', props.alert.id, outcome);
@@ -48,7 +69,10 @@ function onResolveChange(e) {
 </script>
 
 <template>
-    <div class="ac-card" :class="{ 'ac-card--escalated': escalated }">
+    <div
+        class="ac-card"
+        :class="{ 'ac-card--escalated': escalated, 'ac-card--new': isNew }"
+    >
         <!-- Header -->
         <div class="ac-card__header">
             <div>
@@ -56,6 +80,7 @@ function onResolveChange(e) {
                 <p class="ac-card__meta">{{ alert.channel_name }}</p>
             </div>
             <div class="ac-card__header-right">
+                <span v-if="isNew" class="ac-badge ac-badge--new">New</span>
                 <span class="ac-badge" :class="typeMeta.badge">{{
                     typeMeta.label
                 }}</span>
@@ -71,11 +96,8 @@ function onResolveChange(e) {
 
         <!-- Map thumbnail -->
         <button class="ac-map-thumb" @click="mapFullscreen = true">
-            <img
-                v-if="alert.last_lat"
-                :src="`https://maps.googleapis.com/maps/api/staticmap?center=${alert.last_lat},${alert.last_lng}&zoom=15&size=400x150&markers=${alert.last_lat},${alert.last_lng}`"
-                alt="alert location"
-            />
+            <img v-if="staticMapUrl" :src="staticMapUrl" alt="alert location" />
+            <span v-else class="ac-map-thumb__empty">No location yet</span>
             <span class="ac-map-thumb__expand">Expand</span>
         </button>
 
@@ -198,10 +220,13 @@ function onResolveChange(e) {
                             </svg>
                         </button>
                         <iframe
-                            v-if="alert.last_lat"
+                            v-if="embedMapUrl"
                             class="ac-map-modal__frame"
-                            :src="`https://maps.google.com/maps?q=${alert.last_lat},${alert.last_lng}&z=16&output=embed`"
+                            :src="embedMapUrl"
                         />
+                        <div v-else class="ac-map-modal__empty">
+                            No location data for this alert yet
+                        </div>
                     </div>
                 </div>
             </transition>
@@ -240,6 +265,21 @@ function onResolveChange(e) {
     }
     50% {
         box-shadow: 0 0 0 6px rgba(220, 38, 38, 0.08);
+    }
+}
+.ac-card--new {
+    border-color: #f59e0b;
+    animation: ac-new-flash 0.9s ease-in-out 3;
+}
+@keyframes ac-new-flash {
+    0%,
+    100% {
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+        transform: scale(1);
+    }
+    50% {
+        box-shadow: 0 0 0 10px rgba(245, 158, 11, 0.35);
+        transform: scale(1.015);
     }
 }
 
@@ -297,6 +337,11 @@ function onResolveChange(e) {
     background: #f1f5f9;
     color: #475569;
 }
+.ac-badge--new {
+    background: #fef3c7;
+    color: #b45309;
+    animation: ac-pulse 1s ease-in-out infinite;
+}
 
 .ac-escalation-flag {
     margin: 8px 0 0;
@@ -316,12 +361,20 @@ function onResolveChange(e) {
     overflow: hidden;
     cursor: pointer;
     padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 .ac-map-thumb img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
+}
+.ac-map-thumb__empty {
+    font-size: 12px;
+    color: var(--c-faint);
+    font-weight: 600;
 }
 .ac-map-thumb__expand {
     position: absolute;
@@ -486,11 +539,19 @@ function onResolveChange(e) {
     position: relative;
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
     overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 .ac-map-modal__frame {
     width: 100%;
     height: 100%;
     border: none;
+}
+.ac-map-modal__empty {
+    font-size: 14px;
+    color: var(--c-faint);
+    font-weight: 600;
 }
 .ac-close-btn {
     position: absolute;

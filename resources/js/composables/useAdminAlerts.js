@@ -17,9 +17,34 @@ async function fetchHandshakeCode() {
     return data.code;
 }
 
+const activeSounds = new Map();
+
+function playAlertSound(alertId) {
+    if (activeSounds.has(alertId)) return;
+    const audio = new Audio('/sounds/sos-alert.mp3');
+    audio.loop = true;
+    audio.volume = 0.7;
+    audio
+        .play()
+        .catch((e) =>
+            console.warn('[useAdminAlerts] sound blocked:', e.message),
+        );
+    activeSounds.set(alertId, audio);
+}
+
+function stopAlertSound(alertId) {
+    const audio = activeSounds.get(alertId);
+    if (audio) {
+        audio.pause();
+        audio.currentTime = 0;
+        activeSounds.delete(alertId);
+    }
+}
+
 export function useAdminAlerts() {
     const alerts = reactive(new Map());
     const connectionStatus = ref('connecting');
+    const hydrated = ref(false);
 
     const socket = io(import.meta.env.VITE_SOCKET_URL, {
         withCredentials: true,
@@ -51,11 +76,16 @@ export function useAdminAlerts() {
     });
 
     socket.on('alert:new', (alert) => {
+        const isLiveArrival = hydrated.value;
         alerts.set(alert.id, {
             ...alert,
             events: alert.events ?? [],
             muted: false,
+            justArrived: isLiveArrival,
         });
+        if (isLiveArrival && ['panic', 'sos'].includes(alert.type)) {
+            playAlertSound(alert.id);
+        }
     });
 
     socket.on('alert:event', ({ alert_id, event }) => {
@@ -65,6 +95,7 @@ export function useAdminAlerts() {
 
         if (event.event_type === 'guard_acknowledged' && !alert.first_ack_at) {
             alert.first_ack_at = event.created_at;
+            stopAlertSound(alert_id);
         }
         if (event.event_type === 'location_updated') {
             alert.last_lat = event.payload.lat;
@@ -80,6 +111,7 @@ export function useAdminAlerts() {
     });
 
     socket.on('alert:resolved', ({ alert_id }) => {
+        stopAlertSound(alert_id);
         alerts.delete(alert_id);
     });
 
@@ -88,7 +120,10 @@ export function useAdminAlerts() {
             headers: authHeaders(),
         });
         const data = await res.json();
-        data.forEach((alert) => alerts.set(alert.id, alert));
+        data.forEach((alert) =>
+            alerts.set(alert.id, { ...alert, justArrived: false }),
+        );
+        hydrated.value = true;
     }
 
     function toggleMute(alertId, muted) {
@@ -117,6 +152,7 @@ export function useAdminAlerts() {
             headers: authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ resolution }),
         });
+        stopAlertSound(alertId);
         alerts.delete(alertId);
     }
 
