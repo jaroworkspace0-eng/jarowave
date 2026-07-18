@@ -1,9 +1,16 @@
 import { io } from 'socket.io-client';
 import { reactive, ref } from 'vue';
 
+function authHeaders(extra = {}) {
+    return {
+        Authorization: `Bearer ${localStorage.getItem('token')}`,
+        ...extra,
+    };
+}
+
 async function fetchHandshakeCode() {
     const res = await fetch('/api/live-alerts/handshake', {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: authHeaders(),
     });
     if (!res.ok) throw new Error(`handshake fetch failed: ${res.status}`);
     const data = await res.json();
@@ -78,7 +85,7 @@ export function useAdminAlerts() {
 
     async function hydrateOpenAlerts() {
         const res = await fetch('/api/admin/alerts/open', {
-            credentials: 'include',
+            headers: authHeaders(),
         });
         const data = await res.json();
         data.forEach((alert) => alerts.set(alert.id, alert));
@@ -87,8 +94,7 @@ export function useAdminAlerts() {
     function toggleMute(alertId, muted) {
         fetch(`/api/admin/alerts/${alertId}/mute`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ muted }),
         });
         const alert = alerts.get(alertId);
@@ -100,8 +106,7 @@ export function useAdminAlerts() {
     function logCallAttempt(alertId, outcome) {
         fetch(`/api/admin/alerts/${alertId}/call-log`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ outcome }),
         });
     }
@@ -109,8 +114,7 @@ export function useAdminAlerts() {
     function resolve(alertId, resolution) {
         fetch(`/api/admin/alerts/${alertId}/resolve`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
+            headers: authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ resolution }),
         });
         alerts.delete(alertId);
