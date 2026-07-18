@@ -4,10 +4,8 @@ import { useAdminAlerts } from '@/composables/useAdminAlerts';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { computed, ref } from 'vue';
 
-const props = defineProps({ socketHandshakeCode: String });
-
 const { alerts, connectionStatus, toggleMute, logCallAttempt, resolve } =
-    useAdminAlerts(props.socketHandshakeCode);
+    useAdminAlerts();
 
 const activeFilter = ref('all');
 
@@ -40,7 +38,6 @@ function handleResolve(alertId, resolution) {
     resolve(alertId, resolution);
 }
 </script>
-
 <template>
     <Head title="Live Alerts" />
 

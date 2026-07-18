@@ -1,7 +1,16 @@
 import { io } from 'socket.io-client';
 import { reactive, ref } from 'vue';
 
-export function useAdminAlerts(socketHandshakeCode) {
+async function fetchHandshakeCode() {
+    const res = await fetch('/api/live-alerts/handshake', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+    });
+    if (!res.ok) throw new Error(`handshake fetch failed: ${res.status}`);
+    const data = await res.json();
+    return data.code;
+}
+
+export function useAdminAlerts() {
     const alerts = reactive(new Map());
     const connectionStatus = ref('connecting');
 
@@ -9,8 +18,14 @@ export function useAdminAlerts(socketHandshakeCode) {
         withCredentials: true,
     });
 
-    socket.on('connect', () => {
-        socket.emit('join-admin-room', { code: socketHandshakeCode });
+    socket.on('connect', async () => {
+        try {
+            const code = await fetchHandshakeCode();
+            socket.emit('join-admin-room', { code });
+        } catch (e) {
+            console.error('[useAdminAlerts] failed to fetch handshake code', e);
+            connectionStatus.value = 'error';
+        }
     });
 
     socket.on('admin-room-joined', async ({ role } = {}) => {

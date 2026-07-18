@@ -234,7 +234,15 @@ Route::get('internal/dashboard-users/me', [InternalDashboardUserController::clas
 
 // Route::get('users/{user}/fcm-token', [UserController::class, 'getFcmToken']);
 
-
+Route::middleware('auth:sanctum')->get('/live-alerts/handshake', function (\Illuminate\Http\Request $request) {
+    $handshakeCode = \Illuminate\Support\Str::random(40);
+    \Illuminate\Support\Facades\Cache::put(
+        "dashboard-handshake:{$handshakeCode}",
+        $request->user()->id,
+        now()->addMinutes(30)
+    );
+    return response()->json(['code' => $handshakeCode]);
+});
 
 Route::middleware('auth:sanctum')->prefix('api/admin/alerts')->group(function () {
     Route::get('open', [AdminAlertController::class, 'open']);
