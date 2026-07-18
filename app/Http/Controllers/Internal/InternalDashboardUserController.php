@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Internal;
 
 use App\Http\Controllers\Controller;
+use App\Models\Channel;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -27,5 +28,21 @@ class InternalDashboardUserController extends Controller
             'role' => $user->role,
             'channelIds' => $user->role === 'admin' ? [] : $user->accessibleChannelIds(),
         ]);
+    }
+
+
+    public function clientIdForChannel(Request $request, $channelId)
+    {
+        if ($request->header('X-PTT-Secret') !== env('ASSIGN_SECRET')) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $channel = Channel::find($channelId);
+
+        if (!$channel) {
+            return response()->json(['error' => 'Channel not found'], 404);
+        }
+
+        return response()->json(['client_id' => $channel->client_id]);
     }
 }

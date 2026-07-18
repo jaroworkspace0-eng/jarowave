@@ -231,6 +231,7 @@ Route::get('internal/users/{userId}/sos-alerts', [HouseholdSettingController::cl
 // ])->get('internal/dashboard-users/me', [InternalDashboardUserController::class, 'me']);
 
 Route::get('internal/dashboard-users/me', [InternalDashboardUserController::class, 'me']);
+Route::get('internal/channels/{channelId}/client-id', [InternalDashboardUserController::class, 'clientIdForChannel']);
 
 // Route::get('users/{user}/fcm-token', [UserController::class, 'getFcmToken']);
 
