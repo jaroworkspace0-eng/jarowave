@@ -225,12 +225,12 @@ Route::get('/dv-recordings/{alertId}/stream', [DvRecordingController::class, 'st
 Route::get('internal/users/{userId}/fcm-token', [UserController::class, 'getFcmToken']);
 Route::get('internal/users/{userId}/sos-alerts', [HouseholdSettingController::class, 'getSosAlertsForUser']);
 
-Route::middleware([
-    \Illuminate\Cookie\Middleware\EncryptCookies::class,
-    \Illuminate\Session\Middleware\StartSession::class,
-])->get('internal/dashboard-users/me', [InternalDashboardUserController::class, 'me']);
+// Route::middleware([
+//     \Illuminate\Cookie\Middleware\EncryptCookies::class,
+//     \Illuminate\Session\Middleware\StartSession::class,
+// ])->get('internal/dashboard-users/me', [InternalDashboardUserController::class, 'me']);
 
-// Route::get('internal/dashboard-users/me', [InternalDashboardUserController::class, 'me']);
+Route::get('internal/dashboard-users/me', [InternalDashboardUserController::class, 'me']);
 
 // Route::get('users/{user}/fcm-token', [UserController::class, 'getFcmToken']);
 
