@@ -9,7 +9,12 @@ const { alerts, connectionStatus, toggleMute, logCallAttempt, resolve } =
 
 const activeFilter = ref('all');
 
-const alertList = computed(() => Array.from(alerts.values()));
+// const alertList = computed(() => Array.from(alerts.values()));
+const alertList = computed(() =>
+    Array.from(alerts.values()).sort(
+        (a, b) => new Date(b.created_at) - new Date(a.created_at),
+    ),
+);
 
 const filteredList = computed(() => {
     if (activeFilter.value === 'all') return alertList.value;

@@ -60,21 +60,17 @@ class EmergencyAlertController extends Controller
      */
     public function store(Request $request)
     {
-
-        // Check if the user already has an UNRESOLVED alert from the last 2 minutes
         $existingAlert = EmergencyAlert::where('user_id', auth()->id())
             ->where('is_resolved', false)
             ->where('created_at', '>', now()->subMinutes(2))
             ->first();
 
         if ($existingAlert) {
-            // Instead of a new record, just return the existing one
-            // This prevents "Alert Storms" in your database
             return response()->json([
                 'status' => 'success',
                 'message' => 'Alert already active. Updating location.',
                 'data' => ['id' => $existingAlert->id]
-            ], 200); 
+            ], 200);
         }
 
         $request->validate([
@@ -85,7 +81,6 @@ class EmergencyAlertController extends Controller
             'alert_type' => 'nullable|string|in:sos,domestic_violence',
         ]);
 
-
         $channel = Channel::find($request->channel_id);
 
         $alert = EmergencyAlert::create([
@@ -95,8 +90,44 @@ class EmergencyAlertController extends Controller
             'latitude' => $request->latitude,
             'longitude' => $request->longitude,
             'accuracy' => $request->accuracy,
-            'alert_type'  => $request->alert_type ?? 'sos',
+            'alert_type' => $request->alert_type ?? 'sos',
         ]);
+
+        $alert->load(['user:id,name,phone,address_line_1,complex_name,suburb', 'channel:id,name']);
+
+        try {
+            \Illuminate\Support\Facades\Http::withHeaders([
+                'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
+            ])->timeout(5)->post(env('PTT_SERVER_URL') . '/emit', [
+                'channelId' => $alert->client_id,
+                'event' => 'alert:new',
+                'data' => [
+                    'id' => $alert->id,
+                    'type' => $alert->alert_type,
+                    'household_name' => $alert->user->name,
+                    'household_phone' => $alert->user->phone,
+                    'home_address' => collect([
+                        $alert->user->complex_name,
+                        $alert->user->address_line_1,
+                        $alert->user->suburb,
+                    ])->filter()->implode(', '),
+                    'channel_name' => $alert->channel->name,
+                    'created_at' => $alert->created_at,
+                    'first_ack_at' => null,
+                    'last_lat' => $alert->latitude,
+                    'last_lng' => $alert->longitude,
+                    'muted' => false,
+                    'guardian_count' => 0,
+                    'guardian_ids' => [],
+                    'events' => [],
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Failed to push alert:new to dashboard', [
+                'alert_id' => $alert->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         return response()->json([
             'status' => 'success',
