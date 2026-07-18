@@ -3,7 +3,9 @@
 namespace App\Http\Controllers\Internal;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class InternalDashboardUserController extends Controller
 {
@@ -13,10 +15,12 @@ class InternalDashboardUserController extends Controller
             return response()->json(['error' => 'Unauthorized'], 401);
         }
 
-        $user = auth()->user();
+        $code = $request->bearerToken();
+        $userId = $code ? Cache::get("dashboard-handshake:{$code}") : null;
+        $user = $userId ? User::find($userId) : null;
 
         if (!$user) {
-            return response()->json(['error' => 'Invalid session'], 401);
+            return response()->json(['error' => 'Invalid handshake code'], 401);
         }
 
         return response()->json([
