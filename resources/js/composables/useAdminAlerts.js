@@ -1,9 +1,7 @@
 import { io } from 'socket.io-client';
 import { reactive, ref } from 'vue';
 
-// Instantiate once at layout level (e.g. AdminLayout.vue's setup()),
-// not per-page, so the connection survives Inertia navigation.
-export function useAdminAlerts(clientId, adminUserId) {
+export function useAdminAlerts() {
     const alerts = reactive(new Map());
     const connectionStatus = ref('connecting');
 
@@ -12,12 +10,21 @@ export function useAdminAlerts(clientId, adminUserId) {
     });
 
     socket.on('connect', () => {
-        socket.emit('join-admin-room', { clientId, adminUserId });
+        console.log(
+            '[useAdminAlerts] socket connected, emitting join-admin-room',
+        );
+        socket.emit('join-admin-room');
     });
 
-    socket.on('admin-room-joined', async () => {
+    socket.on('admin-room-joined', async ({ role } = {}) => {
+        console.log('[useAdminAlerts] admin-room-joined', role);
         connectionStatus.value = 'live';
         await hydrateOpenAlerts();
+    });
+
+    socket.on('admin-room-join-failed', ({ reason } = {}) => {
+        console.error('[useAdminAlerts] admin-room-join-failed', reason);
+        connectionStatus.value = 'error';
     });
 
     socket.on('disconnect', () => {
@@ -34,7 +41,7 @@ export function useAdminAlerts(clientId, adminUserId) {
 
     socket.on('alert:event', ({ alert_id, event }) => {
         const alert = alerts.get(alert_id);
-        if (!alert) return; // shouldn't happen post-hydration, but guard anyway
+        if (!alert) return;
         alert.events.push(event);
 
         if (event.event_type === 'guard_acknowledged' && !alert.first_ack_at) {
@@ -54,9 +61,6 @@ export function useAdminAlerts(clientId, adminUserId) {
     });
 
     socket.on('alert:resolved', ({ alert_id }) => {
-        // Remove from the live board rather than just flagging — resolved alerts
-        // belong in a history/report view, not competing for attention on the
-        // active dashboard. Full journey is still in the DB via alert_events.
         alerts.delete(alert_id);
     });
 
@@ -75,7 +79,6 @@ export function useAdminAlerts(clientId, adminUserId) {
             credentials: 'include',
             body: JSON.stringify({ muted }),
         });
-        // optimistic update; server event will confirm/correct via alert:event
         const alert = alerts.get(alertId);
         if (alert && alert.type !== 'panic' && alert.type !== 'sos') {
             alert.muted = muted;
@@ -98,7 +101,6 @@ export function useAdminAlerts(clientId, adminUserId) {
             credentials: 'include',
             body: JSON.stringify({ resolution }),
         });
-        // optimistic removal; alert:resolved event will confirm for all connected admins
         alerts.delete(alertId);
     }
 
