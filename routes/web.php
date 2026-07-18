@@ -72,10 +72,16 @@ Route::get('/dv-recordings', function() {
 
 
 // ── Live Alerts (admin) ───────────────────────────────────
- 
-Route::get('/live-alerts', function() {
-    return inertia('LiveAlertsPage');
+
+Route::get('/live-alerts', function () {
+    $handshakeCode = \Illuminate\Support\Str::random(40);
+    \Illuminate\Support\Facades\Cache::put("dashboard-handshake:{$handshakeCode}", auth()->id(), now()->addMinutes(30));
+    return inertia('LiveAlertsPage', ['socketHandshakeCode' => $handshakeCode]);
 });
+ 
+// Route::get('/live-alerts', function() {
+//     return inertia('LiveAlertsPage');
+// });
  
 
 // ── Guardian Reports (admin) ──────────────────────────────

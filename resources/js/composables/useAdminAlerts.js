@@ -1,7 +1,7 @@
 import { io } from 'socket.io-client';
 import { reactive, ref } from 'vue';
 
-export function useAdminAlerts() {
+export function useAdminAlerts(socketHandshakeCode) {
     const alerts = reactive(new Map());
     const connectionStatus = ref('connecting');
 
@@ -10,10 +10,7 @@ export function useAdminAlerts() {
     });
 
     socket.on('connect', () => {
-        console.log(
-            '[useAdminAlerts] socket connected, emitting join-admin-room',
-        );
-        socket.emit('join-admin-room');
+        socket.emit('join-admin-room', { code: socketHandshakeCode });
     });
 
     socket.on('admin-room-joined', async ({ role } = {}) => {
