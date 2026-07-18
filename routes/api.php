@@ -244,7 +244,7 @@ Route::middleware('auth:sanctum')->get('/live-alerts/handshake', function (\Illu
     return response()->json(['code' => $handshakeCode]);
 });
 
-Route::middleware('auth:sanctum')->prefix('api/admin/alerts')->group(function () {
+Route::middleware('auth:sanctum')->prefix('admin/alerts')->group(function () {
     Route::get('open', [AdminAlertController::class, 'open']);
     Route::post('{alert}/mute', [AdminAlertController::class, 'mute']);
     Route::post('{alert}/call-log', [AdminAlertController::class, 'callLog']);
