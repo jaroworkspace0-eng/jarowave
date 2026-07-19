@@ -251,6 +251,7 @@ Route::middleware('auth:sanctum')->prefix('admin/alerts')->group(function () {
     Route::post('{alert}/call-log', [AdminAlertController::class, 'callLog']);
     Route::post('{alert}/resolve', [AdminAlertController::class, 'resolve']);
     Route::post('{alert}/reassign', [AdminAlertController::class, 'reassign']);
+    Route::get('older-unresolved-count', [AdminAlertController::class, 'unresolvedCount']);
 });
 
 

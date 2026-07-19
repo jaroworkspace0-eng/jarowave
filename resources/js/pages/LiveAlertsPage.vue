@@ -98,6 +98,13 @@ function handleSeen(alertId) {
                 <div class="stat-card">
                     <div class="stat-card__label">Active Alerts</div>
                     <div class="stat-card__value">{{ alertList.length }}</div>
+                    <p
+                        v-if="olderUnresolvedCount > 0"
+                        class="ac-older-unresolved-note"
+                    >
+                        + {{ olderUnresolvedCount }} older unresolved — not
+                        shown here
+                    </p>
                 </div>
                 <div class="stat-card">
                     <div class="stat-card__label">Panic / SOS</div>
@@ -374,5 +381,23 @@ function handleSeen(alertId) {
     .alert-grid {
         grid-template-columns: 1fr;
     }
+}
+.stat-card__label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--c-faint, #94a3b8);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.stat-card__value {
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--c-text, #1a2332);
+}
+.ac-older-unresolved-note {
+    margin: 4px 0 0;
+    font-size: 11px;
+    font-weight: 600;
+    color: #ea580c; /* orange accent, matches your existing design system */
 }
 </style>

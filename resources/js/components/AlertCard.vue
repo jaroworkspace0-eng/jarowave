@@ -33,9 +33,9 @@ const escalated = computed(
     () => secondsSinceAck.value !== null && secondsSinceAck.value > 90,
 );
 
-// Stays "new" until acknowledged, escalated (>90s), or resolved/reloaded —
-// not a fixed timer.
-// const isNew = computed(() => !!props.alert.justArrived && !escalated.value);
+// Stays "new" (distinct highlight colors) only until the guard explicitly
+// dismisses it or the page is reloaded. Escalation state is independent and
+// must not clear the "new" styling on its own.
 const isNew = computed(() => !!props.alert.justArrived);
 
 const typeMeta = computed(
@@ -63,22 +63,52 @@ const formattedDateTime = computed(() => {
     });
 });
 
+const formattedAckTime = computed(() => {
+    if (!props.alert.first_ack_at) return null;
+    return new Date(props.alert.first_ack_at).toLocaleTimeString();
+});
+
+// Treat (0, 0) as "no location" regardless of whether it arrives as a
+// number or a string — avoids the false "0.00000, 0.00000" display when
+// a device sends default/placeholder coordinates before a real GPS fix.
+const hasRealLocation = computed(() => {
+    const lat = Number(props.alert.last_lat);
+    const lng = Number(props.alert.last_lng);
+    return !!(lat || lng);
+});
+
 const coordsLabel = computed(() => {
-    if (!props.alert.last_lat || !props.alert.last_lng) return null;
-    return `${Number(props.alert.last_lat).toFixed(5)}, ${Number(props.alert.last_lng).toFixed(5)}`;
+    if (!hasRealLocation.value) return null;
+    const lat = Number(props.alert.last_lat);
+    const lng = Number(props.alert.last_lng);
+    return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+});
+
+const accuracyLabel = computed(() => {
+    const raw = props.alert.accuracy;
+    if (!raw || raw === 'awaiting_gps') return null;
+    const acc = Number(raw);
+    if (!acc || Number.isNaN(acc)) return null;
+    return `±${Math.round(acc)}m`;
 });
 
 const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
 const staticMapUrl = computed(() => {
-    if (!props.alert.last_lat) return null;
+    if (!hasRealLocation.value) return null;
     return `https://maps.googleapis.com/maps/api/staticmap?center=${props.alert.last_lat},${props.alert.last_lng}&zoom=15&size=400x150&markers=${props.alert.last_lat},${props.alert.last_lng}&key=${mapsApiKey}`;
 });
 
 const embedMapUrl = computed(() => {
-    if (!props.alert.last_lat) return null;
+    if (!hasRealLocation.value) return null;
     return `https://www.google.com/maps/embed/v1/view?center=${props.alert.last_lat},${props.alert.last_lng}&zoom=16&key=${mapsApiKey}`;
 });
+
+function guardianStatusLabel(g) {
+    if (!g.responded_at) return 'no response yet';
+    const type = (g.response_type || 'responded').replace(/_/g, ' ');
+    return `${type} · ${new Date(g.responded_at).toLocaleTimeString()}`;
+}
 
 function logCall(outcome) {
     window.location.href = `tel:${props.alert.household_phone}`;
@@ -110,6 +140,9 @@ function onResolveChange(e) {
         <div class="ac-card__header">
             <div>
                 <p class="ac-card__household">{{ alert.household_name }}</p>
+                <p v-if="alert.household_phone" class="ac-card__phone">
+                    {{ alert.household_phone }}
+                </p>
                 <p class="ac-card__meta">{{ alert.channel_name }}</p>
                 <p v-if="alert.home_address" class="ac-card__address">
                     {{ alert.home_address }}
@@ -128,6 +161,9 @@ function onResolveChange(e) {
         <p v-if="escalated" class="ac-escalation-flag">
             No guard acknowledgement &gt; 90s
         </p>
+        <p v-else-if="formattedAckTime" class="ac-ack-flag">
+            ✓ Acknowledged {{ formattedAckTime }}
+        </p>
 
         <!-- Map thumbnail -->
         <button class="ac-map-thumb" @click="mapFullscreen = true">
@@ -135,7 +171,12 @@ function onResolveChange(e) {
             <span v-else class="ac-map-thumb__empty">No location yet</span>
             <span class="ac-map-thumb__expand">Expand</span>
         </button>
-        <p v-if="coordsLabel" class="ac-coords">{{ coordsLabel }}</p>
+        <p v-if="coordsLabel" class="ac-coords">
+            {{ coordsLabel }}
+            <span v-if="accuracyLabel" class="ac-accuracy"
+                >({{ accuracyLabel }})</span
+            >
+        </p>
 
         <!-- Guardian notification summary -->
         <p class="ac-guardian-line">
@@ -198,8 +239,27 @@ function onResolveChange(e) {
         <!-- Expanded: timeline + guardian list -->
         <transition name="ac-slide-down">
             <div v-if="expanded" class="ac-expanded">
+                <div v-if="alert.guardians?.length" class="ac-expanded__block">
+                    <p class="ac-expanded__label">Paired guardians notified</p>
+                    <ul class="ac-expanded__list ac-guardian-list">
+                        <li v-for="g in alert.guardians" :key="g.id">
+                            <span class="ac-guardian-list__name">{{
+                                g.name
+                            }}</span>
+                            <span
+                                class="ac-guardian-list__status"
+                                :class="{
+                                    'ac-guardian-list__status--responded':
+                                        g.responded_at,
+                                }"
+                            >
+                                {{ guardianStatusLabel(g) }}
+                            </span>
+                        </li>
+                    </ul>
+                </div>
                 <div
-                    v-if="alert.guardian_ids?.length"
+                    v-else-if="alert.guardian_ids?.length"
                     class="ac-expanded__block"
                 >
                     <p class="ac-expanded__label">Paired guardians notified</p>
@@ -362,6 +422,12 @@ function onResolveChange(e) {
     color: var(--c-text);
     margin: 0;
 }
+.ac-card__phone {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--c-muted);
+    margin: 1px 0 0;
+}
 .ac-card__meta {
     font-size: 12px;
     color: var(--c-faint);
@@ -377,6 +443,10 @@ function onResolveChange(e) {
     font-size: 11px;
     color: var(--c-faint);
     font-variant-numeric: tabular-nums;
+}
+.ac-accuracy {
+    color: var(--c-faint);
+    font-weight: 500;
 }
 .ac-card__header-right {
     display: flex;
@@ -421,6 +491,12 @@ function onResolveChange(e) {
     font-size: 11px;
     font-weight: 700;
     color: #dc2626;
+}
+.ac-ack-flag {
+    margin: 8px 0 0;
+    font-size: 11px;
+    font-weight: 700;
+    color: #16a34a;
 }
 
 .ac-map-thumb {
@@ -562,6 +638,32 @@ function onResolveChange(e) {
     padding-left: 18px;
     font-size: 12px;
     color: var(--c-muted);
+}
+.ac-guardian-list {
+    padding-left: 0;
+    list-style: none;
+}
+.ac-guardian-list li {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    padding: 3px 0;
+}
+.ac-guardian-list__name {
+    font-weight: 600;
+    color: var(--c-text);
+}
+.ac-guardian-list__status {
+    color: var(--c-faint);
+    font-style: italic;
+    white-space: nowrap;
+    font-size: 11px;
+}
+.ac-guardian-list__status--responded {
+    color: #16a34a;
+    font-style: normal;
+    font-weight: 600;
 }
 .ac-timeline {
     margin: 0;

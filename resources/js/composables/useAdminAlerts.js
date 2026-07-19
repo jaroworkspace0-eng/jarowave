@@ -8,6 +8,23 @@ function authHeaders(extra = {}) {
     };
 }
 
+const olderUnresolvedCount = ref(0);
+
+async function fetchOlderUnresolvedCount() {
+    try {
+        const res = await fetch('/api/admin/alerts/older-unresolved-count', {
+            headers: authHeaders(),
+        });
+        const data = await res.json();
+        olderUnresolvedCount.value = data.older_unresolved_count ?? 0;
+    } catch (e) {
+        console.warn(
+            '[useAdminAlerts] failed to fetch older-unresolved count:',
+            e.message,
+        );
+    }
+}
+
 async function fetchHandshakeCode() {
     const res = await fetch('/api/live-alerts/handshake', {
         headers: authHeaders(),
@@ -79,9 +96,9 @@ export function useAdminAlerts() {
     });
 
     socket.on('admin-room-joined', async ({ role } = {}) => {
-        console.log('[useAdminAlerts] admin-room-joined', role);
         connectionStatus.value = 'live';
         await hydrateOpenAlerts();
+        await fetchOlderUnresolvedCount();
     });
 
     socket.on('admin-room-join-failed', ({ reason } = {}) => {
@@ -190,5 +207,6 @@ export function useAdminAlerts() {
         soundEnabled,
         enableSound,
         markAlertSeen,
+        olderUnresolvedCount, // add this
     };
 }
