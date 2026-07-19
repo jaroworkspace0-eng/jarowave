@@ -118,7 +118,7 @@ class AlertEventService
      */
     protected function broadcastToAdmins(EmergencyAlert $alert, AlertEvent $event): void
     {
-        Http::withToken(config('services.socket_server.secret'))
+        Http::withToken(env('ASSIGN_SECRET'))
             ->post(config('services.socket_server.url') . '/emit', [
                 'clientId' => $alert->household->client_id,
                 'event' => 'alert:event',
@@ -131,7 +131,7 @@ class AlertEventService
 
     public function broadcastNewAlert(EmergencyAlert $alert): void
     {
-        Http::withToken(config('services.socket_server.secret'))
+        Http::withToken(env('ASSIGN_SECRET'))
             ->post(config('services.socket_server.url') . '/emit', [
                 'clientId' => $alert->household->client_id,
                 'event' => 'alert:new',
@@ -160,7 +160,7 @@ class AlertEventService
 
         $this->record($alert, $actorType, $actorId, 'resolved', ['resolution' => $resolution]);
 
-        Http::withToken(config('services.socket_server.secret'))
+        Http::withToken(env('ASSIGN_SECRET'))
             ->post(config('services.socket_server.url') . '/emit', [
                 'clientId' => $alert->household->client_id,
                 'event' => 'alert:resolved',
