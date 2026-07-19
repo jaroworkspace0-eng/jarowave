@@ -4,12 +4,12 @@ import { computed, onMounted, onUnmounted, ref } from 'vue';
 const props = defineProps({
     alert: { type: Object, required: true },
 });
-const emit = defineEmits(['mute', 'call-log', 'resolve']);
+const emit = defineEmits(['mute', 'call-log', 'resolve', 'seen']);
 
 const expanded = ref(false);
 const mapFullscreen = ref(false);
 
-const isDV = computed(() => props.alert.type === 'dv');
+const isDV = computed(() => props.alert.type === 'domestic_violence');
 const isPanicLike = computed(() => ['panic', 'sos'].includes(props.alert.type));
 
 const now = ref(Date.now());
@@ -42,7 +42,7 @@ const typeMeta = computed(
         ({
             panic: { label: 'Panic', badge: 'ac-badge--panic' },
             sos: { label: 'SOS', badge: 'ac-badge--panic' },
-            dv: { label: 'DV Alert', badge: 'ac-badge--dv' },
+            domestic_violence: { label: 'DV Alert', badge: 'ac-badge--dv' },
             guardian: { label: 'Guardian', badge: 'ac-badge--guardian' },
         })[props.alert.type] || {
             label: props.alert.type || 'Alert',
@@ -96,7 +96,14 @@ function onResolveChange(e) {
         class="ac-card"
         :class="{ 'ac-card--escalated': escalated, 'ac-card--new': isNew }"
     >
-        <div v-if="isNew" class="ac-new-ribbon">🚨 New Alert</div>
+        <button
+            v-if="isNew"
+            type="button"
+            class="ac-new-ribbon"
+            @click="$emit('seen', alert.id)"
+        >
+            🚨 New Alert — tap to dismiss
+        </button>
 
         <!-- Header -->
         <div class="ac-card__header">
@@ -321,11 +328,17 @@ function onResolveChange(e) {
     font-weight: 800;
     letter-spacing: 0.4px;
     padding: 4px 12px;
+    border: none;
     border-radius: 6px;
     text-transform: uppercase;
     box-shadow: 0 2px 8px rgba(245, 158, 11, 0.45);
     animation: ac-ribbon-bounce 0.5s ease-in-out infinite alternate;
     z-index: 1;
+    cursor: pointer;
+    font-family: inherit;
+}
+.ac-new-ribbon:hover {
+    background: #d97706;
 }
 @keyframes ac-ribbon-bounce {
     from {

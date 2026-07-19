@@ -18,20 +18,41 @@ async function fetchHandshakeCode() {
 }
 
 const SOUND_URL = '/sounds/sos-alert.mp3';
+const SEEN_STORAGE_KEY = 'echoLink:seenAlertIds';
+
 const soundEnabled = ref(false);
 const activeSounds = new Map();
-let unlockedAudio = null;
+
+function loadSeenIds() {
+    try {
+        const raw = localStorage.getItem(SEEN_STORAGE_KEY);
+        return new Set(raw ? JSON.parse(raw) : []);
+    } catch (e) {
+        return new Set();
+    }
+}
+
+function persistSeenIds(set) {
+    try {
+        localStorage.setItem(SEEN_STORAGE_KEY, JSON.stringify([...set]));
+    } catch (e) {
+        console.warn(
+            '[useAdminAlerts] failed to persist seen alerts',
+            e.message,
+        );
+    }
+}
+
+const seenIds = loadSeenIds();
 
 function enableSound() {
-    // Play + immediately pause a real element on a user gesture to unlock
-    // autoplay for every Audio() instance created afterward in this session.
-    unlockedAudio = new Audio(SOUND_URL);
-    unlockedAudio.volume = 0;
-    unlockedAudio
+    const unlockAudio = new Audio(SOUND_URL);
+    unlockAudio.volume = 0;
+    unlockAudio
         .play()
         .then(() => {
-            unlockedAudio.pause();
-            unlockedAudio.currentTime = 0;
+            unlockAudio.pause();
+            unlockAudio.currentTime = 0;
             soundEnabled.value = true;
         })
         .catch((e) =>
@@ -96,14 +117,19 @@ export function useAdminAlerts() {
     });
 
     socket.on('alert:new', (alert) => {
+        const alreadySeen = seenIds.has(String(alert.id));
         const isLiveArrival = hydrated.value;
         alerts.set(alert.id, {
             ...alert,
             events: alert.events ?? [],
             muted: false,
-            justArrived: isLiveArrival,
+            justArrived: !alreadySeen,
         });
-        if (isLiveArrival && ['panic', 'sos'].includes(alert.type)) {
+        if (
+            isLiveArrival &&
+            !alreadySeen &&
+            ['panic', 'sos'].includes(alert.type)
+        ) {
             playAlertSound(alert.id);
         }
     });
@@ -140,10 +166,21 @@ export function useAdminAlerts() {
             headers: authHeaders(),
         });
         const data = await res.json();
-        data.forEach((alert) =>
-            alerts.set(alert.id, { ...alert, justArrived: false }),
-        );
+        data.forEach((alert) => {
+            alerts.set(alert.id, {
+                ...alert,
+                justArrived: !seenIds.has(String(alert.id)),
+            });
+        });
         hydrated.value = true;
+    }
+
+    function markAlertSeen(alertId) {
+        seenIds.add(String(alertId));
+        persistSeenIds(seenIds);
+        stopAlertSound(alertId);
+        const alert = alerts.get(alertId);
+        if (alert) alert.justArrived = false;
     }
 
     function toggleMute(alertId, muted) {
@@ -184,5 +221,6 @@ export function useAdminAlerts() {
         resolve,
         soundEnabled,
         enableSound,
+        markAlertSeen,
     };
 }

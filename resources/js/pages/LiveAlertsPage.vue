@@ -12,6 +12,7 @@ const {
     resolve,
     soundEnabled,
     enableSound,
+    markAlertSeen,
 } = useAdminAlerts();
 
 const activeFilter = ref('all');
@@ -26,6 +27,8 @@ const filteredList = computed(() => {
     if (activeFilter.value === 'all') return alertList.value;
     if (activeFilter.value === 'panic')
         return alertList.value.filter((a) => ['panic', 'sos'].includes(a.type));
+    if (activeFilter.value === 'dv')
+        return alertList.value.filter((a) => a.type === 'domestic_violence');
     return alertList.value.filter((a) => a.type === activeFilter.value);
 });
 
@@ -34,7 +37,7 @@ const panicCount = computed(
         alertList.value.filter((a) => ['panic', 'sos'].includes(a.type)).length,
 );
 const dvCount = computed(
-    () => alertList.value.filter((a) => a.type === 'dv').length,
+    () => alertList.value.filter((a) => a.type === 'domestic_violence').length,
 );
 const escalatedCount = computed(
     () =>
@@ -52,6 +55,10 @@ function handleResolve(alertId, resolution) {
 function handleEnableSound() {
     console.log('[Live Alerts] enable sound clicked');
     enableSound();
+}
+
+function handleSeen(alertId) {
+    markAlertSeen(alertId);
 }
 </script>
 <template>
@@ -151,6 +158,7 @@ function handleEnableSound() {
                     @mute="toggleMute"
                     @call-log="logCallAttempt"
                     @resolve="handleResolve"
+                    @seen="handleSeen"
                 />
             </div>
         </div>
