@@ -35,7 +35,8 @@ const escalated = computed(
 
 // Stays "new" until acknowledged, escalated (>90s), or resolved/reloaded —
 // not a fixed timer.
-const isNew = computed(() => !!props.alert.justArrived && !escalated.value);
+// const isNew = computed(() => !!props.alert.justArrived && !escalated.value);
+const isNew = computed(() => !!props.alert.justArrived);
 
 const typeMeta = computed(
     () =>
