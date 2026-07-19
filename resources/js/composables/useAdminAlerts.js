@@ -18,32 +18,9 @@ async function fetchHandshakeCode() {
 }
 
 const SOUND_URL = '/sounds/sos-alert.mp3';
-const SEEN_STORAGE_KEY = 'echoLink:seenAlertIds';
 
 const soundEnabled = ref(false);
 const activeSounds = new Map();
-
-function loadSeenIds() {
-    try {
-        const raw = localStorage.getItem(SEEN_STORAGE_KEY);
-        return new Set(raw ? JSON.parse(raw) : []);
-    } catch (e) {
-        return new Set();
-    }
-}
-
-function persistSeenIds(set) {
-    try {
-        localStorage.setItem(SEEN_STORAGE_KEY, JSON.stringify([...set]));
-    } catch (e) {
-        console.warn(
-            '[useAdminAlerts] failed to persist seen alerts',
-            e.message,
-        );
-    }
-}
-
-const seenIds = loadSeenIds();
 
 function enableSound() {
     const unlockAudio = new Audio(SOUND_URL);
@@ -117,19 +94,14 @@ export function useAdminAlerts() {
     });
 
     socket.on('alert:new', (alert) => {
-        const alreadySeen = seenIds.has(String(alert.id));
         const isLiveArrival = hydrated.value;
         alerts.set(alert.id, {
             ...alert,
             events: alert.events ?? [],
             muted: false,
-            justArrived: !alreadySeen,
+            justArrived: isLiveArrival,
         });
-        if (
-            isLiveArrival &&
-            !alreadySeen &&
-            ['panic', 'sos'].includes(alert.type)
-        ) {
+        if (isLiveArrival && ['panic', 'sos'].includes(alert.type)) {
             playAlertSound(alert.id);
         }
     });
@@ -167,17 +139,12 @@ export function useAdminAlerts() {
         });
         const data = await res.json();
         data.forEach((alert) => {
-            alerts.set(alert.id, {
-                ...alert,
-                justArrived: !seenIds.has(String(alert.id)),
-            });
+            alerts.set(alert.id, { ...alert, justArrived: false });
         });
         hydrated.value = true;
     }
 
     function markAlertSeen(alertId) {
-        seenIds.add(String(alertId));
-        persistSeenIds(seenIds);
         stopAlertSound(alertId);
         const alert = alerts.get(alertId);
         if (alert) alert.justArrived = false;

@@ -283,30 +283,33 @@ class DvRecordingController extends Controller
         ]);
 
         try {
-
-                $recording = DvRecording::where('alert_id', $alertId)->first();
-                if (!$recording) {
-                    return response()->json([
-                        'status'  => 'error',
-                        'message' => 'Alert ID not found in DV Recordings'
-                    ], 404);
-                }
-
-                $recording->cancel_pin_used = $request->cancel_pin_used ?? $recording->cancel_pin_used; // Only update if provided
-                $recording->save();
-
+            $recording = DvRecording::where('alert_id', $alertId)->first();
+            if (!$recording) {
                 return response()->json([
-                    'status'  => 'success',
-                    'message' => 'GPS Synced to DV Recording'
-                ]);
-            
+                    'status'  => 'error',
+                    'message' => 'Alert ID not found in DV Recordings'
+                ], 404);
+            }
 
+            $recording->cancel_pin_used = $request->cancel_pin_used ?? $recording->cancel_pin_used;
+            $recording->save();
+
+            $alert = \App\Models\EmergencyAlert::find($recording->alert_id);
+            if ($alert && !$alert->is_resolved) {
+                $alert->is_resolved = true;
+                $alert->resolved_at = now();
+                $alert->save();
+            }
+
+            return response()->json([
+                'status'  => 'success',
+                'message' => 'GPS Synced to DV Recording'
+            ]);
         } catch (\Exception $e) {
             return response()->json([
                 'status'  => 'error',
                 'message' => $e->getMessage()
             ], 500);
         }
-        
     }
 }
