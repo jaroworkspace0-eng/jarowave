@@ -378,27 +378,28 @@ class EmergencyAlertController extends Controller
 
 
     public function update(Request $request, $id)
-    {
-        try {
-            $alert = EmergencyAlert::find($id);
-            if (!$alert) {
-                return response()->json(['status'=>'error','message'=>'Alert ID not found in DB'], 404);
-            }
-
-            $alert->accuracy = $request->accuracy;
-            $alert->cancel_pin_used = $request->cancel_pin_used ?? $alert->cancel_pin_used;
-            $alert->save();
-
-            if ($request->filled('latitude') && $request->filled('longitude')) {
-                app(\App\Services\AlertEventService::class)
-                    ->updateLocation($alert, (float) $request->latitude, (float) $request->longitude);
-            }
-
-            return response()->json(['status' => 'success', 'message' => 'GPS Synced']);
-        } catch (\Exception $e) {
-            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+{
+    try {
+        $alert = EmergencyAlert::find($id);
+        if (!$alert) {
+            return response()->json(['status'=>'error','message'=>'Alert ID not found in DB'], 404);
         }
+
+        $alert->accuracy = $request->accuracy;
+        $alert->cancel_pin_used = $request->cancel_pin_used ?? $alert->cancel_pin_used;
+        $alert->save();
+
+        if ($request->filled('latitude') && $request->filled('longitude')
+            && (float) $request->latitude !== 0.0 && (float) $request->longitude !== 0.0) {
+            app(\App\Services\AlertEventService::class)
+                ->updateLocation($alert, (float) $request->latitude, (float) $request->longitude);
+        }
+
+        return response()->json(['status' => 'success', 'message' => 'GPS Synced']);
+    } catch (\Exception $e) {
+        return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
     }
+}
 
 
     public function list(Request $request)
