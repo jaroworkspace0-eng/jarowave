@@ -116,6 +116,7 @@ export function useAdminAlerts() {
             stopAlertSound(alert_id);
         }
         if (event.event_type === 'location_updated') {
+            console.log('[location_updated payload]', event.payload);
             alert.last_lat = event.payload.lat;
             alert.last_lng = event.payload.lng;
         }
