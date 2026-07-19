@@ -93,7 +93,6 @@ class AlertEventService
             'lng' => $lng,
         ]);
     }
-
     public function logAdminCallAttempt(EmergencyAlert $alert, int $adminId, string $outcome): void
     {
         $this->record($alert, 'admin', $adminId, 'admin_call_logged', ['outcome' => $outcome]);
@@ -118,9 +117,9 @@ class AlertEventService
      */
     protected function broadcastToAdmins(EmergencyAlert $alert, AlertEvent $event): void
     {
-        Http::withToken(env('ASSIGN_SECRET'))
+        Http::withToken(config('services.socket_server.secret'))
             ->post(config('services.socket_server.url') . '/emit', [
-                'clientId' => $alert->household->client_id,
+                'channelId' => $alert->household->client_id,   // was 'clientId'
                 'event' => 'alert:event',
                 'data' => [
                     'alert_id' => $alert->id,
