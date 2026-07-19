@@ -550,7 +550,7 @@ class EmergencyAlertController extends Controller
 
             Http::withHeaders(['Authorization' => 'Bearer ' . env('ASSIGN_SECRET')])
                 ->timeout(5)
-                ->post(env('NODE_URL') . '/notify-guardian-alert-cancelled', [
+                ->post(env('PTT_SERVER_URL') . '/notify-guardian-alert-cancelled', [
                     'recipientUserIds' => $pairedIds->all(),
                     'alertId'          => $alert->id,
                     'cancelledBy'      => [

@@ -88,11 +88,12 @@ class AlertEventService
             'location_updated_at' => now(),
         ]);
 
-        $this->record($alert, 'household', $alert->household_id, 'location_updated', [
+        $this->record($alert, 'household', $alert->user_id, 'location_updated', [
             'lat' => $lat,
             'lng' => $lng,
         ]);
     }
+
     public function logAdminCallAttempt(EmergencyAlert $alert, int $adminId, string $outcome): void
     {
         $this->record($alert, 'admin', $adminId, 'admin_call_logged', ['outcome' => $outcome]);
@@ -115,11 +116,12 @@ class AlertEventService
      * endpoint for Laravel to emit through (common pattern — swap for
      * whatever bridge you already use for guard/guardian dispatch).
      */
+ 
     protected function broadcastToAdmins(EmergencyAlert $alert, AlertEvent $event): void
     {
-        Http::withToken(config('services.socket_server.secret'))
-            ->post(config('services.socket_server.url') . '/emit', [
-                'channelId' => $alert->household->client_id,   // was 'clientId'
+        Http::withToken(env('ASSIGN_SECRET'))
+            ->post(env('PTT_SERVER_URL') . '/emit', [
+                'channelId' => $alert->client_id,
                 'event' => 'alert:event',
                 'data' => [
                     'alert_id' => $alert->id,
@@ -131,7 +133,7 @@ class AlertEventService
     public function broadcastNewAlert(EmergencyAlert $alert): void
     {
         Http::withToken(env('ASSIGN_SECRET'))
-            ->post(config('services.socket_server.url') . '/emit', [
+            ->post(env('PTT_SERVER_URL') . '/emit', [
                 'clientId' => $alert->household->client_id,
                 'event' => 'alert:new',
                 'data' => [
@@ -160,7 +162,7 @@ class AlertEventService
         $this->record($alert, $actorType, $actorId, 'resolved', ['resolution' => $resolution]);
 
         Http::withToken(env('ASSIGN_SECRET'))
-            ->post(config('services.socket_server.url') . '/emit', [
+            ->post(env('PTT_SERVER_URL') . '/emit', [
                 'clientId' => $alert->household->client_id,
                 'event' => 'alert:resolved',
                 'data' => ['alert_id' => $alert->id],
