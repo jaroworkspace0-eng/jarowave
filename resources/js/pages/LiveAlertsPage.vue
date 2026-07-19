@@ -4,12 +4,18 @@ import { useAdminAlerts } from '@/composables/useAdminAlerts';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { computed, ref } from 'vue';
 
-const { alerts, connectionStatus, toggleMute, logCallAttempt, resolve } =
-    useAdminAlerts();
+const {
+    alerts,
+    connectionStatus,
+    toggleMute,
+    logCallAttempt,
+    resolve,
+    soundEnabled,
+    enableSound,
+} = useAdminAlerts();
 
 const activeFilter = ref('all');
 
-// const alertList = computed(() => Array.from(alerts.values()));
 const alertList = computed(() =>
     Array.from(alerts.values()).sort(
         (a, b) => new Date(b.created_at) - new Date(a.created_at),
@@ -42,6 +48,11 @@ const escalatedCount = computed(
 function handleResolve(alertId, resolution) {
     resolve(alertId, resolution);
 }
+
+function handleEnableSound() {
+    console.log('[Live Alerts] enable sound clicked');
+    enableSound();
+}
 </script>
 <template>
     <Head title="Live Alerts" />
@@ -56,8 +67,9 @@ function handleResolve(alertId, resolution) {
                 <div class="page-header__right">
                     <button
                         v-if="!soundEnabled"
+                        type="button"
                         class="sound-enable-btn"
-                        @click="enableSound"
+                        @click="handleEnableSound"
                     >
                         🔊 Enable Alert Sound
                     </button>
@@ -178,6 +190,28 @@ function handleResolve(alertId, resolution) {
     color: #1a2332;
     margin: 0;
     letter-spacing: -0.3px;
+}
+
+.page-header__right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sound-enable-btn {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    background: #fef3c7;
+    color: #b45309;
+    border: 1px solid #fbbf24;
+    cursor: pointer;
+    position: relative;
+    z-index: 5;
+}
+.sound-enable-btn:hover {
+    background: #fde68a;
 }
 
 .conn-badge {
@@ -332,19 +366,5 @@ function handleResolve(alertId, resolution) {
     .alert-grid {
         grid-template-columns: 1fr;
     }
-}
-
-.sound-enable-btn {
-    padding: 6px 14px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-weight: 700;
-    background: #fef3c7;
-    color: #b45309;
-    border: 1px solid #fbbf24;
-    cursor: pointer;
-}
-.sound-enable-btn:hover {
-    background: #fde68a;
 }
 </style>

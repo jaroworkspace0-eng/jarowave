@@ -50,6 +50,23 @@ const typeMeta = computed(
         },
 );
 
+const formattedDateTime = computed(() => {
+    const d = new Date(props.alert.created_at);
+    return d.toLocaleString([], {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+    });
+});
+
+const coordsLabel = computed(() => {
+    if (!props.alert.last_lat || !props.alert.last_lng) return null;
+    return `${Number(props.alert.last_lat).toFixed(5)}, ${Number(props.alert.last_lng).toFixed(5)}`;
+});
+
 const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
 const staticMapUrl = computed(() => {
@@ -86,13 +103,16 @@ function onResolveChange(e) {
             <div>
                 <p class="ac-card__household">{{ alert.household_name }}</p>
                 <p class="ac-card__meta">{{ alert.channel_name }}</p>
+                <p v-if="alert.home_address" class="ac-card__address">
+                    {{ alert.home_address }}
+                </p>
             </div>
             <div class="ac-card__header-right">
                 <span class="ac-badge" :class="typeMeta.badge">{{
                     typeMeta.label
                 }}</span>
                 <p class="ac-card__time">
-                    {{ new Date(alert.created_at).toLocaleTimeString() }}
+                    {{ formattedDateTime }}
                 </p>
             </div>
         </div>
@@ -107,6 +127,7 @@ function onResolveChange(e) {
             <span v-else class="ac-map-thumb__empty">No location yet</span>
             <span class="ac-map-thumb__expand">Expand</span>
         </button>
+        <p v-if="coordsLabel" class="ac-coords">{{ coordsLabel }}</p>
 
         <!-- Guardian notification summary -->
         <p class="ac-guardian-line">
@@ -331,6 +352,17 @@ function onResolveChange(e) {
     font-size: 12px;
     color: var(--c-faint);
     margin: 1px 0 0;
+}
+.ac-card__address {
+    font-size: 11px;
+    color: var(--c-muted);
+    margin: 2px 0 0;
+}
+.ac-coords {
+    margin: 6px 0 0;
+    font-size: 11px;
+    color: var(--c-faint);
+    font-variant-numeric: tabular-nums;
 }
 .ac-card__header-right {
     display: flex;
