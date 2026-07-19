@@ -17,13 +17,33 @@ async function fetchHandshakeCode() {
     return data.code;
 }
 
+const SOUND_URL = '/sounds/sos-alert.mp3';
+const soundEnabled = ref(false);
 const activeSounds = new Map();
+let unlockedAudio = null;
+
+function enableSound() {
+    // Play + immediately pause a real element on a user gesture to unlock
+    // autoplay for every Audio() instance created afterward in this session.
+    unlockedAudio = new Audio(SOUND_URL);
+    unlockedAudio.volume = 0;
+    unlockedAudio
+        .play()
+        .then(() => {
+            unlockedAudio.pause();
+            unlockedAudio.currentTime = 0;
+            soundEnabled.value = true;
+        })
+        .catch((e) =>
+            console.warn('[useAdminAlerts] unlock failed:', e.message),
+        );
+}
 
 function playAlertSound(alertId) {
     if (activeSounds.has(alertId)) return;
-    const audio = new Audio('/sounds/sos-alert.mp3');
+    const audio = new Audio(SOUND_URL);
     audio.loop = true;
-    audio.volume = 0.7;
+    audio.volume = 0.8;
     audio
         .play()
         .catch((e) =>
@@ -156,5 +176,13 @@ export function useAdminAlerts() {
         alerts.delete(alertId);
     }
 
-    return { alerts, connectionStatus, toggleMute, logCallAttempt, resolve };
+    return {
+        alerts,
+        connectionStatus,
+        toggleMute,
+        logCallAttempt,
+        resolve,
+        soundEnabled,
+        enableSound,
+    };
 }

@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 const props = defineProps({
     alert: { type: Object, required: true },
@@ -12,24 +12,30 @@ const mapFullscreen = ref(false);
 const isDV = computed(() => props.alert.type === 'dv');
 const isPanicLike = computed(() => ['panic', 'sos'].includes(props.alert.type));
 
-const isNew = ref(!!props.alert.justArrived);
+const now = ref(Date.now());
+let clockInterval;
 onMounted(() => {
-    if (isNew.value) {
-        setTimeout(() => {
-            isNew.value = false;
-        }, 6000);
-    }
+    clockInterval = setInterval(() => {
+        now.value = Date.now();
+    }, 1000);
+});
+onUnmounted(() => {
+    clearInterval(clockInterval);
 });
 
 const secondsSinceAck = computed(() => {
     if (props.alert.first_ack_at) return null;
     return Math.floor(
-        (Date.now() - new Date(props.alert.created_at).getTime()) / 1000,
+        (now.value - new Date(props.alert.created_at).getTime()) / 1000,
     );
 });
 const escalated = computed(
     () => secondsSinceAck.value !== null && secondsSinceAck.value > 90,
 );
+
+// Stays "new" until acknowledged, escalated (>90s), or resolved/reloaded —
+// not a fixed timer.
+const isNew = computed(() => !!props.alert.justArrived && !escalated.value);
 
 const typeMeta = computed(
     () =>
@@ -73,6 +79,8 @@ function onResolveChange(e) {
         class="ac-card"
         :class="{ 'ac-card--escalated': escalated, 'ac-card--new': isNew }"
     >
+        <div v-if="isNew" class="ac-new-ribbon">🚨 New Alert</div>
+
         <!-- Header -->
         <div class="ac-card__header">
             <div>
@@ -80,7 +88,6 @@ function onResolveChange(e) {
                 <p class="ac-card__meta">{{ alert.channel_name }}</p>
             </div>
             <div class="ac-card__header-right">
-                <span v-if="isNew" class="ac-badge ac-badge--new">New</span>
                 <span class="ac-badge" :class="typeMeta.badge">{{
                     typeMeta.label
                 }}</span>
@@ -247,6 +254,7 @@ function onResolveChange(e) {
     border: 1px solid var(--c-border);
     border-radius: 16px;
     padding: 18px 20px;
+    position: relative;
     box-shadow:
         0 1px 3px rgba(0, 0, 0, 0.06),
         0 1px 2px rgba(0, 0, 0, 0.04);
@@ -267,19 +275,43 @@ function onResolveChange(e) {
         box-shadow: 0 0 0 6px rgba(220, 38, 38, 0.08);
     }
 }
+
 .ac-card--new {
-    border-color: #f59e0b;
-    animation: ac-new-flash 0.9s ease-in-out 3;
+    border: 3px solid #f59e0b;
+    background: #fffbeb;
+    animation: ac-new-pulse 1.1s ease-in-out infinite;
 }
-@keyframes ac-new-flash {
+@keyframes ac-new-pulse {
     0%,
     100% {
-        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
-        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.5);
     }
     50% {
-        box-shadow: 0 0 0 10px rgba(245, 158, 11, 0.35);
-        transform: scale(1.015);
+        box-shadow: 0 0 0 14px rgba(245, 158, 11, 0.12);
+    }
+}
+.ac-new-ribbon {
+    position: absolute;
+    top: -12px;
+    left: 16px;
+    background: #f59e0b;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.4px;
+    padding: 4px 12px;
+    border-radius: 6px;
+    text-transform: uppercase;
+    box-shadow: 0 2px 8px rgba(245, 158, 11, 0.45);
+    animation: ac-ribbon-bounce 0.5s ease-in-out infinite alternate;
+    z-index: 1;
+}
+@keyframes ac-ribbon-bounce {
+    from {
+        transform: translateY(0);
+    }
+    to {
+        transform: translateY(-3px);
     }
 }
 
@@ -336,11 +368,6 @@ function onResolveChange(e) {
 .ac-badge--general {
     background: #f1f5f9;
     color: #475569;
-}
-.ac-badge--new {
-    background: #fef3c7;
-    color: #b45309;
-    animation: ac-pulse 1s ease-in-out infinite;
 }
 
 .ac-escalation-flag {

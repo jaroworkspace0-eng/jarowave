@@ -54,6 +54,13 @@ function handleResolve(alertId, resolution) {
                     <h1 class="page-header__title">Live Alerts</h1>
                 </div>
                 <div class="page-header__right">
+                    <button
+                        v-if="!soundEnabled"
+                        class="sound-enable-btn"
+                        @click="enableSound"
+                    >
+                        🔊 Enable Alert Sound
+                    </button>
                     <span
                         class="conn-badge"
                         :class="`conn-badge--${connectionStatus}`"
@@ -325,5 +332,19 @@ function handleResolve(alertId, resolution) {
     .alert-grid {
         grid-template-columns: 1fr;
     }
+}
+
+.sound-enable-btn {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 700;
+    background: #fef3c7;
+    color: #b45309;
+    border: 1px solid #fbbf24;
+    cursor: pointer;
+}
+.sound-enable-btn:hover {
+    background: #fde68a;
 }
 </style>
