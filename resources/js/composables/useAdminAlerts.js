@@ -97,7 +97,10 @@ export function useAdminAlerts() {
 
     socket.on('alert:new', (alert) => {
         const isLiveArrival = hydrated.value;
-        alerts.set(alert.id, {
+        const existingKey = [...alerts.keys()].find(
+            (k) => String(k) === String(alert.id),
+        );
+        alerts.set(existingKey !== undefined ? existingKey : alert.id, {
             ...alert,
             events: alert.events ?? [],
             guardians: alert.guardians ?? [],
@@ -182,7 +185,10 @@ export function useAdminAlerts() {
 
     socket.on('alert:resolved', ({ alert_id }) => {
         stopAlertSound(alert_id);
-        alerts.delete(alert_id);
+        const key = [...alerts.keys()].find(
+            (k) => String(k) === String(alert_id),
+        );
+        if (key !== undefined) alerts.delete(key);
     });
 
     async function hydrateOpenAlerts() {

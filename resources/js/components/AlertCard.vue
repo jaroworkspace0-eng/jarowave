@@ -286,7 +286,7 @@ function onResolveChange(e) {
             </p>
         </div>
         <p v-else-if="alert.acknowledgedBy?.length" class="ac-guardian-line">
-            Acknowledged by {{ alert.acknowledgedBy.join(', ') }} — not yet
+            Acknowledged by {{ alert.acknowledgedBy.join(', ') }} - not yet
             responding
         </p>
 
