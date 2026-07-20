@@ -1,7 +1,14 @@
 <script setup>
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { CheckCircle2, Siren, X } from 'lucide-vue-next';
+import {
+    CheckCircle2,
+    Crosshair,
+    Megaphone,
+    Send,
+    Siren,
+    X,
+} from 'lucide-vue-next';
 import {
     computed,
     nextTick,
@@ -15,7 +22,13 @@ import {
 const props = defineProps({
     alert: { type: Object, required: true },
 });
-const emit = defineEmits(['mute', 'call-log', 'resolve', 'seen']);
+const emit = defineEmits([
+    'mute',
+    'call-log',
+    'resolve',
+    'seen',
+    'notify-guards',
+]);
 
 const expanded = ref(false);
 const mapFullscreen = ref(false);
@@ -196,10 +209,42 @@ function buildMap(container, interactive) {
     return map;
 }
 
+// Centralised so the "recenter" control and the initial draw always agree
+// on where the map should be looking.
+function getAlertPoints() {
+    const points = [];
+    if (hasRealLocation.value) {
+        points.push([
+            Number(props.alert.last_lat),
+            Number(props.alert.last_lng),
+        ]);
+    }
+    if (props.alert.responderLocation) {
+        points.push([
+            Number(props.alert.responderLocation.lat),
+            Number(props.alert.responderLocation.lng),
+        ]);
+    }
+    return points;
+}
+
+function fitAlertBounds(map) {
+    const points = getAlertPoints();
+    if (points.length === 2) {
+        map.fitBounds(points, { padding: [24, 24] });
+    } else if (points.length === 1) {
+        map.setView(points[0], 15);
+    }
+}
+
+function recenterMap(map) {
+    if (!map) return;
+    fitAlertBounds(map);
+}
+
 function drawAlertOnMap(map) {
     if (!map) return null;
     const layer = L.layerGroup().addTo(map);
-    const points = [];
 
     if (hasRealLocation.value) {
         const hLat = Number(props.alert.last_lat);
@@ -211,9 +256,16 @@ function drawAlertOnMap(map) {
             fillOpacity: 1,
             weight: 2,
         })
-            .bindTooltip('Household')
+            .bindTooltip(
+                `Household: ${props.alert.household_name || 'Unknown'}`,
+                {
+                    permanent: true,
+                    direction: 'top',
+                    offset: [0, -10],
+                    className: 'ac-leaflet-label ac-leaflet-label--household',
+                },
+            )
             .addTo(layer);
-        points.push([hLat, hLng]);
     }
 
     if (props.alert.responderLocation) {
@@ -226,9 +278,16 @@ function drawAlertOnMap(map) {
             fillOpacity: 1,
             weight: 2,
         })
-            .bindTooltip('Guard')
+            .bindTooltip(
+                `Guard: ${props.alert.currentResponder?.username || 'Unknown'}`,
+                {
+                    permanent: true,
+                    direction: 'top',
+                    offset: [0, -10],
+                    className: 'ac-leaflet-label ac-leaflet-label--guard',
+                },
+            )
             .addTo(layer);
-        points.push([gLat, gLng]);
     }
 
     if (routeCoords.value?.length) {
@@ -239,12 +298,7 @@ function drawAlertOnMap(map) {
         }).addTo(layer);
     }
 
-    if (points.length === 2) {
-        map.fitBounds(points, { padding: [24, 24] });
-    } else if (points.length === 1) {
-        map.setView(points[0], 15);
-    }
-
+    fitAlertBounds(map);
     return layer;
 }
 
@@ -322,6 +376,75 @@ onBeforeUnmount(() => {
     thumbMap = null;
     modalMap = null;
 });
+
+/* ---------------- Guard broadcast (one-way push, not a chat) ---------------- */
+
+// Expects alert.channelGuards = [{ id, username, phone }] — the roster of
+// guards assigned to this channel. Adjust the prop path if it lives
+// elsewhere in your payload.
+const channelGuards = computed(() => props.alert.channelGuards || []);
+
+const notifyTarget = ref('all'); // 'all' | 'responder' | 'selected'
+const selectedGuardIds = ref([]);
+const notifyMessage = ref('');
+const notifySent = ref(false);
+
+const notifyTargetCount = computed(() => {
+    if (notifyTarget.value === 'all') return channelGuards.value.length;
+    if (notifyTarget.value === 'responder')
+        return props.alert.currentResponder ? 1 : 0;
+    return selectedGuardIds.value.length;
+});
+
+const quickMessages = [
+    {
+        label: 'No response yet',
+        text: 'No guard has acknowledged this alert yet — please respond immediately.',
+    },
+    {
+        label: 'Reinforcement needed',
+        text: 'Requesting backup — please assist the responding guard at this location.',
+    },
+    {
+        label: 'Stand down',
+        text: 'Household confirmed safe. Stand down on this alert.',
+    },
+];
+
+function applyQuickMessage(text) {
+    notifyMessage.value = text;
+}
+
+function sendNotification() {
+    const message = notifyMessage.value.trim();
+    if (!message || !notifyTargetCount.value) return;
+
+    const guardIds =
+        notifyTarget.value === 'all'
+            ? channelGuards.value.map((g) => g.id)
+            : notifyTarget.value === 'responder'
+              ? [props.alert.currentResponder.id]
+              : [...selectedGuardIds.value];
+
+    emit('notify-guards', props.alert.id, {
+        target: notifyTarget.value,
+        guardIds,
+        message,
+    });
+
+    notifyMessage.value = '';
+    notifySent.value = true;
+    setTimeout(() => (notifySent.value = false), 2000);
+}
+
+watch(
+    () => props.alert.currentResponder,
+    (responder) => {
+        if (!responder && notifyTarget.value === 'responder') {
+            notifyTarget.value = 'all';
+        }
+    },
+);
 
 /* ---------------------------------------------------------------------- */
 
@@ -591,9 +714,21 @@ function onResolveChange(e) {
                         <div class="ac-map-modal__body">
                             <div
                                 v-if="hasRealLocation"
-                                ref="modalEl"
-                                class="ac-map-modal__map"
-                            ></div>
+                                class="ac-map-modal__map-wrap"
+                            >
+                                <div
+                                    ref="modalEl"
+                                    class="ac-map-modal__map"
+                                ></div>
+                                <button
+                                    type="button"
+                                    class="ac-recenter-btn"
+                                    @click="recenterMap(modalMap)"
+                                >
+                                    <Crosshair :size="14" />
+                                    Recenter
+                                </button>
+                            </div>
                             <div v-else class="ac-map-modal__empty">
                                 No location data for this alert yet
                             </div>
@@ -696,6 +831,123 @@ function onResolveChange(e) {
                                                 ? ''
                                                 : 's'
                                         }}
+                                    </p>
+                                </div>
+
+                                <div class="ac-detail-group ac-notify-group">
+                                    <p class="ac-detail-group__label">
+                                        <Megaphone :size="12" />
+                                        Notify guards
+                                    </p>
+
+                                    <div class="ac-notify-target">
+                                        <button
+                                            type="button"
+                                            class="ac-notify-target__btn"
+                                            :class="{
+                                                'ac-notify-target__btn--active':
+                                                    notifyTarget === 'all',
+                                            }"
+                                            @click="notifyTarget = 'all'"
+                                        >
+                                            All in channel ({{
+                                                channelGuards.length
+                                            }})
+                                        </button>
+                                        <button
+                                            v-if="alert.currentResponder"
+                                            type="button"
+                                            class="ac-notify-target__btn"
+                                            :class="{
+                                                'ac-notify-target__btn--active':
+                                                    notifyTarget ===
+                                                    'responder',
+                                            }"
+                                            @click="notifyTarget = 'responder'"
+                                        >
+                                            Responding guard
+                                        </button>
+                                        <button
+                                            type="button"
+                                            class="ac-notify-target__btn"
+                                            :class="{
+                                                'ac-notify-target__btn--active':
+                                                    notifyTarget === 'selected',
+                                            }"
+                                            @click="notifyTarget = 'selected'"
+                                        >
+                                            Choose specific
+                                        </button>
+                                    </div>
+
+                                    <select
+                                        v-if="notifyTarget === 'selected'"
+                                        v-model="selectedGuardIds"
+                                        multiple
+                                        class="ac-notify-select"
+                                    >
+                                        <option
+                                            v-for="g in channelGuards"
+                                            :key="g.id"
+                                            :value="g.id"
+                                        >
+                                            {{ g.username
+                                            }}{{
+                                                g.phone ? ' · ' + g.phone : ''
+                                            }}
+                                        </option>
+                                    </select>
+
+                                    <div class="ac-notify-chips">
+                                        <button
+                                            v-for="q in quickMessages"
+                                            :key="q.label"
+                                            type="button"
+                                            class="ac-notify-chip"
+                                            @click="applyQuickMessage(q.text)"
+                                        >
+                                            {{ q.label }}
+                                        </button>
+                                    </div>
+
+                                    <textarea
+                                        v-model="notifyMessage"
+                                        class="ac-notify-textarea"
+                                        rows="3"
+                                        maxlength="240"
+                                        placeholder="Message to broadcast as a push notification…"
+                                    ></textarea>
+
+                                    <div class="ac-notify-footer">
+                                        <span class="ac-notify-count"
+                                            >{{
+                                                notifyMessage.length
+                                            }}/240</span
+                                        >
+                                        <button
+                                            type="button"
+                                            class="ac-notify-send"
+                                            :class="{
+                                                'ac-notify-send--sent':
+                                                    notifySent,
+                                            }"
+                                            :disabled="
+                                                !notifyMessage.trim() ||
+                                                !notifyTargetCount
+                                            "
+                                            @click="sendNotification"
+                                        >
+                                            <Send :size="13" />
+                                            {{
+                                                notifySent
+                                                    ? 'Sent ✓'
+                                                    : 'Broadcast'
+                                            }}
+                                        </button>
+                                    </div>
+                                    <p class="ac-notify-hint">
+                                        One-way push announcement — guards can't
+                                        reply here.
                                     </p>
                                 </div>
                             </div>
@@ -1154,9 +1406,37 @@ function onResolveChange(e) {
     width: 100%;
     height: 100%;
 }
-.ac-map-modal__map {
+.ac-map-modal__map-wrap {
     flex: 2 1 0;
     height: 100%;
+    position: relative;
+}
+.ac-map-modal__map {
+    width: 100%;
+    height: 100%;
+}
+.ac-recenter-btn {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    background: #fff;
+    border: none;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--c-text);
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    transition: background 0.15s;
+}
+.ac-recenter-btn:hover {
+    background: #f1f5f9;
 }
 .ac-map-modal__empty {
     flex: 2 1 0;
@@ -1187,6 +1467,9 @@ function onResolveChange(e) {
     letter-spacing: 0.5px;
     color: var(--c-muted);
     margin: 0 0 6px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
 }
 .ac-detail-row {
     font-size: 13px;
@@ -1235,5 +1518,156 @@ function onResolveChange(e) {
 .ac-modal-enter-from,
 .ac-modal-leave-to {
     opacity: 0;
+}
+
+/* Guard broadcast panel */
+.ac-notify-group {
+    padding-top: 16px;
+    border-top: 1px dashed var(--c-border);
+}
+.ac-notify-target {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+.ac-notify-target__btn {
+    padding: 6px 10px;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--c-muted);
+    background: #fff;
+    border: 1.5px solid var(--c-border);
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.ac-notify-target__btn:hover {
+    border-color: #cbd5e1;
+}
+.ac-notify-target__btn--active {
+    border-color: var(--c-primary);
+    background: #fff7ed;
+    color: var(--c-primary);
+}
+.ac-notify-select {
+    width: 100%;
+    min-height: 72px;
+    margin-bottom: 8px;
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--c-text);
+    background: #fff;
+    border: 1.5px solid var(--c-border);
+    border-radius: 8px;
+    padding: 6px;
+}
+.ac-notify-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+.ac-notify-chip {
+    padding: 5px 10px;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 600;
+    color: #7c3aed;
+    background: #f5f3ff;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.ac-notify-chip:hover {
+    background: #ede9fe;
+}
+.ac-notify-textarea {
+    width: 100%;
+    resize: vertical;
+    font-family: inherit;
+    font-size: 12px;
+    color: var(--c-text);
+    background: #fff;
+    border: 1.5px solid var(--c-border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    outline: none;
+}
+.ac-notify-textarea:focus {
+    border-color: var(--c-primary);
+}
+.ac-notify-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 6px;
+}
+.ac-notify-count {
+    font-size: 10px;
+    color: var(--c-faint);
+    font-variant-numeric: tabular-nums;
+}
+.ac-notify-send {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    color: #fff;
+    background: var(--c-primary);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition:
+        background 0.15s,
+        opacity 0.15s;
+}
+.ac-notify-send:hover:not(:disabled) {
+    background: var(--c-primary-h);
+}
+.ac-notify-send:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+.ac-notify-send--sent {
+    background: #16a34a;
+}
+.ac-notify-hint {
+    margin: 6px 0 0;
+    font-size: 10px;
+    color: var(--c-faint);
+    font-style: italic;
+}
+</style>
+
+<!-- Unscoped: Leaflet renders these tooltips outside Vue's compiled template,
+     so scoped attribute selectors never reach them. -->
+<style>
+.ac-leaflet-label {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: none;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    color: #fff;
+}
+.ac-leaflet-label--household {
+    background: #dc2626;
+}
+.ac-leaflet-label--household::before {
+    border-top-color: #dc2626 !important;
+}
+.ac-leaflet-label--guard {
+    background: #2563eb;
+}
+.ac-leaflet-label--guard::before {
+    border-top-color: #2563eb !important;
 }
 </style>
