@@ -8,23 +8,6 @@ function authHeaders(extra = {}) {
     };
 }
 
-const olderUnresolvedCount = ref(0);
-
-async function fetchOlderUnresolvedCount() {
-    try {
-        const res = await fetch('/api/admin/alerts/older-unresolved-count', {
-            headers: authHeaders(),
-        });
-        const data = await res.json();
-        olderUnresolvedCount.value = data.older_unresolved_count ?? 0;
-    } catch (e) {
-        console.warn(
-            '[useAdminAlerts] failed to fetch older-unresolved count:',
-            e.message,
-        );
-    }
-}
-
 async function fetchHandshakeCode() {
     const res = await fetch('/api/live-alerts/handshake', {
         headers: authHeaders(),
@@ -80,6 +63,7 @@ export function useAdminAlerts() {
     const alerts = reactive(new Map());
     const connectionStatus = ref('connecting');
     const hydrated = ref(false);
+    const olderUnresolvedCount = ref(0);
 
     const socket = io(import.meta.env.VITE_SOCKET_URL, {
         withCredentials: true,
@@ -96,6 +80,7 @@ export function useAdminAlerts() {
     });
 
     socket.on('admin-room-joined', async ({ role } = {}) => {
+        console.log('[useAdminAlerts] admin-room-joined', role);
         connectionStatus.value = 'live';
         await hydrateOpenAlerts();
         await fetchOlderUnresolvedCount();
@@ -115,6 +100,7 @@ export function useAdminAlerts() {
         alerts.set(alert.id, {
             ...alert,
             events: alert.events ?? [],
+            guardians: alert.guardians ?? [],
             muted: false,
             justArrived: isLiveArrival,
         });
@@ -123,9 +109,14 @@ export function useAdminAlerts() {
         }
     });
 
+    // Every event that arrives gets appended to the alert's timeline
+    // ("Journey"), regardless of type — that's the single source that
+    // renders the expanded Journey list. Specific event types additionally
+    // update the summary fields shown on the collapsed card.
     socket.on('alert:event', ({ alert_id, event }) => {
         const alert = alerts.get(alert_id);
         if (!alert) return;
+
         alert.events.push(event);
 
         if (event.event_type === 'guard_acknowledged' && !alert.first_ack_at) {
@@ -133,13 +124,23 @@ export function useAdminAlerts() {
             stopAlertSound(alert_id);
         }
         if (event.event_type === 'location_updated') {
-            console.log('[location_updated payload]', event.payload);
             alert.last_lat = event.payload.lat;
             alert.last_lng = event.payload.lng;
         }
         if (event.event_type === 'guardians_notified') {
             alert.guardian_count = event.payload.guardian_count;
-            alert.guardian_ids = event.payload.guardian_ids;
+            if (event.payload.guardians) {
+                alert.guardians = event.payload.guardians;
+            }
+        }
+        if (event.event_type === 'guardian_responded') {
+            const g = alert.guardians?.find(
+                (guardian) => guardian.id === event.actor_id,
+            );
+            if (g) {
+                g.responded_at = event.created_at;
+                g.response_type = event.payload?.response_type;
+            }
         }
         if (event.event_type === 'muted' || event.event_type === 'unmuted') {
             alert.muted = event.event_type === 'muted';
@@ -157,9 +158,32 @@ export function useAdminAlerts() {
         });
         const data = await res.json();
         data.forEach((alert) => {
-            alerts.set(alert.id, { ...alert, justArrived: false });
+            alerts.set(alert.id, {
+                ...alert,
+                events: alert.events ?? [],
+                guardians: alert.guardians ?? [],
+                justArrived: false,
+            });
         });
         hydrated.value = true;
+    }
+
+    async function fetchOlderUnresolvedCount() {
+        try {
+            const res = await fetch(
+                '/api/admin/alerts/older-unresolved-count',
+                {
+                    headers: authHeaders(),
+                },
+            );
+            const data = await res.json();
+            olderUnresolvedCount.value = data.older_unresolved_count ?? 0;
+        } catch (e) {
+            console.warn(
+                '[useAdminAlerts] failed to fetch older-unresolved count:',
+                e.message,
+            );
+        }
     }
 
     function markAlertSeen(alertId) {
@@ -207,6 +231,6 @@ export function useAdminAlerts() {
         soundEnabled,
         enableSound,
         markAlertSeen,
-        olderUnresolvedCount, // add this
+        olderUnresolvedCount,
     };
 }

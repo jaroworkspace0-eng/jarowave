@@ -1,4 +1,5 @@
 <script setup>
+import { CheckCircle2, Siren, X } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 const props = defineProps({
@@ -133,7 +134,8 @@ function onResolveChange(e) {
             class="ac-new-ribbon"
             @click="$emit('seen', alert.id)"
         >
-            🚨 New Alert — tap to dismiss
+            <Siren :size="13" />
+            New Alert — tap to dismiss
         </button>
 
         <!-- Header -->
@@ -162,7 +164,8 @@ function onResolveChange(e) {
             No guard acknowledgement &gt; 90s
         </p>
         <p v-else-if="formattedAckTime" class="ac-ack-flag">
-            ✓ Acknowledged {{ formattedAckTime }}
+            <CheckCircle2 :size="13" />
+            Acknowledged {{ formattedAckTime }}
         </p>
 
         <!-- Map thumbnail -->
@@ -272,7 +275,7 @@ function onResolveChange(e) {
 
                 <div class="ac-expanded__block">
                     <p class="ac-expanded__label">Journey</p>
-                    <ol class="ac-timeline">
+                    <ol v-if="alert.events?.length" class="ac-timeline">
                         <li v-for="(ev, i) in alert.events" :key="i">
                             <span class="ac-timeline__time">{{
                                 new Date(ev.created_at).toLocaleTimeString()
@@ -283,6 +286,9 @@ function onResolveChange(e) {
                             >
                         </li>
                     </ol>
+                    <p v-else class="ac-timeline__empty">
+                        No events recorded yet.
+                    </p>
                 </div>
             </div>
         </transition>
@@ -300,20 +306,7 @@ function onResolveChange(e) {
                             class="ac-close-btn"
                             @click="mapFullscreen = false"
                         >
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                class="h-4 w-4"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    d="M6 18L18 6M6 6l12 12"
-                                />
-                            </svg>
+                            <X :size="16" />
                         </button>
                         <iframe
                             v-if="embedMapUrl"
@@ -397,6 +390,9 @@ function onResolveChange(e) {
     z-index: 1;
     cursor: pointer;
     font-family: inherit;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
 }
 .ac-new-ribbon:hover {
     background: #d97706;
@@ -497,6 +493,9 @@ function onResolveChange(e) {
     font-size: 11px;
     font-weight: 700;
     color: #16a34a;
+    display: flex;
+    align-items: center;
+    gap: 5px;
 }
 
 .ac-map-thumb {
@@ -682,6 +681,12 @@ function onResolveChange(e) {
 .ac-timeline__time {
     color: var(--c-faint);
     flex-shrink: 0;
+}
+.ac-timeline__empty {
+    font-size: 12px;
+    color: var(--c-faint);
+    font-style: italic;
+    margin: 0;
 }
 
 .ac-slide-down-enter-active,
