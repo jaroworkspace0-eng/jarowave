@@ -97,11 +97,23 @@ const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
 
 const staticMapUrl = computed(() => {
     if (!hasRealLocation.value) return null;
-    return `https://maps.googleapis.com/maps/api/staticmap?center=${props.alert.last_lat},${props.alert.last_lng}&zoom=15&size=400x150&markers=${props.alert.last_lat},${props.alert.last_lng}&key=${mapsApiKey}`;
+    let url = `https://maps.googleapis.com/maps/api/staticmap?size=400x150&key=${mapsApiKey}`;
+    url += `&markers=color:red%7Clabel:H%7C${props.alert.last_lat},${props.alert.last_lng}`;
+    if (props.alert.responderLocation) {
+        url += `&markers=color:blue%7Clabel:G%7C${props.alert.responderLocation.lat},${props.alert.responderLocation.lng}`;
+    } else {
+        url += `&center=${props.alert.last_lat},${props.alert.last_lng}&zoom=15`;
+    }
+    return url;
 });
 
 const embedMapUrl = computed(() => {
     if (!hasRealLocation.value) return null;
+    if (props.alert.responderLocation) {
+        const origin = `${props.alert.responderLocation.lat},${props.alert.responderLocation.lng}`;
+        const destination = `${props.alert.last_lat},${props.alert.last_lng}`;
+        return `https://www.google.com/maps/embed/v1/directions?origin=${origin}&destination=${destination}&key=${mapsApiKey}`;
+    }
     return `https://www.google.com/maps/embed/v1/view?center=${props.alert.last_lat},${props.alert.last_lng}&zoom=16&key=${mapsApiKey}`;
 });
 
@@ -109,6 +121,79 @@ function guardianStatusLabel(g) {
     if (!g.responded_at) return 'no response yet';
     const type = (g.response_type || 'responded').replace(/_/g, ' ');
     return `${type} · ${new Date(g.responded_at).toLocaleTimeString()}`;
+}
+
+// Straight-line distance — a live routed ETA (matching the mobile app's
+// OSRM-based route) would be more accurate, but this keeps the dashboard
+// dependency-free and still updates in real time as responderLocation
+// changes.
+function haversineKm(lat1, lng1, lat2, lng2) {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLng = ((lng2 - lng1) * Math.PI) / 180;
+    const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos((lat1 * Math.PI) / 180) *
+            Math.cos((lat2 * Math.PI) / 180) *
+            Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+const responderDistanceKm = computed(() => {
+    if (!hasRealLocation.value || !props.alert.responderLocation) return null;
+    return haversineKm(
+        Number(props.alert.last_lat),
+        Number(props.alert.last_lng),
+        Number(props.alert.responderLocation.lat),
+        Number(props.alert.responderLocation.lng),
+    );
+});
+
+const responderDistanceLabel = computed(() => {
+    if (responderDistanceKm.value === null) return null;
+    return responderDistanceKm.value < 1
+        ? `${Math.round(responderDistanceKm.value * 1000)}m`
+        : `${responderDistanceKm.value.toFixed(1)}km`;
+});
+
+// Rough ETA at an assumed average urban driving speed — approximate by
+// design; swap for OSRM routing (as the mobile app does) if precise ETA
+// becomes important here.
+const etaMinutes = computed(() => {
+    if (responderDistanceKm.value === null) return null;
+    return Math.max(1, Math.round((responderDistanceKm.value / 40) * 60));
+});
+
+function eventLabel(ev) {
+    const name = ev.payload?.username;
+    switch (ev.event_type) {
+        case 'guard_responding':
+            return `${name || 'A guard'} is responding`;
+        case 'guard_acknowledged':
+            return `${name || 'A guard'} acknowledged (not responding)`;
+        case 'guard_unassigned':
+            return `${ev.payload?.previous_username || 'Guard'} no longer responding`;
+        case 'location_updated':
+            return 'Household location updated';
+        case 'responder_location_updated':
+            return 'Responder location updated';
+        case 'guardians_notified':
+            return `Notified ${ev.payload?.guardian_count ?? 0} guardian(s)`;
+        case 'guardian_responded':
+            return `Guardian responded: ${(ev.payload?.response_type || '').replace(/_/g, ' ')}`;
+        case 'cancelled':
+            return `Cancelled by household${ev.payload?.cancelled_by ? ' (' + ev.payload.cancelled_by + ')' : ''}`;
+        case 'resolved':
+            return `Resolved: ${(ev.payload?.resolution || '').replace(/_/g, ' ')}`;
+        case 'muted':
+            return 'Muted by admin';
+        case 'unmuted':
+            return 'Unmuted by admin';
+        case 'admin_call_logged':
+            return `Admin call logged: ${ev.payload?.outcome || ''}`;
+        default:
+            return `${ev.actor_type} ${ev.event_type.replace(/_/g, ' ')}`;
+    }
 }
 
 function logCall(outcome) {
@@ -179,6 +264,30 @@ function onResolveChange(e) {
             <span v-if="accuracyLabel" class="ac-accuracy"
                 >({{ accuracyLabel }})</span
             >
+        </p>
+
+        <!-- Responder status -->
+        <div v-if="alert.currentResponder" class="ac-responder">
+            <p class="ac-responder__label">RESPONDING GUARD</p>
+            <p class="ac-responder__name">
+                {{ alert.currentResponder.username }}
+            </p>
+            <p v-if="alert.currentResponder.phone" class="ac-responder__phone">
+                {{ alert.currentResponder.phone }}
+            </p>
+            <p v-if="responderDistanceLabel" class="ac-responder__distance">
+                {{ responderDistanceLabel }} away · ~{{ etaMinutes }} min
+            </p>
+            <p
+                v-else
+                class="ac-responder__distance ac-responder__distance--pending"
+            >
+                Waiting for responder location…
+            </p>
+        </div>
+        <p v-else-if="alert.acknowledgedBy?.length" class="ac-guardian-line">
+            Acknowledged by {{ alert.acknowledgedBy.join(', ') }} — not yet
+            responding
         </p>
 
         <!-- Guardian notification summary -->
@@ -280,10 +389,7 @@ function onResolveChange(e) {
                             <span class="ac-timeline__time">{{
                                 new Date(ev.created_at).toLocaleTimeString()
                             }}</span>
-                            <span
-                                >{{ ev.actor_type }}
-                                {{ ev.event_type.replace(/_/g, ' ') }}</span
-                            >
+                            <span>{{ eventLabel(ev) }}</span>
                         </li>
                     </ol>
                     <p v-else class="ac-timeline__empty">
@@ -540,6 +646,42 @@ function onResolveChange(e) {
     margin: 10px 0 0;
     font-size: 12px;
     color: var(--c-muted);
+}
+.ac-responder {
+    margin-top: 12px;
+    padding: 12px;
+    background: #f0fdf4;
+    border: 1.5px solid #86efac;
+    border-radius: 10px;
+}
+.ac-responder__label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #16a34a;
+    letter-spacing: 0.5px;
+    margin: 0 0 4px;
+}
+.ac-responder__name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--c-text);
+    margin: 0;
+}
+.ac-responder__phone {
+    font-size: 12px;
+    color: var(--c-muted);
+    margin: 2px 0 0;
+}
+.ac-responder__distance {
+    font-size: 12px;
+    font-weight: 600;
+    color: #16a34a;
+    margin: 6px 0 0;
+}
+.ac-responder__distance--pending {
+    color: var(--c-faint);
+    font-weight: 500;
+    font-style: italic;
 }
 .ac-link-btn {
     background: none;

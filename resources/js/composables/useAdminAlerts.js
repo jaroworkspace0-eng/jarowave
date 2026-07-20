@@ -101,6 +101,9 @@ export function useAdminAlerts() {
             ...alert,
             events: alert.events ?? [],
             guardians: alert.guardians ?? [],
+            currentResponder: alert.current_responder ?? null,
+            acknowledgedBy: [],
+            responderLocation: null,
             muted: false,
             justArrived: isLiveArrival,
         });
@@ -119,9 +122,39 @@ export function useAdminAlerts() {
 
         alert.events.push(event);
 
-        if (event.event_type === 'guard_acknowledged' && !alert.first_ack_at) {
-            alert.first_ack_at = event.created_at;
+        // A guard actively responding — the escalation timer clears here,
+        // not on mere acknowledgement, since acknowledging alone doesn't
+        // get anyone to the household.
+        if (event.event_type === 'guard_responding') {
+            if (!alert.first_ack_at) alert.first_ack_at = event.created_at;
             stopAlertSound(alert_id);
+            alert.currentResponder = {
+                userId: event.actor_id,
+                username: event.payload?.username,
+                phone: event.payload?.phone || null,
+                respondedAt: event.created_at,
+            };
+        }
+        // Acknowledgement — guard saw it, isn't responding. Doesn't touch
+        // currentResponder; just tracked as a list for display.
+        if (event.event_type === 'guard_acknowledged') {
+            if (!alert.acknowledgedBy) alert.acknowledgedBy = [];
+            const name = event.payload?.username;
+            if (name && !alert.acknowledgedBy.includes(name)) {
+                alert.acknowledgedBy.push(name);
+            }
+        }
+        // The active responder dropped off — clear them so the card
+        // correctly shows "no longer responding" instead of stale info.
+        if (event.event_type === 'guard_unassigned') {
+            alert.currentResponder = null;
+        }
+        if (event.event_type === 'responder_location_updated') {
+            alert.responderLocation = {
+                lat: event.payload.lat,
+                lng: event.payload.lng,
+                updatedAt: event.created_at,
+            };
         }
         if (event.event_type === 'location_updated') {
             alert.last_lat = event.payload.lat;
@@ -162,6 +195,9 @@ export function useAdminAlerts() {
                 ...alert,
                 events: alert.events ?? [],
                 guardians: alert.guardians ?? [],
+                currentResponder: alert.current_responder ?? null,
+                acknowledgedBy: [],
+                responderLocation: null,
                 justArrived: false,
             });
         });

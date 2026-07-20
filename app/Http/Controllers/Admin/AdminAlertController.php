@@ -30,6 +30,7 @@ class AdminAlertController extends Controller
                 'channel:id,name',
                 'events' => fn ($q) => $q->orderBy('created_at'),
                 'guardianNotifications.guardian:id,name',
+                'resolution.responder:id,name,phone',
             ])
             ->orderByDesc('created_at')
             ->get();
@@ -60,6 +61,11 @@ class AdminAlertController extends Controller
                 'response_type' => $n->response_type,
             ]),
             'events' => $alert->events,
+            'current_responder' => $alert->resolution && $alert->resolution->responder_user_id ? [
+                'userId' => $alert->resolution->responder_user_id,
+                'username' => $alert->resolution->responder->name ?? null,
+                'phone' => $alert->resolution->responder->phone ?? null,
+            ] : null,
         ]));
     }
 
