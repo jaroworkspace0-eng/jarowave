@@ -1,6 +1,16 @@
 <script setup>
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { CheckCircle2, Siren, X } from 'lucide-vue-next';
-import { computed, onMounted, onUnmounted, ref } from 'vue';
+import {
+    computed,
+    nextTick,
+    onBeforeUnmount,
+    onMounted,
+    onUnmounted,
+    ref,
+    watch,
+} from 'vue';
 
 const props = defineProps({
     alert: { type: Object, required: true },
@@ -93,60 +103,14 @@ const accuracyLabel = computed(() => {
     return `±${Math.round(acc)}m`;
 });
 
-// const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
-
-// const staticMapUrl = computed(() => {
-//     if (!hasRealLocation.value) return null;
-//     let url = `https://maps.googleapis.com/maps/api/staticmap?size=400x150&key=${mapsApiKey}`;
-//     url += `&markers=color:red%7Clabel:H%7C${props.alert.last_lat},${props.alert.last_lng}`;
-//     if (props.alert.responderLocation) {
-//         url += `&markers=color:blue%7Clabel:G%7C${props.alert.responderLocation.lat},${props.alert.responderLocation.lng}`;
-//     } else {
-//         url += `&center=${props.alert.last_lat},${props.alert.last_lng}&zoom=15`;
-//     }
-//     return url;
-// });
-
-// const embedMapUrl = computed(() => {
-//     if (!hasRealLocation.value) return null;
-//     if (props.alert.responderLocation) {
-//         const origin = `${props.alert.responderLocation.lat},${props.alert.responderLocation.lng}`;
-//         const destination = `${props.alert.last_lat},${props.alert.last_lng}`;
-//         return `https://www.google.com/maps/embed/v1/directions?origin=${origin}&destination=${destination}&key=${mapsApiKey}`;
-//     }
-//     return `https://www.google.com/maps/embed/v1/view?center=${props.alert.last_lat},${props.alert.last_lng}&zoom=16&key=${mapsApiKey}`;
-// });
-
-const staticMapUrl = computed(() => {
-    if (!hasRealLocation.value) return null;
-    const lat = props.alert.last_lat;
-    const lng = props.alert.last_lng;
-    let markers = `${lat},${lng},red-pushpin`;
-    if (props.alert.responderLocation) {
-        markers += `|${props.alert.responderLocation.lat},${props.alert.responderLocation.lng},blue-pushpin`;
-    }
-    return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=15&size=400x150&markers=${markers}`;
-});
-
-const embedMapUrl = computed(() => {
-    if (!hasRealLocation.value) return null;
-    const lat = Number(props.alert.last_lat);
-    const lng = Number(props.alert.last_lng);
-    const delta = 0.01; // ~1km box around the point
-    const bbox = `${lng - delta},${lat - delta},${lng + delta},${lat + delta}`;
-    return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&marker=${lat},${lng}`;
-});
-
 function guardianStatusLabel(g) {
     if (!g.responded_at) return 'no response yet';
     const type = (g.response_type || 'responded').replace(/_/g, ' ');
     return `${type} · ${new Date(g.responded_at).toLocaleTimeString()}`;
 }
 
-// Straight-line distance — a live routed ETA (matching the mobile app's
-// OSRM-based route) would be more accurate, but this keeps the dashboard
-// dependency-free and still updates in real time as responderLocation
-// changes.
+// Straight-line distance — kept as the always-available fallback figure
+// (shown in the card body) even when a routed line is also drawn on the map.
 function haversineKm(lat1, lng1, lat2, lng2) {
     const R = 6371;
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -176,13 +140,190 @@ const responderDistanceLabel = computed(() => {
         : `${responderDistanceKm.value.toFixed(1)}km`;
 });
 
-// Rough ETA at an assumed average urban driving speed — approximate by
-// design; swap for OSRM routing (as the mobile app does) if precise ETA
-// becomes important here.
+// Rough straight-line ETA — the routed line on the map is for visual
+// context; this figure stays the simple, dependency-free estimate.
 const etaMinutes = computed(() => {
     if (responderDistanceKm.value === null) return null;
     return Math.max(1, Math.round((responderDistanceKm.value / 40) * 60));
 });
+
+/* ---------------- Map (Leaflet + OpenStreetMap, no API key) ---------------- */
+
+const thumbEl = ref(null);
+const modalEl = ref(null);
+let thumbMap = null;
+let modalMap = null;
+let thumbLayer = null;
+let modalLayer = null;
+
+const routeCoords = ref(null); // [[lat,lng], ...] or null
+
+// OSRM's public demo routing server — free, but it's a shared demo instance:
+// no SLA, rate-limited, not meant for production traffic. Fine to prove this
+// out now; for real deployment self-host OSRM or use a paid routing API.
+async function fetchRoute(lat1, lng1, lat2, lng2) {
+    try {
+        const url = `https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const data = await res.json();
+        const coords = data?.routes?.[0]?.geometry?.coordinates;
+        if (!coords) return null;
+        return coords.map(([lng, lat]) => [lat, lng]);
+    } catch {
+        return null;
+    }
+}
+
+function buildMap(container, interactive) {
+    const map = L.map(container, {
+        zoomControl: interactive,
+        dragging: interactive,
+        scrollWheelZoom: interactive,
+        doubleClickZoom: interactive,
+        boxZoom: interactive,
+        keyboard: interactive,
+        attributionControl: interactive,
+    });
+    // OSM's raw tile servers have a usage policy (no heavy/commercial hammering
+    // without permission). Fine for internal admin use at low volume; if this
+    // dashboard scales up, switch to a provider with a free tier built for
+    // apps (MapTiler, Stadia Maps, Thunderforest) instead of hitting tile.openstreetmap.org directly.
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors',
+    }).addTo(map);
+    return map;
+}
+
+function drawAlertOnMap(map) {
+    if (!map) return null;
+    const layer = L.layerGroup().addTo(map);
+    const points = [];
+
+    if (hasRealLocation.value) {
+        const hLat = Number(props.alert.last_lat);
+        const hLng = Number(props.alert.last_lng);
+        L.circleMarker([hLat, hLng], {
+            radius: 8,
+            color: '#dc2626',
+            fillColor: '#dc2626',
+            fillOpacity: 1,
+            weight: 2,
+        })
+            .bindTooltip('Household')
+            .addTo(layer);
+        points.push([hLat, hLng]);
+    }
+
+    if (props.alert.responderLocation) {
+        const gLat = Number(props.alert.responderLocation.lat);
+        const gLng = Number(props.alert.responderLocation.lng);
+        L.circleMarker([gLat, gLng], {
+            radius: 8,
+            color: '#2563eb',
+            fillColor: '#2563eb',
+            fillOpacity: 1,
+            weight: 2,
+        })
+            .bindTooltip('Guard')
+            .addTo(layer);
+        points.push([gLat, gLng]);
+    }
+
+    if (routeCoords.value?.length) {
+        L.polyline(routeCoords.value, {
+            color: '#2563eb',
+            weight: 4,
+            opacity: 0.75,
+        }).addTo(layer);
+    }
+
+    if (points.length === 2) {
+        map.fitBounds(points, { padding: [24, 24] });
+    } else if (points.length === 1) {
+        map.setView(points[0], 15);
+    }
+
+    return layer;
+}
+
+function refreshMaps() {
+    if (thumbMap) {
+        if (thumbLayer) thumbMap.removeLayer(thumbLayer);
+        thumbLayer = drawAlertOnMap(thumbMap);
+    }
+    if (modalMap) {
+        if (modalLayer) modalMap.removeLayer(modalLayer);
+        modalLayer = drawAlertOnMap(modalMap);
+    }
+}
+
+async function ensureThumbMap() {
+    if (!hasRealLocation.value || thumbMap || !thumbEl.value) return;
+    thumbMap = buildMap(thumbEl.value, false);
+    refreshMaps();
+}
+
+async function ensureModalMap() {
+    await nextTick();
+    if (!modalMap && modalEl.value) {
+        modalMap = buildMap(modalEl.value, true);
+    }
+    modalMap?.invalidateSize();
+    refreshMaps();
+}
+
+onMounted(async () => {
+    await nextTick();
+    ensureThumbMap();
+});
+
+watch(hasRealLocation, async (has) => {
+    if (has) {
+        await nextTick();
+        ensureThumbMap();
+    }
+});
+
+watch(mapFullscreen, (open) => {
+    if (open) ensureModalMap();
+});
+
+// Single key covering both points — refetches the route and redraws both
+// maps whenever either location changes.
+const mapStateKey = computed(() => {
+    const h = hasRealLocation.value
+        ? `${props.alert.last_lat},${props.alert.last_lng}`
+        : '';
+    const g = props.alert.responderLocation
+        ? `${props.alert.responderLocation.lat},${props.alert.responderLocation.lng}`
+        : '';
+    return `${h}|${g}`;
+});
+
+watch(mapStateKey, async () => {
+    if (hasRealLocation.value && props.alert.responderLocation) {
+        routeCoords.value = await fetchRoute(
+            Number(props.alert.last_lat),
+            Number(props.alert.last_lng),
+            Number(props.alert.responderLocation.lat),
+            Number(props.alert.responderLocation.lng),
+        );
+    } else {
+        routeCoords.value = null;
+    }
+    refreshMaps();
+});
+
+onBeforeUnmount(() => {
+    thumbMap?.remove();
+    modalMap?.remove();
+    thumbMap = null;
+    modalMap = null;
+});
+
+/* ---------------------------------------------------------------------- */
 
 function eventLabel(ev) {
     const name = ev.payload?.username;
@@ -274,11 +415,23 @@ function onResolveChange(e) {
         </p>
 
         <!-- Map thumbnail -->
-        <button class="ac-map-thumb" @click="mapFullscreen = true">
-            <img v-if="staticMapUrl" :src="staticMapUrl" alt="alert location" />
+        <div class="ac-map-thumb">
+            <div
+                v-if="hasRealLocation"
+                ref="thumbEl"
+                class="ac-map-thumb__map"
+            ></div>
             <span v-else class="ac-map-thumb__empty">No location yet</span>
-            <span class="ac-map-thumb__expand">Expand</span>
-        </button>
+            <button
+                v-if="hasRealLocation"
+                type="button"
+                class="ac-map-thumb__overlay"
+                aria-label="Expand map"
+                @click="mapFullscreen = true"
+            >
+                <span class="ac-map-thumb__expand">Expand</span>
+            </button>
+        </div>
         <p v-if="coordsLabel" class="ac-coords">
             {{ coordsLabel }}
             <span v-if="accuracyLabel" class="ac-accuracy"
@@ -434,13 +587,118 @@ function onResolveChange(e) {
                         >
                             <X :size="16" />
                         </button>
-                        <iframe
-                            v-if="embedMapUrl"
-                            class="ac-map-modal__frame"
-                            :src="embedMapUrl"
-                        />
-                        <div v-else class="ac-map-modal__empty">
-                            No location data for this alert yet
+
+                        <div class="ac-map-modal__body">
+                            <div
+                                v-if="hasRealLocation"
+                                ref="modalEl"
+                                class="ac-map-modal__map"
+                            ></div>
+                            <div v-else class="ac-map-modal__empty">
+                                No location data for this alert yet
+                            </div>
+
+                            <div class="ac-map-modal__details">
+                                <div class="ac-detail-group">
+                                    <p class="ac-detail-group__label">
+                                        Household
+                                    </p>
+                                    <p class="ac-detail-row">
+                                        <strong>{{
+                                            alert.household_name
+                                        }}</strong>
+                                    </p>
+                                    <p
+                                        v-if="alert.household_phone"
+                                        class="ac-detail-row"
+                                    >
+                                        {{ alert.household_phone }}
+                                    </p>
+                                    <p
+                                        v-if="alert.home_address"
+                                        class="ac-detail-row"
+                                    >
+                                        {{ alert.home_address }}
+                                    </p>
+                                    <p
+                                        v-if="coordsLabel"
+                                        class="ac-detail-row ac-detail-row--mono"
+                                    >
+                                        {{ coordsLabel }}
+                                        <span v-if="accuracyLabel"
+                                            >({{ accuracyLabel }})</span
+                                        >
+                                    </p>
+                                </div>
+
+                                <div
+                                    v-if="alert.currentResponder"
+                                    class="ac-detail-group"
+                                >
+                                    <p class="ac-detail-group__label">
+                                        Responding guard
+                                    </p>
+                                    <p class="ac-detail-row">
+                                        <strong>{{
+                                            alert.currentResponder.username
+                                        }}</strong>
+                                    </p>
+                                    <p
+                                        v-if="alert.currentResponder.phone"
+                                        class="ac-detail-row"
+                                    >
+                                        {{ alert.currentResponder.phone }}
+                                    </p>
+                                    <p
+                                        v-if="responderDistanceLabel"
+                                        class="ac-detail-row"
+                                    >
+                                        {{ responderDistanceLabel }} away · ~{{
+                                            etaMinutes
+                                        }}
+                                        min ETA (straight-line estimate)
+                                    </p>
+                                </div>
+                                <div v-else class="ac-detail-group">
+                                    <p class="ac-detail-group__label">
+                                        Responding guard
+                                    </p>
+                                    <p
+                                        class="ac-detail-row ac-detail-row--muted"
+                                    >
+                                        No guard responding yet
+                                    </p>
+                                </div>
+
+                                <div class="ac-detail-group">
+                                    <p class="ac-detail-group__label">Alert</p>
+                                    <p class="ac-detail-row">
+                                        {{ typeMeta.label }} ·
+                                        {{ formattedDateTime }}
+                                    </p>
+                                    <p
+                                        v-if="formattedAckTime"
+                                        class="ac-detail-row"
+                                    >
+                                        Acknowledged {{ formattedAckTime }}
+                                    </p>
+                                    <p
+                                        v-else-if="escalated"
+                                        class="ac-detail-row ac-detail-row--warn"
+                                    >
+                                        No guard acknowledgement &gt; 90s
+                                    </p>
+                                    <p class="ac-detail-row">
+                                        Notified
+                                        {{ alert.guardian_count ?? 0 }}
+                                        paired guardian{{
+                                            (alert.guardian_count ?? 0) === 1
+                                                ? ''
+                                                : 's'
+                                        }}
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -633,22 +891,28 @@ function onResolveChange(e) {
     border: 1px solid var(--c-border);
     position: relative;
     overflow: hidden;
-    cursor: pointer;
     padding: 0;
     display: flex;
     align-items: center;
     justify-content: center;
 }
-.ac-map-thumb img {
+.ac-map-thumb__map {
     width: 100%;
     height: 100%;
-    object-fit: cover;
-    display: block;
 }
 .ac-map-thumb__empty {
     font-size: 12px;
     color: var(--c-faint);
     font-weight: 600;
+}
+.ac-map-thumb__overlay {
+    position: absolute;
+    inset: 0;
+    background: transparent;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    z-index: 500;
 }
 .ac-map-thumb__expand {
     position: absolute;
@@ -876,7 +1140,7 @@ function onResolveChange(e) {
     background: #fff;
     border-radius: 20px;
     width: 100%;
-    max-width: 900px;
+    max-width: 1100px;
     height: 80vh;
     position: relative;
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
@@ -885,21 +1149,68 @@ function onResolveChange(e) {
     align-items: center;
     justify-content: center;
 }
-.ac-map-modal__frame {
+.ac-map-modal__body {
+    display: flex;
     width: 100%;
     height: 100%;
-    border: none;
+}
+.ac-map-modal__map {
+    flex: 2 1 0;
+    height: 100%;
 }
 .ac-map-modal__empty {
+    flex: 2 1 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     font-size: 14px;
     color: var(--c-faint);
     font-weight: 600;
+}
+.ac-map-modal__details {
+    flex: 1 1 300px;
+    max-width: 320px;
+    height: 100%;
+    overflow-y: auto;
+    padding: 22px 20px;
+    border-left: 1px solid var(--c-border);
+    background: #f8fafc;
+}
+.ac-detail-group {
+    margin-bottom: 18px;
+}
+.ac-detail-group__label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--c-muted);
+    margin: 0 0 6px;
+}
+.ac-detail-row {
+    font-size: 13px;
+    color: var(--c-text);
+    margin: 2px 0;
+}
+.ac-detail-row--mono {
+    font-variant-numeric: tabular-nums;
+    color: var(--c-muted);
+    font-size: 12px;
+}
+.ac-detail-row--muted {
+    color: var(--c-faint);
+    font-style: italic;
+}
+.ac-detail-row--warn {
+    color: #dc2626;
+    font-weight: 700;
 }
 .ac-close-btn {
     position: absolute;
     top: 12px;
     right: 12px;
-    z-index: 10;
+    z-index: 1000;
     width: 34px;
     height: 34px;
     background: #fff;
