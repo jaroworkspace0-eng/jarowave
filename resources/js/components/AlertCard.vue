@@ -93,28 +93,48 @@ const accuracyLabel = computed(() => {
     return `±${Math.round(acc)}m`;
 });
 
-const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+// const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY || '';
+
+// const staticMapUrl = computed(() => {
+//     if (!hasRealLocation.value) return null;
+//     let url = `https://maps.googleapis.com/maps/api/staticmap?size=400x150&key=${mapsApiKey}`;
+//     url += `&markers=color:red%7Clabel:H%7C${props.alert.last_lat},${props.alert.last_lng}`;
+//     if (props.alert.responderLocation) {
+//         url += `&markers=color:blue%7Clabel:G%7C${props.alert.responderLocation.lat},${props.alert.responderLocation.lng}`;
+//     } else {
+//         url += `&center=${props.alert.last_lat},${props.alert.last_lng}&zoom=15`;
+//     }
+//     return url;
+// });
+
+// const embedMapUrl = computed(() => {
+//     if (!hasRealLocation.value) return null;
+//     if (props.alert.responderLocation) {
+//         const origin = `${props.alert.responderLocation.lat},${props.alert.responderLocation.lng}`;
+//         const destination = `${props.alert.last_lat},${props.alert.last_lng}`;
+//         return `https://www.google.com/maps/embed/v1/directions?origin=${origin}&destination=${destination}&key=${mapsApiKey}`;
+//     }
+//     return `https://www.google.com/maps/embed/v1/view?center=${props.alert.last_lat},${props.alert.last_lng}&zoom=16&key=${mapsApiKey}`;
+// });
 
 const staticMapUrl = computed(() => {
     if (!hasRealLocation.value) return null;
-    let url = `https://maps.googleapis.com/maps/api/staticmap?size=400x150&key=${mapsApiKey}`;
-    url += `&markers=color:red%7Clabel:H%7C${props.alert.last_lat},${props.alert.last_lng}`;
+    const lat = props.alert.last_lat;
+    const lng = props.alert.last_lng;
+    let markers = `${lat},${lng},red-pushpin`;
     if (props.alert.responderLocation) {
-        url += `&markers=color:blue%7Clabel:G%7C${props.alert.responderLocation.lat},${props.alert.responderLocation.lng}`;
-    } else {
-        url += `&center=${props.alert.last_lat},${props.alert.last_lng}&zoom=15`;
+        markers += `|${props.alert.responderLocation.lat},${props.alert.responderLocation.lng},blue-pushpin`;
     }
-    return url;
+    return `https://staticmap.openstreetmap.de/staticmap.php?center=${lat},${lng}&zoom=15&size=400x150&markers=${markers}`;
 });
 
 const embedMapUrl = computed(() => {
     if (!hasRealLocation.value) return null;
-    if (props.alert.responderLocation) {
-        const origin = `${props.alert.responderLocation.lat},${props.alert.responderLocation.lng}`;
-        const destination = `${props.alert.last_lat},${props.alert.last_lng}`;
-        return `https://www.google.com/maps/embed/v1/directions?origin=${origin}&destination=${destination}&key=${mapsApiKey}`;
-    }
-    return `https://www.google.com/maps/embed/v1/view?center=${props.alert.last_lat},${props.alert.last_lng}&zoom=16&key=${mapsApiKey}`;
+    const lat = Number(props.alert.last_lat);
+    const lng = Number(props.alert.last_lng);
+    const delta = 0.01; // ~1km box around the point
+    const bbox = `${lng - delta},${lat - delta},${lng + delta},${lat + delta}`;
+    return `https://www.openstreetmap.org/export/embed.html?bbox=${bbox}&marker=${lat},${lng}`;
 });
 
 function guardianStatusLabel(g) {
