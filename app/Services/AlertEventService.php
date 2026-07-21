@@ -134,14 +134,21 @@ class AlertEventService
     {
         Http::withToken(env('ASSIGN_SECRET'))
             ->post(env('PTT_SERVER_URL') . '/emit', [
-                'clientId' => $alert->household->client_id,
+                'channelId' => $alert->channel_id,
+                'householdId' => $alert->user_id, // needed so household-scoped claims match too
+                'clientId' => $alert->client_id,
                 'event' => 'alert:new',
                 'data' => [
                     'id' => $alert->id,
-                    'type' => $alert->type,
-                    'household_name' => $alert->household->name,
-                    'household_phone' => $alert->household->phone,
-                    'home_address' => $alert->household->home_address,
+                    'type' => $alert->alert_type,
+                    'household_name' => $alert->user->name,
+                    'household_phone' => $alert->user->phone,
+                    // 'home_address' => $alert->user->home_address,
+                    'home_address' => collect([
+                            $alert->user->address_line_1,
+                            $alert->user->complex_name,
+                            $alert->user->suburb,
+                        ])->filter()->implode(', '),
                     'channel_name' => $alert->channel->name,
                     'created_at' => $alert->created_at,
                     'first_ack_at' => $alert->first_ack_at,
