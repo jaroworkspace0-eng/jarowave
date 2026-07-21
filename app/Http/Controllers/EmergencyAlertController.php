@@ -101,7 +101,9 @@ class EmergencyAlertController extends Controller
             \Illuminate\Support\Facades\Http::withHeaders([
                 'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
             ])->timeout(5)->post(env('PTT_SERVER_URL') . '/emit', [
-                'channelId' => $alert->client_id,
+                'channelId' => $alert->channel_id,
+                'householdId' => $alert->user_id,
+                'clientId' => $alert->client_id,
                 'event' => 'alert:new',
                 'data' => [
                     'id' => $alert->id,
