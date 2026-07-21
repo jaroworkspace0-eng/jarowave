@@ -16,6 +16,8 @@ use App\Http\Controllers\EmergencyAlertController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\HouseholdController;
 use App\Http\Controllers\Admin\IncidentReportExportController;
+use App\Http\Controllers\AdminAlertScopeController;
+use App\Http\Controllers\AlertGuardNotifyController;
 use App\Http\Controllers\Api\Admin\PlatformTicketController;
 use App\Http\Controllers\Api\Estate\EstateTicketController;
 use App\Http\Controllers\Api\GuardEarningController;
@@ -232,6 +234,7 @@ Route::get('internal/users/{userId}/sos-alerts', [HouseholdSettingController::cl
 
 Route::get('internal/dashboard-users/me', [InternalDashboardUserController::class, 'me']);
 Route::get('internal/channels/{channelId}/client-id', [InternalDashboardUserController::class, 'clientIdForChannel']);
+Route::get('/internal/alert-scopes', [AdminAlertScopeController::class, 'indexAll']);
 
 // Route::get('users/{user}/fcm-token', [UserController::class, 'getFcmToken']);
 
@@ -260,7 +263,6 @@ Route::middleware('auth:sanctum')->prefix('admin/alerts')->group(function () {
 Route::middleware('auth:sanctum')->prefix('household')->group(function () {
 
     // ---------------------------------------------------------------
-
 
     Route::get('/payment-url', [HouseholdController::class, 'paymentUrl']);
     Route::get('/subscription', [HouseholdController::class, 'subscription']);
@@ -322,6 +324,21 @@ Route::get('/export',    [PayoutController::class, 'export']);
 
 
     Route::middleware('auth:sanctum')->group(function () {
+
+         Route::get('/admin/alert-scopes/admins', function (Request $request) {
+        $q = $request->input('q', '');
+        return User::where('role', 'admin')
+            ->when($q, fn($query) => $query->where(function ($sub) use ($q) {
+                $sub->where('name', 'like', "%{$q}%")
+                    ->orWhere('email', 'like', "%{$q}%");
+            }))
+            ->select('id', 'name', 'email')
+            ->limit(20)
+            ->get();
+    });
+
+        Route::post('/alerts/{alert}/notify-guards', AlertGuardNotifyController::class);
+
         // mobile app — household tickets
         Route::get('/tickets', [TicketController::class, 'index']);
         Route::get('/tickets/{ticket}', [TicketController::class, 'show']);
@@ -334,6 +351,10 @@ Route::get('/export',    [PayoutController::class, 'export']);
             Route::get('/platform-tickets/{ticket}', [PlatformTicketController::class, 'show']);
             Route::post('/platform-tickets/{ticket}/reply', [PlatformTicketController::class, 'reply']);
             Route::patch('/platform-tickets/{ticket}/status', [PlatformTicketController::class, 'updateStatus']);
+
+            Route::get('/alert-scopes', [AdminAlertScopeController::class, 'index']);
+            Route::post('/alert-scopes', [AdminAlertScopeController::class, 'store']);
+            Route::delete('/alert-scopes/{scope}', [AdminAlertScopeController::class, 'destroy']);
         });
 
         // estate_billing — estate tickets

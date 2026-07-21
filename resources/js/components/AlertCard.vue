@@ -399,11 +399,11 @@ const notifyTargetCount = computed(() => {
 const quickMessages = [
     {
         label: 'No response yet',
-        text: 'No guard has acknowledged this alert yet — please respond immediately.',
+        text: 'No guard has acknowledged this alert yet - please respond immediately.',
     },
     {
         label: 'Reinforcement needed',
-        text: 'Requesting backup — please assist the responding guard at this location.',
+        text: 'Requesting backup - please assist the responding guard at this location.',
     },
     {
         label: 'Stand down',
@@ -1107,7 +1107,7 @@ function onResolveChange(e) {
 }
 .ac-badge--dv {
     background: #f5f3ff;
-    color: #7c3aed;
+    color: #dc2626;
 }
 .ac-badge--guardian {
     background: #fff7ed;
@@ -1274,7 +1274,7 @@ function onResolveChange(e) {
 
 .ac-dv-note {
     font-size: 12px;
-    color: #7c3aed;
+    color: #dc2626;
     font-style: italic;
 }
 
@@ -1417,7 +1417,7 @@ function onResolveChange(e) {
 }
 .ac-recenter-btn {
     position: absolute;
-    top: 12px;
+    bottom: 12px;
     left: 12px;
     z-index: 1000;
     display: flex;
@@ -1574,7 +1574,7 @@ function onResolveChange(e) {
     font-family: inherit;
     font-size: 11px;
     font-weight: 600;
-    color: #7c3aed;
+    color: #dc2626;
     background: #f5f3ff;
     border: none;
     border-radius: 20px;

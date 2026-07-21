@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\SearchController;
+use App\Models\Channel;
+use App\Models\User;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -164,6 +166,16 @@ Route::get('/admin/platform-tickets', function () {
 
 Route::get('/estate/tickets', function () {
     return inertia('Estate/EstateTickets');
+});
+
+Route::get('/admin/alert-scopes', function () {
+    return inertia('Admin/AlertScopes', [
+        // 'admins' => User::where('role', 'admin')->select('id', 'name', 'email')->get(),
+        'channels' => Channel::select('id', 'name')->get(),
+        'households' => User::where('role', 'household')->select('id', 'name')->get(),
+        // or ->whereIn('role', ['household', 'resident']) — match whatever
+        // your isHousehold() role set is in server.js: HOUSEHOLD_ROLES = ['household', 'resident']
+    ]);
 });
 
 

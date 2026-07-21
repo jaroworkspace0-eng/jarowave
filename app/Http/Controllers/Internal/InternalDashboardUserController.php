@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Cache;
 
 class InternalDashboardUserController extends Controller
 {
-    public function me(Request $request)
+   public function me(Request $request)
     {
         if ($request->header('X-PTT-Secret') !== env('ASSIGN_SECRET')) {
             return response()->json(['error' => 'Unauthorized'], 401);
@@ -25,6 +25,7 @@ class InternalDashboardUserController extends Controller
         }
 
         return response()->json([
+            'id' => $user->id,
             'role' => $user->role,
             'channelIds' => $user->role === 'admin' ? [] : $user->accessibleChannelIds(),
         ]);

@@ -116,6 +116,11 @@ const adminGroups: NavGroup[] = [
                 href: '/deletion-requests',
                 icon: Trash2,
             },
+            {
+                title: 'Alert Visibility',
+                href: '/admin/alert-scopes',
+                icon: Shield,
+            },
         ],
     },
     {
