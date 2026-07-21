@@ -41,7 +41,6 @@ class AdminAlertScopeController extends Controller
         ]);
 
         $adminId = $data['admin_id'] ?? $request->user()->id;
-        $this->authorizeManaging($request, $adminId);
 
         $existing = AdminAlertScope::where('scope_type', $data['scope_type'])
             ->where('scope_id', $data['scope_id'])
@@ -68,7 +67,11 @@ class AdminAlertScopeController extends Controller
     // DELETE /api/admin/alert-scopes/{scope}
     public function destroy(Request $request, AdminAlertScope $scope)
     {
-        $this->authorizeManaging($request, $scope->admin_id);
+        abort_unless(
+            $request->user()->id === $scope->admin_id,
+            403,
+            'You can only release claims assigned to you.',
+        );
 
         $scope->delete();
 
@@ -80,14 +83,8 @@ class AdminAlertScopeController extends Controller
     // carry a 'super_admin' role/flag — adjust to match your User model.
     private function authorizeManaging(Request $request, int $targetAdminId): void
     {
-        $user = $request->user();
-
-        if ($user->id === $targetAdminId) {
-            return;
-        }
-
         abort_unless(
-            $user->role === 'admin',
+            $request->user()->id === $targetAdminId,
             403,
             'Not authorized to manage this admin\'s alert scopes.',
         );

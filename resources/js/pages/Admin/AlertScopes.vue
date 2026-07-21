@@ -1,6 +1,7 @@
 <script setup>
+import { useCurrentUser } from '@/composables/useCurrentUser';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, ref, watch } from 'vue';
 
@@ -8,6 +9,11 @@ const props = defineProps({
     channels: { type: Array, default: () => [] }, // [{ id, name }]
     households: { type: Array, default: () => [] }, // [{ id, name }]
 });
+
+const page = usePage();
+
+const { currentUser, loadCurrentUser } = useCurrentUser();
+const currentAdminId = computed(() => currentUser.value?.id ?? null);
 
 const loading = ref(true);
 const admins = ref([]); // [{ id, name, email }] — loaded via searchAdmins()
@@ -231,6 +237,7 @@ async function executeDelete() {
         flash('Claim released.');
     } catch (e) {
         console.error(e);
+        alert(e.response?.data?.message || 'Unable to release this claim.');
     } finally {
         showDeleteModal.value = false;
         deleteTargetId.value = null;
@@ -253,6 +260,7 @@ function formatDate(ts) {
 }
 
 onMounted(() => {
+    loadCurrentUser();
     loadScopes();
     searchAdmins();
 });
@@ -404,6 +412,7 @@ onMounted(() => {
                             </td>
                             <td>
                                 <button
+                                    v-if="s.admin_id === currentAdminId"
                                     @click="confirmDelete(s.id)"
                                     class="icon-btn icon-btn--danger"
                                     title="Release"
