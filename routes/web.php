@@ -180,6 +180,15 @@ Route::get('/admin/alert-scopes', function () {
 
 
 
+Route::get('/estate/account-links', function () {
+    return inertia('Estate/EstateAccountLinks');
+});
+
+Route::get('/admin/account-links', function () {
+    return inertia('Admin/PlatformAccountLinks');
+});
+
+
 require __DIR__.'/settings.php';
 
 Route::resource("users", UserController::class);

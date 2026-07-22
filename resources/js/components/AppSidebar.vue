@@ -28,6 +28,7 @@ import {
     DollarSign,
     FileText,
     HomeIcon,
+    Link2,
     Megaphone,
     Newspaper,
     Radio,
@@ -131,6 +132,11 @@ const adminGroups: NavGroup[] = [
                 href: '/admin/platform-tickets',
                 icon: TicketIcon,
             },
+            {
+                title: 'Account Links',
+                href: '/admin/account-links',
+                icon: Link2,
+            },
         ],
     },
 ];
@@ -186,6 +192,11 @@ const estateBillingGroups: NavGroup[] = [
         label: 'Support',
         items: [
             { title: 'Tickets', href: '/estate/tickets', icon: TicketIcon },
+            {
+                title: 'Account Links',
+                href: '/estate/account-links',
+                icon: Link2,
+            },
         ],
     },
 ];
