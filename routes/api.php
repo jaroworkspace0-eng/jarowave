@@ -161,6 +161,7 @@ Route::post('/login', function (Request $request) {
                 ->whereNotNull('channel_subscription_id')
                 ->exists(),
             'is_gate_guard' => $user->is_gate_guard,
+            'alert_location_source' => $user->alert_location_source,
         ],
         'channels' => $channels,
         'token'    => $token,

@@ -294,6 +294,7 @@ class EmployeeController extends Controller
             'duress_pin'                => 'nullable|string|size:6',
             'is_estate' => 'boolean',
             'is_gate_guard'             => 'boolean',
+            'alert_location_source'     => 'nullable|in:gps,registered_address',
         ]);
 
         // Verify current password if user is changing their own password
@@ -310,23 +311,18 @@ class EmployeeController extends Controller
             $finalRole   = $this->isHouseholdRole($validated['role']) ? $validated['role'] : 'employee';
             $isHousehold = $this->isHouseholdRole($finalRole);
 
-            // $userData = [
-            //     'name'       => $validated['name'],
-            //     'email'      => $validated['email'],
-            //     'phone'      => $validated['phone'],
-            //     'occupation' => $validated['occupation'],
-            //     'role'       => $finalRole,
-            //     'is_gate_guard' => $validated['is_gate_guard'] ?? false,
-            // ];
-
             $userData = [
-            'name'       => $validated['name'],
-            'email'      => $validated['email'],
-            'phone'      => $validated['phone'],
-            'occupation' => $validated['occupation'],
-            'role'       => $finalRole,
-            'is_gate_guard' => $isHousehold ? false : ($validated['is_gate_guard'] ?? false),
-        ];
+                'name'       => $validated['name'],
+                'email'      => $validated['email'],
+                'phone'      => $validated['phone'],
+                'occupation' => $validated['occupation'],
+                'role'       => $finalRole,
+                'is_gate_guard' => $isHousehold ? false : ($validated['is_gate_guard'] ?? false),
+            ];
+
+            if ($isHousehold && !empty($validated['alert_location_source'])) {
+                $userData['alert_location_source'] = $validated['alert_location_source'];
+            }
 
             // Only overwrite address/pin fields from dashboard — never from app
             if (!$fromApp) {
