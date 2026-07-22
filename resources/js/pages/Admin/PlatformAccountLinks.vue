@@ -74,7 +74,7 @@ export default {
             this.loading = true;
             try {
                 const { data } = await axios.get(
-                    `${import.meta.env.VITE_APP_URL}/api/admin/account-links`,
+                    `${import.meta.env.VITE_APP_URL}/api/account-links`,
                     { headers: authHeaders() },
                 );
                 this.links = Array.isArray(data) ? data : data.data || [];
@@ -92,8 +92,8 @@ export default {
         async approve(link) {
             this.processingId = link.id;
             try {
-                await axios.patch(
-                    `${import.meta.env.VITE_APP_URL}/api/admin/account-links/${link.id}/approve`,
+                await axios.post(
+                    `${import.meta.env.VITE_APP_URL}/api/account-links/${link.id}/approve`,
                     {},
                     { headers: authHeaders() },
                 );
@@ -118,8 +118,8 @@ export default {
             const id = this.rejectTargetId;
             this.processingId = id;
             try {
-                await axios.patch(
-                    `${import.meta.env.VITE_APP_URL}/api/admin/account-links/${id}/reject`,
+                await axios.post(
+                    `${import.meta.env.VITE_APP_URL}/api/account-links/${id}/reject`,
                     {},
                     { headers: authHeaders() },
                 );
@@ -185,7 +185,7 @@ export default {
                 <div class="page-header__left">
                     <div class="page-header__eyebrow">Households</div>
                     <h1 class="page-header__title">
-                        Account Link Requests - Platform
+                        Account Link Requests — Platform
                     </h1>
                 </div>
             </div>
