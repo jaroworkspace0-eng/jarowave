@@ -541,6 +541,21 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/users/{user}/toggle-status', [UserController::class, 'toggleStatus'])->name('users.toggle-status');
     Route::patch('/clients/{client}/toggle-status', [ClientController::class, 'toggleStatus']);
     Route::resource('employees', EmployeeController::class);
+
+    // save locaton source preference for alerts (gps vs registered address)
+    Route::patch('/alert-location-source', function (Request $request) {
+        $validated = $request->validate([
+            'alert_location_source' => 'required|in:gps,registered_address',
+        ]);
+
+        $request->user()->update([
+            'alert_location_source' => $validated['alert_location_source'],
+        ]);
+
+        return response()->json(['success' => true]);
+    });
+
+
     Route::patch('/guards/duty-status', [UserController::class, 'updateDutyStatus']);
     Route::get('/guards/duty-status', [UserController::class, 'getDutyStatus']);
 
