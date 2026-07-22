@@ -173,7 +173,7 @@ class AccountLinkController extends Controller
                 ->whereIn('status', ['pending', 'active'])
                 ->exists();
 
-            return response()->json(['is_primary' => !$isLinkedAsChild]);
+            return response()->json(['is_primary' => true]);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
