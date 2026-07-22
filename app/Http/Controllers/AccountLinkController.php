@@ -164,14 +164,18 @@ class AccountLinkController extends Controller
         return response()->json(['success' => true]);
     }
 
-    public function eligibility(Request $request): JsonResponse
+   public function eligibility(Request $request): JsonResponse
     {
-        $userId = $request->user()->id;
+        try {
+            $userId = $request->user()->id;
 
-        $isLinkedAsChild = AccountLink::where('linked_account_id', $userId)
-            ->whereIn('status', ['pending', 'active'])
-            ->exists();
+            $isLinkedAsChild = AccountLink::where('linked_account_id', $userId)
+                ->whereIn('status', ['pending', 'active'])
+                ->exists();
 
-        return response()->json(['is_primary' => !$isLinkedAsChild]);
+            return response()->json(['is_primary' => !$isLinkedAsChild]);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => $e->getMessage()], 500);
+        }
     }
 }
