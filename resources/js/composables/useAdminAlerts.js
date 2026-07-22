@@ -17,6 +17,12 @@ async function fetchHandshakeCode() {
     return data.code;
 }
 
+// -- helper --
+function findAlertKey(alerts, id) {
+    if (alerts.has(id)) return id;
+    return [...alerts.keys()].find((k) => String(k) === String(id));
+}
+
 const SOUND_URL = '/sounds/sos-alert.mp3';
 
 const soundEnabled = ref(false);
@@ -97,9 +103,7 @@ export function useAdminAlerts() {
 
     socket.on('alert:new', (alert) => {
         const isLiveArrival = hydrated.value;
-        const existingKey = [...alerts.keys()].find(
-            (k) => String(k) === String(alert.id),
-        );
+        const existingKey = findAlertKey(alerts, alert.id);
         alerts.set(existingKey !== undefined ? existingKey : alert.id, {
             ...alert,
             events: alert.events ?? [],
@@ -120,7 +124,8 @@ export function useAdminAlerts() {
     // renders the expanded Journey list. Specific event types additionally
     // update the summary fields shown on the collapsed card.
     socket.on('alert:event', ({ alert_id, event }) => {
-        const alert = alerts.get(alert_id);
+        const key = findAlertKey(alerts, alert_id);
+        const alert = key !== undefined ? alerts.get(key) : undefined;
         if (!alert) return;
 
         alert.events.push(event);
@@ -185,9 +190,7 @@ export function useAdminAlerts() {
 
     socket.on('alert:resolved', ({ alert_id }) => {
         stopAlertSound(alert_id);
-        const key = [...alerts.keys()].find(
-            (k) => String(k) === String(alert_id),
-        );
+        const key = findAlertKey(alerts, alert_id);
         if (key !== undefined) alerts.delete(key);
     });
 
