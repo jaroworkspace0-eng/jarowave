@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountDeletionController;
+use App\Http\Controllers\AccountLinkController;
 use App\Http\Controllers\Admin\AdminAlertController;
 use App\Http\Controllers\Admin\AdminGuardPayoutController;
 use App\Http\Controllers\Admin\AdminPayoutController;
@@ -372,6 +373,16 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/user', function (Request $request) {
         return $request->user();
     });
+
+    Route::get('/account-links', [AccountLinkController::class, 'index']);
+    Route::post('/account-links', [AccountLinkController::class, 'store']);
+    Route::delete('/account-links/{id}', [AccountLinkController::class, 'destroy']);
+
+    // Admin-only — gate these with your existing admin middleware
+    Route::post('/account-links/{id}/approve', [AccountLinkController::class, 'approve']);
+    Route::post('/account-links/{id}/reject', [AccountLinkController::class, 'reject']);
+
+    Route::get('/account-links/eligibility', [AccountLinkController::class, 'eligibility']);
 
     
     Route::post('/users/{user}/deactivate-no-coverage', [UserController::class, 'deactivateNoCoverage']);
