@@ -30,7 +30,7 @@ class AccountLinkController extends Controller
         $query = AccountLink::query()
             ->with([
                 'primaryAccount:id,name,phone',
-                'primaryAccount.channels:id,name,billing_model',
+                'primaryAccount.employee.channels:id,name,billing_model',
                 'linkedAccount:id,name,phone,address_line_1,complex_name,suburb,unit_number',
             ])
             ->orderByDesc('created_at');
@@ -40,7 +40,7 @@ class AccountLinkController extends Controller
         } elseif ($user->role === 'estate_billing') {
             $channelIds = $user->accessibleChannelIds();
 
-            $query->whereHas('primaryAccount.channels', function ($q) use ($channelIds) {
+            $query->whereHas('primaryAccount.employee.channels', function ($q) use ($channelIds) {
                 $q->whereIn('channels.id', $channelIds);
             });
         } else {
@@ -60,7 +60,7 @@ class AccountLinkController extends Controller
 
             if (in_array($user->role, ['admin', 'estate_billing'])) {
                 $row['primary_account'] = $l->primaryAccount;
-                $primaryChannel = $l->primaryAccount?->channels->first();
+                $primaryChannel = $l->primaryAccount?->employee?->channels->first();
                 $row['channel'] = $primaryChannel ? [
                     'id'   => $primaryChannel->id,
                     'name' => $primaryChannel->name,
