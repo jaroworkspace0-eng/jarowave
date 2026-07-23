@@ -44,22 +44,31 @@ class AccountLinkController extends Controller
                 $q->whereIn('channels.id', $channelIds);
             });
         } else {
-            // household / primary account holder — only their own requests
-            $query->where('primary_account_id', $user->id);
+            // household — either their own sent requests (as primary)
+            // or the request where they ARE the linked account
+            $query->where(function ($q) use ($user) {
+                $q->where('primary_account_id', $user->id)
+                ->orWhere('linked_account_id', $user->id);
+            });
         }
 
         $links = $query->get()->map(function (AccountLink $l) use ($user) {
             $row = [
-                'id'          => $l->id,
-                'status'      => $l->status,
-                'escalated'   => $l->escalated,
-                'created_at'  => $l->created_at,
-                'approved_at' => $l->approved_at,
-                'linked_account' => $l->linkedAccount,
+                'id'                 => $l->id,
+                'status'             => $l->status,
+                'escalated'          => $l->escalated,
+                'created_at'         => $l->created_at,
+                'approved_at'        => $l->approved_at,
+                'primary_account_id' => $l->primary_account_id,
+                'linked_account_id'  => $l->linked_account_id,
+                'linked_account'     => $l->linkedAccount,
             ];
 
-            if (in_array($user->role, ['admin', 'estate_billing'])) {
+            if (in_array($user->role, ['admin', 'estate_billing']) || $l->linked_account_id === $user->id) {
                 $row['primary_account'] = $l->primaryAccount;
+            }
+
+            if (in_array($user->role, ['admin', 'estate_billing'])) {
                 $primaryChannel = $l->primaryAccount?->employee?->channels->first();
                 $row['channel'] = $primaryChannel ? [
                     'id'   => $primaryChannel->id,
@@ -209,5 +218,35 @@ class AccountLinkController extends Controller
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }
+    }
+
+    // Admin-forced unlink of an ACTIVE link. Distinct from destroy() above,
+    // which only lets the primary account holder cancel/unlink their own.
+    public function forceUnlink(Request $request, int $id): JsonResponse
+    {
+        $user = $request->user();
+
+        if (! in_array($user->role, ['admin', 'estate_billing'])) {
+            abort(403);
+        }
+
+        $link = AccountLink::with('primaryAccount.employee.channels')->findOrFail($id);
+
+        if ($link->status !== 'active') {
+            return response()->json(['error' => 'Link is not active'], 422);
+        }
+
+        if ($user->role === 'estate_billing') {
+            $channelIds = $user->accessibleChannelIds();
+            $primaryChannelId = $link->primaryAccount?->employee?->channels->first()?->id;
+
+            if (! $primaryChannelId || ! $channelIds->contains($primaryChannelId)) {
+                abort(403, 'Not your estate.');
+            }
+        }
+
+        $link->delete();
+
+        return response()->json(['success' => true, 'action' => 'force_unlinked']);
     }
 }
