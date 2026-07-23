@@ -25,20 +25,51 @@ class AccountLinkController extends Controller
 
     public function index(Request $request): JsonResponse
     {
-        $userId = $request->user()->id;
+        $user = $request->user();
 
-        $links = AccountLink::where('primary_account_id', $userId)
-            ->with('linkedAccount:id,name,phone,address_line_1,complex_name,suburb,unit_number')
-            ->orderByDesc('created_at')
-            ->get()
-            ->map(fn ($l) => [
-                'id'              => $l->id,
-                'status'          => $l->status,
-                'escalated'       => $l->escalated,
-                'created_at'      => $l->created_at,
-                'approved_at'     => $l->approved_at,
-                'linked_account'  => $l->linkedAccount,
-            ]);
+        $query = AccountLink::query()
+            ->with([
+                'primaryAccount:id,name,phone',
+                'primaryAccount.channels:id,name,billing_model',
+                'linkedAccount:id,name,phone,address_line_1,complex_name,suburb,unit_number',
+            ])
+            ->orderByDesc('created_at');
+
+        if ($user->role === 'admin') {
+            // sees every request, no filter
+        } elseif ($user->role === 'estate_billing') {
+            $channelIds = $user->accessibleChannelIds();
+
+            $query->whereHas('primaryAccount.channels', function ($q) use ($channelIds) {
+                $q->whereIn('channels.id', $channelIds);
+            });
+        } else {
+            // household / primary account holder — only their own requests
+            $query->where('primary_account_id', $user->id);
+        }
+
+        $links = $query->get()->map(function (AccountLink $l) use ($user) {
+            $row = [
+                'id'          => $l->id,
+                'status'      => $l->status,
+                'escalated'   => $l->escalated,
+                'created_at'  => $l->created_at,
+                'approved_at' => $l->approved_at,
+                'linked_account' => $l->linkedAccount,
+            ];
+
+            if (in_array($user->role, ['admin', 'estate_billing'])) {
+                $row['primary_account'] = $l->primaryAccount;
+                $primaryChannel = $l->primaryAccount?->channels->first();
+                $row['channel'] = $primaryChannel ? [
+                    'id'   => $primaryChannel->id,
+                    'name' => $primaryChannel->name,
+                    'type' => $primaryChannel->billing_model === 'bulk' ? 'estate' : 'standalone',
+                ] : null;
+            }
+
+            return $row;
+        });
 
         return response()->json($links);
     }
@@ -128,7 +159,8 @@ class AccountLinkController extends Controller
             return response()->json(['error' => 'Link is not pending'], 422);
         }
 
-        $approverType = $request->input('approver_type', 'estate_admin'); // or 'echo_link_admin'
+        // $approverType = $request->input('approver_type', 'estate_admin'); // or 'echo_link_admin'
+        $approverType = $request->user()->role === 'admin' ? 'echo_link_admin' : 'estate_admin';
 
         $link->update([
             'status'            => 'active',
