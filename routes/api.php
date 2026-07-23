@@ -377,6 +377,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::get('/account-links', [AccountLinkController::class, 'index']);
     Route::post('/account-links', [AccountLinkController::class, 'store']);
     Route::delete('/account-links/{id}', [AccountLinkController::class, 'destroy']);
+    Route::post('/account-links/{id}/unlink', [AccountLinkController::class, 'forceUnlink']);
 
     // Admin-only — gate these with your existing admin middleware
     Route::post('/account-links/{id}/approve', [AccountLinkController::class, 'approve']);

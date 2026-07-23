@@ -23,6 +23,9 @@ export default {
             rejectTargetId: null,
             rejectTargetName: '',
             showRejectModal: false,
+            unlinkTargetId: null,
+            unlinkTargetName: '',
+            showUnlinkModal: false,
             flashMsg: '',
         };
     },
@@ -123,6 +126,32 @@ export default {
                 this.processingId = null;
                 this.showRejectModal = false;
                 this.rejectTargetId = null;
+            }
+        },
+
+        confirmUnlink(link) {
+            this.unlinkTargetId = link.id;
+            this.unlinkTargetName = link.linked_account?.name || 'this account';
+            this.showUnlinkModal = true;
+        },
+
+        async executeUnlink() {
+            const id = this.unlinkTargetId;
+            this.processingId = id;
+            try {
+                await axios.post(
+                    `${import.meta.env.VITE_APP_URL}/api/account-links/${id}/unlink`,
+                    {},
+                    { headers: authHeaders() },
+                );
+                this.flash('Account unlinked.');
+                this.load();
+            } catch (e) {
+                alert(e.response?.data?.message || 'Failed to unlink.');
+            } finally {
+                this.processingId = null;
+                this.showUnlinkModal = false;
+                this.unlinkTargetId = null;
             }
         },
 
@@ -370,6 +399,22 @@ export default {
                                         Reject
                                     </button>
                                 </div>
+                                <div
+                                    v-else-if="link.status === 'active'"
+                                    style="
+                                        display: flex;
+                                        justify-content: flex-end;
+                                    "
+                                >
+                                    <button
+                                        class="btn-ghost"
+                                        style="padding: 7px 14px"
+                                        :disabled="processingId === link.id"
+                                        @click="confirmUnlink(link)"
+                                    >
+                                        Unlink
+                                    </button>
+                                </div>
                             </td>
                         </tr>
                     </tbody>
@@ -414,6 +459,49 @@ export default {
                         </button>
                         <button @click="executeReject" class="btn-danger">
                             Reject
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
+        <transition name="modal">
+            <div
+                v-if="showUnlinkModal"
+                class="modal-backdrop"
+                @click.self="showUnlinkModal = false"
+            >
+                <div class="confirm-modal">
+                    <div class="confirm-modal__icon">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-7 w-7 text-red-500"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M6 18L18 6M6 6l12 12"
+                            />
+                        </svg>
+                    </div>
+                    <h2 class="confirm-modal__title">Unlink Account?</h2>
+                    <p class="confirm-modal__body">
+                        {{ unlinkTargetName }} will be removed from this
+                        household and lose the shared address/billing.
+                    </p>
+                    <div class="confirm-modal__actions">
+                        <button
+                            @click="showUnlinkModal = false"
+                            class="btn-ghost"
+                        >
+                            Cancel
+                        </button>
+                        <button @click="executeUnlink" class="btn-danger">
+                            Unlink
                         </button>
                     </div>
                 </div>
