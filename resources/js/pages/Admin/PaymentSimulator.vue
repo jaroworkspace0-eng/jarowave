@@ -15,8 +15,8 @@ onMounted(() => {
 });
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Dashboard', href: '/dashboard' },
-    { title: 'Payment Simulator', href: '/admin/simulate-payment' },
+    // { title: 'Dashboard', href: '/dashboard' },
+    // { title: 'Payment Simulator', href: '/admin/simulate-payment' },
 ];
 
 interface HouseholdUser {

@@ -214,7 +214,7 @@ export default {
                 <div class="page-header__left">
                     <div class="page-header__eyebrow">Households</div>
                     <h1 class="page-header__title">
-                        Account Link Requests — Platform
+                        Account Link Requests - Platform
                     </h1>
                 </div>
             </div>

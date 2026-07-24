@@ -589,57 +589,34 @@ const vClickOutside = {
     <Head title="DV Monitor" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="dvm-root">
-            <!-- ══ TOP BAR ═══════════════════════════════════════════════ -->
-            <header class="dvm-topbar">
-                <div class="dvm-topbar-left">
-                    <div class="dvm-shield">
-                        <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 20 20"
-                            fill="none"
-                        >
-                            <path
-                                d="M10 1.5L2 5.5V10C2 14.1 5.4 17.9 10 19C14.6 17.9 18 14.1 18 10V5.5L10 1.5Z"
-                                fill="white"
-                                opacity=".9"
-                            />
-                            <path
-                                d="M7 10L9 12L13 8"
-                                stroke="#e63946"
-                                stroke-width="1.8"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                            />
-                        </svg>
-                    </div>
-                    <div class="dvm-brand">
-                        <h1 class="dvm-title">DV Monitor</h1>
-                        <p class="dvm-subtitle">
-                            DOMESTIC VIOLENCE ALERT COMMAND
-                        </p>
-                    </div>
+            <!-- ══ PAGE HEADER ═══════════════════════════════════════════ -->
+            <div class="page-header">
+                <div class="page-header__left">
+                    <div class="page-header__eyebrow">Command Centre</div>
+                    <h1 class="page-header__title">DV Monitor</h1>
                     <div v-if="screens.length > 0" class="dvm-alert-counter">
                         <span class="dvm-alert-counter-dot"></span>
-                        {{ screens.filter((s) => s.isStreaming).length }} ACTIVE
+                        {{ screens.filter((s) => s.isStreaming).length }} active
+                        alert{{
+                            screens.filter((s) => s.isStreaming).length !== 1
+                                ? 's'
+                                : ''
+                        }}
                     </div>
                 </div>
 
-                <div class="dvm-topbar-right">
+                <div class="page-header__right">
                     <!-- Channel selector -->
                     <div
                         class="dvm-channel-wrap"
                         v-click-outside="() => (showChannelDropdown = false)"
                     >
                         <button
-                            class="dvm-channel-btn"
+                            class="btn-secondary"
                             @click="showChannelDropdown = !showChannelDropdown"
                         >
                             <span class="dvm-channel-dot"></span>
-                            <span
-                                >Channel:
-                                <strong>{{ selectedChannelName }}</strong></span
-                            >
+                            Channel: <strong>{{ selectedChannelName }}</strong>
                             <svg
                                 width="10"
                                 height="10"
@@ -662,36 +639,38 @@ const vClickOutside = {
                                 v-if="showChannelDropdown"
                                 class="dvm-channel-dropdown"
                             >
-                                <div class="dvm-channel-search-wrap">
+                                <div class="search-input-row">
                                     <svg
-                                        width="13"
-                                        height="13"
-                                        viewBox="0 0 20 20"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        class="search-icon"
                                         fill="none"
+                                        viewBox="0 0 24 24"
                                         stroke="currentColor"
                                         stroke-width="2"
                                     >
-                                        <circle cx="9" cy="9" r="6" />
-                                        <path d="M15 15l-3.5-3.5" />
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                                        />
                                     </svg>
                                     <input
                                         v-model="channelSearch"
-                                        class="dvm-channel-search"
+                                        class="search-input"
                                         placeholder="Search channels…"
                                         autofocus
                                     />
-                                    <button
+                                    <span
                                         v-if="channelSearch"
+                                        class="search-clear"
                                         @click="channelSearch = ''"
-                                        class="dvm-clear-btn"
+                                        >×</span
                                     >
-                                        ×
-                                    </button>
                                 </div>
                                 <div class="dvm-channel-list">
                                     <div
                                         v-if="filteredChannels.length === 0"
-                                        class="dvm-channel-empty"
+                                        class="search-list__empty"
                                     >
                                         No channels found
                                     </div>
@@ -719,7 +698,7 @@ const vClickOutside = {
                     </div>
 
                     <!-- Recordings -->
-                    <button class="dvm-rec-btn" @click="openModal">
+                    <button class="btn-secondary" @click="openModal">
                         <svg
                             width="13"
                             height="13"
@@ -748,51 +727,51 @@ const vClickOutside = {
                         :class="socketConnected ? 'connected' : 'offline'"
                     >
                         <span class="dvm-status-dot"></span>
-                        {{ socketConnected ? 'CONNECTED' : 'OFFLINE' }}
+                        {{ socketConnected ? 'Connected' : 'Offline' }}
                     </div>
                 </div>
-            </header>
+            </div>
 
-            <!-- ══ STATS BAR ═════════════════════════════════════════════ -->
-            <div v-if="screens.length > 0" class="dvm-stats-bar">
-                <div class="dvm-stat">
-                    <span class="dvm-stat-val">{{ screens.length }}</span>
-                    <span class="dvm-stat-lbl">Total Alerts</span>
+            <!-- ══ STAT CARDS ════════════════════════════════════════════ -->
+            <div v-if="screens.length > 0" class="stat-row">
+                <div class="stat-card">
+                    <div class="stat-card__label">Total Alerts</div>
+                    <div class="stat-card__value">{{ screens.length }}</div>
                 </div>
-                <div class="dvm-stat-div"></div>
-                <div class="dvm-stat">
-                    <span class="dvm-stat-val live">{{
-                        screens.filter((s) => s.isStreaming).length
-                    }}</span>
-                    <span class="dvm-stat-lbl">Live Streams</span>
+                <div class="stat-card">
+                    <div class="stat-card__label">Live Streams</div>
+                    <div class="stat-card__value stat-card__value--red">
+                        {{ screens.filter((s) => s.isStreaming).length }}
+                    </div>
                 </div>
-                <div class="dvm-stat-div"></div>
-                <div class="dvm-stat">
-                    <span class="dvm-stat-val ended">{{
-                        screens.filter((s) => s.hasEnded).length
-                    }}</span>
-                    <span class="dvm-stat-lbl">Ended</span>
+                <div class="stat-card">
+                    <div class="stat-card__label">Ended</div>
+                    <div class="stat-card__value stat-card__value--blue">
+                        {{ screens.filter((s) => s.hasEnded).length }}
+                    </div>
                 </div>
-                <div class="dvm-stat-div"></div>
-                <div class="dvm-stat">
-                    <span class="dvm-stat-val warn">{{
-                        screens.filter(
-                            (s) =>
-                                s.recordingMeta?.cancel_pin_used === 'duress',
-                        ).length
-                    }}</span>
-                    <span class="dvm-stat-lbl">Duress PINs</span>
+                <div class="stat-card">
+                    <div class="stat-card__label">Duress PINs</div>
+                    <div class="stat-card__value stat-card__value--amber">
+                        {{
+                            screens.filter(
+                                (s) =>
+                                    s.recordingMeta?.cancel_pin_used ===
+                                    'duress',
+                            ).length
+                        }}
+                    </div>
                 </div>
             </div>
 
             <!-- ══ CANVAS ════════════════════════════════════════════════ -->
-            <main class="dvm-canvas">
+            <div class="table-card dvm-canvas-card">
                 <!-- Empty state -->
-                <div v-if="screens.length === 0" class="dvm-empty">
-                    <div class="dvm-empty-ring">
+                <div v-if="screens.length === 0" class="empty-state">
+                    <div class="empty-state__icon">
                         <svg
-                            width="34"
-                            height="34"
+                            width="30"
+                            height="30"
                             viewBox="0 0 48 48"
                             fill="none"
                         >
@@ -811,32 +790,17 @@ const vClickOutside = {
                             />
                         </svg>
                     </div>
-                    <div>
-                        <p class="dvm-empty-title">
-                            All clear — no active alerts
-                        </p>
-                        <p class="dvm-empty-sub">
-                            Monitoring <strong>{{ selectedChannelName }}</strong
-                            >.<br />
-                            Streams appear automatically when a DV alert is
-                            triggered.
-                        </p>
-                    </div>
-                    <div class="dvm-empty-hint">
-                        <svg
-                            width="11"
-                            height="11"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                        >
-                            <path
-                                fill-rule="evenodd"
-                                d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z"
-                                clip-rule="evenodd"
-                            />
-                        </svg>
+                    <p class="empty-state__title">
+                        All clear — no active alerts
+                    </p>
+                    <p class="empty-state__sub">
+                        Monitoring <strong>{{ selectedChannelName }}</strong
+                        >. Streams appear automatically when a DV alert is
+                        triggered.
+                    </p>
+                    <p class="dvm-empty-hint">
                         View past recordings via the Recordings button above
-                    </div>
+                    </p>
                 </div>
 
                 <!-- Stream grid -->
@@ -1178,45 +1142,29 @@ const vClickOutside = {
                         </div>
                     </div>
                 </div>
-            </main>
+            </div>
 
             <!-- ══ RECORDINGS MODAL ══════════════════════════════════════ -->
             <Teleport to="body">
                 <Transition name="modal">
                     <div
                         v-if="showRecordingsModal"
-                        class="dvm-modal-overlay"
+                        class="modal-backdrop"
                         @click.self="closeModal"
                     >
                         <div class="dvm-modal">
                             <!-- Modal header -->
-                            <div class="dvm-modal-header">
-                                <div class="dvm-modal-title-row">
-                                    <div class="dvm-modal-icon">
-                                        <svg
-                                            width="15"
-                                            height="15"
-                                            viewBox="0 0 20 20"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            stroke-width="1.8"
-                                        >
-                                            <circle cx="10" cy="10" r="3" />
-                                            <path
-                                                d="M10 1v3M10 16v3M1 10h3M16 10h3"
-                                                stroke-linecap="round"
-                                            />
-                                        </svg>
-                                    </div>
+                            <div class="modal-sheet__header">
+                                <div class="modal-sheet__header-left">
                                     <div>
-                                        <h2 class="dvm-modal-title">
+                                        <div class="modal-sheet__title">
                                             {{
                                                 selectedHousehold
                                                     ? selectedHousehold.householdName
                                                     : 'DV Recordings'
                                             }}
-                                        </h2>
-                                        <p class="dvm-modal-subtitle">
+                                        </div>
+                                        <div class="modal-sheet__sub">
                                             <template v-if="selectedHousehold">
                                                 {{
                                                     selectedHousehold.totalCount
@@ -1246,13 +1194,13 @@ const vClickOutside = {
                                                 {{ pastRecordings.length }}
                                                 total recordings
                                             </template>
-                                        </p>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="dvm-modal-actions">
                                     <button
                                         v-if="selectedHousehold"
-                                        class="dvm-back-btn"
+                                        class="ca-back-btn"
                                         @click="closeHousehold"
                                     >
                                         <svg
@@ -1269,228 +1217,187 @@ const vClickOutside = {
                                         All Households
                                     </button>
                                     <button
-                                        class="dvm-modal-close"
+                                        class="close-btn"
                                         @click="closeModal"
-                                        title="Close"
                                     >
                                         <svg
-                                            width="13"
-                                            height="13"
-                                            viewBox="0 0 20 20"
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            class="h-4 w-4"
                                             fill="none"
+                                            viewBox="0 0 24 24"
                                             stroke="currentColor"
-                                            stroke-width="2.2"
-                                            stroke-linecap="round"
+                                            stroke-width="2"
                                         >
-                                            <path d="M5 5l10 10M15 5L5 15" />
+                                            <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                d="M6 18L18 6M6 6l12 12"
+                                            />
                                         </svg>
                                     </button>
                                 </div>
                             </div>
 
                             <!-- Search -->
-                            <div
-                                v-if="!selectedHousehold"
-                                class="dvm-modal-search-bar"
-                            >
-                                <svg
-                                    width="13"
-                                    height="13"
-                                    viewBox="0 0 20 20"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    stroke-width="2"
-                                >
-                                    <circle cx="9" cy="9" r="6" />
-                                    <path d="M15 15l-3.5-3.5" />
-                                </svg>
-                                <input
-                                    v-model="modalSearch"
-                                    class="dvm-modal-search"
-                                    placeholder="Search by name, address, alert ID…"
-                                />
-                                <button
-                                    v-if="modalSearch"
-                                    @click="modalSearch = ''"
-                                    class="dvm-clear-btn"
-                                >
+                            <div v-if="!selectedHousehold" class="ca-filters">
+                                <div class="search-input-row" style="flex: 1">
                                     <svg
-                                        width="11"
-                                        height="11"
-                                        viewBox="0 0 20 20"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        class="search-icon"
                                         fill="none"
+                                        viewBox="0 0 24 24"
                                         stroke="currentColor"
-                                        stroke-width="2.2"
-                                        stroke-linecap="round"
+                                        stroke-width="2"
                                     >
-                                        <path d="M5 5l10 10M15 5L5 15" />
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                                        />
                                     </svg>
-                                </button>
+                                    <input
+                                        v-model="modalSearch"
+                                        class="search-input"
+                                        placeholder="Search by name, address, alert ID…"
+                                    />
+                                    <span
+                                        v-if="modalSearch"
+                                        class="search-clear"
+                                        @click="modalSearch = ''"
+                                        >×</span
+                                    >
+                                </div>
                             </div>
 
                             <!-- Loading -->
-                            <div
-                                v-if="loadingHistory"
-                                class="dvm-modal-loading"
-                            >
-                                <div class="dvm-spinner"></div>
-                                <span>Loading recordings…</span>
+                            <div v-if="loadingHistory" class="empty-state">
+                                <svg
+                                    class="spin h-6 w-6 text-slate-400"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <circle
+                                        class="opacity-25"
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="currentColor"
+                                        stroke-width="4"
+                                    />
+                                    <path
+                                        class="opacity-75"
+                                        fill="currentColor"
+                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                    />
+                                </svg>
+                                <span class="mt-2 text-sm text-slate-400"
+                                    >Loading recordings…</span
+                                >
                             </div>
 
                             <!-- ── HOUSEHOLD LIST ── -->
                             <div
                                 v-else-if="!selectedHousehold"
-                                class="dvm-modal-body"
+                                class="ca-modal__body"
                             >
                                 <div
                                     v-if="groupedRecordings.length === 0"
-                                    class="dvm-modal-empty"
+                                    class="empty-state"
                                 >
-                                    <svg
-                                        width="40"
-                                        height="40"
-                                        viewBox="0 0 20 20"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        stroke-width="1"
-                                        opacity=".2"
-                                    >
-                                        <circle cx="10" cy="10" r="8" />
-                                        <path d="M10 6v4l3 3" />
-                                    </svg>
-                                    <p>No recordings found</p>
-                                    <p class="dvm-modal-empty-hint">
+                                    <p class="empty-state__title">
+                                        No recordings found
+                                    </p>
+                                    <p class="empty-state__sub">
                                         Try adjusting your search or select a
                                         different channel
                                     </p>
                                 </div>
-                                <div v-else class="dvm-household-grid">
-                                    <button
+                                <div v-else class="ca-client-list">
+                                    <div
                                         v-for="group in groupedRecordings"
                                         :key="group.householdId"
-                                        class="dvm-household-card"
+                                        class="ca-client-row"
                                         @click="openHousehold(group)"
                                     >
-                                        <div class="dvm-hh-left">
-                                            <div class="dvm-hh-avatar">
-                                                {{
-                                                    (group.householdName || 'U')
-                                                        .charAt(0)
-                                                        .toUpperCase()
-                                                }}
+                                        <div class="ca-client-row__avatar">
+                                            {{
+                                                (group.householdName || 'U')
+                                                    .charAt(0)
+                                                    .toUpperCase()
+                                            }}
+                                        </div>
+                                        <div class="ca-client-row__info">
+                                            <div class="ca-client-row__name">
+                                                {{ group.householdName }}
                                             </div>
-                                            <div class="dvm-hh-info">
-                                                <div class="dvm-hh-name">
-                                                    {{ group.householdName }}
-                                                </div>
-                                                <div class="dvm-hh-meta">
-                                                    <span
-                                                        v-if="
-                                                            group.address ||
-                                                            group.gps
-                                                        "
-                                                        class="dvm-hh-meta-item"
-                                                    >
-                                                        <svg
-                                                            width="9"
-                                                            height="9"
-                                                            viewBox="0 0 20 20"
-                                                            fill="currentColor"
-                                                        >
-                                                            <path
-                                                                fill-rule="evenodd"
-                                                                d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"
-                                                                clip-rule="evenodd"
-                                                            />
-                                                        </svg>
-                                                        {{
-                                                            group.address ??
-                                                            group.gps
-                                                        }}
-                                                    </span>
-                                                    <span
-                                                        class="dvm-hh-meta-item"
-                                                    >
-                                                        <svg
-                                                            width="9"
-                                                            height="9"
-                                                            viewBox="0 0 20 20"
-                                                            fill="currentColor"
-                                                        >
-                                                            <path
-                                                                fill-rule="evenodd"
-                                                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
-                                                                clip-rule="evenodd"
-                                                            />
-                                                        </svg>
-                                                        {{
-                                                            timeAgo(
-                                                                group.latestAt,
-                                                            )
-                                                        }}
-                                                    </span>
-                                                </div>
+                                            <div class="ca-client-row__email">
+                                                <template
+                                                    v-if="
+                                                        group.address ||
+                                                        group.gps
+                                                    "
+                                                    >{{
+                                                        group.address ??
+                                                        group.gps
+                                                    }}</template
+                                                >
                                             </div>
                                         </div>
-                                        <div class="dvm-hh-right">
-                                            <div class="dvm-hh-stats">
-                                                <div class="dvm-hh-count">
-                                                    {{ group.totalCount }}
-                                                </div>
-                                                <div class="dvm-hh-count-lbl">
-                                                    alert{{
-                                                        group.totalCount !== 1
-                                                            ? 's'
-                                                            : ''
-                                                    }}
-                                                </div>
-                                            </div>
-                                            <span
-                                                v-if="
-                                                    group.latestRec
-                                                        .cancel_pin_used &&
-                                                    group.latestRec
-                                                        .cancel_pin_used !==
-                                                        'none'
-                                                "
-                                                class="dvm-pin-tag"
-                                                :class="
-                                                    group.latestRec
-                                                        .cancel_pin_used
-                                                "
-                                            >
-                                                {{
-                                                    group.latestRec
-                                                        .cancel_pin_used ===
-                                                    'duress'
-                                                        ? '⚠ Duress'
-                                                        : '✓ Safe'
-                                                }}
-                                            </span>
-                                            <svg
-                                                width="13"
-                                                height="13"
-                                                viewBox="0 0 20 20"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                stroke-width="1.8"
-                                                class="dvm-hh-arrow"
-                                            >
-                                                <path
-                                                    d="M7 5l5 5-5 5"
-                                                    stroke-linecap="round"
-                                                    stroke-linejoin="round"
-                                                />
-                                            </svg>
+                                        <div
+                                            v-if="
+                                                group.latestRec
+                                                    .cancel_pin_used &&
+                                                group.latestRec
+                                                    .cancel_pin_used !== 'none'
+                                            "
+                                            class="dvm-pin-tag"
+                                            :class="
+                                                group.latestRec.cancel_pin_used
+                                            "
+                                        >
+                                            {{
+                                                group.latestRec
+                                                    .cancel_pin_used ===
+                                                'duress'
+                                                    ? '⚠ Duress'
+                                                    : '✓ Safe'
+                                            }}
                                         </div>
-                                    </button>
+                                        <div class="ca-client-row__meta">
+                                            <span class="ca-client-row__count"
+                                                >{{ group.totalCount }} alert{{
+                                                    group.totalCount !== 1
+                                                        ? 's'
+                                                        : ''
+                                                }}</span
+                                            >
+                                            <span class="ca-client-row__last">{{
+                                                timeAgo(group.latestAt)
+                                            }}</span>
+                                        </div>
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            class="ca-client-row__chevron h-4 w-4"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                d="M9 5l7 7-7 7"
+                                            />
+                                        </svg>
+                                    </div>
                                 </div>
                             </div>
 
                             <!-- ── HOUSEHOLD DETAIL ── -->
-                            <div v-else class="dvm-modal-body">
+                            <div v-else class="ca-modal__body dvm-detail-body">
                                 <div class="dvm-detail-header">
-                                    <div class="dvm-detail-avatar">
+                                    <div class="ca-client-row__avatar">
                                         {{
                                             (
                                                 selectedHousehold.householdName ||
@@ -1547,52 +1454,76 @@ const vClickOutside = {
 
                                 <!-- Filter toolbar -->
                                 <div class="dvm-filter-toolbar">
-                                    <div class="dvm-filter-search-wrap">
+                                    <div
+                                        class="search-input-row"
+                                        style="flex: 1; min-width: 160px"
+                                    >
                                         <svg
-                                            width="12"
-                                            height="12"
-                                            viewBox="0 0 20 20"
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            class="search-icon"
                                             fill="none"
+                                            viewBox="0 0 24 24"
                                             stroke="currentColor"
                                             stroke-width="2"
                                         >
-                                            <circle cx="9" cy="9" r="6" />
-                                            <path d="M15 15l-3.5-3.5" />
+                                            <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                                            />
                                         </svg>
                                         <input
                                             v-model="detailSearch"
-                                            class="dvm-filter-search"
+                                            class="search-input"
                                             placeholder="Search alert ID, GPS…"
                                         />
-                                        <button
+                                        <span
                                             v-if="detailSearch"
+                                            class="search-clear"
                                             @click="detailSearch = ''"
-                                            class="dvm-clear-btn"
+                                            >×</span
                                         >
-                                            ×
-                                        </button>
                                     </div>
-                                    <select
-                                        v-model="detailSortBy"
-                                        class="dvm-filter-select"
+                                    <div
+                                        class="select-wrapper"
+                                        style="width: 160px"
                                     >
-                                        <option value="newest">
-                                            Newest first
-                                        </option>
-                                        <option value="oldest">
-                                            Oldest first
-                                        </option>
-                                        <option value="longest">
-                                            Longest first
-                                        </option>
-                                        <option value="shortest">
-                                            Shortest first
-                                        </option>
-                                    </select>
+                                        <select
+                                            v-model="detailSortBy"
+                                            class="field__select"
+                                        >
+                                            <option value="newest">
+                                                Newest first
+                                            </option>
+                                            <option value="oldest">
+                                                Oldest first
+                                            </option>
+                                            <option value="longest">
+                                                Longest first
+                                            </option>
+                                            <option value="shortest">
+                                                Shortest first
+                                            </option>
+                                        </select>
+                                        <svg
+                                            class="select-caret"
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                d="M19 9l-7 7-7-7"
+                                            />
+                                        </svg>
+                                    </div>
                                     <button
-                                        class="dvm-filter-toggle-btn"
+                                        class="chip"
                                         :class="{
-                                            active:
+                                            'chip--active':
                                                 showDetailFilters ||
                                                 activeDetailFilterCount > 0,
                                         }"
@@ -1601,18 +1532,6 @@ const vClickOutside = {
                                                 !showDetailFilters
                                         "
                                     >
-                                        <svg
-                                            width="12"
-                                            height="12"
-                                            viewBox="0 0 20 20"
-                                            fill="currentColor"
-                                        >
-                                            <path
-                                                fill-rule="evenodd"
-                                                d="M3 5a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm2 4a1 1 0 011-1h8a1 1 0 110 2H6a1 1 0 01-1-1zm2 4a1 1 0 011-1h4a1 1 0 110 2H8a1 1 0 01-1-1z"
-                                                clip-rule="evenodd"
-                                            />
-                                        </svg>
                                         Filters
                                         <span
                                             v-if="activeDetailFilterCount > 0"
@@ -1630,123 +1549,79 @@ const vClickOutside = {
                                 </div>
 
                                 <!-- Advanced filter panel -->
-                                <Transition name="filters">
+                                <transition name="slide-down">
                                     <div
                                         v-if="showDetailFilters"
                                         class="dvm-filter-panel"
                                     >
                                         <div class="dvm-filter-group">
-                                            <label class="dvm-filter-label"
+                                            <label class="field__label"
                                                 >Date Range</label
                                             >
                                             <div class="dvm-filter-row">
-                                                <div class="dvm-filter-field">
-                                                    <span
-                                                        class="dvm-field-label"
-                                                        >From</span
-                                                    >
-                                                    <input
-                                                        type="date"
-                                                        v-model="
-                                                            detailFilterFrom
-                                                        "
-                                                        class="dvm-date-input"
-                                                    />
-                                                </div>
-                                                <div class="dvm-filter-arrow">
-                                                    →
-                                                </div>
-                                                <div class="dvm-filter-field">
-                                                    <span
-                                                        class="dvm-field-label"
-                                                        >To</span
-                                                    >
-                                                    <input
-                                                        type="date"
-                                                        v-model="detailFilterTo"
-                                                        class="dvm-date-input"
-                                                    />
-                                                </div>
+                                                <input
+                                                    type="date"
+                                                    v-model="detailFilterFrom"
+                                                    class="field__input"
+                                                />
+                                                <span class="dvm-filter-arrow"
+                                                    >→</span
+                                                >
+                                                <input
+                                                    type="date"
+                                                    v-model="detailFilterTo"
+                                                    class="field__input"
+                                                />
                                             </div>
                                         </div>
                                         <div class="dvm-filter-group">
-                                            <label class="dvm-filter-label"
+                                            <label class="field__label"
                                                 >Time of Day</label
                                             >
                                             <div class="dvm-filter-row">
-                                                <div class="dvm-filter-field">
-                                                    <span
-                                                        class="dvm-field-label"
-                                                        >From</span
-                                                    >
-                                                    <input
-                                                        type="time"
-                                                        v-model="
-                                                            detailFilterTimeFrom
-                                                        "
-                                                        class="dvm-date-input"
-                                                    />
-                                                </div>
-                                                <div class="dvm-filter-arrow">
-                                                    →
-                                                </div>
-                                                <div class="dvm-filter-field">
-                                                    <span
-                                                        class="dvm-field-label"
-                                                        >To</span
-                                                    >
-                                                    <input
-                                                        type="time"
-                                                        v-model="
-                                                            detailFilterTimeTo
-                                                        "
-                                                        class="dvm-date-input"
-                                                    />
-                                                </div>
+                                                <input
+                                                    type="time"
+                                                    v-model="
+                                                        detailFilterTimeFrom
+                                                    "
+                                                    class="field__input"
+                                                />
+                                                <span class="dvm-filter-arrow"
+                                                    >→</span
+                                                >
+                                                <input
+                                                    type="time"
+                                                    v-model="detailFilterTimeTo"
+                                                    class="field__input"
+                                                />
                                             </div>
                                         </div>
                                         <div class="dvm-filter-group">
-                                            <label class="dvm-filter-label"
+                                            <label class="field__label"
                                                 >Duration (seconds)</label
                                             >
                                             <div class="dvm-filter-row">
-                                                <div class="dvm-filter-field">
-                                                    <span
-                                                        class="dvm-field-label"
-                                                        >Min</span
-                                                    >
-                                                    <input
-                                                        type="number"
-                                                        v-model="
-                                                            detailFilterMinDur
-                                                        "
-                                                        min="0"
-                                                        placeholder="0"
-                                                        class="dvm-date-input"
-                                                    />
-                                                </div>
-                                                <div class="dvm-filter-arrow">
-                                                    →
-                                                </div>
-                                                <div class="dvm-filter-field">
-                                                    <span
-                                                        class="dvm-field-label"
-                                                        >Max</span
-                                                    >
-                                                    <input
-                                                        type="number"
-                                                        v-model="
-                                                            detailFilterMaxDur
-                                                        "
-                                                        min="0"
-                                                        placeholder="∞"
-                                                        class="dvm-date-input"
-                                                    />
-                                                </div>
+                                                <input
+                                                    type="number"
+                                                    v-model="detailFilterMinDur"
+                                                    min="0"
+                                                    placeholder="0"
+                                                    class="field__input"
+                                                />
+                                                <span class="dvm-filter-arrow"
+                                                    >→</span
+                                                >
+                                                <input
+                                                    type="number"
+                                                    v-model="detailFilterMaxDur"
+                                                    min="0"
+                                                    placeholder="∞"
+                                                    class="field__input"
+                                                />
                                             </div>
                                         </div>
                                         <div class="dvm-filter-group">
-                                            <label class="dvm-filter-label"
+                                            <label class="field__label"
                                                 >PIN Type</label
                                             >
                                             <div class="dvm-filter-pills">
@@ -1767,14 +1642,13 @@ const vClickOutside = {
                                                         },
                                                     ]"
                                                     :key="opt.v"
-                                                    class="dvm-pill-btn"
+                                                    class="subtype-btn"
                                                     :class="[
                                                         {
-                                                            active:
+                                                            'subtype-btn--active':
                                                                 detailFilterPin ===
                                                                 opt.v,
                                                         },
-                                                        opt.v,
                                                     ]"
                                                     @click="
                                                         detailFilterPin =
@@ -1786,7 +1660,7 @@ const vClickOutside = {
                                             </div>
                                         </div>
                                         <div class="dvm-filter-group">
-                                            <label class="dvm-filter-label"
+                                            <label class="field__label"
                                                 >Status</label
                                             >
                                             <div class="dvm-filter-pills">
@@ -1803,9 +1677,9 @@ const vClickOutside = {
                                                         },
                                                     ]"
                                                     :key="opt.v"
-                                                    class="dvm-pill-btn"
+                                                    class="subtype-btn"
                                                     :class="{
-                                                        active:
+                                                        'subtype-btn--active':
                                                             detailFilterStatus ===
                                                             opt.v,
                                                     }"
@@ -1819,28 +1693,16 @@ const vClickOutside = {
                                             </div>
                                         </div>
                                     </div>
-                                </Transition>
+                                </transition>
 
                                 <!-- Recording list -->
                                 <div
                                     v-if="
                                         filteredHouseholdRecordings.length === 0
                                     "
-                                    class="dvm-no-results"
+                                    class="empty-state"
                                 >
-                                    <svg
-                                        width="32"
-                                        height="32"
-                                        viewBox="0 0 20 20"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        stroke-width="1"
-                                        opacity=".2"
-                                    >
-                                        <circle cx="10" cy="10" r="8" />
-                                        <path d="M10 6v4l3 3" />
-                                    </svg>
-                                    <p>
+                                    <p class="empty-state__title">
                                         No recordings match the current filters
                                     </p>
                                     <button
@@ -1894,62 +1756,19 @@ const vClickOutside = {
                                                     </span>
                                                 </div>
                                                 <div class="dvm-rec-meta">
-                                                    <span>
-                                                        <svg
-                                                            width="9"
-                                                            height="9"
-                                                            viewBox="0 0 20 20"
-                                                            fill="currentColor"
-                                                        >
-                                                            <path
-                                                                fill-rule="evenodd"
-                                                                d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z"
-                                                                clip-rule="evenodd"
-                                                            />
-                                                        </svg>
-                                                        {{
-                                                            formatTimestamp(
-                                                                rec.started_at,
-                                                            )
-                                                        }}
-                                                    </span>
-                                                    <span>
-                                                        <svg
-                                                            width="9"
-                                                            height="9"
-                                                            viewBox="0 0 20 20"
-                                                            fill="currentColor"
-                                                        >
-                                                            <path
-                                                                d="M10 12a2 2 0 100-4 2 2 0 000 4z"
-                                                            />
-                                                            <path
-                                                                fill-rule="evenodd"
-                                                                d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
-                                                                clip-rule="evenodd"
-                                                            />
-                                                        </svg>
-                                                        {{
-                                                            formatDuration(
-                                                                rec.duration_secs,
-                                                            )
-                                                        }}
-                                                    </span>
-                                                    <span v-if="rec.gps">
-                                                        <svg
-                                                            width="9"
-                                                            height="9"
-                                                            viewBox="0 0 20 20"
-                                                            fill="currentColor"
-                                                        >
-                                                            <path
-                                                                fill-rule="evenodd"
-                                                                d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z"
-                                                                clip-rule="evenodd"
-                                                            />
-                                                        </svg>
-                                                        {{ rec.gps }}
-                                                    </span>
+                                                    <span>{{
+                                                        formatTimestamp(
+                                                            rec.started_at,
+                                                        )
+                                                    }}</span>
+                                                    <span>{{
+                                                        formatDuration(
+                                                            rec.duration_secs,
+                                                        )
+                                                    }}</span>
+                                                    <span v-if="rec.gps">{{
+                                                        rec.gps
+                                                    }}</span>
                                                     <span
                                                         class="dvm-time-ago"
                                                         >{{
@@ -2045,7 +1864,7 @@ const vClickOutside = {
                                                 >
                                             </div>
                                         </div>
-                                        <Transition name="player">
+                                        <transition name="slide-down">
                                             <div
                                                 v-if="
                                                     playingId ===
@@ -2063,7 +1882,7 @@ const vClickOutside = {
                                                     @ended="playingId = null"
                                                 ></audio>
                                             </div>
-                                        </Transition>
+                                        </transition>
                                     </div>
                                 </div>
                             </div>
@@ -2076,170 +1895,145 @@ const vClickOutside = {
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Syne:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
 
-/* ════════════════════════════════════════════════════════════
-   DESIGN TOKENS — Dark command-centre aesthetic
-   ════════════════════════════════════════════════════════════ */
-.dvm-root {
-    --c0: #080c12;
-    --c1: #0d1420;
-    --c2: #111b2e;
-    --c3: #172035;
-    --c4: #1e2d47;
-    --border: rgba(255, 255, 255, 0.06);
-    --border2: rgba(255, 255, 255, 0.12);
-    --accent: #e63946;
-    --accent2: #ff6b6b;
-    --blue: #4cc9f0;
-    --green: #06d6a0;
-    --amber: #ffd166;
-    --text: #e8edf4;
-    --text2: #7a8fa8;
-    --text3: #3d5170;
-    --radius: 12px;
+.dvm-root,
+.modal-backdrop {
+    --c-bg: #f4f6f9;
+    --c-surface: #ffffff;
+    --c-border: #e4e8ef;
+    --c-text: #1a2332;
+    --c-muted: #64748b;
+    --c-faint: #94a3b8;
+    --c-primary: #ea580c;
+    --c-primary-h: #c2410c;
+    --c-danger: #dc2626;
+    --c-danger-h: #b91c1c;
+    --c-green: #16a34a;
+    --c-blue: #1d4ed8;
+    --c-amber: #b45309;
     --radius-sm: 8px;
-    --mono: 'IBM Plex Mono', 'Fira Mono', monospace;
-    --sans: 'Syne', system-ui, sans-serif;
-
-    font-family: var(--sans);
-    background: var(--c0);
-    color: var(--text);
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.14);
+    font-family: 'DM Sans', system-ui, sans-serif;
 }
 
-/* ── TOP BAR ─────────────────────────────────────────────── */
-.dvm-topbar {
+.dvm-root {
+    padding: 28px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-height: 100%;
+    background: var(--c-bg);
+}
+
+/* PAGE HEADER */
+.page-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.page-header__left {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    padding: 0 22px;
-    height: 56px;
-    background: var(--c1);
-    border-bottom: 1px solid var(--border);
-    position: sticky;
-    top: 0;
-    z-index: 50;
     gap: 14px;
     flex-wrap: wrap;
 }
-
-.dvm-topbar-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.dvm-shield {
-    width: 34px;
-    height: 34px;
-    background: var(--accent);
-    border-radius: 9px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.dvm-title {
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0.1em;
+.page-header__eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
     text-transform: uppercase;
-    color: var(--text);
-    margin: 0;
-    line-height: 1;
+    color: var(--c-primary);
+    margin-bottom: 4px;
+    width: 100%;
 }
-
-.dvm-subtitle {
-    font-size: 9px;
-    color: var(--text3);
-    font-family: var(--mono);
-    letter-spacing: 0.06em;
-    margin: 3px 0 0;
+.page-header__title {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--c-text);
+    margin: 0;
+    letter-spacing: -0.3px;
+}
+.page-header__right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
 }
 
 .dvm-alert-counter {
-    display: flex;
+    display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 4px 10px;
-    background: rgba(230, 57, 70, 0.12);
-    border: 1px solid rgba(230, 57, 70, 0.25);
+    padding: 4px 12px;
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
     border-radius: 999px;
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--accent2);
-    font-family: var(--mono);
-    letter-spacing: 0.04em;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--c-danger);
 }
 .dvm-alert-counter-dot {
     width: 5px;
     height: 5px;
     border-radius: 50%;
-    background: var(--accent);
+    background: var(--c-danger);
     animation: blink 1s infinite;
 }
 
-.dvm-topbar-right {
-    display: flex;
+/* BUTTONS (shared with Announcements design) */
+.btn-secondary {
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
-    flex-wrap: wrap;
+    gap: 7px;
+    background: #ffffff;
+    color: var(--c-text);
+    border: 1.5px solid var(--c-border);
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.18s;
+    white-space: nowrap;
+    font-family: inherit;
+}
+.btn-secondary:hover {
+    border-color: var(--c-primary);
+    color: var(--c-primary);
+    background: #fff7ed;
 }
 
-/* Channel selector */
+/* Channel selector dropdown */
 .dvm-channel-wrap {
     position: relative;
 }
-
-.dvm-channel-btn {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 7px 12px;
-    background: var(--c3);
-    border: 1px solid var(--border2);
-    border-radius: var(--radius-sm);
-    color: var(--text2);
-    font-size: 11px;
-    font-family: var(--sans);
-    cursor: pointer;
-    transition: all 0.15s;
-}
-.dvm-channel-btn:hover {
-    background: var(--c4);
-    color: var(--text);
-    border-color: rgba(255, 255, 255, 0.2);
-}
-.dvm-channel-btn strong {
-    color: var(--text);
-    font-weight: 600;
-}
-
 .dvm-channel-dot {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--blue);
+    background: var(--c-blue);
+    display: inline-block;
     flex-shrink: 0;
 }
-
 .dvm-channel-dropdown {
     position: absolute;
     top: calc(100% + 6px);
     left: 0;
-    min-width: 240px;
-    background: var(--c2);
-    border: 1px solid var(--border2);
-    border-radius: var(--radius);
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+    min-width: 260px;
+    background: #ffffff;
+    border: 1px solid var(--c-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-lg);
     z-index: 200;
     overflow: hidden;
 }
-
 .dropdown-enter-active,
 .dropdown-leave-active {
     transition:
@@ -2251,109 +2045,54 @@ const vClickOutside = {
     opacity: 0;
     transform: translateY(-6px);
 }
-
-.dvm-channel-search-wrap {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 13px;
-    border-bottom: 1px solid var(--border);
-    color: var(--text3);
-}
-.dvm-channel-search {
-    flex: 1;
-    background: none;
-    border: none;
-    outline: none;
-    color: var(--text);
-    font-size: 12px;
-    font-family: var(--sans);
-}
-.dvm-channel-search::placeholder {
-    color: var(--text3);
-}
-
 .dvm-channel-list {
     max-height: 220px;
     overflow-y: auto;
     padding: 6px;
 }
-.dvm-channel-empty {
-    padding: 18px;
-    text-align: center;
-    color: var(--text3);
-    font-size: 12px;
-    font-family: var(--mono);
-}
-
 .dvm-channel-item {
     display: flex;
     align-items: center;
     gap: 8px;
     width: 100%;
-    padding: 8px 10px;
+    padding: 9px 10px;
     background: none;
     border: none;
-    border-radius: 6px;
-    color: var(--text2);
-    font-size: 12px;
-    font-family: var(--sans);
+    border-radius: 8px;
+    color: var(--c-muted);
+    font-size: 13px;
+    font-family: inherit;
+    font-weight: 600;
     cursor: pointer;
     text-align: left;
-    transition: all 0.1s;
+    transition: all 0.12s;
 }
 .dvm-channel-item:hover {
-    background: var(--c3);
-    color: var(--text);
+    background: #f8fafc;
+    color: var(--c-text);
 }
 .dvm-channel-item.active {
-    color: var(--blue);
-    font-weight: 600;
+    color: var(--c-primary);
+    background: #fff7ed;
 }
 .dvm-channel-item-dot {
     width: 5px;
     height: 5px;
     border-radius: 50%;
-    background: var(--border2);
+    background: var(--c-border);
     flex-shrink: 0;
-    transition: background 0.15s;
 }
 .dvm-channel-item-dot.active {
-    background: var(--blue);
+    background: var(--c-primary);
 }
 
-/* Recordings button */
-.dvm-rec-btn {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 7px 13px;
-    background: var(--c3);
-    border: 1px solid var(--border2);
-    border-radius: var(--radius-sm);
-    color: var(--text2);
-    font-size: 11px;
-    font-family: var(--sans);
-    cursor: pointer;
-    transition: all 0.15s;
-}
-.dvm-rec-btn:hover {
-    background: var(--accent);
-    color: #fff;
-    border-color: var(--accent);
-}
 .dvm-rec-count {
-    background: rgba(230, 57, 70, 0.2);
-    color: var(--accent2);
+    background: #fff7ed;
+    color: var(--c-primary);
     border-radius: 999px;
-    padding: 1px 6px;
-    font-size: 9px;
+    padding: 1px 7px;
+    font-size: 10px;
     font-weight: 700;
-    font-family: var(--mono);
-}
-.dvm-rec-btn:hover .dvm-rec-count {
-    background: rgba(255, 255, 255, 0.2);
-    color: #fff;
 }
 
 /* Status pill */
@@ -2361,27 +2100,25 @@ const vClickOutside = {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 5px 11px;
-    border-radius: 999px;
-    font-size: 10px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    font-family: var(--mono);
-    border: 1px solid transparent;
+    padding: 8px 13px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 700;
+    border: 1.5px solid transparent;
 }
 .dvm-status-pill.connected {
-    background: rgba(6, 214, 160, 0.1);
-    border-color: rgba(6, 214, 160, 0.25);
-    color: var(--green);
+    background: #f0fdf4;
+    border-color: #86efac;
+    color: var(--c-green);
 }
 .dvm-status-pill.offline {
-    background: rgba(230, 57, 70, 0.1);
-    border-color: rgba(230, 57, 70, 0.2);
-    color: var(--accent);
+    background: #fef2f2;
+    border-color: #fca5a5;
+    color: var(--c-danger);
 }
 .dvm-status-dot {
-    width: 5px;
-    height: 5px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
     background: currentColor;
 }
@@ -2389,88 +2126,107 @@ const vClickOutside = {
     animation: blink 2s infinite;
 }
 
-/* Clear button */
-.dvm-clear-btn {
-    background: none;
-    border: none;
-    color: var(--text3);
-    cursor: pointer;
-    padding: 2px 4px;
-    display: flex;
-    align-items: center;
-    border-radius: 4px;
-    transition: color 0.15s;
-    font-size: 14px;
-    line-height: 1;
-}
-.dvm-clear-btn:hover {
-    color: var(--text);
-}
-
-/* ── STATS BAR ───────────────────────────────────────────── */
-.dvm-stats-bar {
-    display: flex;
-    align-items: center;
-    padding: 0 22px;
-    height: 46px;
-    background: var(--c1);
-    border-bottom: 1px solid var(--border);
-    gap: 0;
-    flex-shrink: 0;
-    animation: slideDown 0.3s ease;
-}
-.dvm-stat {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 0 22px 0 0;
-}
-.dvm-stat:first-child {
-    padding-left: 0;
-}
-.dvm-stat-val {
-    font-size: 20px;
-    font-weight: 700;
-    font-family: var(--mono);
-    line-height: 1;
-    letter-spacing: -0.02em;
-    color: var(--text);
-}
-.dvm-stat-val.live {
-    color: var(--accent);
-}
-.dvm-stat-val.ended {
-    color: var(--blue);
-}
-.dvm-stat-val.warn {
-    color: var(--amber);
-}
-.dvm-stat-lbl {
-    font-size: 9px;
-    color: var(--text3);
-    font-family: var(--mono);
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    line-height: 1.3;
-}
-.dvm-stat-div {
-    width: 1px;
-    height: 26px;
-    background: var(--border);
-    margin: 0 22px 0 0;
-}
-
-/* ── CANVAS ──────────────────────────────────────────────── */
-.dvm-canvas {
-    flex: 1;
-    padding: 20px;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
+/* STAT ROW (reused from Announcements) */
+.stat-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
     gap: 16px;
 }
+.stat-card {
+    background: #ffffff;
+    border: 1px solid var(--c-border);
+    border-radius: 16px;
+    padding: 20px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    box-shadow: var(--shadow-sm);
+    transition:
+        box-shadow 0.2s,
+        transform 0.2s;
+}
+.stat-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+.stat-card__label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--c-faint);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+}
+.stat-card__value {
+    font-size: 30px;
+    font-weight: 800;
+    color: var(--c-text);
+    line-height: 1;
+    letter-spacing: -1px;
+}
+.stat-card__value--red {
+    color: var(--c-danger);
+}
+.stat-card__value--blue {
+    color: var(--c-blue);
+}
+.stat-card__value--amber {
+    color: var(--c-amber);
+}
 
-/* ── GRID ────────────────────────────────────────────────── */
+/* CANVAS / TABLE CARD */
+.table-card {
+    background: #ffffff;
+    border: 1px solid var(--c-border);
+    border-radius: 16px;
+    box-shadow: var(--shadow-sm);
+}
+.dvm-canvas-card {
+    padding: 20px;
+}
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 64px 24px;
+    gap: 8px;
+    text-align: center;
+}
+.empty-state__icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--c-faint);
+    margin-bottom: 6px;
+}
+.empty-state__title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--c-text);
+}
+.empty-state__sub {
+    font-size: 13px;
+    color: var(--c-muted);
+    max-width: 360px;
+}
+.empty-state__sub strong {
+    color: var(--c-text);
+}
+.dvm-empty-hint {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--c-faint);
+    background: #f8fafc;
+    border: 1px solid var(--c-border);
+    border-radius: 999px;
+    padding: 5px 14px;
+}
+
+/* STREAM GRID */
 .dvm-grid {
     display: grid;
     gap: 14px;
@@ -2497,59 +2253,35 @@ const vClickOutside = {
     }
 }
 
-/* ── SCREEN CARD ─────────────────────────────────────────── */
+/* SCREEN CARD */
 .dvm-screen {
-    background: var(--c1);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
+    background: #ffffff;
+    border: 1.5px solid var(--c-border);
+    border-radius: var(--radius-md);
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    transition: border-color 0.25s;
-    animation: cardIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    transition:
+        border-color 0.25s,
+        box-shadow 0.25s;
+    box-shadow: var(--shadow-sm);
 }
 .dvm-screen.streaming {
-    border-color: rgba(230, 57, 70, 0.35);
+    border-color: #fca5a5;
 }
 .dvm-screen.ended {
-    border-color: rgba(76, 201, 240, 0.2);
+    border-color: #bfdbfe;
 }
 
-@keyframes cardIn {
-    from {
-        opacity: 0;
-        transform: translateY(14px) scale(0.98);
-    }
-    to {
-        opacity: 1;
-        transform: none;
-    }
-}
-@keyframes slideDown {
-    from {
-        opacity: 0;
-        transform: translateY(-8px);
-    }
-    to {
-        opacity: 1;
-        transform: none;
-    }
-}
-
-/* ── CALLER IDENTITY BLOCK ───────────────────────────────── */
+/* CALLER IDENTITY BLOCK */
 .dvm-caller-block {
     display: flex;
     align-items: center;
     gap: 12px;
     padding: 14px 16px;
-    background: linear-gradient(
-        135deg,
-        rgba(230, 57, 70, 0.13) 0%,
-        rgba(230, 57, 70, 0.03) 100%
-    );
-    border-bottom: 1px solid rgba(230, 57, 70, 0.14);
+    background: #fef2f2;
+    border-bottom: 1px solid #fecaca;
     position: relative;
-    overflow: hidden;
 }
 .dvm-caller-block::before {
     content: '';
@@ -2558,40 +2290,34 @@ const vClickOutside = {
     top: 0;
     bottom: 0;
     width: 3px;
-    background: var(--accent);
-    border-radius: 0 2px 2px 0;
+    background: var(--c-danger);
 }
 .dvm-caller-block.ended {
-    background: linear-gradient(
-        135deg,
-        rgba(76, 201, 240, 0.08) 0%,
-        rgba(76, 201, 240, 0.02) 100%
-    );
-    border-bottom-color: rgba(76, 201, 240, 0.12);
+    background: #eff6ff;
+    border-bottom-color: #bfdbfe;
 }
 .dvm-caller-block.ended::before {
-    background: var(--blue);
+    background: var(--c-blue);
 }
 
 .dvm-caller-avatar {
     width: 44px;
     height: 44px;
     border-radius: 10px;
-    background: rgba(230, 57, 70, 0.18);
-    border: 1px solid rgba(230, 57, 70, 0.3);
+    background: #fee2e2;
+    border: 1px solid #fca5a5;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 15px;
-    font-weight: 700;
-    color: var(--accent2);
+    font-weight: 800;
+    color: var(--c-danger-h);
     flex-shrink: 0;
-    font-family: var(--mono);
 }
 .dvm-caller-avatar.ended {
-    background: rgba(76, 201, 240, 0.1);
-    border-color: rgba(76, 201, 240, 0.25);
-    color: var(--blue);
+    background: #dbeafe;
+    border-color: #bfdbfe;
+    color: var(--c-blue);
 }
 
 .dvm-caller-info {
@@ -2601,49 +2327,47 @@ const vClickOutside = {
 .dvm-caller-name {
     font-size: 14px;
     font-weight: 700;
-    color: var(--text);
+    color: var(--c-text);
     letter-spacing: -0.01em;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
     margin-bottom: 4px;
 }
-
 .dvm-caller-meta {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     flex-wrap: wrap;
 }
 .dvm-caller-meta-item {
     display: flex;
     align-items: center;
     gap: 4px;
-    font-size: 10px;
-    color: var(--text2);
-    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--c-muted);
+    font-weight: 500;
 }
 
 .dvm-pin-chip {
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 2px 7px;
+    padding: 2px 8px;
     border-radius: 999px;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 700;
-    font-family: var(--mono);
-    letter-spacing: 0.05em;
+    letter-spacing: 0.03em;
 }
 .dvm-pin-chip.duress {
-    background: rgba(230, 57, 70, 0.15);
-    color: var(--accent2);
-    border: 1px solid rgba(230, 57, 70, 0.3);
+    background: #fef2f2;
+    color: var(--c-danger);
+    border: 1px solid #fca5a5;
 }
 .dvm-pin-chip.safe {
-    background: rgba(6, 214, 160, 0.1);
-    color: var(--green);
-    border: 1px solid rgba(6, 214, 160, 0.25);
+    background: #f0fdf4;
+    color: var(--c-green);
+    border: 1px solid #86efac;
 }
 
 .dvm-caller-right {
@@ -2653,46 +2377,41 @@ const vClickOutside = {
     gap: 5px;
     flex-shrink: 0;
 }
-
 .dvm-caller-badge {
     display: flex;
     align-items: center;
     gap: 5px;
-    padding: 3px 8px;
+    padding: 3px 9px;
     border-radius: 999px;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 700;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
-    font-family: var(--mono);
 }
 .dvm-caller-badge.live {
-    background: rgba(230, 57, 70, 0.15);
-    border: 1px solid rgba(230, 57, 70, 0.35);
-    color: var(--accent2);
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    color: var(--c-danger);
 }
 .dvm-caller-badge.ended {
-    background: rgba(76, 201, 240, 0.1);
-    border: 1px solid rgba(76, 201, 240, 0.25);
-    color: var(--blue);
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: var(--c-blue);
 }
-
 .dvm-live-blink {
     width: 5px;
     height: 5px;
     border-radius: 50%;
-    background: var(--accent);
+    background: var(--c-danger);
     animation: blink 1s infinite;
 }
-
 .dvm-alert-id {
-    font-family: var(--mono);
-    font-size: 10px;
-    color: var(--text3);
-    letter-spacing: 0.06em;
+    font-size: 11px;
+    color: var(--c-faint);
+    font-weight: 600;
 }
 
-/* ── SCREEN BODY ─────────────────────────────────────────── */
+/* SCREEN BODY */
 .dvm-screen-body {
     padding: 14px 16px;
     display: flex;
@@ -2700,10 +2419,10 @@ const vClickOutside = {
     gap: 12px;
 }
 
-/* ── WAVEFORM ────────────────────────────────────────────── */
+/* WAVEFORM */
 .dvm-wave-wrap {
-    background: var(--c2);
-    border: 1px solid var(--border);
+    background: #f8fafc;
+    border: 1px solid var(--c-border);
     border-radius: var(--radius-sm);
     height: 72px;
     display: flex;
@@ -2716,27 +2435,25 @@ const vClickOutside = {
     transition: border-color 0.2s;
 }
 .dvm-wave-wrap.live-wave {
-    border-color: rgba(230, 57, 70, 0.2);
+    border-color: #fca5a5;
 }
-
 .dvm-bar {
     flex: 1;
     min-width: 2px;
     max-width: 5px;
     border-radius: 2px;
-    background: var(--border2);
+    background: #cbd5e1;
     transition: height 0.1s ease;
     min-height: 3px;
     align-self: center;
 }
 .dvm-wave-wrap.live-wave .dvm-bar {
-    background: var(--accent);
+    background: var(--c-danger);
     opacity: 0.7;
 }
 .dvm-wave-wrap.live-wave .dvm-bar:nth-child(even) {
     opacity: 1;
 }
-
 .dvm-muted-overlay {
     position: absolute;
     inset: 0;
@@ -2744,14 +2461,14 @@ const vClickOutside = {
     align-items: center;
     justify-content: center;
     gap: 7px;
-    background: rgba(255, 209, 102, 0.06);
-    color: var(--amber);
+    background: rgba(255, 251, 235, 0.9);
+    color: var(--c-amber);
     font-size: 11px;
-    font-family: var(--mono);
-    backdrop-filter: blur(3px);
+    font-weight: 700;
+    backdrop-filter: blur(2px);
 }
 
-/* ── CONTROLS ────────────────────────────────────────────── */
+/* CONTROLS */
 .dvm-ctrl-row {
     display: flex;
     align-items: center;
@@ -2768,91 +2485,83 @@ const vClickOutside = {
     align-items: center;
     gap: 6px;
 }
-
 .dvm-elapsed {
     font-size: 12px;
-    font-family: var(--mono);
-    color: var(--text2);
-    letter-spacing: 0.05em;
+    color: var(--c-muted);
+    font-weight: 700;
     min-width: 36px;
     font-variant-numeric: tabular-nums;
 }
-
 .dvm-live-footer {
     display: flex;
     align-items: center;
     gap: 7px;
-    font-size: 10px;
-    font-family: var(--mono);
-    color: var(--text3);
-    letter-spacing: 0.03em;
+    font-size: 11px;
+    color: var(--c-faint);
 }
 .dvm-live-pulse {
     width: 6px;
     height: 6px;
     border-radius: 50%;
-    background: var(--accent);
+    background: var(--c-danger);
     animation: blink 1.4s infinite;
     flex-shrink: 0;
 }
 .dvm-live-pulse.muted {
-    background: var(--amber);
+    background: var(--c-amber);
     animation: none;
 }
-
 .dvm-ctrl-btn {
-    width: 28px;
-    height: 28px;
+    width: 30px;
+    height: 30px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--c3);
-    border: 1px solid var(--border2);
-    border-radius: 7px;
-    color: var(--text2);
+    background: #f8fafc;
+    border: 1.5px solid var(--c-border);
+    border-radius: 8px;
+    color: var(--c-muted);
     cursor: pointer;
     transition: all 0.12s;
 }
 .dvm-ctrl-btn:hover {
-    background: var(--c4);
-    color: var(--text);
-    border-color: rgba(255, 255, 255, 0.18);
+    background: #f1f5f9;
+    color: var(--c-text);
+    border-color: #cbd5e1;
 }
 .dvm-ctrl-btn.muted {
-    background: rgba(255, 209, 102, 0.1);
-    color: var(--amber);
-    border-color: rgba(255, 209, 102, 0.2);
+    background: #fffbeb;
+    color: var(--c-amber);
+    border-color: #fcd34d;
 }
 .dvm-ctrl-btn.dismiss:hover {
-    background: rgba(230, 57, 70, 0.1);
-    color: var(--accent);
-    border-color: rgba(230, 57, 70, 0.25);
+    background: #fef2f2;
+    color: var(--c-danger);
+    border-color: #fca5a5;
 }
 
-/* ── ENDED SECTION ───────────────────────────────────────── */
+/* ENDED SECTION */
 .dvm-ended-section {
     display: flex;
     flex-direction: column;
     gap: 9px;
 }
-
 .dvm-ended-label {
     display: flex;
     align-items: center;
     gap: 6px;
-    font-size: 10px;
-    font-family: var(--mono);
-    color: var(--green);
-    letter-spacing: 0.04em;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--c-green);
 }
 .dvm-ended-dur {
     margin-left: 4px;
-    color: var(--text3);
+    color: var(--c-faint);
+    font-weight: 500;
 }
-
 .dvm-audio-wrap {
-    background: var(--c2);
-    border: 1px solid var(--border);
+    background: #f8fafc;
+    border: 1px solid var(--c-border);
     border-radius: var(--radius-sm);
     padding: 2px 8px;
 }
@@ -2861,481 +2570,296 @@ const vClickOutside = {
     height: 32px;
     display: block;
 }
-
 .dvm-dl-btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 7px 13px;
-    background: var(--c3);
-    border: 1px solid var(--border2);
+    padding: 8px 14px;
+    background: #f8fafc;
+    border: 1.5px solid var(--c-border);
     border-radius: var(--radius-sm);
-    color: var(--text2);
-    font-size: 11px;
-    font-family: var(--sans);
+    color: var(--c-muted);
+    font-size: 12px;
+    font-weight: 700;
     text-decoration: none;
     cursor: pointer;
     transition: all 0.12s;
     width: fit-content;
 }
 .dvm-dl-btn:hover {
-    background: var(--blue);
-    color: var(--c0);
-    border-color: var(--blue);
+    background: var(--c-blue);
+    color: #fff;
+    border-color: var(--c-blue);
 }
 
-/* ── EMPTY STATE ─────────────────────────────────────────── */
-.dvm-empty {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 18px;
-    min-height: 60vh;
-    text-align: center;
-}
-.dvm-empty-ring {
-    width: 88px;
-    height: 88px;
-    border-radius: 50%;
-    border: 1.5px solid var(--border2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: relative;
-    color: var(--text3);
-}
-.dvm-empty-ring::before {
-    content: '';
-    position: absolute;
-    inset: -10px;
-    border-radius: 50%;
-    border: 1px solid var(--border);
-}
-.dvm-empty-title {
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--text);
-    margin-bottom: 8px;
-}
-.dvm-empty-sub {
-    font-size: 12px;
-    color: var(--text2);
-    line-height: 1.7;
-    max-width: 340px;
-    font-family: var(--mono);
-}
-.dvm-empty-sub strong {
-    color: var(--text);
-}
-.dvm-empty-hint {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 10px;
-    font-family: var(--mono);
-    color: var(--text3);
-    background: var(--c2);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    padding: 5px 14px;
-}
-
-/* ── ANIMATIONS ──────────────────────────────────────────── */
-@keyframes blink {
-    0%,
-    100% {
-        opacity: 1;
-    }
-    50% {
-        opacity: 0.3;
-    }
-}
-
-/* ════════════════════════════════════════════════════════════
-   MODAL — tokens re-declared (teleported outside .dvm-root)
-   ════════════════════════════════════════════════════════════ */
-.dvm-modal-overlay {
-    --c0: #080c12;
-    --c1: #0d1420;
-    --c2: #111b2e;
-    --c3: #172035;
-    --c4: #1e2d47;
-    --border: rgba(255, 255, 255, 0.06);
-    --border2: rgba(255, 255, 255, 0.12);
-    --accent: #e63946;
-    --accent2: #ff6b6b;
-    --blue: #4cc9f0;
-    --green: #06d6a0;
-    --amber: #ffd166;
-    --text: #e8edf4;
-    --text2: #7a8fa8;
-    --text3: #3d5170;
-    --radius: 12px;
-    --radius-sm: 8px;
-    --mono: 'IBM Plex Mono', 'Fira Mono', monospace;
-    --sans: 'Syne', system-ui, sans-serif;
-
-    font-family: var(--sans);
+/* ══ MODAL (matches Announcements ca-modal) ══ */
+.modal-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 9999;
-    background: rgba(4, 7, 14, 0.7);
-    backdrop-filter: blur(10px);
+    background: rgba(10, 18, 30, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 20px;
+    z-index: 9999;
+    padding: 24px;
 }
-
-.modal-enter-active,
-.modal-leave-active {
-    transition: opacity 0.2s;
-}
-.modal-enter-from,
-.modal-leave-to {
-    opacity: 0;
-}
-.modal-enter-active .dvm-modal,
-.modal-leave-active .dvm-modal {
-    transition:
-        transform 0.25s ease,
-        opacity 0.2s;
-}
-.modal-enter-from .dvm-modal,
-.modal-leave-to .dvm-modal {
-    transform: scale(0.96) translateY(12px);
-    opacity: 0;
-}
-
 .dvm-modal {
-    background: var(--c1);
-    border: 1px solid var(--border2);
-    border-radius: 16px;
+    background: #ffffff;
+    border-radius: 20px;
     width: 100%;
-    max-width: 860px;
+    max-width: 820px;
     max-height: 88vh;
     display: flex;
     flex-direction: column;
-    box-shadow: 0 32px 80px rgba(0, 0, 0, 0.7);
+    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--c-border);
     overflow: hidden;
 }
-
-.dvm-modal-header {
+.modal-sheet__header {
     display: flex;
     align-items: center;
+    gap: 14px;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--c-border);
     justify-content: space-between;
-    padding: 18px 22px 16px;
-    border-bottom: 1px solid var(--border);
-    gap: 12px;
     flex-shrink: 0;
 }
-.dvm-modal-title-row {
+.modal-sheet__header-left {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
 }
-.dvm-modal-icon {
-    width: 34px;
-    height: 34px;
-    background: rgba(230, 57, 70, 0.12);
-    border: 1px solid rgba(230, 57, 70, 0.2);
-    border-radius: 9px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--accent);
-    flex-shrink: 0;
-}
-.dvm-modal-title {
+.modal-sheet__title {
     font-size: 15px;
     font-weight: 700;
-    color: var(--text);
-    margin: 0 0 3px;
+    color: var(--c-text);
 }
-.dvm-modal-subtitle {
-    font-size: 11px;
-    color: var(--text3);
-    margin: 0;
-    font-family: var(--mono);
+.modal-sheet__sub {
+    font-size: 12px;
+    color: var(--c-faint);
+    margin-top: 1px;
 }
-
 .dvm-modal-actions {
     display: flex;
     align-items: center;
     gap: 8px;
-}
-
-.dvm-back-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 6px 12px;
-    background: var(--c3);
-    border: 1px solid var(--border2);
-    border-radius: var(--radius-sm);
-    color: var(--text2);
-    font-size: 11px;
-    font-family: var(--sans);
-    cursor: pointer;
-    transition: all 0.15s;
-}
-.dvm-back-btn:hover {
-    color: var(--text);
-    border-color: rgba(255, 255, 255, 0.2);
-}
-
-.dvm-modal-close {
-    width: 30px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--c3);
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    color: var(--text2);
-    cursor: pointer;
-    transition: all 0.15s;
-}
-.dvm-modal-close:hover {
-    background: rgba(230, 57, 70, 0.1);
-    color: var(--accent);
-    border-color: rgba(230, 57, 70, 0.25);
-}
-
-.dvm-modal-search-bar {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 11px 22px;
-    border-bottom: 1px solid var(--border);
-    color: var(--text3);
     flex-shrink: 0;
-    background: var(--c2);
 }
-.dvm-modal-search {
-    flex: 1;
-    background: none;
-    border: none;
-    outline: none;
-    color: var(--text);
+.ca-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    border: 1.5px solid var(--c-border);
+    background: #f8fafc;
     font-size: 12px;
-    font-family: var(--sans);
+    font-weight: 600;
+    color: var(--c-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
 }
-.dvm-modal-search::placeholder {
-    color: var(--text3);
+.ca-back-btn:hover {
+    border-color: var(--c-primary);
+    color: var(--c-primary);
+    background: #fff7ed;
 }
-
-.dvm-modal-loading {
+.close-btn {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    background: #f1f5f9;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    color: var(--c-muted);
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 14px;
-    padding: 60px;
-    color: var(--text3);
-    font-size: 12px;
-    font-family: var(--mono);
+    transition: background 0.15s;
 }
-.dvm-spinner {
-    width: 22px;
-    height: 22px;
-    border: 2px solid var(--border2);
-    border-top-color: var(--accent);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-}
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
+.close-btn:hover {
+    background: #e2e8f0;
 }
 
-.dvm-modal-body {
-    flex: 1;
-    overflow-y: auto;
-    padding: 18px 22px 28px;
-}
-
-.dvm-modal-empty {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    padding: 60px;
-    color: var(--text3);
-    font-size: 12px;
-    font-family: var(--mono);
-}
-.dvm-modal-empty-hint {
-    font-size: 11px;
-    color: var(--text3);
-}
-
-/* ── HOUSEHOLD GRID ──────────────────────────────────────── */
-.dvm-household-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-}
-
-.dvm-household-card {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 13px 15px;
-    background: var(--c2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    width: 100%;
-    text-align: left;
-    transition: all 0.15s;
-}
-.dvm-household-card:hover {
-    border-color: rgba(230, 57, 70, 0.3);
-    background: var(--c3);
-    transform: translateX(2px);
-}
-
-.dvm-hh-left {
+.ca-filters {
     display: flex;
     align-items: center;
     gap: 12px;
-    flex: 1;
-    min-width: 0;
+    padding: 12px 24px;
+    border-bottom: 1px solid var(--c-border);
+    background: #f8fafc;
+    flex-shrink: 0;
 }
-.dvm-hh-avatar {
+.ca-modal__body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0;
+}
+
+/* search input row reused across the page */
+.search-input-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border: 1.5px solid var(--c-border);
+    border-radius: 10px;
+    background: #ffffff;
+    transition: border-color 0.15s;
+}
+.search-input-row:focus-within {
+    border-color: var(--c-primary);
+}
+.search-icon {
+    width: 15px;
+    height: 15px;
+    color: var(--c-faint);
+    flex-shrink: 0;
+}
+.search-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    font-family: inherit;
+    color: var(--c-text);
+    outline: none;
+}
+.search-input::placeholder {
+    color: var(--c-faint);
+}
+.search-clear {
+    font-size: 16px;
+    color: var(--c-faint);
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 2px;
+    transition: color 0.15s;
+}
+.search-clear:hover {
+    color: var(--c-muted);
+}
+.search-list__empty {
+    padding: 12px 16px;
+    font-size: 12px;
+    color: var(--c-faint);
+    text-align: center;
+}
+
+/* Client / household rows (shared visual language) */
+.ca-client-list {
+    display: flex;
+    flex-direction: column;
+}
+.ca-client-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 24px;
+    border-bottom: 1px solid #f1f5f9;
+    cursor: pointer;
+    transition: background 0.12s;
+}
+.ca-client-row:last-child {
+    border-bottom: none;
+}
+.ca-client-row:hover {
+    background: #fafbfc;
+}
+.ca-client-row__avatar {
     width: 40px;
     height: 40px;
-    border-radius: 9px;
-    background: rgba(230, 57, 70, 0.12);
-    border: 1px solid rgba(230, 57, 70, 0.2);
+    border-radius: 12px;
+    background: linear-gradient(135deg, #ea580c, #c2410c);
+    color: #fff;
+    font-size: 16px;
+    font-weight: 800;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 15px;
-    font-weight: 700;
-    color: var(--accent2);
     flex-shrink: 0;
-    font-family: var(--mono);
 }
-.dvm-hh-info {
+.ca-client-row__info {
     flex: 1;
     min-width: 0;
 }
-.dvm-hh-name {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text);
-    margin-bottom: 4px;
+.ca-client-row__name {
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--c-text);
 }
-.dvm-hh-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
+.ca-client-row__email {
+    font-size: 12px;
+    color: var(--c-faint);
+    margin-top: 1px;
 }
-.dvm-hh-meta-item {
+.ca-client-row__meta {
     display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 10px;
-    color: var(--text3);
-    font-family: var(--mono);
-    max-width: 200px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 2px;
 }
-
-.dvm-hh-right {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+.ca-client-row__count {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--c-primary);
+}
+.ca-client-row__last {
+    font-size: 11px;
+    color: var(--c-faint);
+}
+.ca-client-row__chevron {
+    color: #cbd5e1;
     flex-shrink: 0;
 }
-.dvm-hh-stats {
-    text-align: center;
-}
-.dvm-hh-count {
-    font-size: 18px;
-    font-weight: 700;
-    color: var(--text);
-    font-family: var(--mono);
-    line-height: 1;
-}
-.dvm-hh-count-lbl {
-    font-size: 9px;
-    color: var(--text3);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    font-family: var(--mono);
-}
-.dvm-hh-arrow {
-    opacity: 0.2;
-    transition: opacity 0.15s;
-}
-.dvm-household-card:hover .dvm-hh-arrow {
-    opacity: 0.5;
-}
 
-/* ── PIN TAGS ─────────────────────────────────────────────── */
+/* PIN tags */
 .dvm-pin-tag {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.03em;
-    font-family: var(--mono);
-    padding: 3px 8px;
+    letter-spacing: 0.02em;
+    padding: 3px 9px;
     border-radius: 999px;
     border: 1px solid transparent;
+    white-space: nowrap;
 }
 .dvm-pin-tag.duress {
-    background: rgba(230, 57, 70, 0.12);
-    color: var(--accent2);
-    border-color: rgba(230, 57, 70, 0.25);
+    background: #fef2f2;
+    color: var(--c-danger);
+    border-color: #fca5a5;
 }
 .dvm-pin-tag.safe {
-    background: rgba(6, 214, 160, 0.1);
-    color: var(--green);
-    border-color: rgba(6, 214, 160, 0.25);
+    background: #f0fdf4;
+    color: var(--c-green);
+    border-color: #86efac;
 }
 .dvm-pin-tag.sm {
-    font-size: 9px;
-    padding: 2px 6px;
+    font-size: 10px;
+    padding: 2px 7px;
 }
 
-/* ── DETAIL HEADER ───────────────────────────────────────── */
+/* Household detail */
+.dvm-detail-body {
+    padding: 20px 24px 28px;
+}
 .dvm-detail-header {
     display: flex;
     align-items: center;
     gap: 14px;
     padding: 14px 16px;
-    background: var(--c2);
-    border: 1px solid var(--border);
+    background: #f8fafc;
+    border: 1px solid var(--c-border);
     border-radius: var(--radius-sm);
-    margin-bottom: 14px;
-}
-.dvm-detail-avatar {
-    width: 46px;
-    height: 46px;
-    border-radius: 10px;
-    background: rgba(230, 57, 70, 0.12);
-    border: 1px solid rgba(230, 57, 70, 0.2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 18px;
-    font-weight: 700;
-    color: var(--accent2);
-    flex-shrink: 0;
-    font-family: var(--mono);
+    margin-bottom: 16px;
 }
 .dvm-detail-name {
     font-size: 14px;
     font-weight: 700;
-    color: var(--text);
+    color: var(--c-text);
     margin: 0 0 6px;
 }
 .dvm-detail-chips {
@@ -3347,16 +2871,15 @@ const vClickOutside = {
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    font-size: 10px;
-    color: var(--text3);
-    font-family: var(--mono);
-    background: var(--c3);
-    border: 1px solid var(--border);
+    font-size: 11px;
+    color: var(--c-muted);
+    background: #ffffff;
+    border: 1px solid var(--c-border);
     border-radius: 999px;
     padding: 3px 10px;
 }
 
-/* ── FILTER TOOLBAR ──────────────────────────────────────── */
+/* Filter toolbar */
 .dvm-filter-toolbar {
     display: flex;
     align-items: center;
@@ -3364,234 +2887,188 @@ const vClickOutside = {
     flex-wrap: wrap;
     margin-bottom: 14px;
 }
-
-.dvm-filter-search-wrap {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex: 1;
-    min-width: 160px;
-    padding: 7px 10px;
-    background: var(--c2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    color: var(--text3);
+.select-wrapper {
+    position: relative;
 }
-.dvm-filter-search {
-    flex: 1;
-    background: none;
-    border: none;
-    outline: none;
-    color: var(--text);
+.field__select {
+    width: 100%;
+    box-sizing: border-box;
+    background: #f8fafc;
+    border: 1.5px solid var(--c-border);
+    border-radius: 8px;
+    padding: 8px 32px 8px 12px;
     font-size: 12px;
-    font-family: var(--sans);
-}
-.dvm-filter-search::placeholder {
-    color: var(--text3);
-}
-
-.dvm-filter-select {
-    padding: 7px 10px;
-    background: var(--c2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    color: var(--text2);
-    font-size: 11px;
-    font-family: var(--sans);
-    cursor: pointer;
+    font-family: inherit;
+    color: var(--c-text);
     outline: none;
+    appearance: none;
+    cursor: pointer;
     transition: border-color 0.15s;
 }
-.dvm-filter-select:hover {
-    border-color: var(--border2);
+.field__select:focus {
+    border-color: var(--c-primary);
+    background: #fff;
 }
-
-.dvm-filter-toggle-btn {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 7px 12px;
-    background: var(--c2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    color: var(--text2);
-    font-size: 11px;
-    font-family: var(--sans);
-    cursor: pointer;
-    transition: all 0.15s;
-}
-.dvm-filter-toggle-btn:hover,
-.dvm-filter-toggle-btn.active {
-    border-color: var(--accent);
-    color: var(--accent);
-    background: rgba(230, 57, 70, 0.08);
+.select-caret {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 14px;
+    height: 14px;
+    color: var(--c-faint);
+    pointer-events: none;
 }
 .dvm-filter-count {
-    background: var(--accent);
+    background: var(--c-primary);
     color: #fff;
     border-radius: 999px;
     padding: 1px 6px;
-    font-size: 9px;
+    font-size: 10px;
     font-weight: 700;
-    font-family: var(--mono);
+    margin-left: 4px;
 }
-
 .dvm-filter-reset-btn {
     display: flex;
     align-items: center;
     gap: 5px;
-    padding: 7px 12px;
+    padding: 5px 12px;
     background: none;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    color: var(--text3);
-    font-size: 11px;
-    font-family: var(--sans);
+    border: 1.5px solid var(--c-border);
+    border-radius: 999px;
+    color: var(--c-faint);
+    font-size: 12px;
+    font-weight: 600;
     cursor: pointer;
     transition: all 0.15s;
 }
 .dvm-filter-reset-btn:hover {
-    color: var(--accent);
-    border-color: rgba(230, 57, 70, 0.25);
+    color: var(--c-danger);
+    border-color: #fca5a5;
+    background: #fef2f2;
 }
 
-/* ── FILTER PANEL ────────────────────────────────────────── */
-.filters-enter-active,
-.filters-leave-active {
-    transition:
-        max-height 0.25s ease,
-        opacity 0.2s;
+/* chip (reused) */
+.chip {
+    padding: 5px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--c-border);
+    background: #ffffff;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--c-muted);
+    cursor: pointer;
+    transition: all 0.15s;
+    display: inline-flex;
+    align-items: center;
 }
-.filters-enter-from,
-.filters-leave-to {
-    max-height: 0;
-    opacity: 0;
+.chip:hover {
+    border-color: #cbd5e1;
+    background: #f8fafc;
 }
-.filters-enter-to,
-.filters-leave-from {
-    max-height: 600px;
-    opacity: 1;
+.chip--active {
+    background: var(--c-primary);
+    color: #fff;
+    border-color: var(--c-primary);
 }
 
+/* Filter panel */
 .dvm-filter-panel {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 12px;
-    padding: 14px;
-    background: var(--c2);
-    border: 1px solid var(--border);
+    gap: 14px;
+    padding: 16px;
+    background: #f8fafc;
+    border: 1.5px solid var(--c-border);
     border-radius: var(--radius-sm);
     margin-bottom: 14px;
-    overflow: hidden;
 }
 .dvm-filter-group {
     display: flex;
     flex-direction: column;
     gap: 8px;
 }
-.dvm-filter-label {
-    font-size: 10px;
-    color: var(--text3);
-    font-family: var(--mono);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
+.field__label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--c-muted);
+    letter-spacing: 0.3px;
 }
 .dvm-filter-row {
     display: flex;
     align-items: center;
     gap: 8px;
 }
-.dvm-filter-field {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    flex: 1;
-}
-.dvm-field-label {
-    font-size: 9px;
-    color: var(--text3);
-    font-family: var(--mono);
-}
 .dvm-filter-arrow {
-    color: var(--text3);
+    color: var(--c-faint);
     font-size: 12px;
 }
-.dvm-date-input {
-    padding: 5px 8px;
-    background: var(--c3);
-    border: 1px solid var(--border2);
-    border-radius: 6px;
-    color: var(--text);
-    font-size: 11px;
-    font-family: var(--mono);
-    outline: none;
+.field__input {
     width: 100%;
+    box-sizing: border-box;
+    background: #ffffff;
+    border: 1.5px solid var(--c-border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 12px;
+    font-family: inherit;
+    color: var(--c-text);
+    outline: none;
+    transition: border-color 0.15s;
+}
+.field__input:focus {
+    border-color: var(--c-primary);
 }
 .dvm-filter-pills {
     display: flex;
     flex-wrap: wrap;
-    gap: 5px;
+    gap: 6px;
 }
-.dvm-pill-btn {
-    padding: 4px 10px;
-    background: var(--c3);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    color: var(--text2);
-    font-size: 10px;
-    font-family: var(--mono);
+.subtype-btn {
+    padding: 6px 13px;
+    border-radius: 20px;
+    border: 1.5px solid var(--c-border);
+    background: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--c-muted);
     cursor: pointer;
-    transition: all 0.12s;
+    font-family: inherit;
+    transition: all 0.15s;
+    white-space: nowrap;
 }
-.dvm-pill-btn:hover {
-    border-color: var(--border2);
-    color: var(--text);
+.subtype-btn:hover {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+    color: var(--c-text);
 }
-.dvm-pill-btn.active {
-    background: var(--accent);
+.subtype-btn--active {
+    background: var(--c-primary);
+    border-color: var(--c-primary);
     color: #fff;
-    border-color: var(--accent);
-}
-.dvm-pill-btn.active.safe {
-    background: var(--green);
-    border-color: var(--green);
-    color: var(--c0);
 }
 
-/* ── RECORDING LIST ──────────────────────────────────────── */
-.dvm-no-results {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-    padding: 40px;
-    color: var(--text3);
-    font-size: 12px;
-    font-family: var(--mono);
-    text-align: center;
-}
+/* RECORDING LIST */
 .dvm-rec-list {
     display: flex;
     flex-direction: column;
-    gap: 7px;
+    gap: 8px;
 }
-
 .dvm-rec-card {
-    background: var(--c2);
-    border: 1px solid var(--border);
+    background: #f8fafc;
+    border: 1.5px solid var(--c-border);
     border-radius: var(--radius-sm);
     overflow: hidden;
     transition: border-color 0.15s;
 }
 .dvm-rec-card.playing {
-    border-color: rgba(230, 57, 70, 0.35);
+    border-color: #fca5a5;
 }
-
 .dvm-rec-main {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 11px 13px;
+    padding: 12px 14px;
     gap: 12px;
 }
 .dvm-rec-info {
@@ -3606,27 +3083,20 @@ const vClickOutside = {
     margin-bottom: 4px;
 }
 .dvm-rec-num {
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
-    color: var(--text);
-    font-family: var(--mono);
-    letter-spacing: 0.03em;
+    color: var(--c-text);
 }
 .dvm-rec-meta {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
-    font-size: 10px;
-    color: var(--text3);
-    font-family: var(--mono);
-}
-.dvm-rec-meta span {
-    display: flex;
-    align-items: center;
-    gap: 4px;
+    font-size: 11px;
+    color: var(--c-faint);
 }
 .dvm-time-ago {
-    color: var(--accent2);
+    color: var(--c-primary);
+    font-weight: 600;
 }
 
 .dvm-rec-controls {
@@ -3635,80 +3105,120 @@ const vClickOutside = {
     gap: 6px;
     flex-shrink: 0;
 }
-
 .dvm-play-btn {
     display: flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 12px;
-    background: var(--c3);
-    border: 1px solid var(--border2);
+    padding: 7px 13px;
+    background: #ffffff;
+    border: 1.5px solid var(--c-border);
     border-radius: var(--radius-sm);
-    color: var(--text2);
-    font-size: 11px;
-    font-family: var(--sans);
+    color: var(--c-muted);
+    font-size: 12px;
+    font-weight: 700;
     cursor: pointer;
     transition: all 0.12s;
 }
 .dvm-play-btn:hover,
 .dvm-play-btn.active {
-    background: var(--accent);
+    background: var(--c-primary);
     color: #fff;
-    border-color: var(--accent);
+    border-color: var(--c-primary);
 }
-
 .dvm-dl-btn-sm {
-    width: 28px;
-    height: 28px;
+    width: 30px;
+    height: 30px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--c3);
-    border: 1px solid var(--border2);
+    background: #ffffff;
+    border: 1.5px solid var(--c-border);
     border-radius: var(--radius-sm);
-    color: var(--text2);
+    color: var(--c-muted);
     text-decoration: none;
     transition: all 0.12s;
 }
 .dvm-dl-btn-sm:hover {
-    background: rgba(6, 214, 160, 0.1);
-    color: var(--green);
-    border-color: rgba(6, 214, 160, 0.25);
+    background: #f0fdf4;
+    color: var(--c-green);
+    border-color: #86efac;
 }
-
 .dvm-live-badge {
-    font-size: 10px;
+    font-size: 11px;
     font-weight: 700;
-    color: var(--accent);
-    font-family: var(--mono);
-    letter-spacing: 0.04em;
+    color: var(--c-danger);
 }
 .dvm-live-badge.pulse {
     animation: blink 1.2s infinite;
 }
-.dvm-recording-live {
-    flex-shrink: 0;
+.dvm-inline-player {
+    padding: 10px 14px;
+    border-top: 1px solid var(--c-border);
+    background: #ffffff;
 }
 
-.dvm-inline-player {
-    padding: 10px 13px;
-    border-top: 1px solid var(--border);
-    background: var(--c1);
+/* TRANSITIONS */
+.modal-enter-active,
+.modal-leave-active {
+    transition: opacity 0.22s ease;
 }
-.player-enter-active,
-.player-leave-active {
+.modal-enter-active .dvm-modal,
+.modal-leave-active .dvm-modal {
     transition:
-        max-height 0.25s ease,
-        opacity 0.2s;
+        transform 0.22s ease,
+        opacity 0.22s ease;
 }
-.player-enter-from,
-.player-leave-to {
-    max-height: 0;
+.modal-enter-from,
+.modal-leave-to {
     opacity: 0;
 }
-.player-enter-to,
-.player-leave-from {
-    max-height: 80px;
-    opacity: 1;
+.modal-enter-from .dvm-modal,
+.modal-leave-to .dvm-modal {
+    transform: scale(0.97) translateY(12px);
+}
+.slide-down-enter-active,
+.slide-down-leave-active {
+    transition: all 0.25s ease;
+}
+.slide-down-enter-from,
+.slide-down-leave-to {
+    opacity: 0;
+    transform: translateY(-8px);
+}
+.spin {
+    animation: spin 0.65s linear infinite;
+}
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+@keyframes blink {
+    0%,
+    100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.3;
+    }
+}
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+    .stat-row {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+}
+@media (max-width: 640px) {
+    .dvm-root {
+        padding: 16px;
+    }
+    .stat-card {
+        padding: 14px;
+    }
+    .stat-card__value {
+        font-size: 22px;
+    }
 }
 </style>

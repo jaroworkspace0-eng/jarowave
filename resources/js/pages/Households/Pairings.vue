@@ -7,9 +7,9 @@ import { computed, onMounted, ref } from 'vue';
 const props = defineProps<{ id: string | number }>();
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Dashboard', href: '/dashboard' },
-    { title: 'Clients', href: '/clients' },
-    { title: 'Pairings', href: '#' },
+    // { title: 'Dashboard', href: '/dashboard' },
+    // { title: 'Clients', href: '/clients' },
+    // { title: 'Pairings', href: '#' },
 ];
 
 // ── State ─────────────────────────────────────────────────────

@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import Label from '@/components/ui/label/Label.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useAuthStore } from '@/stores/auth';
 import { Head, router } from '@inertiajs/vue3';
@@ -9,7 +8,6 @@ import { computed, onMounted, ref, watch } from 'vue';
 import Multiselect from 'vue-multiselect';
 import { VueTelInput } from 'vue-tel-input';
 import 'vue-tel-input/vue-tel-input.css';
-import '../../../css/style.css';
 
 const auth = useAuthStore();
 
@@ -395,7 +393,7 @@ const selectAddress = async (item: any) => {
 
 function showMessage(message: string) {
     flashMessage.value = message;
-    setTimeout(() => (flashMessage.value = null), 3000);
+    setTimeout(() => (flashMessage.value = null), 3500);
 }
 
 // ─── role groups ──────────────────────────────────────────────────────────────
@@ -608,30 +606,6 @@ const loadInvites = async (clientId?: string) => {
     }
 };
 
-// const generateInviteLink = async () => {
-//     if (!selectedChannelId.value) {
-//         showInviteFlash('Please select a channel first.', 'error');
-//         return;
-//     }
-//     try {
-//         isGenerating.value = true;
-//         const { data } = await axios.post(
-//             `${import.meta.env.VITE_APP_URL}/api/invite/generate`,
-//             { channel_id: selectedChannelId.value },
-//             getHeaders(),
-//         );
-//         invites.value.push(data);
-//         selectedChannelId.value = '';
-//         showInviteFlash(`Invite link generated for ${data.channel_name}.`);
-//     } catch (err: any) {
-//         const msg =
-//             err.response?.data?.message ?? 'Failed to generate invite link.';
-//         showInviteFlash(msg, 'error');
-//     } finally {
-//         isGenerating.value = false;
-//     }
-// };
-
 const generateInviteLink = async () => {
     if (!selectedChannelId.value) {
         showInviteFlash('Please select a channel first.', 'error');
@@ -734,6 +708,7 @@ const openModal = (forceHousehold = false) => {
     isEditing.value = false;
     selectedRole.value = '';
     inComplex.value = false;
+    errors.value = {};
     Object.assign(form.value, {
         id: null,
         name: '',
@@ -764,6 +739,7 @@ const openModal = (forceHousehold = false) => {
 
 const editEmployee = (employee: any) => {
     isEditing.value = true;
+    errors.value = {};
     form.value.client_id = employee.client_id;
     form.value.channel_ids = employee.channels || [];
     form.value.id = employee.id;
@@ -937,268 +913,197 @@ const proceedNoCoverage = async () => {
 </script>
 
 <template>
-    <Head title="Personnels" />
+    <Head title="Personnel" />
 
     <AppLayout>
-        <div
-            class="relative flex h-full w-full flex-col rounded-xl bg-white bg-clip-border text-gray-700 shadow-md"
-        >
-            <!-- ── HEADER ── -->
-            <div
-                class="relative mx-4 mt-4 overflow-hidden rounded-none bg-white bg-clip-border text-gray-700"
-            >
-                <div class="mb-4 flex items-center justify-between gap-8">
-                    <div>
-                        <div
-                            class="flex w-fit gap-1 rounded-xl bg-gray-100 p-1"
-                        >
-                            <button
-                                @click="activeTab = 'personnel'"
-                                :class="[
-                                    'font-600 rounded-lg px-4 py-2 text-sm transition-all',
-                                    activeTab === 'personnel'
-                                        ? 'bg-white font-semibold text-gray-900 shadow-sm'
-                                        : 'text-gray-500 hover:text-gray-700',
-                                ]"
-                            >
-                                Personnel
-                                <span
-                                    class="ml-1.5 rounded-full bg-gray-200 px-1.5 py-0.5 text-xs font-bold text-gray-600"
-                                    >{{ personnelTotal }}</span
-                                >
-                            </button>
-                            <button
-                                @click="activeTab = 'households'"
-                                :class="[
-                                    'rounded-lg px-4 py-2 text-sm transition-all',
-                                    activeTab === 'households'
-                                        ? 'bg-white font-semibold text-gray-900 shadow-sm'
-                                        : 'text-gray-500 hover:text-gray-700',
-                                ]"
-                            >
-                                Households
-                                <span
-                                    class="ml-1.5 rounded-full bg-gray-200 px-1.5 py-0.5 text-xs font-bold text-gray-600"
-                                    >{{ householdTotal }}</span
-                                >
-                            </button>
-                        </div>
-                    </div>
+        <div class="page-root">
+            <!-- PAGE HEADER -->
+            <div class="page-header">
+                <div class="page-header__left">
+                    <div class="page-header__eyebrow">Directory</div>
+                    <h1 class="page-header__title">
+                        {{
+                            activeTab === 'personnel'
+                                ? 'Field Units'
+                                : 'Households'
+                        }}
+                    </h1>
+                </div>
+                <div class="page-header__right">
+                    <button
+                        v-if="activeTab === 'personnel'"
+                        class="btn-primary"
+                        @click="openModal(false)"
+                    >
+                        Add Field Unit
+                    </button>
+                    <button
+                        v-if="activeTab === 'households'"
+                        class="btn-primary"
+                        @click="openModal(true)"
+                    >
+                        Add Household
+                    </button>
+                </div>
+            </div>
 
-                    <!-- ── SEARCH ── -->
-                    <div class="flex flex-1 justify-center px-4">
-                        <div class="relative w-full max-w-sm">
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                class="pointer-events-none absolute top-2.5 left-3 h-4 w-4 text-gray-400"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke="currentColor"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"
-                                />
-                            </svg>
-                            <input
-                                v-model="searchQuery"
-                                @input="handleSearch"
-                                type="text"
-                                :placeholder="
-                                    activeTab === 'personnel'
-                                        ? 'Search personnel...'
-                                        : 'Search households...'
-                                "
-                                class="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pr-8 pl-9 text-sm text-gray-700 focus:border-gray-400 focus:bg-white focus:outline-none"
-                                :style="{
-                                    paddingLeft: '2rem',
-                                }"
+            <!-- TAB + SEARCH BAR -->
+            <div class="filter-bar">
+                <div class="filter-bar__chips">
+                    <button
+                        class="chip"
+                        :class="{ 'chip--active': activeTab === 'personnel' }"
+                        @click="activeTab = 'personnel'"
+                    >
+                        Field Units
+                        <span class="chip__count">{{ personnelTotal }}</span>
+                    </button>
+                    <button
+                        class="chip"
+                        :class="{ 'chip--active': activeTab === 'households' }"
+                        @click="activeTab = 'households'"
+                    >
+                        Households
+                        <span class="chip__count">{{ householdTotal }}</span>
+                    </button>
+                </div>
+                <div class="search-wrap">
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="search-wrap__icon"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        stroke-width="2"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"
+                        />
+                    </svg>
+                    <input
+                        v-model="searchQuery"
+                        @input="handleSearch"
+                        type="text"
+                        class="search-wrap__input"
+                        :placeholder="
+                            activeTab === 'personnel'
+                                ? 'Search field units…'
+                                : 'Search households…'
+                        "
+                    />
+                    <span
+                        v-if="searchQuery"
+                        class="search-wrap__clear"
+                        @click="
+                            searchQuery = '';
+                            reloadEmployees();
+                        "
+                        >×</span
+                    >
+                </div>
+            </div>
+
+            <!-- ══════════════════════════════════════════ -->
+            <!-- FIELD UNITS TAB                            -->
+            <!-- ══════════════════════════════════════════ -->
+            <div v-if="activeTab === 'personnel'" class="table-card">
+                <div v-if="personnelList.length === 0" class="empty-state">
+                    <div class="empty-state__icon">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-8 w-8"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="1.2"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 100-8 4 4 0 000 8zm6 1.13a4 4 0 00-3-3.87M9 12a4 4 0 100-8 4 4 0 000 8z"
                             />
-                            <button
-                                v-if="searchQuery"
-                                @click="
-                                    searchQuery = '';
-                                    reloadEmployees();
-                                "
-                                class="absolute top-2.5 right-3 text-gray-400 hover:text-gray-600"
-                            >
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    class="h-4 w-4"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="2"
-                                        d="M6 18L18 6M6 6l12 12"
-                                    />
-                                </svg>
-                            </button>
-                        </div>
+                        </svg>
                     </div>
-
-                    <!-- ── ACTIONS ── -->
-                    <div class="flex shrink-0 gap-2">
-                        <button
-                            v-if="activeTab === 'personnel'"
-                            class="rounded-lg border border-gray-900 px-4 py-2 text-center align-middle font-sans text-xs font-bold text-gray-900 uppercase transition-all select-none hover:opacity-75 focus:ring focus:ring-gray-300"
-                            type="button"
-                            @click="openModal(false)"
-                        >
-                            Add Personnel
-                        </button>
-                        <button
-                            v-if="activeTab === 'households'"
-                            class="rounded-lg border border-orange-500 bg-orange-500 px-4 py-2 text-center align-middle font-sans text-xs font-bold text-white uppercase transition-all select-none hover:bg-orange-600"
-                            type="button"
-                            @click="openModal(true)"
-                        >
-                            Add Household
-                        </button>
-                    </div>
+                    <p class="empty-state__title">No field units found</p>
+                    <p class="empty-state__sub">
+                        Add your first field unit to get started
+                    </p>
                 </div>
-            </div>
-
-            <!-- ── FLASH ── -->
-            <div class="px-4">
-                <div
-                    v-if="flashMessage"
-                    class="mb-4 rounded bg-green-100 p-2 text-green-700"
-                >
-                    {{ flashMessage }}
-                </div>
-            </div>
-
-            <!-- ══════════════════════════════════════════ -->
-            <!-- PERSONNEL TAB                              -->
-            <!-- ══════════════════════════════════════════ -->
-            <div v-if="activeTab === 'personnel'">
-                <div class="overflow-x-auto">
-                    <table class="mt-0 w-full min-w-max table-auto text-left">
+                <div v-else style="overflow-x: auto">
+                    <table class="data-table">
                         <thead>
-                            <tr class="bg-gray-50">
-                                <th
-                                    class="border-blue-gray-100 border-y p-4 font-sans text-sm font-normal opacity-70"
-                                >
-                                    Name
-                                </th>
-                                <th
-                                    class="border-blue-gray-100 border-y p-4 font-sans text-sm font-normal opacity-70"
-                                >
-                                    Contact
-                                </th>
-                                <th
-                                    class="border-blue-gray-100 border-y p-4 font-sans text-sm font-normal opacity-70"
-                                >
-                                    Assigned Client
-                                </th>
-                                <th
-                                    class="border-blue-gray-100 border-y p-4 font-sans text-sm font-normal opacity-70"
-                                >
-                                    Role
-                                </th>
-                                <th
-                                    class="border-blue-gray-100 border-y p-4 font-sans text-sm font-normal opacity-70"
-                                >
-                                    Channels
-                                </th>
-                                <th
-                                    class="border-blue-gray-100 border-y p-4 font-sans text-sm font-normal opacity-70"
-                                >
-                                    Online / Offline
-                                </th>
-                                <th
-                                    class="border-blue-gray-100 border-y p-4 font-sans text-sm font-normal opacity-70"
-                                >
-                                    Account
-                                </th>
-                                <th
-                                    class="border-blue-gray-100 border-y p-2 font-sans text-sm font-normal opacity-70"
-                                >
-                                    Action
-                                </th>
+                            <tr>
+                                <th>Name</th>
+                                <th>Contact</th>
+                                <th>Assigned Client</th>
+                                <th>Role</th>
+                                <th>Channels</th>
+                                <th>Online / Offline</th>
+                                <th>Account</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-if="personnelList.length === 0">
-                                <td
-                                    colspan="8"
-                                    class="p-8 text-center text-sm text-gray-400"
-                                >
-                                    No personnel found.
-                                </td>
-                            </tr>
                             <tr
                                 v-for="employee in personnelList"
                                 :key="employee.id"
-                                class="hover:bg-gray-50/50"
                             >
-                                <td class="border-blue-gray-50 border-b p-4">
-                                    <p class="text-sm font-bold text-gray-900">
+                                <td class="td-announce">
+                                    <div class="td-announce__title">
                                         {{ employee.user.name }}
-                                    </p>
-                                    <p class="text-sm text-gray-500">
+                                    </div>
+                                    <div class="td-announce__sub">
                                         {{ employee.user.email }}
-                                    </p>
+                                    </div>
                                 </td>
-                                <td
-                                    class="border-blue-gray-50 border-b p-4 text-sm"
-                                >
+                                <td class="td-muted">
                                     {{ employee.user.phone }}
                                 </td>
-                                <td
-                                    class="border-blue-gray-50 border-b p-4 text-sm"
-                                >
+                                <td class="td-muted">
                                     {{
                                         employee.client
                                             ? employee.client.user.name
                                             : 'No Client Assigned'
                                     }}
                                 </td>
-                                <td
-                                    class="border-blue-gray-50 border-b p-4 text-sm"
-                                >
+                                <td class="td-muted">
                                     {{ employee.user.occupation }}
                                 </td>
-                                <td class="border-blue-gray-50 border-b p-4">
+                                <td>
                                     <div
-                                        class="flex max-w-[200px] flex-wrap gap-1"
+                                        style="
+                                            display: flex;
+                                            flex-wrap: wrap;
+                                            gap: 4px;
+                                            max-width: 200px;
+                                        "
                                     >
                                         <span
                                             v-for="c in employee.channels"
                                             :key="c.id"
-                                            :class="[
-                                                'flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-semibold shadow-sm',
-                                                c.pivot.is_online
-                                                    ? 'border-green-200 bg-green-50 text-green-700'
-                                                    : 'border-gray-200 bg-gray-50 text-gray-500',
-                                            ]"
+                                            class="channel-pill"
+                                            :class="{
+                                                'channel-pill--online':
+                                                    c.pivot.is_online,
+                                            }"
                                         >
                                             <span
-                                                :class="[
-                                                    'h-2 w-2 rounded-full',
-                                                    c.pivot.is_online
-                                                        ? 'animate-pulse bg-green-500'
-                                                        : 'bg-gray-400',
-                                                ]"
+                                                class="channel-pill__dot"
                                             ></span>
                                             {{ c.name }}
                                         </span>
                                     </div>
                                 </td>
-                                <td class="border-blue-gray-50 border-b p-4">
+                                <td>
                                     <span
-                                        :class="[
-                                            'rounded-full px-2 py-1 text-xs font-bold uppercase',
+                                        class="type-badge"
+                                        :class="
                                             employee.user.status === 'online'
-                                                ? 'border border-green-500/30 bg-green-500/20 text-green-900'
-                                                : 'border border-red-500/30 bg-red-500/20 text-red-900',
-                                        ]"
+                                                ? 'bg-emerald-50 text-emerald-700'
+                                                : 'bg-red-50 text-red-600'
+                                        "
                                     >
                                         {{
                                             employee.user.status === 'online'
@@ -1207,23 +1112,23 @@ const proceedNoCoverage = async () => {
                                         }}
                                     </span>
                                 </td>
-                                <td class="border-blue-gray-50 border-b p-4">
+                                <td>
                                     <button
                                         @click="toggleStatus(employee)"
+                                        class="status-toggle-btn"
                                         :title="
                                             employee.user.is_active
                                                 ? 'Deactivate'
                                                 : 'Activate'
                                         "
-                                        class="transition-transform active:scale-95"
                                     >
                                         <span
-                                            :class="[
-                                                'cursor-pointer rounded-full px-2 py-1 text-xs font-bold uppercase',
+                                            class="type-badge"
+                                            :class="
                                                 employee.user.is_active
-                                                    ? 'border border-green-500/30 bg-green-500/20 text-green-900'
-                                                    : 'border border-red-500/30 bg-red-500/20 text-red-900',
-                                            ]"
+                                                    ? 'bg-emerald-50 text-emerald-700'
+                                                    : 'bg-red-50 text-red-600'
+                                            "
                                         >
                                             {{
                                                 employee.user.is_active
@@ -1233,11 +1138,11 @@ const proceedNoCoverage = async () => {
                                         </span>
                                     </button>
                                 </td>
-                                <td class="border-blue-gray-50 border-b p-0">
-                                    <div class="flex items-center gap-2 p-2">
+                                <td>
+                                    <div style="display: flex; gap: 2px">
                                         <button
                                             @click="editEmployee(employee)"
-                                            class="rounded-lg p-2 text-blue-600 transition-colors hover:bg-blue-50"
+                                            class="icon-btn icon-btn--edit"
                                             title="Edit"
                                         >
                                             <svg
@@ -1246,18 +1151,18 @@ const proceedNoCoverage = async () => {
                                                 fill="none"
                                                 viewBox="0 0 24 24"
                                                 stroke="currentColor"
+                                                stroke-width="2"
                                             >
                                                 <path
                                                     stroke-linecap="round"
                                                     stroke-linejoin="round"
-                                                    stroke-width="2"
                                                     d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
                                                 />
                                             </svg>
                                         </button>
                                         <button
                                             @click="confirmDelete(employee.id)"
-                                            class="rounded-lg p-2 text-red-600 transition-colors hover:bg-red-50"
+                                            class="icon-btn icon-btn--danger"
                                             title="Delete"
                                         >
                                             <svg
@@ -1266,11 +1171,11 @@ const proceedNoCoverage = async () => {
                                                 fill="none"
                                                 viewBox="0 0 24 24"
                                                 stroke="currentColor"
+                                                stroke-width="2"
                                             >
                                                 <path
                                                     stroke-linecap="round"
                                                     stroke-linejoin="round"
-                                                    stroke-width="2"
                                                     d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                                                 />
                                             </svg>
@@ -1281,84 +1186,106 @@ const proceedNoCoverage = async () => {
                         </tbody>
                     </table>
                 </div>
+
+                <!-- Field unit pagination -->
+                <div class="pagination-bar" v-if="personnelList.length > 0">
+                    <span class="pagination-bar__info">
+                        Showing {{ personnel.from || 0 }}–{{
+                            personnel.to || 0
+                        }}
+                        of {{ personnel.total }}
+                    </span>
+                    <div class="pagination-bar__pages">
+                        <template
+                            v-for="(link, index) in personnel.links"
+                            :key="index"
+                        >
+                            <button
+                                v-if="link.url"
+                                @click="reloadEmployees(link.url, undefined)"
+                                v-html="link.label"
+                                class="page-btn"
+                                :class="{ 'page-btn--active': link.active }"
+                            />
+                            <span
+                                v-else
+                                v-html="link.label"
+                                class="page-btn page-btn--disabled"
+                            />
+                        </template>
+                    </div>
+                </div>
             </div>
 
             <!-- ══════════════════════════════════════════ -->
             <!-- HOUSEHOLDS TAB                             -->
             <!-- ══════════════════════════════════════════ -->
-            <div v-if="activeTab === 'households'" class="p-4">
+            <div v-if="activeTab === 'households'">
                 <!-- INVITE LINKS CARD -->
-                <div
-                    class="mb-6 rounded-xl border border-orange-200 bg-orange-50 p-5"
-                >
-                    <div class="mb-4 flex items-center justify-between">
+                <div class="invite-card">
+                    <div class="invite-card__header">
                         <div>
-                            <div class="text-sm font-bold text-gray-900">
+                            <div class="invite-card__title">
                                 Invitation Links
                             </div>
-                            <div class="mt-0.5 text-xs text-gray-500">
-                                One permanent link per channel - share with
+                            <div class="invite-card__sub">
+                                One permanent link per channel — share with
                                 households to join your neighbourhood watch on
                                 Echo Link.
                             </div>
                         </div>
                     </div>
 
-                    <!-- FLASH -->
                     <div
                         v-if="inviteFlash"
-                        :class="[
-                            'mb-4 rounded-lg px-3 py-2 text-xs font-semibold',
+                        class="invite-flash"
+                        :class="
                             inviteFlash.type === 'success'
-                                ? 'bg-green-100 text-green-700'
-                                : 'bg-red-100 text-red-700',
-                        ]"
+                                ? 'invite-flash--success'
+                                : 'invite-flash--error'
+                        "
                     >
                         {{ inviteFlash.type === 'success' ? '✓' : '⚠' }}
                         {{ inviteFlash.msg }}
                     </div>
 
-                    <!-- LOADING -->
-                    <div
-                        v-if="inviteLoading"
-                        class="flex items-center gap-2 py-4 text-sm text-gray-400"
-                    >
-                        <div
-                            class="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-orange-500"
-                        ></div>
-                        Loading...
+                    <div v-if="inviteLoading" class="invite-loading">
+                        <svg
+                            class="spin h-4 w-4 text-slate-400"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                        >
+                            <circle
+                                class="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                stroke-width="4"
+                            />
+                            <path
+                                class="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                            />
+                        </svg>
+                        Loading…
                     </div>
 
                     <template v-else>
                         <!-- EXISTING INVITE LINKS TABLE -->
                         <div
                             v-if="invites.length > 0"
-                            class="mb-4 overflow-hidden rounded-xl border border-orange-200 bg-white"
+                            class="invite-table-wrap"
                         >
-                            <table class="w-full text-sm">
+                            <table class="data-table">
                                 <thead>
-                                    <tr
-                                        class="border-b border-gray-100 bg-gray-50"
-                                    >
-                                        <th
-                                            class="p-3 text-left text-xs font-bold tracking-wide text-gray-500 uppercase"
-                                        >
-                                            Channel
-                                        </th>
-                                        <th
-                                            class="p-3 text-left text-xs font-bold tracking-wide text-gray-500 uppercase"
-                                        >
-                                            Invite Link
-                                        </th>
-                                        <th
-                                            class="p-3 text-center text-xs font-bold tracking-wide text-gray-500 uppercase"
-                                        >
-                                            Uses
-                                        </th>
-
-                                        <th
-                                            class="p-3 text-right text-xs font-bold tracking-wide text-gray-500 uppercase"
-                                        >
+                                    <tr>
+                                        <th>Channel</th>
+                                        <th>Invite Link</th>
+                                        <th style="text-align: center">Uses</th>
+                                        <th style="text-align: right">
                                             Actions
                                         </th>
                                     </tr>
@@ -1367,42 +1294,51 @@ const proceedNoCoverage = async () => {
                                     <tr
                                         v-for="invite in invites"
                                         :key="invite.id"
-                                        class="border-b border-gray-50 last:border-0 hover:bg-gray-50/50"
                                     >
-                                        <td class="p-3">
+                                        <td>
                                             <span
-                                                class="rounded-full border border-orange-200 bg-orange-100 px-2 py-0.5 text-xs font-bold text-orange-700"
+                                                class="type-badge bg-orange-50 text-orange-700"
                                             >
                                                 {{ invite.channel_name }}
                                             </span>
                                         </td>
-                                        <td class="max-w-[200px] p-3">
+                                        <td style="max-width: 220px">
                                             <span
-                                                class="block truncate font-mono text-xs text-gray-500"
+                                                class="token-text"
+                                                style="
+                                                    display: block;
+                                                    overflow: hidden;
+                                                    text-overflow: ellipsis;
+                                                    white-space: nowrap;
+                                                "
                                                 >{{ invite.invite_url }}</span
                                             >
                                         </td>
-                                        <td class="p-3 text-center">
-                                            <span
-                                                class="text-xs font-semibold text-gray-600"
-                                                >{{ invite.uses }}</span
-                                            >
+                                        <td
+                                            class="td-muted"
+                                            style="text-align: center"
+                                        >
+                                            {{ invite.uses }}
                                         </td>
-                                        <td class="p-3">
+                                        <td>
                                             <div
-                                                class="flex items-center justify-end gap-1.5"
+                                                style="
+                                                    display: flex;
+                                                    align-items: center;
+                                                    justify-content: flex-end;
+                                                    gap: 6px;
+                                                "
                                             >
-                                                <!-- Copy -->
                                                 <button
                                                     @click="
                                                         copyInviteLink(invite)
                                                     "
-                                                    :class="[
-                                                        'rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-bold text-gray-500 transition-all hover:border-amber-400 hover:text-amber-600',
-                                                        copiedId === invite.id
-                                                            ? 'bg-green-500 text-white'
-                                                            : 'bg-orange-500 text-white hover:bg-orange-600',
-                                                    ]"
+                                                    class="invite-action-btn"
+                                                    :class="{
+                                                        'invite-action-btn--copied':
+                                                            copiedId ===
+                                                            invite.id,
+                                                    }"
                                                     title="Copy Invite Link"
                                                 >
                                                     {{
@@ -1411,32 +1347,30 @@ const proceedNoCoverage = async () => {
                                                             : '📋'
                                                     }}
                                                 </button>
-                                                <!-- WhatsApp -->
+
                                                 <a
                                                     :href="`https://wa.me/?text=${encodeURIComponent('Join our ' + invite.channel_name + ' neighbourhood watch on Echo Link! Register for R80/month: ' + invite.invite_url)}`"
                                                     target="_blank"
-                                                    class="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-bold text-gray-500 transition-all hover:border-amber-400 hover:text-amber-600"
+                                                    class="icon-btn"
                                                     title="Share on WhatsApp"
                                                     >💬</a
                                                 >
-                                                <!-- Regenerate -->
                                                 <button
                                                     @click="
                                                         confirmRegenerate(
                                                             invite,
                                                         )
                                                     "
-                                                    class="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-bold text-gray-500 transition-all hover:border-amber-400 hover:text-amber-600"
-                                                    title="Regenerate link (invalidates old link)"
+                                                    class="icon-btn"
+                                                    title="Regenerate link"
                                                 >
                                                     ↻
                                                 </button>
-                                                <!-- Delete -->
                                                 <button
                                                     @click="
                                                         deleteInvite(invite)
                                                     "
-                                                    class="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-bold text-gray-500 transition-all hover:border-red-400 hover:text-red-600"
+                                                    class="icon-btn icon-btn--danger"
                                                     title="Delete invite link"
                                                 >
                                                     ✕
@@ -1449,83 +1383,134 @@ const proceedNoCoverage = async () => {
                         </div>
 
                         <!-- EMPTY STATE -->
-                        <div
-                            v-else
-                            class="mb-4 rounded-xl border border-dashed border-orange-300 bg-white p-6 text-center"
-                        >
-                            <div class="mb-2 text-2xl">🔗</div>
-                            <div
-                                class="mb-1 text-sm font-semibold text-gray-600"
-                            >
+                        <div v-else class="invite-empty">
+                            <div style="font-size: 22px">🔗</div>
+                            <div class="invite-empty__title">
                                 No invite links yet
                             </div>
-                            <div class="text-xs text-gray-400">
+                            <div class="invite-empty__sub">
                                 Generate a link below to start onboarding
                                 households per channel
                             </div>
                         </div>
 
                         <!-- ADMIN: choose which client this invite link is for -->
-                        <div v-if="auth.user?.role === 'admin'" class="mb-4">
-                            <div
-                                class="mb-2 text-xs font-bold tracking-wide text-gray-500 uppercase"
+                        <div
+                            v-if="auth.user?.role === 'admin'"
+                            class="field"
+                            style="margin-top: 16px"
+                        >
+                            <label class="field__label"
+                                >Acting on behalf of client</label
                             >
-                                Acting on behalf of client
-                            </div>
-                            <select
-                                v-model="selectedAdminClientId"
-                                class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
-                            >
-                                <option value="">-- Select a client --</option>
-                                <option
-                                    v-for="client in clients"
-                                    :key="client.id"
-                                    :value="client.id"
+                            <div class="select-wrapper">
+                                <select
+                                    v-model="selectedAdminClientId"
+                                    class="field__select"
                                 >
-                                    {{ client.user?.name }}
-                                </option>
-                            </select>
+                                    <option value="">
+                                        -- Select a client --
+                                    </option>
+                                    <option
+                                        v-for="client in clients"
+                                        :key="client.id"
+                                        :value="client.id"
+                                    >
+                                        {{ client.user?.name }}
+                                    </option>
+                                </select>
+                                <svg
+                                    class="select-caret"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        d="M19 9l-7 7-7-7"
+                                    />
+                                </svg>
+                            </div>
                         </div>
 
                         <!-- GENERATE NEW LINK -->
-                        <div v-if="channelsWithoutInvite.length > 0">
-                            <div
-                                class="mb-2 text-xs font-bold tracking-wide text-gray-500 uppercase"
+                        <div
+                            v-if="channelsWithoutInvite.length > 0"
+                            class="field"
+                            style="margin-top: 16px"
+                        >
+                            <label class="field__label"
+                                >Generate link for a channel</label
                             >
-                                Generate link for a channel
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <select
-                                    v-model="selectedChannelId"
-                                    class="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm"
-                                >
-                                    <option value="">
-                                        Select a channel...
-                                    </option>
-                                    <option
-                                        v-for="ch in channelsWithoutInvite"
-                                        :key="ch.id"
-                                        :value="ch.id"
+                            <div style="display: flex; gap: 8px">
+                                <div class="select-wrapper" style="flex: 1">
+                                    <select
+                                        v-model="selectedChannelId"
+                                        class="field__select"
                                     >
-                                        {{ ch.name }}
-                                    </option>
-                                </select>
+                                        <option value="">
+                                            Select a channel...
+                                        </option>
+                                        <option
+                                            v-for="ch in channelsWithoutInvite"
+                                            :key="ch.id"
+                                            :value="ch.id"
+                                        >
+                                            {{ ch.name }}
+                                        </option>
+                                    </select>
+                                    <svg
+                                        class="select-caret"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            d="M19 9l-7 7-7-7"
+                                        />
+                                    </svg>
+                                </div>
                                 <button
                                     @click="generateInviteLink"
                                     :disabled="
                                         isGenerating || !selectedChannelId
                                     "
-                                    class="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-bold whitespace-nowrap text-white shadow-sm transition-all hover:bg-orange-600 disabled:opacity-60"
+                                    class="btn-primary"
+                                    style="white-space: nowrap"
                                 >
-                                    <div
+                                    <svg
                                         v-if="isGenerating"
-                                        class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
-                                    ></div>
-                                    <span>{{
+                                        class="spin h-4 w-4"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <circle
+                                            class="opacity-25"
+                                            cx="12"
+                                            cy="12"
+                                            r="10"
+                                            stroke="currentColor"
+                                            stroke-width="4"
+                                        />
+                                        <path
+                                            class="opacity-75"
+                                            fill="currentColor"
+                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                        />
+                                    </svg>
+                                    {{
                                         isGenerating
-                                            ? 'Generating...'
+                                            ? 'Generating…'
                                             : 'Generate →'
-                                    }}</span>
+                                    }}
                                 </button>
                             </div>
                         </div>
@@ -1533,476 +1518,444 @@ const proceedNoCoverage = async () => {
                             v-else-if="
                                 invites.length > 0 && clientChannels.length > 0
                             "
-                            class="mt-2 text-xs text-gray-400"
+                            style="
+                                margin-top: 8px;
+                                font-size: 12px;
+                                color: #94a3b8;
+                            "
                         >
                             ✓ All your channels have invite links.
                         </div>
                     </template>
                 </div>
 
-                <!-- <div
-                    class="mb-4 rounded-lg border border-amber-100 bg-amber-50 px-4 py-2.5 text-xs text-amber-700"
-                >
-                    Earnings below reflect
-                    <strong>all registered households</strong>. Actual payouts
-                    will only include households with an active paid
-                    subscription after their 30-day trial ends.
-                </div> -->
-                <!-- EARNINGS STRIP -->
-                <!-- <div class="mb-6 grid grid-cols-4 gap-3">
-                    <div class="rounded-xl bg-gray-900 p-4 text-center">
-                        <div class="text-xl font-bold text-white">
-                            {{ householdList.length }}
-                        </div>
-                        <div class="mt-1 text-xs text-gray-400">Registered</div>
-                        <div class="mt-0.5 text-xs text-orange-400">
-                            {{ trialingHouseholds }} on trial
-                        </div>
-                    </div>
-                    <div class="rounded-xl bg-gray-900 p-4 text-center">
-                        <div class="text-xl font-bold text-green-400">
-                            {{ activeHouseholds }}
-                        </div>
-                        <div class="mt-1 text-xs text-gray-400">
-                            Active & Paying
-                        </div>
-                    </div>
-                    <div class="rounded-xl bg-gray-900 p-4 text-center">
-                        <div class="text-xl font-bold text-orange-400">
-                            R{{
-                                (
-                                    activeHouseholds * clientShare
-                                ).toLocaleString()
-                            }}
-                        </div>
-                        <div class="mt-1 text-xs text-gray-400">
-                            Actual Monthly Earnings
-                        </div>
-                        <div class="mt-0.5 text-xs text-gray-500">
-                            R{{
-                                (
-                                    householdList.length * clientShare
-                                ).toLocaleString()
-                            }}
-                            projected
-                        </div>
-                    </div>
-                    <div class="rounded-xl bg-gray-900 p-4 text-center">
-                        <div class="text-xl font-bold text-green-400">
-                            R{{
-                                (
-                                    activeHouseholds *
-                                    clientShare *
-                                    12
-                                ).toLocaleString()
-                            }}
-                        </div>
-                        <div class="mt-1 text-xs text-gray-400">
-                            Actual Annual Earnings
-                        </div>
-                        <div class="mt-0.5 text-xs text-gray-500">
-                            R{{
-                                (
-                                    householdList.length *
-                                    clientShare *
-                                    12
-                                ).toLocaleString()
-                            }}
-                            projected
-                        </div>
-                    </div>
-                </div> -->
-
                 <!-- HOUSEHOLDS TABLE -->
-                <div
-                    class="overflow-x-auto overflow-y-visible rounded-xl border border-gray-200"
-                >
-                    <table
-                        class="w-full min-w-max table-auto overflow-visible text-left text-sm"
-                    >
-                        <thead>
-                            <tr class="bg-gray-50">
-                                <th
-                                    class="border-b border-gray-200 p-4 font-sans text-xs font-bold tracking-wide text-gray-500 uppercase"
-                                >
-                                    Household
-                                </th>
-                                <th
-                                    class="border-b border-gray-200 p-4 font-sans text-xs font-bold tracking-wide text-gray-500 uppercase"
-                                >
-                                    Contact
-                                </th>
-                                <th
-                                    class="border-b border-gray-200 p-4 font-sans text-xs font-bold tracking-wide text-gray-500 uppercase"
-                                >
-                                    Address
-                                </th>
-                                <th
-                                    class="border-b border-gray-200 p-4 font-sans text-xs font-bold tracking-wide text-gray-500 uppercase"
-                                >
-                                    Unit
-                                </th>
-                                <th
-                                    class="border-b border-gray-200 p-4 font-sans text-xs font-bold tracking-wide text-gray-500 uppercase"
-                                >
-                                    Role
-                                </th>
-                                <th
-                                    class="border-b border-gray-200 p-4 font-sans text-xs font-bold tracking-wide text-gray-500 uppercase"
-                                >
-                                    Trial Ends
-                                </th>
-                                <th
-                                    class="border-b border-gray-200 p-4 font-sans text-xs font-bold tracking-wide text-gray-500 uppercase"
-                                >
-                                    Monthly Fee
-                                </th>
-                                <th
-                                    class="border-b border-gray-200 p-4 font-sans text-xs font-bold tracking-wide text-gray-500 uppercase"
-                                >
-                                    Your Share
-                                </th>
-                                <th
-                                    class="border-b border-gray-200 p-4 font-sans text-xs font-bold tracking-wide text-gray-500 uppercase"
-                                >
-                                    Status
-                                </th>
-                                <th
-                                    class="border-b border-gray-200 p-4 font-sans text-xs font-bold tracking-wide text-gray-500 uppercase"
-                                >
-                                    Activation Fee
-                                </th>
-                                <th
-                                    class="border-b border-gray-200 p-2 font-sans text-xs font-bold tracking-wide text-gray-500 uppercase"
-                                >
-                                    Action
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-if="householdList.length === 0">
-                                <td
-                                    colspan="9"
-                                    class="p-12 text-center text-sm text-gray-400"
-                                >
-                                    <div class="mb-3 text-3xl">🏠</div>
-                                    <div
-                                        class="mb-1 font-semibold text-gray-600"
-                                    >
-                                        No households yet
-                                    </div>
-                                    <div class="text-xs text-gray-400">
-                                        Share your invite links above to start
-                                        onboarding households
-                                    </div>
-                                </td>
-                            </tr>
-                            <tr
-                                v-for="employee in householdList"
-                                :key="employee.id"
-                                class="border-b border-gray-100 last:border-0 hover:bg-gray-50/50"
+                <div class="table-card" style="margin-top: 20px">
+                    <div v-if="householdList.length === 0" class="empty-state">
+                        <div class="empty-state__icon">
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-8 w-8"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                stroke-width="1.2"
                             >
-                                <td class="p-4">
-                                    <p class="font-semibold text-gray-900">
-                                        {{ employee.user.name }}
-                                    </p>
-                                    <p class="text-xs text-gray-400">
-                                        {{ employee.user.email }}
-                                    </p>
-                                </td>
-                                <td class="p-4 text-gray-600">
-                                    {{ employee.user.phone }}
-                                </td>
-                                <td class="max-w-[180px] p-4 text-gray-600">
-                                    <span class="block truncate text-xs">{{
-                                        employee.user.address_line_1 || '—'
-                                    }}</span>
-                                    <span
-                                        v-if="employee.user.suburb"
-                                        class="text-xs text-gray-400"
-                                        >{{ employee.user.suburb }}</span
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                                />
+                            </svg>
+                        </div>
+                        <p class="empty-state__title">No households yet</p>
+                        <p class="empty-state__sub">
+                            Share your invite links above to start onboarding
+                            households
+                        </p>
+                    </div>
+                    <div v-else style="overflow-x: auto">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Household</th>
+                                    <th>Contact</th>
+                                    <th>Address</th>
+                                    <th>Unit</th>
+                                    <th>Role</th>
+                                    <th>Trial Ends</th>
+                                    <th>Monthly Fee</th>
+                                    <th>Your Share</th>
+                                    <th>Status</th>
+                                    <th>Activation Fee</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr
+                                    v-for="employee in householdList"
+                                    :key="employee.id"
+                                >
+                                    <td class="td-announce">
+                                        <div class="td-announce__title">
+                                            {{ employee.user.name }}
+                                        </div>
+                                        <div class="td-announce__sub">
+                                            {{ employee.user.email }}
+                                        </div>
+                                    </td>
+                                    <td class="td-muted">
+                                        {{ employee.user.phone }}
+                                    </td>
+                                    <td
+                                        class="td-muted"
+                                        style="max-width: 180px"
                                     >
-                                </td>
-                                <td class="p-4 text-xs text-gray-600">
-                                    <div v-if="employee.user.unit_number">
-                                        {{ employee.user.unit_number }}
-                                    </div>
-                                    <div
-                                        v-if="employee.user.complex_name"
-                                        class="text-gray-400"
+                                        <span
+                                            style="
+                                                display: block;
+                                                white-space: nowrap;
+                                                overflow: hidden;
+                                                text-overflow: ellipsis;
+                                                font-size: 12px;
+                                            "
+                                            >{{
+                                                employee.user.address_line_1 ||
+                                                '—'
+                                            }}</span
+                                        >
+                                        <span
+                                            v-if="employee.user.suburb"
+                                            style="
+                                                font-size: 11px;
+                                                color: #94a3b8;
+                                            "
+                                            >{{ employee.user.suburb }}</span
+                                        >
+                                    </td>
+                                    <td
+                                        class="td-muted"
+                                        style="font-size: 12px"
                                     >
-                                        {{ employee.user.complex_name }}
-                                    </div>
-                                    <span v-if="!employee.user.unit_number"
-                                        >—</span
-                                    >
-                                </td>
-                                <td class="p-4">
-                                    <span
-                                        class="rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-700 capitalize"
-                                        >{{ employee.user.occupation }}</span
-                                    >
-                                </td>
-                                <td class="p-4 text-xs text-gray-600">
-                                    <div
-                                        v-if="
-                                            employee.user.subscription
-                                                ?.status === 'trialing' &&
-                                            employee.user.subscription
-                                                ?.trial_ends_at
-                                        "
+                                        <div v-if="employee.user.unit_number">
+                                            {{ employee.user.unit_number }}
+                                        </div>
+                                        <div
+                                            v-if="employee.user.complex_name"
+                                            style="color: #94a3b8"
+                                        >
+                                            {{ employee.user.complex_name }}
+                                        </div>
+                                        <span v-if="!employee.user.unit_number"
+                                            >—</span
+                                        >
+                                    </td>
+                                    <td>
+                                        <span
+                                            class="type-badge bg-amber-50 text-amber-700"
+                                            style="text-transform: capitalize"
+                                            >{{
+                                                employee.user.occupation
+                                            }}</span
+                                        >
+                                    </td>
+                                    <td
+                                        class="td-muted"
+                                        style="font-size: 12px"
                                     >
                                         <div
-                                            :class="[
-                                                'font-semibold',
-                                                new Date(
-                                                    employee.user.subscription.trial_ends_at,
-                                                ) <
-                                                new Date(
-                                                    Date.now() +
-                                                        7 * 24 * 60 * 60 * 1000,
-                                                )
-                                                    ? 'text-red-600' // expiring within 7 days
-                                                    : 'text-gray-700',
-                                            ]"
+                                            v-if="
+                                                employee.user.subscription
+                                                    ?.status === 'trialing' &&
+                                                employee.user.subscription
+                                                    ?.trial_ends_at
+                                            "
                                         >
-                                            {{
-                                                new Date(
-                                                    employee.user.subscription.trial_ends_at,
-                                                ).toLocaleDateString('en-ZA', {
-                                                    day: 'numeric',
-                                                    month: 'short',
-                                                    year: 'numeric',
-                                                })
-                                            }}
-                                        </div>
-                                        <div class="text-gray-400">
-                                            {{
-                                                Math.max(
-                                                    0,
-                                                    Math.ceil(
-                                                        (new Date(
-                                                            employee.user.subscription.trial_ends_at,
-                                                        ) -
-                                                            new Date()) /
-                                                            (1000 *
-                                                                60 *
-                                                                60 *
-                                                                24),
+                                            <div
+                                                :style="
+                                                    (new Date(
+                                                        employee.user.subscription.trial_ends_at,
                                                     ),
-                                                )
-                                            }}
-                                            days left
-                                        </div>
-                                    </div>
-                                    <span v-else class="text-gray-400">—</span>
-                                </td>
-                                <td class="p-4 font-semibold text-gray-900">
-                                    R{{ unitPrice }}
-                                </td>
-                                <td class="p-4 font-bold text-green-600">
-                                    R{{ clientShare }}
-                                    <div
-                                        class="text-[10px] font-normal text-gray-400"
-                                    >
-                                        {{
-                                            clientOrgType === 'estate'
-                                                ? 'Estate rate'
-                                                : 'Watch rate'
-                                        }}
-                                    </div>
-                                </td>
-                                <td class="p-4">
-                                    <div class="flex flex-col gap-1.5">
-                                        <!-- Account active/deactivated -->
-                                        <button
-                                            @click="toggleStatus(employee)"
-                                            class="transition-transform active:scale-95"
-                                        >
-                                            <span
-                                                :class="[
-                                                    'cursor-pointer rounded-full px-2 py-1 text-xs font-bold uppercase',
-                                                    employee.user.is_active
-                                                        ? 'border border-green-500/30 bg-green-500/20 text-green-900'
-                                                        : 'border border-red-500/30 bg-red-500/20 text-red-900',
-                                                ]"
+                                                    new Date(
+                                                        Date.now() +
+                                                            7 *
+                                                                24 *
+                                                                60 *
+                                                                60 *
+                                                                1000,
+                                                    )
+                                                        ? 'font-weight:700;color:#dc2626'
+                                                        : 'font-weight:600;color:#475569')
+                                                "
                                             >
                                                 {{
-                                                    employee.user.is_active
-                                                        ? 'Active'
-                                                        : 'Deactivated'
+                                                    new Date(
+                                                        employee.user.subscription.trial_ends_at,
+                                                    ).toLocaleDateString(
+                                                        'en-ZA',
+                                                        {
+                                                            day: 'numeric',
+                                                            month: 'short',
+                                                            year: 'numeric',
+                                                        },
+                                                    )
                                                 }}
-                                            </span>
-                                        </button>
-                                        <!-- Subscription status -->
-                                        <span
-                                            v-if="employee.user.subscription"
-                                            :class="[
-                                                'rounded-full px-2 py-0.5 text-[10px] font-bold uppercase',
-                                                {
-                                                    'border border-green-200 bg-green-100 text-green-700':
+                                            </div>
+                                            <div style="color: #94a3b8">
+                                                {{
+                                                    Math.max(
+                                                        0,
+                                                        Math.ceil(
+                                                            (new Date(
+                                                                employee.user.subscription.trial_ends_at,
+                                                            ) -
+                                                                new Date()) /
+                                                                (1000 *
+                                                                    60 *
+                                                                    60 *
+                                                                    24),
+                                                        ),
+                                                    )
+                                                }}
+                                                days left
+                                            </div>
+                                        </div>
+                                        <span v-else style="color: #94a3b8"
+                                            >—</span
+                                        >
+                                    </td>
+                                    <td class="td-announce__title">
+                                        R{{ unitPrice }}
+                                    </td>
+                                    <td>
+                                        <div
+                                            style="
+                                                font-weight: 700;
+                                                color: #16a34a;
+                                            "
+                                        >
+                                            R{{ clientShare }}
+                                        </div>
+                                        <div
+                                            style="
+                                                font-size: 10px;
+                                                color: #94a3b8;
+                                            "
+                                        >
+                                            {{
+                                                clientOrgType === 'estate'
+                                                    ? 'Estate rate'
+                                                    : 'Watch rate'
+                                            }}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div
+                                            style="
+                                                display: flex;
+                                                flex-direction: column;
+                                                gap: 6px;
+                                                align-items: flex-start;
+                                            "
+                                        >
+                                            <button
+                                                @click="toggleStatus(employee)"
+                                                class="status-toggle-btn"
+                                            >
+                                                <span
+                                                    class="type-badge"
+                                                    :class="
+                                                        employee.user.is_active
+                                                            ? 'bg-emerald-50 text-emerald-700'
+                                                            : 'bg-red-50 text-red-600'
+                                                    "
+                                                >
+                                                    {{
+                                                        employee.user.is_active
+                                                            ? 'Active'
+                                                            : 'Deactivated'
+                                                    }}
+                                                </span>
+                                            </button>
+                                            <span
+                                                v-if="
+                                                    employee.user.subscription
+                                                "
+                                                class="type-badge"
+                                                style="font-size: 10px"
+                                                :class="{
+                                                    'bg-emerald-50 text-emerald-700':
                                                         employee.user
                                                             .subscription
                                                             .status ===
                                                         'active',
-                                                    'border border-orange-200 bg-orange-100 text-orange-700':
+                                                    'bg-orange-50 text-orange-700':
                                                         employee.user
                                                             .subscription
                                                             .status ===
                                                         'trialing',
-                                                    'border border-red-200 bg-red-100 text-red-700':
+                                                    'bg-red-50 text-red-600':
                                                         employee.user
                                                             .subscription
                                                             .status ===
                                                         'past_due',
-                                                    'border border-gray-200 bg-gray-100 text-gray-500':
+                                                    'bg-slate-100 text-slate-500':
                                                         employee.user
                                                             .subscription
                                                             .status ===
                                                         'cancelled',
-                                                },
-                                            ]"
-                                        >
-                                            {{
-                                                {
-                                                    active: '✓ Paying',
-                                                    trialing: '⏳ Trial',
-                                                    past_due: '⚠ Overdue',
-                                                    cancelled: 'Cancelled',
-                                                }[
+                                                }"
+                                            >
+                                                {{
+                                                    {
+                                                        active: '✓ Paying',
+                                                        trialing: '⏳ Trial',
+                                                        past_due: '⚠ Overdue',
+                                                        cancelled: 'Cancelled',
+                                                    }[
+                                                        employee.user
+                                                            .subscription.status
+                                                    ] ??
                                                     employee.user.subscription
                                                         .status
-                                                ] ??
-                                                employee.user.subscription
-                                                    .status
-                                            }}
+                                                }}
+                                            </span>
+                                            <span
+                                                v-else
+                                                style="
+                                                    font-size: 10px;
+                                                    color: #94a3b8;
+                                                "
+                                                >No subscription</span
+                                            >
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span
+                                            v-if="
+                                                employee.user?.subscription
+                                                    ?.activation_fee_paid
+                                            "
+                                            class="type-badge bg-emerald-50 text-emerald-700"
+                                        >
+                                            ✓ Paid
                                         </span>
                                         <span
                                             v-else
-                                            class="text-[10px] text-gray-400"
-                                            >No subscription</span
+                                            class="type-badge bg-orange-50 text-orange-700"
                                         >
-                                    </div>
-                                </td>
-                                <td class="p-4">
-                                    <span
-                                        v-if="
-                                            employee.user?.subscription
-                                                ?.activation_fee_paid
-                                        "
-                                        class="inline-flex items-center gap-1 rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-xs font-semibold text-green-700"
+                                            R50 Pending
+                                        </span>
+                                    </td>
+                                    <td
+                                        class="relative"
+                                        style="overflow: visible"
                                     >
-                                        ✓ Paid
-                                    </span>
-                                    <span
-                                        v-else
-                                        class="inline-flex items-center gap-1 rounded-full border border-orange-200 bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700"
-                                    >
-                                        R50 Pending
-                                    </span>
-                                </td>
-                                <td class="relative overflow-visible p-2">
-                                    <div
-                                        class="flex items-center gap-1"
-                                        @click.stop
-                                    >
-                                        <!-- Edit -->
-                                        <button
-                                            @click="editEmployee(employee)"
-                                            class="rounded-lg p-2 text-blue-600 transition-colors hover:bg-blue-50"
-                                            title="Edit"
-                                        >
-                                            <svg
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                class="h-4 w-4"
-                                                fill="none"
-                                                viewBox="0 0 24 24"
-                                                stroke="currentColor"
-                                            >
-                                                <path
-                                                    stroke-linecap="round"
-                                                    stroke-linejoin="round"
-                                                    stroke-width="2"
-                                                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                                                />
-                                            </svg>
-                                        </button>
-
-                                        <!-- Subscription actions dropdown -->
                                         <div
-                                            class="relative"
-                                            v-if="employee.user?.subscription"
+                                            style="
+                                                display: flex;
+                                                align-items: center;
+                                                gap: 2px;
+                                            "
+                                            @click.stop
                                         >
                                             <button
-                                                @click="
-                                                    toggleSubMenu(
-                                                        employee.user
-                                                            .subscription.id,
-                                                        $event,
-                                                    )
-                                                "
-                                                :disabled="
-                                                    subLoading ===
-                                                    employee.user.subscription
-                                                        .id
-                                                "
-                                                class="mr-3 rounded-lg p-2 text-gray-600 transition-colors hover:bg-gray-100"
-                                                title="Subscription actions"
+                                                @click="editEmployee(employee)"
+                                                class="icon-btn icon-btn--edit"
+                                                title="Edit"
                                             >
-                                                <div
-                                                    v-if="
-                                                        subLoading ===
-                                                        employee.user
-                                                            .subscription.id
-                                                    "
-                                                    class="h-4 w-4 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600"
-                                                ></div>
                                                 <svg
-                                                    v-else
                                                     xmlns="http://www.w3.org/2000/svg"
                                                     class="h-4 w-4"
                                                     fill="none"
                                                     viewBox="0 0 24 24"
                                                     stroke="currentColor"
+                                                    stroke-width="2"
                                                 >
                                                     <path
                                                         stroke-linecap="round"
                                                         stroke-linejoin="round"
-                                                        stroke-width="2"
-                                                        d="M12 5v.01M12 12v.01M12 19v.01"
+                                                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
                                                     />
                                                 </svg>
                                             </button>
 
-                                            <!-- Dropdown -->
+                                            <!-- Subscription actions dropdown -->
                                             <div
+                                                class="relative"
                                                 v-if="
-                                                    subActionMenu ===
-                                                    employee.user.subscription
-                                                        .id
+                                                    employee.user?.subscription
                                                 "
-                                                class="fixed z-[100] w-52 rounded-xl border border-gray-200 bg-white py-1 shadow-xl"
-                                                :style="{
-                                                    top:
-                                                        menuPosition.top + 'px',
-                                                    right:
-                                                        menuPosition.right +
-                                                        'px',
-                                                }"
                                             >
-                                                <!-- Activation fee toggle -->
                                                 <button
                                                     @click="
-                                                        toggleActivationFee(
-                                                            employee,
-                                                        );
-                                                        subActionMenu = null;
+                                                        toggleSubMenu(
+                                                            employee.user
+                                                                .subscription
+                                                                .id,
+                                                            $event,
+                                                        )
                                                     "
-                                                    class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+                                                    :disabled="
+                                                        subLoading ===
+                                                        employee.user
+                                                            .subscription.id
+                                                    "
+                                                    class="icon-btn"
+                                                    style="margin-right: 10px"
+                                                    title="Subscription actions"
                                                 >
-                                                    <div>
+                                                    <svg
+                                                        v-if="
+                                                            subLoading !==
+                                                            employee.user
+                                                                .subscription.id
+                                                        "
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        class="h-4 w-4"
+                                                        fill="none"
+                                                        viewBox="0 0 24 24"
+                                                        stroke="currentColor"
+                                                        stroke-width="2"
+                                                    >
+                                                        <path
+                                                            stroke-linecap="round"
+                                                            stroke-linejoin="round"
+                                                            d="M12 5v.01M12 12v.01M12 19v.01"
+                                                        />
+                                                    </svg>
+                                                    <svg
+                                                        v-else
+                                                        class="spin h-4 w-4"
+                                                        xmlns="http://www.w3.org/2000/svg"
+                                                        fill="none"
+                                                        viewBox="0 0 24 24"
+                                                    >
+                                                        <circle
+                                                            class="opacity-25"
+                                                            cx="12"
+                                                            cy="12"
+                                                            r="10"
+                                                            stroke="currentColor"
+                                                            stroke-width="4"
+                                                        />
+                                                        <path
+                                                            class="opacity-75"
+                                                            fill="currentColor"
+                                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                                        />
+                                                    </svg>
+                                                </button>
+
+                                                <!-- Dropdown -->
+                                                <div
+                                                    v-if="
+                                                        subActionMenu ===
+                                                        employee.user
+                                                            .subscription.id
+                                                    "
+                                                    class="sub-menu"
+                                                    :style="{
+                                                        top:
+                                                            menuPosition.top +
+                                                            'px',
+                                                        right:
+                                                            menuPosition.right +
+                                                            'px',
+                                                    }"
+                                                >
+                                                    <button
+                                                        @click="
+                                                            toggleActivationFee(
+                                                                employee,
+                                                            );
+                                                            subActionMenu =
+                                                                null;
+                                                        "
+                                                        class="sub-menu__item"
+                                                    >
                                                         <div
-                                                            class="font-semibold text-gray-900"
+                                                            class="sub-menu__item-title"
                                                         >
                                                             {{
                                                                 employee.user
@@ -2013,67 +1966,63 @@ const proceedNoCoverage = async () => {
                                                             }}
                                                         </div>
                                                         <div
-                                                            class="text-xs text-gray-400"
+                                                            class="sub-menu__item-sub"
                                                         >
                                                             R50 once-off fee
                                                         </div>
-                                                    </div>
-                                                </button>
-                                                <div
-                                                    class="my-1 border-t border-gray-100"
-                                                ></div>
-                                                <!-- EFT Payment -->
-                                                <button
-                                                    @click="
-                                                        openEftModal(employee)
-                                                    "
-                                                    class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-                                                >
-                                                    <div>
+                                                    </button>
+                                                    <div
+                                                        class="sub-menu__divider"
+                                                    ></div>
+                                                    <button
+                                                        @click="
+                                                            openEftModal(
+                                                                employee,
+                                                            )
+                                                        "
+                                                        class="sub-menu__item"
+                                                    >
                                                         <div
-                                                            class="font-semibold text-gray-900"
+                                                            class="sub-menu__item-title"
                                                         >
                                                             Mark EFT Paid
                                                         </div>
                                                         <div
-                                                            class="text-xs text-gray-400"
+                                                            class="sub-menu__item-sub"
                                                         >
                                                             Record manual
                                                             payment
                                                         </div>
-                                                    </div>
-                                                </button>
+                                                    </button>
 
-                                                <!-- Suspend -->
-                                                <button
-                                                    v-if="
-                                                        employee.user
-                                                            .subscription
-                                                            .status !==
-                                                        'cancelled'
-                                                    "
-                                                    @click="
-                                                        promptSubAction(
-                                                            employee,
+                                                    <button
+                                                        v-if="
+                                                            employee.user
+                                                                .subscription
+                                                                .status !==
+                                                            'cancelled'
+                                                        "
+                                                        @click="
+                                                            promptSubAction(
+                                                                employee,
+                                                                employee.user
+                                                                    .subscription
+                                                                    .sos_suspended_at
+                                                                    ? 'unsuspend'
+                                                                    : 'suspend',
+                                                            )
+                                                        "
+                                                        class="sub-menu__item"
+                                                        :class="
                                                             employee.user
                                                                 .subscription
                                                                 .sos_suspended_at
-                                                                ? 'unsuspend'
-                                                                : 'suspend',
-                                                        )
-                                                    "
-                                                    class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium transition-colors hover:bg-gray-50"
-                                                    :class="
-                                                        employee.user
-                                                            .subscription
-                                                            .sos_suspended_at
-                                                            ? 'text-green-700'
-                                                            : 'text-amber-700'
-                                                    "
-                                                >
-                                                    <div>
+                                                                ? 'sub-menu__item--success'
+                                                                : 'sub-menu__item--warn'
+                                                        "
+                                                    >
                                                         <div
-                                                            class="font-semibold"
+                                                            class="sub-menu__item-title"
                                                         >
                                                             {{
                                                                 employee.user
@@ -2084,7 +2033,7 @@ const proceedNoCoverage = async () => {
                                                             }}
                                                         </div>
                                                         <div
-                                                            class="text-xs opacity-70"
+                                                            class="sub-menu__item-sub"
                                                         >
                                                             {{
                                                                 employee.user
@@ -2094,404 +2043,398 @@ const proceedNoCoverage = async () => {
                                                                     : 'Disable panic button'
                                                             }}
                                                         </div>
-                                                    </div>
-                                                </button>
+                                                    </button>
 
-                                                <!-- Cancel -->
-                                                <button
-                                                    v-if="
-                                                        employee.user
-                                                            .subscription
-                                                            .status !==
-                                                        'cancelled'
-                                                    "
-                                                    @click="
-                                                        promptSubAction(
-                                                            employee,
-                                                            'cancel',
-                                                        )
-                                                    "
-                                                    class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-red-600 transition-colors hover:bg-red-50"
-                                                >
-                                                    <div>
+                                                    <button
+                                                        v-if="
+                                                            employee.user
+                                                                .subscription
+                                                                .status !==
+                                                            'cancelled'
+                                                        "
+                                                        @click="
+                                                            promptSubAction(
+                                                                employee,
+                                                                'cancel',
+                                                            )
+                                                        "
+                                                        class="sub-menu__item sub-menu__item--danger"
+                                                    >
                                                         <div
-                                                            class="font-semibold"
+                                                            class="sub-menu__item-title"
                                                         >
                                                             Cancel Subscription
                                                         </div>
                                                         <div
-                                                            class="text-xs opacity-70"
+                                                            class="sub-menu__item-sub"
                                                         >
                                                             Access until period
                                                             end
                                                         </div>
-                                                    </div>
-                                                </button>
+                                                    </button>
 
-                                                <!-- No Coverage Deactivation -->
-                                                <!-- No Coverage Deactivation -->
-                                                <button
-                                                    @click="
-                                                        deactivateNoCoverage(
-                                                            employee,
-                                                        )
-                                                    "
-                                                    class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-red-700 transition-colors hover:bg-red-50"
-                                                >
-                                                    <div>
+                                                    <button
+                                                        @click="
+                                                            deactivateNoCoverage(
+                                                                employee,
+                                                            )
+                                                        "
+                                                        class="sub-menu__item sub-menu__item--danger"
+                                                    >
                                                         <div
-                                                            class="font-semibold"
+                                                            class="sub-menu__item-title"
                                                         >
                                                             No Coverage —
                                                             Deactivate
                                                         </div>
                                                         <div
-                                                            class="text-xs opacity-70"
+                                                            class="sub-menu__item-sub"
                                                         >
                                                             Moved to non-Echo
                                                             Link area
                                                         </div>
-                                                    </div>
-                                                </button>
+                                                    </button>
 
-                                                <div
-                                                    class="my-1 border-t border-gray-100"
-                                                ></div>
+                                                    <div
+                                                        class="sub-menu__divider"
+                                                    ></div>
 
-                                                <!-- Conduct block -->
-                                                <button
-                                                    v-if="
-                                                        !employee.user
-                                                            .subscription
-                                                            .conduct_blocked_at
-                                                    "
-                                                    @click="
-                                                        promptConductBlock(
-                                                            employee,
-                                                        );
-                                                        subActionMenu = null;
-                                                    "
-                                                    class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-red-700 transition-colors hover:bg-red-50"
-                                                >
-                                                    <div>
+                                                    <button
+                                                        v-if="
+                                                            !employee.user
+                                                                .subscription
+                                                                .conduct_blocked_at
+                                                        "
+                                                        @click="
+                                                            promptConductBlock(
+                                                                employee,
+                                                            );
+                                                            subActionMenu =
+                                                                null;
+                                                        "
+                                                        class="sub-menu__item sub-menu__item--danger"
+                                                    >
                                                         <div
-                                                            class="font-semibold"
+                                                            class="sub-menu__item-title"
                                                         >
                                                             Conduct Block
                                                         </div>
                                                         <div
-                                                            class="text-xs opacity-70"
+                                                            class="sub-menu__item-sub"
                                                         >
                                                             Abuse of panic alert
                                                         </div>
-                                                    </div>
-                                                </button>
-                                                <button
-                                                    v-else
-                                                    @click="
-                                                        promptSubAction(
-                                                            employee,
-                                                            'conduct-unblock',
-                                                        );
-                                                        subActionMenu = null;
-                                                    "
-                                                    class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-green-700 transition-colors hover:bg-green-50"
-                                                >
-                                                    <div>
+                                                    </button>
+                                                    <button
+                                                        v-else
+                                                        @click="
+                                                            promptSubAction(
+                                                                employee,
+                                                                'conduct-unblock',
+                                                            );
+                                                            subActionMenu =
+                                                                null;
+                                                        "
+                                                        class="sub-menu__item sub-menu__item--success"
+                                                    >
                                                         <div
-                                                            class="font-semibold"
+                                                            class="sub-menu__item-title"
                                                         >
                                                             Lift Conduct Block
                                                         </div>
                                                         <div
-                                                            class="text-xs opacity-70"
+                                                            class="sub-menu__item-sub"
                                                         >
                                                             Restore SOS access
                                                         </div>
-                                                    </div>
-                                                </button>
+                                                    </button>
 
-                                                <div
-                                                    class="my-1 border-t border-gray-100"
-                                                ></div>
+                                                    <div
+                                                        class="sub-menu__divider"
+                                                    ></div>
 
-                                                <!-- Payment history -->
-                                                <button
-                                                    @click="
-                                                        openPayHistory(
-                                                            employee,
-                                                        );
-                                                        subActionMenu = null;
-                                                    "
-                                                    class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
-                                                >
-                                                    <div>
+                                                    <button
+                                                        @click="
+                                                            openPayHistory(
+                                                                employee,
+                                                            );
+                                                            subActionMenu =
+                                                                null;
+                                                        "
+                                                        class="sub-menu__item"
+                                                    >
                                                         <div
-                                                            class="font-semibold"
+                                                            class="sub-menu__item-title"
                                                         >
                                                             Payment History
                                                         </div>
                                                         <div
-                                                            class="text-xs text-gray-400"
+                                                            class="sub-menu__item-sub"
                                                         >
                                                             View past
                                                             transactions
                                                         </div>
-                                                    </div>
-                                                </button>
+                                                    </button>
 
-                                                <!-- Delete -->
-                                                <button
-                                                    @click="
-                                                        confirmDelete(
-                                                            employee.id,
-                                                        );
-                                                        subActionMenu = null;
-                                                    "
-                                                    class="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm font-medium text-red-500 transition-colors hover:bg-red-50"
-                                                >
-                                                    <div>
+                                                    <button
+                                                        @click="
+                                                            confirmDelete(
+                                                                employee.id,
+                                                            );
+                                                            subActionMenu =
+                                                                null;
+                                                        "
+                                                        class="sub-menu__item sub-menu__item--danger"
+                                                    >
                                                         <div
-                                                            class="font-semibold"
+                                                            class="sub-menu__item-title"
                                                         >
                                                             Delete
                                                         </div>
                                                         <div
-                                                            class="text-xs opacity-70"
+                                                            class="sub-menu__item-sub"
                                                         >
                                                             Remove household
                                                         </div>
-                                                    </div>
-                                                </button>
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        <!-- Delete (fallback if no subscription) -->
-                                        <button
-                                            v-else
-                                            @click="confirmDelete(employee.id)"
-                                            class="rounded-lg p-2 text-red-600 transition-colors hover:bg-red-50"
-                                            title="Delete"
-                                        >
-                                            <svg
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                class="h-4 w-4"
-                                                fill="none"
-                                                viewBox="0 0 24 24"
-                                                stroke="currentColor"
+                                            <!-- Delete (fallback if no subscription) -->
+                                            <button
+                                                v-else
+                                                @click="
+                                                    confirmDelete(employee.id)
+                                                "
+                                                class="icon-btn icon-btn--danger"
+                                                title="Delete"
                                             >
-                                                <path
-                                                    stroke-linecap="round"
-                                                    stroke-linejoin="round"
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    class="h-4 w-4"
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
+                                                    stroke="currentColor"
                                                     stroke-width="2"
-                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                                />
-                                            </svg>
-                                        </button>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
+                                                >
+                                                    <path
+                                                        stroke-linecap="round"
+                                                        stroke-linejoin="round"
+                                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                                    />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
 
-            <!-- ── PAGINATION (personnel tab only) ── -->
-            <!-- Personnel pagination -->
-            <div
-                v-if="activeTab === 'personnel'"
-                class="flex items-center justify-between border-t p-4"
-            >
-                <div class="text-sm text-gray-600">
-                    Showing {{ personnel.from || 0 }} to
-                    {{ personnel.to || 0 }} of {{ personnel.total }} entries
-                </div>
-                <div class="flex flex-nowrap space-x-2">
-                    <template
-                        v-for="(link, index) in personnel.links"
-                        :key="index"
-                    >
-                        <button
-                            v-if="link.url"
-                            @click="reloadEmployees(link.url, undefined)"
-                            v-html="link.label"
-                            class="inline-block min-w-[40px] rounded border px-3 py-1 text-center transition-all"
-                            :class="{
-                                'border-blue-500 bg-blue-500 text-white':
-                                    link.active,
-                                'border-gray-300 bg-white text-blue-500 hover:bg-gray-50':
-                                    !link.active,
-                            }"
-                        />
-                        <span
-                            v-else
-                            v-html="link.label"
-                            class="inline-block min-w-[40px] cursor-not-allowed rounded border border-gray-300 bg-gray-200 px-3 py-1 text-center text-gray-500"
-                        />
-                    </template>
-                </div>
-            </div>
-
-            <!-- Households pagination -->
-            <div
-                v-if="activeTab === 'households'"
-                class="flex items-center justify-between border-t p-4"
-            >
-                <div class="text-sm text-gray-600">
-                    Showing {{ households.from || 0 }} to
-                    {{ households.to || 0 }} of {{ households.total }} entries
-                </div>
-                <div class="flex flex-nowrap space-x-2">
-                    <template
-                        v-for="(link, index) in households.links"
-                        :key="index"
-                    >
-                        <button
-                            v-if="link.url"
-                            @click="reloadEmployees(undefined, link.url)"
-                            v-html="link.label"
-                            class="inline-block min-w-[40px] rounded border px-3 py-1 text-center transition-all"
-                            :class="{
-                                'border-blue-500 bg-blue-500 text-white':
-                                    link.active,
-                                'border-gray-300 bg-white text-blue-500 hover:bg-gray-50':
-                                    !link.active,
-                            }"
-                        />
-                        <span
-                            v-else
-                            v-html="link.label"
-                            class="inline-block min-w-[40px] cursor-not-allowed rounded border border-gray-300 bg-gray-200 px-3 py-1 text-center text-gray-500"
-                        />
-                    </template>
+                    <!-- Households pagination -->
+                    <div class="pagination-bar" v-if="householdList.length > 0">
+                        <span class="pagination-bar__info">
+                            Showing {{ households.from || 0 }}–{{
+                                households.to || 0
+                            }}
+                            of {{ households.total }}
+                        </span>
+                        <div class="pagination-bar__pages">
+                            <template
+                                v-for="(link, index) in households.links"
+                                :key="index"
+                            >
+                                <button
+                                    v-if="link.url"
+                                    @click="
+                                        reloadEmployees(undefined, link.url)
+                                    "
+                                    v-html="link.label"
+                                    class="page-btn"
+                                    :class="{
+                                        'page-btn--active': link.active,
+                                    }"
+                                />
+                                <span
+                                    v-else
+                                    v-html="link.label"
+                                    class="page-btn page-btn--disabled"
+                                />
+                            </template>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
-    </AppLayout>
 
-    <!-- ══════════════════════════════════════════ -->
-    <!-- ADD / EDIT MODAL                           -->
-    <!-- ══════════════════════════════════════════ -->
-    <form @submit.prevent="submitEmployee()">
-        <div v-if="showModal">
+        <!-- ══════════════════════════════════════════ -->
+        <!-- ADD / EDIT MODAL                           -->
+        <!-- ══════════════════════════════════════════ -->
+        <transition name="modal">
             <div
-                class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 py-8 backdrop-blur-[2px]"
+                v-if="showModal"
+                class="modal-backdrop"
+                @click.self="closeModal"
             >
-                <div class="w-full max-w-2xl rounded-lg bg-white p-6 shadow-lg">
-                    <h2 class="text-heading">
-                        {{ isEditing ? 'Edit' : 'Add' }}
-                        {{ isHousehold ? 'Household' : 'Personnel' }}
-                    </h2>
-
-                    <div v-if="!isHousehold" class="mb-4 grid gap-2">
-                        <div class="form-group">
-                            <label for="role-select"
-                                >Assign Personnel Role:</label
-                            >
-                            <Multiselect
-                                v-model="selectedRole"
-                                :options="roleGroups"
-                                :multiple="false"
-                                :searchable="true"
-                                :close-on-select="true"
-                                :show-labels="false"
-                                group-values="options"
-                                group-label="label"
-                                placeholder="Select a role..."
-                                track-by="value"
-                                label="text"
-                                @select="
-                                    (option) => {
-                                        form.occupation = option.value;
-                                    }
-                                "
-                                @remove="
-                                    () => {
-                                        form.occupation = '';
-                                    }
-                                "
-                            />
+                <div class="modal-sheet" style="max-width: 680px">
+                    <div class="modal-sheet__header">
+                        <div class="modal-sheet__header-left">
+                            <div>
+                                <div class="modal-sheet__title">
+                                    {{ isEditing ? 'Edit' : 'Add' }}
+                                    {{
+                                        isHousehold ? 'Household' : 'Field Unit'
+                                    }}
+                                </div>
+                            </div>
                         </div>
-                        <p
-                            v-if="errors.occupation"
-                            class="text-sm text-red-600"
-                        >
-                            {{ errors.occupation[0] }}
-                        </p>
-
-                        <!-- Gate Guard checkbox -->
-                        <div
-                            v-if="
-                                form.occupation === 'security_guard' ||
-                                form.occupation === 'patrol_officer'
-                            "
-                            class="mt-2 flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3"
-                        >
-                            <input
-                                id="is_gate_guard"
-                                v-model="form.is_gate_guard"
-                                type="checkbox"
-                                class="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600"
-                                style="width: auto !important"
-                            />
-                            <label
-                                for="is_gate_guard"
-                                class="cursor-pointer text-sm text-blue-800 select-none"
+                        <button class="close-btn" @click="closeModal">
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                stroke-width="2"
                             >
-                                <span class="font-semibold"
-                                    >This is a gate guard
-                                </span>
-                                <span class="ml-1 block text-xs text-blue-600">
-                                    Gate guards are paid a fixed share of the
-                                    estate's guard fee, separate from responding
-                                    security earnings.
-                                </span>
-                            </label>
-                        </div>
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M6 18L18 6M6 6l12 12"
+                                />
+                            </svg>
+                        </button>
                     </div>
 
-                    <div
-                        v-else
-                        class="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2"
+                    <form
+                        @submit.prevent="submitEmployee()"
+                        class="modal-sheet__body"
                     >
-                        <span
-                            class="inline-block h-2 w-2 rounded-full bg-amber-400"
-                        ></span>
-                        <span class="text-sm font-semibold text-amber-800"
-                            >Household / Resident</span
-                        >
-                        <span class="ml-auto text-xs text-amber-600"
-                            >Invite link recommended for self-registration</span
-                        >
-                    </div>
-
-                    <div class="grid gap-4">
-                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                            <div class="grid gap-2">
-                                <Label for="name">Name</Label>
-                                <input id="name" v-model="form.name" />
-                                <p
-                                    v-if="errors.name"
-                                    class="text-sm text-red-600"
+                        <div v-if="!isHousehold">
+                            <div class="field">
+                                <label class="field__label"
+                                    >Assign Personnel Role</label
                                 >
-                                    {{ errors.name[0] }}
-                                </p>
+                                <Multiselect
+                                    v-model="selectedRole"
+                                    :options="roleGroups"
+                                    :multiple="false"
+                                    :searchable="true"
+                                    :close-on-select="true"
+                                    :show-labels="false"
+                                    group-values="options"
+                                    group-label="label"
+                                    placeholder="Select a role..."
+                                    track-by="value"
+                                    label="text"
+                                    @select="
+                                        (option) => {
+                                            form.occupation = option.value;
+                                        }
+                                    "
+                                    @remove="
+                                        () => {
+                                            form.occupation = '';
+                                        }
+                                    "
+                                />
+                                <span
+                                    v-if="errors.occupation"
+                                    class="field__error"
+                                    >{{ errors.occupation[0] }}</span
+                                >
                             </div>
-                            <div class="grid gap-2">
-                                <Label for="email">Email</Label>
-                                <input id="email" v-model="form.email" />
-                                <p
-                                    v-if="errors.email"
-                                    class="text-sm text-red-600"
+
+                            <!-- Gate Guard checkbox -->
+                            <div
+                                v-if="
+                                    form.occupation === 'security_guard' ||
+                                    form.occupation === 'patrol_officer'
+                                "
+                                class="callout callout--info"
+                                style="margin-top: 10px"
+                            >
+                                <input
+                                    id="is_gate_guard"
+                                    v-model="form.is_gate_guard"
+                                    type="checkbox"
+                                    class="callout__checkbox"
+                                />
+                                <label
+                                    for="is_gate_guard"
+                                    class="callout__label"
                                 >
-                                    {{ errors.email[0] }}
-                                </p>
+                                    <span class="callout__label-title"
+                                        >This is a gate guard</span
+                                    >
+                                    <span class="callout__label-sub">
+                                        Gate guards are paid a fixed share of
+                                        the estate's guard fee, separate from
+                                        responding security earnings.
+                                    </span>
+                                </label>
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                            <div class="grid gap-2">
-                                <Label for="contact">Phone</Label>
+                        <div v-else class="callout callout--amber">
+                            <span class="callout__dot"></span>
+                            <span class="callout__inline-title"
+                                >Household / Resident</span
+                            >
+                            <span class="callout__inline-hint"
+                                >Invite link recommended for
+                                self-registration</span
+                            >
+                        </div>
+
+                        <div
+                            style="
+                                display: grid;
+                                grid-template-columns: 1fr 1fr;
+                                gap: 14px;
+                            "
+                        >
+                            <div class="field">
+                                <label class="field__label">Name</label>
+                                <input
+                                    id="name"
+                                    v-model="form.name"
+                                    class="field__input"
+                                    :class="{
+                                        'field__input--error': errors.name,
+                                    }"
+                                />
+                                <span v-if="errors.name" class="field__error">{{
+                                    errors.name[0]
+                                }}</span>
+                            </div>
+                            <div class="field">
+                                <label class="field__label">Email</label>
+                                <input
+                                    id="email"
+                                    v-model="form.email"
+                                    class="field__input"
+                                    :class="{
+                                        'field__input--error': errors.email,
+                                    }"
+                                />
+                                <span
+                                    v-if="errors.email"
+                                    class="field__error"
+                                    >{{ errors.email[0] }}</span
+                                >
+                            </div>
+                        </div>
+
+                        <div
+                            style="
+                                display: grid;
+                                grid-template-columns: 1fr 1fr;
+                                gap: 14px;
+                            "
+                        >
+                            <div class="field">
+                                <label class="field__label">Phone</label>
                                 <VueTelInput
                                     v-model="form.phone"
                                     mode="international"
@@ -2503,62 +2446,92 @@ const proceedNoCoverage = async () => {
                                         placeholder: '+27821234567',
                                     }"
                                     @input="handlePhoneInput"
-                                    class="h-10 rounded-md border-gray-300 shadow-sm"
+                                    class="custom-tel-input"
                                 />
-                                <p
+                                <span
                                     v-if="errors.phone"
-                                    class="text-sm text-red-600"
+                                    class="field__error"
+                                    >{{ errors.phone[0] }}</span
                                 >
-                                    {{ errors.phone[0] }}
-                                </p>
                             </div>
-                            <div class="grid gap-2">
-                                <Label for="clients">Client</Label>
-                                <select
-                                    id="clients"
-                                    v-model="form.client_id"
-                                    class="focus:ring-opacity-50 mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200"
-                                >
-                                    <option value="" disabled>
-                                        -- Choose client --
-                                    </option>
-                                    <option
-                                        v-for="client in clients"
-                                        :key="client.id"
-                                        :value="client.id"
+                            <div class="field">
+                                <label class="field__label">Client</label>
+                                <div class="select-wrapper">
+                                    <select
+                                        id="clients"
+                                        v-model="form.client_id"
+                                        class="field__select"
                                     >
-                                        {{ client.user?.name }}
-                                    </option>
-                                </select>
-                                <p
+                                        <option value="" disabled>
+                                            -- Choose client --
+                                        </option>
+                                        <option
+                                            v-for="client in clients"
+                                            :key="client.id"
+                                            :value="client.id"
+                                        >
+                                            {{ client.user?.name }}
+                                        </option>
+                                    </select>
+                                    <svg
+                                        class="select-caret"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            d="M19 9l-7 7-7-7"
+                                        />
+                                    </svg>
+                                </div>
+                                <span
                                     v-if="errors.client_id"
-                                    class="text-sm text-red-600"
+                                    class="field__error"
+                                    >{{ errors.client_id[0] }}</span
                                 >
-                                    {{ errors.client_id[0] }}
-                                </p>
                             </div>
                         </div>
 
-                        <div class="grid gap-3">
-                            <div class="flex items-center justify-between">
-                                <Label for="channels">{{
+                        <div class="field">
+                            <label class="field__label">
+                                {{
                                     isHousehold
                                         ? 'Channel (one only)'
                                         : form.is_gate_guard
                                           ? 'Channel (one only — gate guard)'
                                           : 'Channels'
-                                }}</Label>
+                                }}
                                 <span
                                     v-if="isHousehold"
-                                    class="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold tracking-wide text-amber-700 uppercase"
-                                    >Household — 1 channel max</span
+                                    class="field__hint"
+                                    style="
+                                        background: #fff7ed;
+                                        color: #ea580c;
+                                        padding: 2px 8px;
+                                        border-radius: 20px;
+                                        font-style: normal;
+                                        font-weight: 700;
+                                    "
+                                    >Household — 1 max</span
                                 >
                                 <span
                                     v-else-if="form.is_gate_guard"
-                                    class="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-bold tracking-wide text-blue-700 uppercase"
-                                    >Gate Guard — 1 channel max</span
+                                    class="field__hint"
+                                    style="
+                                        background: #eff6ff;
+                                        color: #2563eb;
+                                        padding: 2px 8px;
+                                        border-radius: 20px;
+                                        font-style: normal;
+                                        font-weight: 700;
+                                    "
+                                    >Gate Guard - 1 max</span
                                 >
-                            </div>
+                            </label>
                             <Multiselect
                                 v-if="isHousehold || form.is_gate_guard"
                                 :key="'single-' + form.client_id"
@@ -2593,97 +2566,93 @@ const proceedNoCoverage = async () => {
                                 label="name"
                                 track-by="id"
                             />
-                            <p
+                            <span
                                 v-if="errors.channel_ids"
-                                class="text-sm text-red-600"
+                                class="field__error"
+                                >{{ errors.channel_ids[0] }}</span
                             >
-                                {{ errors.channel_ids[0] }}
-                            </p>
                         </div>
 
-                        <div
-                            v-if="isHousehold"
-                            class="mt-2 rounded-xl border border-gray-200 bg-gray-50 p-4"
-                        >
-                            <h3
-                                class="mb-3 text-sm font-semibold tracking-wider text-gray-900 uppercase"
-                            >
+                        <div v-if="isHousehold" class="household-panel">
+                            <div class="household-panel__heading">
                                 Household Details
-                            </h3>
+                            </div>
 
-                            <div class="relative mb-4 grid gap-2">
-                                <Label for="address_search"
-                                    >Search Address</Label
+                            <div class="field" style="position: relative">
+                                <label class="field__label"
+                                    >Search Address</label
                                 >
-                                <div class="relative">
-                                    <input
-                                        id="address_search"
-                                        type="text"
-                                        placeholder="Type your street address..."
-                                        class="w-full rounded-md border-gray-300 pl-10 shadow-sm"
-                                        @input="handleAddressSearch"
-                                        @blur="hideSuggestions"
-                                    />
-                                    <span
-                                        class="absolute top-2.5 left-3 text-gray-400"
-                                        ><i class="fas fa-search-location"></i
-                                    ></span>
-                                </div>
+                                <input
+                                    id="address_search"
+                                    type="text"
+                                    placeholder="Type your street address..."
+                                    class="field__input"
+                                    @input="handleAddressSearch"
+                                    @blur="hideSuggestions"
+                                />
                                 <ul
                                     v-if="
                                         showSuggestions &&
                                         addressSuggestions.length
                                     "
-                                    class="absolute top-full z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-200 bg-white shadow-xl"
+                                    class="address-suggestions"
                                 >
                                     <li
                                         v-for="item in addressSuggestions"
                                         :key="item.place_id"
                                         @click="selectAddress(item)"
-                                        class="cursor-pointer border-b px-4 py-3 text-sm last:border-0 hover:bg-gray-50"
+                                        class="address-suggestions__item"
                                     >
-                                        <div class="font-medium text-gray-800">
-                                            {{ item.display_name }}
-                                        </div>
+                                        {{ item.display_name }}
                                     </li>
                                 </ul>
                             </div>
 
                             <div
                                 v-if="form.role === 'household'"
-                                class="mb-3 flex items-center gap-2"
+                                class="callout-checkbox"
                             >
                                 <input
                                     id="in_complex"
                                     type="checkbox"
                                     v-model="inComplex"
-                                    class="h-4 w-4 rounded border-gray-300 text-indigo-600"
+                                    class="callout__checkbox"
                                     @change="
                                         () => {
                                             if (!inComplex)
                                                 form.complex_name = '';
                                         }
                                     "
-                                    style="width: auto !important"
                                 />
                                 <label
                                     for="in_complex"
-                                    class="cursor-pointer text-sm text-gray-700 select-none"
+                                    style="
+                                        font-size: 13px;
+                                        color: #475569;
+                                        cursor: pointer;
+                                    "
                                     >This household is inside an estate or
                                     complex</label
                                 >
                             </div>
 
-                            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                <div class="grid gap-2">
-                                    <Label for="unit_number">{{
+                            <div
+                                style="
+                                    display: grid;
+                                    grid-template-columns: 1fr 1fr;
+                                    gap: 14px;
+                                "
+                            >
+                                <div class="field">
+                                    <label class="field__label">{{
                                         inComplex || form.role === 'resident'
                                             ? 'Unit Number'
                                             : 'House Number'
-                                    }}</Label>
+                                    }}</label>
                                     <input
                                         id="unit_number"
                                         v-model="form.unit_number"
+                                        class="field__input"
                                         :placeholder="
                                             inComplex ||
                                             form.role === 'resident'
@@ -2694,14 +2663,15 @@ const proceedNoCoverage = async () => {
                                 </div>
                                 <div
                                     v-if="inComplex || form.role === 'resident'"
-                                    class="grid gap-2"
+                                    class="field"
                                 >
-                                    <Label for="complex"
-                                        >Complex / Estate Name</Label
+                                    <label class="field__label"
+                                        >Complex / Estate Name</label
                                     >
                                     <input
                                         id="complex"
                                         v-model="form.complex_name"
+                                        class="field__input"
                                         placeholder="e.g. Green Valley Estate"
                                         :required="inComplex"
                                     />
@@ -2709,142 +2679,144 @@ const proceedNoCoverage = async () => {
                             </div>
 
                             <div
-                                class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2"
+                                style="
+                                    display: grid;
+                                    grid-template-columns: 1fr 1fr;
+                                    gap: 14px;
+                                "
                             >
-                                <div class="grid gap-2">
-                                    <Label for="address_line_1"
-                                        >Street Address</Label
+                                <div class="field">
+                                    <label class="field__label"
+                                        >Street Address</label
                                     >
                                     <input
                                         id="address_line_1"
                                         v-model="form.address_line_1"
+                                        class="field__input"
                                         placeholder="e.g. 123 Maple Ave"
                                     />
-                                    <p
+                                    <span
                                         v-if="errors.address_line_1"
-                                        class="text-sm text-red-600"
+                                        class="field__error"
+                                        >{{ errors.address_line_1[0] }}</span
                                     >
-                                        {{ errors.address_line_1[0] }}
-                                    </p>
                                 </div>
-                                <div class="grid gap-2">
-                                    <Label for="suburb">Suburb / Area</Label>
+                                <div class="field">
+                                    <label class="field__label"
+                                        >Suburb / Area</label
+                                    >
                                     <input
                                         id="suburb"
                                         v-model="form.suburb"
+                                        class="field__input"
                                         placeholder="e.g. Morningside"
                                     />
-                                    <p
+                                    <span
                                         v-if="errors.suburb"
-                                        class="text-sm text-red-600"
+                                        class="field__error"
+                                        >{{ errors.suburb[0] }}</span
                                     >
-                                        {{ errors.suburb[0] }}
-                                    </p>
                                 </div>
                             </div>
 
-                            <div
-                                class="mt-5 rounded-lg border border-red-100 bg-white p-4"
-                            >
-                                <div
-                                    class="mb-3 flex items-center justify-between"
-                                >
+                            <div class="pin-panel">
+                                <div class="pin-panel__header">
                                     <div>
-                                        <h4
-                                            class="text-sm font-bold text-gray-900"
-                                        >
+                                        <div class="pin-panel__title">
                                             Security Codes
-                                        </h4>
-                                        <p
-                                            class="mt-0.5 text-[11px] text-gray-500"
-                                        >
+                                        </div>
+                                        <div class="pin-panel__sub">
                                             Auto-generated. Send to household
                                             via their first login.
-                                        </p>
+                                        </div>
                                     </div>
                                     <button
                                         type="button"
                                         @click="regeneratePins"
-                                        class="rounded-md border border-gray-200 px-2.5 py-1.5 text-[11px] font-bold text-gray-600 uppercase hover:bg-gray-50 active:scale-95"
+                                        class="pin-panel__regen"
                                     >
                                         ↻ Regenerate
                                     </button>
                                 </div>
-                                <div class="grid grid-cols-2 gap-3">
-                                    <div class="grid gap-1.5">
-                                        <Label for="safe_cancel_pin"
-                                            ><span
-                                                class="flex items-center gap-1.5"
-                                                ><span
-                                                    class="inline-block h-2 w-2 rounded-full bg-green-500"
-                                                ></span>
-                                                Cancel Code</span
-                                            ></Label
-                                        >
+                                <div
+                                    style="
+                                        display: grid;
+                                        grid-template-columns: 1fr 1fr;
+                                        gap: 12px;
+                                    "
+                                >
+                                    <div class="field" style="gap: 4px">
+                                        <label class="field__label">
+                                            <span
+                                                class="pin-dot pin-dot--green"
+                                            ></span>
+                                            Cancel Code
+                                        </label>
                                         <input
                                             id="safe_cancel_pin"
                                             v-model="form.safe_cancel_pin"
                                             maxlength="6"
-                                            class="w-full rounded-md border-gray-300 bg-gray-50 pr-8 font-mono text-lg font-bold tracking-widest shadow-sm"
+                                            class="field__input pin-input pin-input--green"
                                             placeholder="——————"
                                             readonly
                                         />
-                                        <p class="text-[13px] text-gray-400">
-                                            Genuine false alarm cancel
-                                        </p>
-                                    </div>
-                                    <div class="grid gap-1.5">
-                                        <Label for="duress_pin"
-                                            ><span
-                                                class="flex items-center gap-1.5"
-                                                ><span
-                                                    class="inline-block h-2 w-2 rounded-full bg-red-500"
-                                                ></span>
-                                                Duress Code</span
-                                            ></Label
+                                        <span
+                                            class="field__hint"
+                                            style="color: #94a3b8"
+                                            >Genuine false alarm cancel</span
                                         >
+                                    </div>
+                                    <div class="field" style="gap: 4px">
+                                        <label class="field__label">
+                                            <span
+                                                class="pin-dot pin-dot--red"
+                                            ></span>
+                                            Duress Code
+                                        </label>
                                         <input
                                             id="duress_pin"
                                             v-model="form.duress_pin"
                                             maxlength="6"
-                                            class="w-full rounded-md border-red-200 bg-red-50 pr-8 font-mono text-lg font-bold tracking-widest shadow-sm focus:border-red-400 focus:ring-red-200"
+                                            class="field__input pin-input pin-input--red"
                                             placeholder="——————"
                                             readonly
                                         />
-                                        <p class="text-[13px] text-gray-400">
-                                            Covert — keeps patrollers on route
-                                        </p>
+                                        <span
+                                            class="field__hint"
+                                            style="color: #94a3b8"
+                                            >Covert — keeps patrollers on
+                                            route</span
+                                        >
                                     </div>
                                 </div>
                                 <div
-                                    class="mt-3 rounded-md border border-amber-100 bg-amber-50 px-3 py-2 text-[11px] text-amber-700"
+                                    class="callout callout--amber"
+                                    style="margin-top: 12px"
                                 >
                                     Never share the duress code label with the
                                     household — they should only know it as
                                     their "emergency code".
                                 </div>
 
-                                <!-- Activation fee -->
                                 <div
                                     v-if="auth.user?.role === 'admin'"
-                                    class="mt-3 flex items-start gap-3 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3"
+                                    class="callout callout--info"
+                                    style="margin-top: 12px"
                                 >
                                     <input
                                         id="activation_fee_paid"
                                         v-model="form.activation_fee_paid"
                                         type="checkbox"
-                                        class="mt-0.5 h-4 w-4 rounded border-gray-300 text-orange-500"
-                                        style="width: auto !important"
+                                        class="callout__checkbox"
                                     />
                                     <label
                                         for="activation_fee_paid"
-                                        class="cursor-pointer text-sm text-orange-800 select-none"
+                                        class="callout__label"
                                     >
-                                        <span class="font-semibold"
+                                        <span class="callout__label-title"
                                             >R50 activation fee paid</span
                                         >
-                                        <span
-                                            class="ml-1 block text-xs text-orange-600"
+                                        <span class="callout__label-sub"
                                             >If unchecked, R50 will be added to
                                             first billing cycle (R130
                                             total)</span
@@ -2854,178 +2826,237 @@ const proceedNoCoverage = async () => {
                             </div>
                         </div>
 
-                        <div class="grid gap-3">
-                            <Label for="password">Set New Password</Label>
+                        <div class="field">
+                            <label class="field__label">Set New Password</label>
                             <input
                                 id="password"
                                 v-model="form.password"
                                 type="password"
+                                class="field__input"
                             />
-                            <p
-                                v-if="errors.password"
-                                class="text-sm text-red-600"
-                            >
-                                {{ errors.password[0] }}
-                            </p>
+                            <span v-if="errors.password" class="field__error">{{
+                                errors.password[0]
+                            }}</span>
                         </div>
 
-                        <div class="flex w-max items-end">
+                        <div class="modal-actions">
                             <button
                                 type="button"
                                 @click="closeModal"
-                                class="cancel-btn mr-3"
+                                class="btn-ghost"
                             >
                                 Cancel
                             </button>
                             <button
                                 type="submit"
-                                class="save-btn flex items-center justify-center"
+                                class="btn-primary"
                                 :disabled="loading"
                             >
-                                <span v-if="loading" class="loader mr-2"></span>
-                                <span>{{
+                                <svg
+                                    v-if="loading"
+                                    class="spin h-4 w-4"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <circle
+                                        class="opacity-25"
+                                        cx="12"
+                                        cy="12"
+                                        r="10"
+                                        stroke="currentColor"
+                                        stroke-width="4"
+                                    />
+                                    <path
+                                        class="opacity-75"
+                                        fill="currentColor"
+                                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                    />
+                                </svg>
+                                {{
                                     loading
                                         ? isEditing
-                                            ? 'Updating...'
-                                            : 'Adding...'
+                                            ? 'Updating…'
+                                            : 'Adding…'
                                         : isEditing
                                           ? isHousehold
                                               ? 'Update Household'
-                                              : 'Update Personnel'
+                                              : 'Update Field Unit'
                                           : isHousehold
                                             ? 'Add Household'
-                                            : 'Add Personnel'
-                                }}</span>
+                                            : 'Add Field Unit'
+                                }}
                             </button>
                         </div>
+                    </form>
+                </div>
+            </div>
+        </transition>
+
+        <!-- Delete confirm modal -->
+        <transition name="modal">
+            <div
+                v-if="showDeleteModal"
+                class="modal-backdrop"
+                @click.self="showDeleteModal = false"
+            >
+                <div class="confirm-modal">
+                    <div class="confirm-modal__icon">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-7 w-7 text-red-500"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
+                        </svg>
+                    </div>
+                    <h2 class="confirm-modal__title">Confirm Deletion</h2>
+                    <p class="confirm-modal__body">
+                        Are you sure you want to delete this record? This action
+                        is permanent.
+                    </p>
+                    <div class="confirm-modal__actions">
+                        <button
+                            @click="showDeleteModal = false"
+                            class="btn-ghost"
+                        >
+                            Keep it
+                        </button>
+                        <button @click="executeDelete" class="btn-danger">
+                            Yes, Delete
+                        </button>
                     </div>
                 </div>
             </div>
-        </div>
-    </form>
+        </transition>
 
-    <!-- Delete confirm modal -->
-    <div
-        v-if="showDeleteModal"
-        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm"
-    >
-        <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
-            <h2 class="text-lg font-bold text-gray-900">Confirm Deletion</h2>
-            <p class="mt-2 text-sm text-gray-500">
-                Are you sure you want to delete this record? This action is
-                permanent.
-            </p>
-            <div class="mt-6 flex justify-center gap-3">
-                <button
-                    @click="showDeleteModal = false"
-                    class="rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100"
-                >
-                    No, Keep it
-                </button>
-                <button
-                    @click="executeDelete"
-                    class="rounded-lg bg-red-600 px-6 py-2 text-sm font-bold text-white shadow-md transition-all hover:bg-red-700 active:scale-95"
-                >
-                    Yes, Delete
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Regenerate invite confirmation modal -->
-    <div
-        v-if="confirmRegenerateInvite"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-    >
-        <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-            <div class="mb-4 flex items-center gap-3">
-                <div
-                    class="flex h-10 w-10 items-center justify-center rounded-full bg-amber-100"
-                >
-                    <span class="text-xl">↻</span>
-                </div>
-                <div>
-                    <h3 class="text-base font-semibold text-gray-900">
+        <!-- Regenerate invite confirmation modal -->
+        <transition name="modal">
+            <div
+                v-if="confirmRegenerateInvite"
+                class="modal-backdrop"
+                @click.self="confirmRegenerateInvite = null"
+            >
+                <div class="confirm-modal">
+                    <div
+                        class="confirm-modal__icon"
+                        style="background: #fffbeb"
+                    >
+                        <span style="font-size: 22px">↻</span>
+                    </div>
+                    <h2 class="confirm-modal__title">
                         Regenerate Invite Link?
-                    </h3>
-                    <p class="text-sm text-gray-500">
+                    </h2>
+                    <p class="confirm-modal__body" style="margin-bottom: 2px">
                         {{ confirmRegenerateInvite.channel_name }}
                     </p>
-                </div>
-            </div>
-            <div
-                class="mb-5 rounded-lg border border-amber-100 bg-amber-50 p-4 text-sm text-amber-800"
-            >
-                <p class="font-semibold">
-                    ⚠ This will invalidate the current link.
-                </p>
-                <p class="mt-1">
-                    Anyone who has not yet registered using the old link will
-                    need the new link. Households who already registered are not
-                    affected.
-                </p>
-            </div>
-            <div class="flex justify-end gap-3">
-                <button
-                    @click="confirmRegenerateInvite = null"
-                    class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-                >
-                    Cancel
-                </button>
-                <button
-                    @click="proceedRegenerate"
-                    :disabled="isRegenerating"
-                    class="flex items-center gap-2 rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-600 disabled:opacity-60"
-                >
                     <div
-                        v-if="isRegenerating"
-                        class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
-                    ></div>
-                    <span>{{
-                        isRegenerating ? 'Regenerating...' : 'Yes, Regenerate'
-                    }}</span>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Toggle status modal -->
-    <div
-        v-if="confirmToggleEmployee"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-    >
-        <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-            <div class="mb-4 flex items-center gap-3">
-                <div
-                    :class="[
-                        'flex h-10 w-10 items-center justify-center rounded-full',
-                        confirmToggleEmployee.user.is_active
-                            ? 'bg-red-100'
-                            : 'bg-green-100',
-                    ]"
-                >
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-5 w-5"
-                        :class="
-                            confirmToggleEmployee.user.is_active
-                                ? 'text-red-600'
-                                : 'text-green-600'
+                        class="toggle-warning toggle-warning--danger"
+                        style="
+                            text-align: left;
+                            background: #fffbeb;
+                            border-color: #fcd34d;
+                            color: #92400e;
                         "
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
                     >
-                        <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M12 9v2m0 4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z"
-                        />
-                    </svg>
+                        <p style="font-weight: 700; margin-bottom: 4px">
+                            ⚠ This will invalidate the current link.
+                        </p>
+                        <p>
+                            Anyone who has not yet registered using the old link
+                            will need the new link. Households who already
+                            registered are not affected.
+                        </p>
+                    </div>
+                    <div class="confirm-modal__actions">
+                        <button
+                            @click="confirmRegenerateInvite = null"
+                            class="btn-ghost"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            @click="proceedRegenerate"
+                            :disabled="isRegenerating"
+                            class="btn-primary"
+                            style="flex: 1.4; justify-content: center"
+                        >
+                            <svg
+                                v-if="isRegenerating"
+                                class="spin h-4 w-4"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                            >
+                                <circle
+                                    class="opacity-25"
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    stroke="currentColor"
+                                    stroke-width="4"
+                                />
+                                <path
+                                    class="opacity-75"
+                                    fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                />
+                            </svg>
+                            {{
+                                isRegenerating
+                                    ? 'Regenerating…'
+                                    : 'Yes, Regenerate'
+                            }}
+                        </button>
+                    </div>
                 </div>
-                <div>
-                    <h3 class="text-base font-semibold text-gray-900">
+            </div>
+        </transition>
+
+        <!-- Toggle status modal -->
+        <transition name="modal">
+            <div
+                v-if="confirmToggleEmployee"
+                class="modal-backdrop"
+                @click.self="confirmToggleEmployee = null"
+            >
+                <div class="confirm-modal">
+                    <div
+                        class="confirm-modal__icon"
+                        :style="
+                            confirmToggleEmployee.user.is_active
+                                ? 'background:#fef2f2'
+                                : 'background:#f0fdf4'
+                        "
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-7 w-7"
+                            :style="
+                                confirmToggleEmployee.user.is_active
+                                    ? 'color:#dc2626'
+                                    : 'color:#16a34a'
+                            "
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M12 9v2m0 4h.01M12 3a9 9 0 100 18A9 9 0 0012 3z"
+                            />
+                        </svg>
+                    </div>
+                    <h2 class="confirm-modal__title">
                         {{
                             confirmToggleEmployee.user.is_active
                                 ? 'Deactivate'
@@ -3036,607 +3067,1802 @@ const proceedNoCoverage = async () => {
                                 confirmToggleEmployee.user.occupation,
                             )
                                 ? 'Household'
-                                : 'Personnel'
+                                : 'Field Unit'
                         }}
-                    </h3>
-                    <p class="text-sm text-gray-500">
+                    </h2>
+                    <p class="confirm-modal__body" style="margin-bottom: 4px">
                         {{ confirmToggleEmployee.user.name }}
                     </p>
-                </div>
-            </div>
-            <div
-                v-if="confirmToggleEmployee.user.is_active"
-                class="mb-5 rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-800"
-            >
-                <p class="font-semibold">Before you deactivate:</p>
-                <ul class="mt-2 list-inside list-disc space-y-1">
-                    <li>They'll be logged out of Echo Link immediately</li>
-                    <li>They won't be able to log back in until reactivated</li>
-                    <li>All active channel sessions will be terminated</li>
-                </ul>
-            </div>
-            <div
-                v-else
-                class="mb-5 rounded-lg border border-green-100 bg-green-50 p-4 text-sm text-green-800"
-            >
-                <p>
-                    They will regain access to the Echo Link app and can log in
-                    with their existing credentials.
-                </p>
-            </div>
-            <div class="flex justify-end gap-3">
-                <button
-                    @click="confirmToggleEmployee = null"
-                    class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-                >
-                    Cancel
-                </button>
-                <button
-                    @click="proceedToggle"
-                    :class="[
-                        'rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors',
-                        confirmToggleEmployee.user.is_active
-                            ? 'bg-red-600 hover:bg-red-700'
-                            : 'bg-green-600 hover:bg-green-700',
-                    ]"
-                >
-                    {{
-                        confirmToggleEmployee.user.is_active
-                            ? 'Yes, Deactivate'
-                            : 'Yes, Activate'
-                    }}
-                </button>
-            </div>
-        </div>
-    </div>
-    <!-- Subscription flash -->
-    <div
-        v-if="subFlash"
-        :class="[
-            'fixed right-6 bottom-6 z-[70] rounded-xl px-5 py-3 text-sm font-semibold shadow-xl',
-            subFlash.type === 'success'
-                ? 'bg-green-600 text-white'
-                : 'bg-red-600 text-white',
-        ]"
-    >
-        {{ subFlash.type === 'success' ? '✓' : '⚠' }} {{ subFlash.msg }}
-    </div>
-
-    <!-- Click-outside overlay to close dropdown -->
-    <div
-        v-if="subActionMenu !== null"
-        class="fixed inset-0 z-40"
-        @click="closeSubMenus"
-    />
-
-    <!-- EFT Payment Modal -->
-    <div
-        v-if="eftModal"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
-    >
-        <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h3 class="mb-1 text-base font-bold text-gray-900">
-                Mark EFT Paid
-            </h3>
-            <p class="mb-5 text-xs text-gray-500">
-                Recording payment for
-                <span class="font-semibold text-gray-700">{{
-                    eftModal.user?.name
-                }}</span>
-            </p>
-
-            <div class="space-y-4">
-                <!-- Amount -->
-                <div>
-                    <label
-                        class="mb-1 block text-xs font-semibold text-gray-600"
-                        >Amount (ZAR) <span class="text-red-500">*</span></label
+                    <div
+                        v-if="confirmToggleEmployee.user.is_active"
+                        class="toggle-warning toggle-warning--danger"
                     >
-                    <input
-                        v-model="eftAmount"
-                        type="number"
-                        min="1"
-                        required
-                        placeholder="80"
-                        class="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-gray-400 focus:outline-none"
-                    />
-                </div>
-
-                <!-- Note -->
-                <div>
-                    <label
-                        class="mb-1 block text-xs font-semibold text-gray-600"
-                        >Payment Note <span class="text-red-500">*</span></label
-                    >
-                    <input
-                        v-model="eftNote"
-                        type="text"
-                        required
-                        placeholder="e.g. EFT received 10 Apr 2026"
-                        class="w-full rounded-lg border border-gray-200 px-3 py-2.5 text-sm focus:border-gray-400 focus:outline-none"
-                    />
-                </div>
-
-                <!-- Proof of Payment -->
-                <div>
-                    <label
-                        class="mb-1 block text-xs font-semibold text-gray-600"
-                        >Proof of Payment
-                        <span class="text-red-500">*</span></label
-                    >
-                    <label
-                        class="flex w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 px-4 py-5 transition hover:border-gray-400 hover:bg-gray-100"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            class="mb-2 h-7 w-7 text-gray-400"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
+                        <p style="font-weight: 700; margin-bottom: 4px">
+                            Before you deactivate:
+                        </p>
+                        <ul>
+                            <li>
+                                They'll be logged out of Echo Link immediately
+                            </li>
+                            <li>
+                                They won't be able to log back in until
+                                reactivated
+                            </li>
+                            <li>
+                                All active channel sessions will be terminated
+                            </li>
+                        </ul>
+                    </div>
+                    <div v-else class="toggle-warning toggle-warning--success">
+                        They will regain access to the Echo Link app and can log
+                        in with their existing credentials.
+                    </div>
+                    <div class="confirm-modal__actions">
+                        <button
+                            @click="confirmToggleEmployee = null"
+                            class="btn-ghost"
                         >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="1.5"
-                                d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V4m0 0L8 8m4-4l4 4"
-                            />
-                        </svg>
-                        <span
-                            v-if="eftProofName"
-                            class="text-xs font-semibold text-green-600"
-                            >{{ eftProofName }}</span
-                        >
-                        <span v-else class="text-xs text-gray-500"
-                            >Click to upload PDF, JPG or PNG (max 5MB)</span
-                        >
-                        <input
-                            type="file"
-                            accept=".pdf,.jpg,.jpeg,.png"
-                            class="hidden"
-                            @change="
-                                (e: any) => {
-                                    eftProof = e.target.files[0];
-                                    eftProofName =
-                                        e.target.files[0]?.name ?? '';
-                                }
+                            Cancel
+                        </button>
+                        <button
+                            @click="proceedToggle"
+                            :class="
+                                confirmToggleEmployee.user.is_active
+                                    ? 'btn-danger'
+                                    : 'btn-success'
                             "
-                        />
-                    </label>
+                        >
+                            {{
+                                confirmToggleEmployee.user.is_active
+                                    ? 'Yes, Deactivate'
+                                    : 'Yes, Activate'
+                            }}
+                        </button>
+                    </div>
                 </div>
             </div>
+        </transition>
 
-            <div class="mt-6 flex gap-3">
-                <button
-                    @click="
-                        eftModal = null;
-                        eftProof = null;
-                        eftProofName = '';
-                    "
-                    class="flex-1 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
-                >
-                    Cancel
-                </button>
-                <button
-                    @click="submitEftPayment"
-                    :disabled="
-                        !eftAmount ||
-                        !eftNote ||
-                        !eftProof ||
-                        subLoading === eftModal?.id
-                    "
-                    class="flex-1 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-700 disabled:opacity-40"
-                >
-                    <span v-if="subLoading === eftModal?.id"
-                        >Processing...</span
+        <!-- Subscription flash -->
+        <transition name="toast">
+            <div
+                v-if="subFlash"
+                class="toast"
+                :style="
+                    subFlash.type === 'success'
+                        ? 'background:#16a34a;border-left-color:#15803d'
+                        : 'background:#dc2626;border-left-color:#b91c1c'
+                "
+            >
+                {{ subFlash.type === 'success' ? '✓' : '⚠' }}
+                {{ subFlash.msg }}
+            </div>
+        </transition>
+
+        <!-- Click-outside overlay to close dropdown -->
+        <div
+            v-if="subActionMenu !== null"
+            class="fixed inset-0 z-40"
+            @click="closeSubMenus"
+        />
+
+        <!-- EFT Payment Modal -->
+        <transition name="modal">
+            <div
+                v-if="eftModal"
+                class="modal-backdrop"
+                @click.self="
+                    eftModal = null;
+                    eftProof = null;
+                    eftProofName = '';
+                "
+            >
+                <div class="modal-sheet" style="max-width: 480px">
+                    <div class="modal-sheet__header">
+                        <div class="modal-sheet__header-left">
+                            <div>
+                                <div class="modal-sheet__title">
+                                    Mark EFT Paid
+                                </div>
+                                <div class="modal-sheet__sub">
+                                    Recording payment for
+                                    {{ eftModal.userName }}
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            class="close-btn"
+                            @click="
+                                eftModal = null;
+                                eftProof = null;
+                                eftProofName = '';
+                            "
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M6 18L18 6M6 6l12 12"
+                                />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="modal-sheet__body">
+                        <div class="field">
+                            <label class="field__label">Amount (ZAR)</label>
+                            <input
+                                v-model="eftAmount"
+                                type="number"
+                                min="1"
+                                required
+                                placeholder="80"
+                                class="field__input"
+                            />
+                        </div>
+
+                        <div class="field">
+                            <label class="field__label">Payment Note</label>
+                            <input
+                                v-model="eftNote"
+                                type="text"
+                                required
+                                placeholder="e.g. EFT received 10 Apr 2026"
+                                class="field__input"
+                            />
+                        </div>
+
+                        <div class="field">
+                            <label class="field__label">Proof of Payment</label>
+                            <label class="upload-dropzone">
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    class="h-7 w-7"
+                                    style="color: #94a3b8; margin-bottom: 6px"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="1.5"
+                                        d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V4m0 0L8 8m4-4l4 4"
+                                    />
+                                </svg>
+                                <span
+                                    v-if="eftProofName"
+                                    style="
+                                        font-size: 12px;
+                                        font-weight: 700;
+                                        color: #16a34a;
+                                    "
+                                    >{{ eftProofName }}</span
+                                >
+                                <span
+                                    v-else
+                                    style="font-size: 12px; color: #94a3b8"
+                                    >Click to upload PDF, JPG or PNG (max
+                                    5MB)</span
+                                >
+                                <input
+                                    type="file"
+                                    accept=".pdf,.jpg,.jpeg,.png"
+                                    style="display: none"
+                                    @change="
+                                        (e: any) => {
+                                            eftProof = e.target.files[0];
+                                            eftProofName =
+                                                e.target.files[0]?.name ?? '';
+                                        }
+                                    "
+                                />
+                            </label>
+                        </div>
+
+                        <div class="modal-actions">
+                            <button
+                                @click="
+                                    eftModal = null;
+                                    eftProof = null;
+                                    eftProofName = '';
+                                "
+                                class="btn-ghost"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                @click="submitEftPayment"
+                                :disabled="
+                                    !eftAmount ||
+                                    !eftNote ||
+                                    !eftProof ||
+                                    subLoading === eftModal?.id
+                                "
+                                class="btn-primary"
+                            >
+                                {{
+                                    subLoading === eftModal?.id
+                                        ? 'Processing…'
+                                        : 'Confirm Payment'
+                                }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
+        <!-- Confirm Subscription Action Modal -->
+        <transition name="modal">
+            <div
+                v-if="confirmSubAction"
+                class="modal-backdrop"
+                @click.self="confirmSubAction = null"
+            >
+                <div class="confirm-modal">
+                    <div
+                        class="confirm-modal__icon"
+                        :style="
+                            confirmSubAction.action === 'unsuspend'
+                                ? 'background:#f0fdf4'
+                                : 'background:#fef2f2'
+                        "
                     >
-                    <span v-else>Confirm Payment</span>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Confirm Subscription Action Modal (suspend / unsuspend / cancel) -->
-    <div
-        v-if="confirmSubAction"
-        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm"
-    >
-        <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-            <div class="mb-4 flex items-center gap-3">
-                <div
-                    :class="[
-                        'flex h-10 w-10 items-center justify-center rounded-full',
-                        confirmSubAction.action === 'unsuspend'
-                            ? 'bg-green-100'
-                            : 'bg-red-100',
-                    ]"
-                >
-                    <span class="text-xl">
-                        {{
-                            confirmSubAction.action === 'suspend'
-                                ? '⏸'
-                                : confirmSubAction.action === 'unsuspend'
-                                  ? '▶'
-                                  : '✕'
-                        }}
-                    </span>
-                </div>
-                <div>
-                    <h3 class="text-base font-bold text-gray-900">
+                        <span style="font-size: 20px">
+                            {{
+                                confirmSubAction.action === 'suspend'
+                                    ? '⏸'
+                                    : confirmSubAction.action === 'unsuspend'
+                                      ? '▶'
+                                      : '✕'
+                            }}
+                        </span>
+                    </div>
+                    <h2 class="confirm-modal__title">
                         {{ confirmSubAction.label }}
-                    </h3>
-                    <p class="text-sm text-gray-500">
+                    </h2>
+                    <p class="confirm-modal__body" style="margin-bottom: 2px">
                         Subscription #{{ confirmSubAction.sub.id }}
                     </p>
-                </div>
-            </div>
-
-            <div
-                :class="[
-                    'mb-5 rounded-lg border p-4 text-sm',
-                    confirmSubAction.action === 'cancel'
-                        ? 'border-red-100 bg-red-50 text-red-800'
-                        : confirmSubAction.action === 'suspend'
-                          ? 'border-amber-100 bg-amber-50 text-amber-800'
-                          : 'border-green-100 bg-green-50 text-green-800',
-                ]"
-            >
-                <template v-if="confirmSubAction.action === 'suspend'">
-                    The household's SOS panic button will be disabled and a
-                    warning banner will appear on their device. Their
-                    subscription remains active.
-                </template>
-                <template v-else-if="confirmSubAction.action === 'unsuspend'">
-                    SOS will be reinstated immediately and the warning banner
-                    will disappear from their device.
-                </template>
-                <template v-else>
-                    The subscription will be cancelled. The household retains
-                    access until the end of the current billing period, after
-                    which SOS will be disabled.
-                </template>
-            </div>
-
-            <div class="flex justify-end gap-3">
-                <button
-                    @click="confirmSubAction = null"
-                    class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                    Cancel
-                </button>
-                <button
-                    @click="proceedSubAction"
-                    :disabled="subLoading !== null"
-                    :class="[
-                        'flex items-center gap-2 rounded-lg px-5 py-2 text-sm font-bold text-white shadow disabled:opacity-60',
-                        confirmSubAction.action === 'unsuspend'
-                            ? 'bg-green-600 hover:bg-green-700'
-                            : 'bg-red-600 hover:bg-red-700',
-                    ]"
-                >
                     <div
-                        v-if="subLoading !== null"
-                        class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
-                    ></div>
-                    <span>{{
-                        subLoading !== null ? 'Processing...' : 'Confirm'
-                    }}</span>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- No Coverage Deactivation Modal -->
-    <div
-        v-if="confirmNoCoverage"
-        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm"
-    >
-        <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-            <div class="mb-4 flex items-center gap-3">
-                <div
-                    class="flex h-10 w-10 items-center justify-center rounded-full bg-red-100"
-                >
-                    <span class="text-xl">🏚</span>
+                        class="toggle-warning"
+                        :class="
+                            confirmSubAction.action === 'cancel'
+                                ? 'toggle-warning--danger'
+                                : confirmSubAction.action === 'suspend'
+                                  ? 'toggle-warning--danger'
+                                  : 'toggle-warning--success'
+                        "
+                        :style="
+                            confirmSubAction.action === 'suspend'
+                                ? 'background:#fffbeb;border-color:#fcd34d;color:#92400e'
+                                : ''
+                        "
+                    >
+                        <template v-if="confirmSubAction.action === 'suspend'">
+                            The household's SOS panic button will be disabled
+                            and a warning banner will appear on their device.
+                            Their subscription remains active.
+                        </template>
+                        <template
+                            v-else-if="confirmSubAction.action === 'unsuspend'"
+                        >
+                            SOS will be reinstated immediately and the warning
+                            banner will disappear from their device.
+                        </template>
+                        <template v-else>
+                            The subscription will be cancelled. The household
+                            retains access until the end of the current billing
+                            period, after which SOS will be disabled.
+                        </template>
+                    </div>
+                    <div class="confirm-modal__actions">
+                        <button
+                            @click="confirmSubAction = null"
+                            class="btn-ghost"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            @click="proceedSubAction"
+                            :disabled="subLoading !== null"
+                            :class="
+                                confirmSubAction.action === 'unsuspend'
+                                    ? 'btn-success'
+                                    : 'btn-danger'
+                            "
+                        >
+                            {{
+                                subLoading !== null ? 'Processing…' : 'Confirm'
+                            }}
+                        </button>
+                    </div>
                 </div>
-                <div>
-                    <h3 class="text-base font-bold text-gray-900">
-                        No Coverage - Deactivate Household
-                    </h3>
-                    <p class="text-sm text-gray-500">
+            </div>
+        </transition>
+
+        <!-- No Coverage Deactivation Modal -->
+        <transition name="modal">
+            <div
+                v-if="confirmNoCoverage"
+                class="modal-backdrop"
+                @click.self="confirmNoCoverage = null"
+            >
+                <div class="confirm-modal">
+                    <div class="confirm-modal__icon">
+                        <span style="font-size: 20px">🏚</span>
+                    </div>
+                    <h2 class="confirm-modal__title">
+                        No Coverage — Deactivate Household
+                    </h2>
+                    <p class="confirm-modal__body" style="margin-bottom: 2px">
                         {{ confirmNoCoverage.user.name }}
                     </p>
-                </div>
-            </div>
-
-            <div
-                class="mb-5 rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-800"
-            >
-                This household has moved to an area with no Echo Link coverage.
-                Taking this action will:
-                <ul class="mt-2 list-disc space-y-1 pl-4">
-                    <li>Opt them out of estate billing (if applicable)</li>
-                    <li>Cancel their subscription immediately</li>
-                    <li>Remove their channel assignment</li>
-                    <li>Deactivate their account</li>
-                    <li>Send them an email explaining why</li>
-                </ul>
-                <p class="mt-3 font-semibold">
-                    This cannot be automatically undone.
-                </p>
-            </div>
-
-            <div class="flex justify-end gap-3">
-                <button
-                    @click="confirmNoCoverage = null"
-                    class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                    Cancel
-                </button>
-                <button
-                    @click="proceedNoCoverage"
-                    :disabled="subLoading !== null"
-                    class="flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2 text-sm font-bold text-white shadow hover:bg-red-700 disabled:opacity-60"
-                >
-                    <div
-                        v-if="subLoading !== null"
-                        class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
-                    ></div>
-                    <span>{{
-                        subLoading !== null ? 'Processing...' : 'Deactivate'
-                    }}</span>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Payment History Modal -->
-    <div
-        v-if="showPayHistory"
-        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm"
-    >
-        <div class="w-full max-w-2xl rounded-2xl bg-white shadow-2xl">
-            <!-- Header -->
-            <div
-                class="flex items-center justify-between border-b border-gray-100 px-6 py-4"
-            >
-                <div>
-                    <h3 class="text-base font-bold text-gray-900">
-                        Payment History
-                    </h3>
-                    <p class="text-sm text-gray-500">
-                        {{ payHistorySub?.userName }}
-                    </p>
-                </div>
-                <button
-                    @click="showPayHistory = false"
-                    class="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-                >
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        class="h-5 w-5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                    >
-                        <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M6 18L18 6M6 6l12 12"
-                        />
-                    </svg>
-                </button>
-            </div>
-
-            <!-- Body -->
-            <div class="max-h-[60vh] overflow-y-auto p-6">
-                <div
-                    v-if="payHistoryLoading"
-                    class="flex items-center justify-center py-12"
-                >
-                    <div
-                        class="h-6 w-6 animate-spin rounded-full border-2 border-gray-200 border-t-gray-800"
-                    ></div>
-                </div>
-
-                <div
-                    v-else-if="payHistoryData.length === 0"
-                    class="py-12 text-center text-sm text-gray-400"
-                >
-                    <div class="mb-2 text-3xl">📭</div>
-                    No payments recorded yet.
-                </div>
-
-                <table v-else class="w-full text-sm">
-                    <thead>
-                        <tr class="border-b border-gray-100">
-                            <th
-                                class="pb-3 text-left text-xs font-bold tracking-wide text-gray-400 uppercase"
-                            >
-                                Date
-                            </th>
-                            <th
-                                class="pb-3 text-left text-xs font-bold tracking-wide text-gray-400 uppercase"
-                            >
-                                Gateway
-                            </th>
-                            <th
-                                class="pb-3 text-left text-xs font-bold tracking-wide text-gray-400 uppercase"
-                            >
-                                Reference
-                            </th>
-                            <th
-                                class="pb-3 text-right text-xs font-bold tracking-wide text-gray-400 uppercase"
-                            >
-                                Amount
-                            </th>
-                            <th
-                                class="pb-3 text-center text-xs font-bold tracking-wide text-gray-400 uppercase"
-                            >
-                                Status
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr
-                            v-for="p in payHistoryData"
-                            :key="p.id"
-                            class="border-b border-gray-50 last:border-0"
+                    <div class="toggle-warning toggle-warning--danger">
+                        This household has moved to an area with no Echo Link
+                        coverage. Taking this action will:
+                        <ul>
+                            <li>
+                                Opt them out of estate billing (if applicable)
+                            </li>
+                            <li>Cancel their subscription immediately</li>
+                            <li>Remove their channel assignment</li>
+                            <li>Deactivate their account</li>
+                            <li>Send them an email explaining why</li>
+                        </ul>
+                        <p style="font-weight: 700; margin-top: 6px">
+                            This cannot be automatically undone.
+                        </p>
+                    </div>
+                    <div class="confirm-modal__actions">
+                        <button
+                            @click="confirmNoCoverage = null"
+                            class="btn-ghost"
                         >
-                            <td class="py-3 text-gray-600">
-                                {{
-                                    new Date(p.created_at).toLocaleDateString(
-                                        'en-ZA',
-                                        {
-                                            day: 'numeric',
-                                            month: 'short',
-                                            year: 'numeric',
-                                        },
-                                    )
-                                }}
-                            </td>
-                            <td class="py-3">
-                                <span
-                                    class="rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs font-semibold text-gray-600 capitalize"
-                                >
-                                    {{ p.gateway ?? 'unknown' }}
-                                </span>
-                            </td>
-                            <td class="py-3 font-mono text-xs text-gray-500">
-                                {{ p.merchant_reference ?? '—' }}
-                            </td>
-                            <td class="py-3 text-right font-bold text-gray-900">
-                                R{{ (p.amount / 100).toFixed(2) }}
-                            </td>
-                            <td class="py-3 text-center">
-                                <span
-                                    :class="[
-                                        'rounded-full px-2 py-0.5 text-xs font-bold uppercase',
-                                        p.status === 'complete'
-                                            ? 'bg-green-100 text-green-700'
-                                            : p.status === 'failed'
-                                              ? 'bg-red-100 text-red-700'
-                                              : 'bg-gray-100 text-gray-500',
-                                    ]"
-                                    >{{ p.status }}</span
-                                >
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    </div>
-    <!-- Conduct Block Modal -->
-    <div
-        v-if="conductBlockModal"
-        class="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm"
-    >
-        <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-            <div class="mb-5 flex items-center gap-3">
-                <div
-                    class="flex h-10 w-10 items-center justify-center rounded-full bg-red-100"
-                >
-                    <span class="text-xl">🚫</span>
-                </div>
-                <div>
-                    <h3 class="text-base font-bold text-gray-900">
-                        Conduct Block
-                    </h3>
-                    <p class="text-sm text-gray-500">
-                        {{ conductBlockModal.userName }}
-                    </p>
+                            Cancel
+                        </button>
+                        <button
+                            @click="proceedNoCoverage"
+                            :disabled="subLoading !== null"
+                            class="btn-danger"
+                        >
+                            {{
+                                subLoading !== null
+                                    ? 'Processing…'
+                                    : 'Deactivate'
+                            }}
+                        </button>
+                    </div>
                 </div>
             </div>
+        </transition>
+
+        <!-- Payment History Modal -->
+        <transition name="modal">
             <div
-                class="mb-4 rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800"
+                v-if="showPayHistory"
+                class="modal-backdrop"
+                @click.self="showPayHistory = false"
             >
-                This will immediately disable the household's SOS panic button.
-                They will see a block notice on their device. Document the
-                reason clearly.
+                <div class="ca-modal">
+                    <div class="ca-modal__header">
+                        <div class="ca-modal__header-left">
+                            <div>
+                                <div class="ca-modal__title">
+                                    Payment History
+                                </div>
+                                <div class="ca-modal__sub">
+                                    {{ payHistorySub?.userName }}
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            class="close-btn"
+                            @click="showPayHistory = false"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M6 18L18 6M6 6l12 12"
+                                />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="ca-modal__body">
+                        <div v-if="payHistoryLoading" class="empty-state">
+                            <svg
+                                class="spin h-6 w-6 text-slate-400"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                            >
+                                <circle
+                                    class="opacity-25"
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    stroke="currentColor"
+                                    stroke-width="4"
+                                />
+                                <path
+                                    class="opacity-75"
+                                    fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                />
+                            </svg>
+                        </div>
+
+                        <div
+                            v-else-if="payHistoryData.length === 0"
+                            class="empty-state"
+                        >
+                            <p class="empty-state__title">
+                                No payments recorded yet
+                            </p>
+                        </div>
+
+                        <table v-else class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Gateway</th>
+                                    <th>Reference</th>
+                                    <th style="text-align: right">Amount</th>
+                                    <th style="text-align: center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="p in payHistoryData" :key="p.id">
+                                    <td class="td-muted">
+                                        {{
+                                            new Date(
+                                                p.created_at,
+                                            ).toLocaleDateString('en-ZA', {
+                                                day: 'numeric',
+                                                month: 'short',
+                                                year: 'numeric',
+                                            })
+                                        }}
+                                    </td>
+                                    <td>
+                                        <span
+                                            class="type-badge bg-slate-100 text-slate-600"
+                                            style="text-transform: capitalize"
+                                        >
+                                            {{ p.gateway ?? 'unknown' }}
+                                        </span>
+                                    </td>
+                                    <td class="token-text">
+                                        {{ p.merchant_reference ?? '—' }}
+                                    </td>
+                                    <td
+                                        class="td-announce__title"
+                                        style="text-align: right"
+                                    >
+                                        R{{ (p.amount / 100).toFixed(2) }}
+                                    </td>
+                                    <td style="text-align: center">
+                                        <span
+                                            class="type-badge"
+                                            :class="
+                                                p.status === 'complete'
+                                                    ? 'bg-emerald-50 text-emerald-700'
+                                                    : p.status === 'failed'
+                                                      ? 'bg-red-50 text-red-600'
+                                                      : 'bg-slate-100 text-slate-500'
+                                            "
+                                            >{{ p.status }}</span
+                                        >
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
-            <div class="mb-4 grid gap-1.5">
-                <label
-                    class="text-xs font-bold tracking-wide text-gray-500 uppercase"
-                    >Reason for block <span class="text-red-500">*</span></label
-                >
-                <textarea
-                    v-model="conductBlockReason"
-                    rows="3"
-                    class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-red-400 focus:ring-1 focus:ring-red-400"
-                    placeholder="e.g. Repeated false panic alerts reported by 3 patrollers on 10 Apr 2026..."
-                ></textarea>
+        </transition>
+
+        <!-- Conduct Block Modal -->
+        <transition name="modal">
+            <div
+                v-if="conductBlockModal"
+                class="modal-backdrop"
+                @click.self="conductBlockModal = null"
+            >
+                <div class="modal-sheet" style="max-width: 460px">
+                    <div class="modal-sheet__header">
+                        <div class="modal-sheet__header-left">
+                            <div>
+                                <div class="modal-sheet__title">
+                                    Conduct Block
+                                </div>
+                                <div class="modal-sheet__sub">
+                                    {{ conductBlockModal.userName }}
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            class="close-btn"
+                            @click="conductBlockModal = null"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M6 18L18 6M6 6l12 12"
+                                />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="modal-sheet__body">
+                        <div class="toggle-warning toggle-warning--danger">
+                            This will immediately disable the household's SOS
+                            panic button. They will see a block notice on their
+                            device. Document the reason clearly.
+                        </div>
+                        <div class="field">
+                            <label class="field__label">Reason for block</label>
+                            <textarea
+                                v-model="conductBlockReason"
+                                rows="3"
+                                class="field__input field__textarea"
+                                placeholder="e.g. Repeated false panic alerts reported by 3 patrollers on 10 Apr 2026..."
+                            ></textarea>
+                        </div>
+                        <div class="modal-actions">
+                            <button
+                                @click="conductBlockModal = null"
+                                class="btn-ghost"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                @click="submitConductBlock"
+                                :disabled="
+                                    !conductBlockReason.trim() ||
+                                    subLoading !== null
+                                "
+                                class="btn-danger"
+                            >
+                                {{
+                                    subLoading !== null
+                                        ? 'Blocking…'
+                                        : 'Block Household'
+                                }}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="flex justify-end gap-3">
-                <button
-                    @click="conductBlockModal = null"
-                    class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                >
-                    Cancel
-                </button>
-                <button
-                    @click="submitConductBlock"
-                    :disabled="
-                        !conductBlockReason.trim() || subLoading !== null
-                    "
-                    class="flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2 text-sm font-bold text-white shadow hover:bg-red-700 disabled:opacity-60"
-                >
-                    <div
-                        v-if="subLoading !== null"
-                        class="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white"
-                    ></div>
-                    <span>{{
-                        subLoading !== null ? 'Blocking...' : 'Block Household'
-                    }}</span>
-                </button>
+        </transition>
+
+        <!-- Generic flash toast (personnel messages) -->
+        <transition name="toast">
+            <div v-if="flashMessage" class="toast">
+                {{ flashMessage }}
             </div>
-        </div>
-    </div>
+        </transition>
+    </AppLayout>
 </template>
 
 <style scoped>
-.loader {
-    border: 2px solid #f3f3f3;
-    border-top: 2px solid #3498db;
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
+
+.page-root,
+.modal-backdrop,
+.toast {
+    --c-bg: #f4f6f9;
+    --c-surface: #ffffff;
+    --c-border: #e4e8ef;
+    --c-text: #1a2332;
+    --c-muted: #64748b;
+    --c-faint: #94a3b8;
+    --c-primary: #ea580c;
+    --c-primary-h: #c2410c;
+    --c-danger: #dc2626;
+    --c-danger-h: #b91c1c;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.14);
+    font-family: 'DM Sans', system-ui, sans-serif;
+}
+
+/* PAGE ROOT */
+.page-root {
+    padding: 28px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-height: 100%;
+    background: #f4f6f9;
+}
+
+/* PAGE HEADER */
+.page-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+}
+.page-header__eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #ea580c;
+    margin-bottom: 4px;
+}
+.page-header__title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1a2332;
+    margin: 0;
+    letter-spacing: -0.3px;
+}
+.page-header__right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* FILTER BAR */
+.filter-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.filter-bar__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    border-radius: 20px;
+    border: 1px solid #e4e8ef;
+    background: #ffffff;
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.chip:hover {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+}
+.chip--active {
+    background: #fff7ed;
+    color: #ea580c;
+    border-color: #ea580c;
+}
+.chip__count {
+    background: rgba(0, 0, 0, 0.08);
+    border-radius: 20px;
+    padding: 1px 7px;
+    font-size: 11px;
+    font-weight: 700;
+}
+.chip--active .chip__count {
+    background: #ea580c;
+    color: #fff;
+}
+
+.search-wrap {
+    position: relative;
+    width: 280px;
+    max-width: 100%;
+}
+.search-wrap__icon {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 15px;
+    height: 15px;
+    color: #94a3b8;
+}
+.search-wrap__input {
+    width: 100%;
+    box-sizing: border-box;
+    background: #ffffff;
+    border: 1.5px solid #e4e8ef;
+    border-radius: 10px;
+    padding: 8px 30px 8px 34px;
+    font-size: 13px;
+    font-family: inherit;
+    color: #1a2332;
+    outline: none;
+    transition: border-color 0.15s;
+}
+.search-wrap__input:focus {
+    border-color: #ea580c;
+}
+.search-wrap__input::placeholder {
+    color: #94a3b8;
+}
+.search-wrap__clear {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 16px;
+    color: #94a3b8;
+    cursor: pointer;
+}
+.search-wrap__clear:hover {
+    color: #64748b;
+}
+
+/* TABLE CARD */
+.table-card {
+    background: #ffffff;
+    border: 1px solid #e4e8ef;
+    border-radius: 16px;
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 64px 24px;
+    gap: 8px;
+}
+.empty-state__icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    margin-bottom: 6px;
+}
+.empty-state__title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a2332;
+}
+.empty-state__sub {
+    font-size: 13px;
+    color: #64748b;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.data-table thead tr {
+    background: #f8fafc;
+    border-bottom: 1px solid #e4e8ef;
+}
+.data-table th {
+    padding: 11px 16px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #94a3b8;
+    text-align: left;
+    white-space: nowrap;
+}
+.data-table tbody tr {
+    border-bottom: 1px solid #e4e8ef;
+    transition: background 0.12s;
+}
+.data-table tbody tr:last-child {
+    border-bottom: none;
+}
+.data-table tbody tr:hover {
+    background: #fafbfc;
+}
+.data-table td {
+    padding: 13px 16px;
+    vertical-align: middle;
+}
+
+.td-announce__title {
+    font-weight: 600;
+    color: #1a2332;
+}
+.td-announce__sub {
+    font-size: 12px;
+    color: #94a3b8;
+}
+.td-muted {
+    color: #64748b;
+    font-size: 13px;
+}
+
+.type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.status-toggle-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+}
+.token-text {
+    font-family: ui-monospace, monospace;
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+.channel-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border-radius: 20px;
+    padding: 2px 9px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid #e4e8ef;
+    background: #f8fafc;
+    color: #64748b;
+}
+.channel-pill--online {
+    border-color: #86efac;
+    background: #f0fdf4;
+    color: #16a34a;
+}
+.channel-pill__dot {
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
+    background: #94a3b8;
+}
+.channel-pill--online .channel-pill__dot {
+    background: #22c55e;
+}
+
+.icon-btn {
+    padding: 7px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+}
+.icon-btn--edit:hover {
+    background: #eff6ff;
+    color: #2563eb;
+}
+.icon-btn--danger:hover {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+/* PAGINATION */
+.pagination-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-top: 1px solid #e4e8ef;
+}
+.pagination-bar__info {
+    font-size: 12px;
+    color: #94a3b8;
+}
+.pagination-bar__pages {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+.page-btn {
+    min-width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8px;
+    border: 1px solid #e4e8ef;
+    border-radius: 8px;
+    background: #ffffff;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.page-btn:hover:not(.page-btn--disabled) {
+    border-color: #ea580c;
+    color: #ea580c;
+}
+.page-btn--active {
+    background: #ea580c;
+    border-color: #ea580c;
+    color: #fff;
+}
+.page-btn--disabled {
+    background: #f8fafc;
+    color: #94a3b8;
+    cursor: default;
+}
+
+/* INVITE CARD */
+.invite-card {
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-radius: 16px;
+    padding: 20px;
+}
+.invite-card__header {
+    margin-bottom: 14px;
+}
+.invite-card__title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1a2332;
+}
+.invite-card__sub {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 2px;
+    max-width: 560px;
+}
+.invite-flash {
+    margin-bottom: 14px;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+}
+.invite-flash--success {
+    background: #f0fdf4;
+    color: #15803d;
+}
+.invite-flash--error {
+    background: #fef2f2;
+    color: #b91c1c;
+}
+.invite-loading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 0;
+    font-size: 13px;
+    color: #94a3b8;
+}
+.invite-table-wrap {
+    border: 1px solid #fed7aa;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #ffffff;
+    margin-bottom: 14px;
+}
+.invite-empty {
+    border: 1px dashed #fdba8c;
+    border-radius: 12px;
+    background: #ffffff;
+    padding: 22px;
+    text-align: center;
+    margin-bottom: 14px;
+}
+.invite-empty__title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #475569;
+    margin-top: 4px;
+}
+.invite-empty__sub {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 2px;
+}
+.invite-action-btn {
+    border: none;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    background: #ea580c;
+    color: #fff;
+    transition: all 0.15s;
+}
+.invite-action-btn:hover {
+    background: #c2410c;
+}
+.invite-action-btn--copied {
+    background: #16a34a;
+}
+
+/* FIELDS */
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+.field__label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    letter-spacing: 0.3px;
+    gap: 8px;
+}
+.field__hint {
+    font-weight: 500;
+    color: #94a3b8;
+    font-style: italic;
+}
+.field__error {
+    font-size: 11px;
+    color: #dc2626;
+    font-weight: 600;
+    margin-top: 2px;
+}
+.field__input {
+    width: 100%;
+    box-sizing: border-box;
+    background: #f8fafc;
+    border: 1.5px solid #e4e8ef;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-family: inherit;
+    color: #1a2332;
+    outline: none;
+    transition:
+        border-color 0.15s,
+        background 0.15s;
+}
+.field__input:focus {
+    border-color: #ea580c;
+    background: #fff;
+}
+.field__input--error {
+    border-color: #fca5a5;
+    background: #fff;
+}
+.field__textarea {
+    resize: vertical;
+    min-height: 72px;
+    line-height: 1.6;
+}
+
+.select-wrapper {
+    position: relative;
+}
+.field__select {
+    width: 100%;
+    box-sizing: border-box;
+    background: #f8fafc;
+    border: 1.5px solid #e4e8ef;
+    border-radius: 8px;
+    padding: 10px 38px 10px 14px;
+    font-size: 14px;
+    font-family: inherit;
+    color: #1a2332;
+    outline: none;
+    appearance: none;
+    cursor: pointer;
+    transition: border-color 0.15s;
+}
+.field__select:focus {
+    border-color: #ea580c;
+    background: #fff;
+}
+.select-caret {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
     width: 16px;
     height: 16px;
-    animation: spin 1s linear infinite;
+    color: #94a3b8;
+    pointer-events: none;
+}
+
+/* ADDRESS SUGGESTIONS */
+.address-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    margin-top: 4px;
+    max-height: 220px;
+    overflow-y: auto;
+    background: #ffffff;
+    border: 1px solid #e4e8ef;
+    border-radius: 10px;
+    box-shadow: var(--shadow-md);
+    list-style: none;
+    padding: 0;
+}
+.address-suggestions__item {
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #1a2332;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f5f9;
+}
+.address-suggestions__item:last-child {
+    border-bottom: none;
+}
+.address-suggestions__item:hover {
+    background: #fff7ed;
+}
+
+/* CALLOUTS */
+.callout {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 12.5px;
+    line-height: 1.6;
+    margin-bottom: 14px;
+}
+.callout--info {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #1e40af;
+}
+.callout--amber {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    color: #92400e;
+    align-items: center;
+}
+.callout__dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #fbbf24;
+    flex-shrink: 0;
+}
+.callout__inline-title {
+    font-weight: 700;
+}
+.callout__inline-hint {
+    margin-left: auto;
+    font-size: 11px;
+}
+.callout__checkbox {
+    margin-top: 2px;
+    width: 15px;
+    height: 15px;
+    flex-shrink: 0;
+}
+.callout__label {
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.callout__label-title {
+    font-weight: 700;
+}
+.callout__label-sub {
+    font-size: 11px;
+    opacity: 0.85;
+}
+.callout-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+
+/* HOUSEHOLD PANEL */
+.household-panel {
+    margin-top: 4px;
+    border: 1px solid #e4e8ef;
+    background: #f8fafc;
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 14px;
+}
+.household-panel__heading {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: #64748b;
+    margin-bottom: 12px;
+}
+
+/* PIN PANEL */
+.pin-panel {
+    border: 1px solid #fecaca;
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 14px;
+    margin-top: 14px;
+}
+.pin-panel__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+.pin-panel__title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1a2332;
+}
+.pin-panel__sub {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 2px;
+}
+.pin-panel__regen {
+    border: 1px solid #e4e8ef;
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+.pin-panel__regen:hover {
+    background: #f1f5f9;
+}
+.pin-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    margin-right: 4px;
+}
+.pin-dot--green {
+    background: #22c55e;
+}
+.pin-dot--red {
+    background: #ef4444;
+}
+.pin-input {
+    font-family: ui-monospace, monospace;
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-align: center;
+}
+.pin-input--green {
+    background: #f0fdf4 !important;
+}
+.pin-input--red {
+    background: #fef2f2 !important;
+    border-color: #fecaca !important;
+}
+
+/* UPLOAD DROPZONE */
+.upload-dropzone {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed #e4e8ef;
+    background: #f8fafc;
+    border-radius: 10px;
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.upload-dropzone:hover {
+    border-color: #cbd5e1;
+    background: #f1f5f9;
+}
+
+/* SUBSCRIPTION DROPDOWN */
+.sub-menu {
+    position: fixed;
+    z-index: 100;
+    width: 220px;
+    background: #ffffff;
+    border: 1px solid #e4e8ef;
+    border-radius: 12px;
+    padding: 4px 0;
+    box-shadow: var(--shadow-lg);
+}
+.sub-menu__item {
+    display: block;
+    width: 100%;
+    text-align: left;
+    padding: 10px 16px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.12s;
+}
+.sub-menu__item:hover {
+    background: #f8fafc;
+}
+.sub-menu__item-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1a2332;
+}
+.sub-menu__item-sub {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 1px;
+}
+.sub-menu__item--warn .sub-menu__item-title {
+    color: #b45309;
+}
+.sub-menu__item--success .sub-menu__item-title {
+    color: #15803d;
+}
+.sub-menu__item--danger .sub-menu__item-title {
+    color: #dc2626;
+}
+.sub-menu__item--danger:hover {
+    background: #fef2f2;
+}
+.sub-menu__divider {
+    border-top: 1px solid #f1f5f9;
+    margin: 4px 0;
+}
+
+/* BUTTONS */
+.btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    background: #ea580c !important;
+    color: #ffffff !important;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.18s;
+    box-shadow: 0 2px 8px rgba(234, 88, 12, 0.3);
+    white-space: nowrap;
+    font-family: 'DM Sans', system-ui, sans-serif;
+}
+.btn-primary:hover:not(:disabled) {
+    background: #c2410c !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(234, 88, 12, 0.35);
+}
+.btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    background: #f1f5f9;
+    color: #64748b;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.btn-ghost:hover {
+    background: #e2e8f0;
+}
+
+.btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    background: #dc2626;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.2);
+}
+.btn-danger:hover:not(:disabled) {
+    background: #b91c1c;
+    transform: translateY(-1px);
+}
+.btn-danger:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-success {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    background: #16a34a;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    box-shadow: 0 2px 8px rgba(22, 163, 74, 0.2);
+}
+.btn-success:hover:not(:disabled) {
+    background: #15803d;
+    transform: translateY(-1px);
+}
+.btn-success:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* MODAL */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 18, 30, 0.55) !important;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    z-index: 9999;
+    padding: 32px 24px;
+    overflow-y: auto;
+}
+.modal-sheet {
+    background: #ffffff !important;
+    border-radius: 20px;
+    width: 100%;
+    max-width: 580px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+    border: 1px solid #e4e8ef;
+}
+.modal-sheet__header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 22px 24px;
+    border-bottom: 1px solid #e4e8ef;
+    position: sticky;
+    top: 0;
+    background: #ffffff !important;
+    z-index: 2;
+}
+.modal-sheet__header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: 1;
+    min-width: 0;
+}
+.modal-sheet__title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a2332;
+}
+.modal-sheet__sub {
+    font-size: 12px;
+    color: #94a3b8;
+}
+.close-btn {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    background: #f1f5f9;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+}
+.close-btn:hover {
+    background: #e2e8f0;
+}
+.modal-sheet__body {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+}
+
+/* CA-MODAL (payment history reuse) */
+.ca-modal {
+    background: #ffffff;
+    border-radius: 20px;
+    width: 100%;
+    max-width: 640px;
+    max-height: 82vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+    border: 1px solid #e4e8ef;
+    overflow: hidden;
+}
+.ca-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e4e8ef;
+    flex-shrink: 0;
+}
+.ca-modal__title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a2332;
+}
+.ca-modal__sub {
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 1px;
+}
+.ca-modal__body {
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* MODAL ACTIONS */
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    padding-top: 4px;
+}
+.modal-actions .btn-ghost {
+    flex: 1;
+}
+.modal-actions .btn-primary {
+    flex: 2;
+}
+
+/* CONFIRM MODAL */
+.confirm-modal {
+    background: #ffffff !important;
+    border-radius: 20px;
+    width: 100%;
+    max-width: 420px;
+    padding: 32px 28px 26px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+    border: 1px solid #e4e8ef;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 10px;
+}
+.confirm-modal__icon {
+    width: 60px;
+    height: 60px;
+    background: #fef2f2;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 6px;
+}
+.confirm-modal__title {
+    font-size: 17px;
+    font-weight: 800;
+    color: #1a2332;
+    margin: 0;
+}
+.confirm-modal__body {
+    font-size: 13px;
+    color: #64748b;
+    line-height: 1.6;
+    margin-bottom: 8px;
+}
+.confirm-modal__actions {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    margin-top: 4px;
+}
+.confirm-modal__actions .btn-ghost {
+    flex: 1;
+}
+.confirm-modal__actions .btn-danger,
+.confirm-modal__actions .btn-success,
+.confirm-modal__actions .btn-primary {
+    flex: 1.4;
+}
+
+/* TOGGLE WARNING BLOCKS */
+.toggle-warning {
+    width: 100%;
+    text-align: left;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 12.5px;
+    line-height: 1.6;
+    margin-bottom: 4px;
+}
+.toggle-warning--danger {
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
+    color: #b91c1c;
+}
+.toggle-warning--danger ul {
+    margin: 6px 0 0;
+    padding-left: 18px;
+    list-style: disc;
+}
+.toggle-warning--success {
+    background: #f0fdf4;
+    border: 1px solid #86efac;
+    color: #15803d;
+}
+
+/* TOAST */
+.toast {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    background: #1a2332;
+    color: #f1f5f9;
+    padding: 12px 18px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    z-index: 99999;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-left: 3px solid #ea580c;
+}
+
+/* TRANSITIONS */
+.modal-enter-active,
+.modal-leave-active {
+    transition: opacity 0.22s ease;
+}
+.modal-enter-active .modal-sheet,
+.modal-leave-active .modal-sheet,
+.modal-enter-active .confirm-modal,
+.modal-leave-active .confirm-modal,
+.modal-enter-active .ca-modal,
+.modal-leave-active .ca-modal {
+    transition:
+        transform 0.22s ease,
+        opacity 0.22s ease;
+}
+.modal-enter-from,
+.modal-leave-to {
+    opacity: 0;
+}
+.modal-enter-from .modal-sheet,
+.modal-leave-to .modal-sheet,
+.modal-enter-from .confirm-modal,
+.modal-leave-to .confirm-modal,
+.modal-enter-from .ca-modal,
+.modal-leave-to .ca-modal {
+    transform: scale(0.97) translateY(12px);
+}
+
+.toast-enter-active,
+.toast-leave-active {
+    transition: all 0.25s ease;
+}
+.toast-enter-from,
+.toast-leave-to {
+    opacity: 0;
+    transform: translateY(8px);
+}
+
+.spin {
+    animation: spin 0.65s linear infinite;
 }
 @keyframes spin {
-    0% {
-        transform: rotate(0deg);
-    }
-    100% {
+    to {
         transform: rotate(360deg);
     }
 }
-.vue-tel-input {
+
+/* VUE-TEL-INPUT OVERRIDE (kept, restyled to match field tokens) */
+:deep(.custom-tel-input),
+:deep(.vue-tel-input) {
     display: flex !important;
-    background-color: white;
-    min-height: 40px;
-    border: 1px solid #d1d5db !important;
+    height: 42px !important;
+    border-radius: 8px;
+    border: 1.5px solid #e4e8ef !important;
+    background-color: #f8fafc;
 }
-.vti__input {
+:deep(.vti__input) {
     background: transparent !important;
     border: none !important;
     outline: none !important;
     box-shadow: none !important;
-}
-:deep(.custom-tel-input) {
-    display: flex !important;
-    height: 40px !important;
-    border-radius: 6px;
-    border: 1px solid #d1d5db !important;
-    background-color: white;
-}
-:deep(.vti__input) {
-    border: none !important;
-    outline: none !important;
-    box-shadow: none !important;
-    font-size: 0.875rem;
+    font-size: 14px;
+    font-family: inherit;
 }
 :deep(.vti__dropdown) {
-    border-radius: 6px 0 0 6px;
+    border-radius: 8px 0 0 8px;
+}
+
+/* RESPONSIVE */
+@media (max-width: 768px) {
+    .filter-bar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .search-wrap {
+        width: 100%;
+    }
+}
+@media (max-width: 640px) {
+    .page-root {
+        padding: 16px;
+    }
+    .data-table {
+        min-width: 900px;
+    }
+    .table-card,
+    .invite-table-wrap {
+        overflow-x: auto;
+    }
 }
 </style>
 <style src="vue-multiselect/dist/vue-multiselect.min.css"></style>
