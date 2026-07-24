@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Mail\EstatePaymentApprovedMail;
 use App\Mail\EstatePaymentRejectedMail;
+use App\Models\AccountLink;
 use App\Models\Channel;
 use App\Models\ChannelSubscription;
 use App\Models\ChannelSubscriptionPayment;
@@ -213,17 +214,36 @@ class ChannelBillingService
     /**
      * Calculate the current billing amount for a channel based on opted-in households.
      */
+    // public function calculateBillingAmount(Channel $channel): array
+    // {
+    //     $householdCount = $this->getOptedInCount($channel);
+    //     // $amountPerHousehold = BillingService::UNIT_PRICE / 100; // R80
+    //     $amountPerHousehold = BillingService::unitPrice($channel->amount_per_household);
+    //     $totalAmount = $householdCount * $amountPerHousehold;
+
+    //     return [
+    //         'household_count'      => $householdCount,
+    //         'amount_per_household' => $amountPerHousehold,
+    //         'total_amount'         => $totalAmount,
+    //     ];
+    // }
+
     public function calculateBillingAmount(Channel $channel): array
     {
         $householdCount = $this->getOptedInCount($channel);
-        // $amountPerHousehold = BillingService::UNIT_PRICE / 100; // R80
         $amountPerHousehold = BillingService::unitPrice($channel->amount_per_household);
-        $totalAmount = $householdCount * $amountPerHousehold;
-
+        $householdTotal = $householdCount * $amountPerHousehold;
+    
+        $linkedAccountCount = $this->getActiveLinkedAccountCount($channel);
+        $amountPerLinkedAccount = BillingService::unitPrice($channel->amount_per_linked_account);
+        $linkedAccountTotal = $linkedAccountCount * $amountPerLinkedAccount;
+    
         return [
-            'household_count'      => $householdCount,
-            'amount_per_household' => $amountPerHousehold,
-            'total_amount'         => $totalAmount,
+            'household_count'           => $householdCount,
+            'amount_per_household'      => $amountPerHousehold,
+            'linked_account_count'      => $linkedAccountCount,
+            'amount_per_linked_account' => $amountPerLinkedAccount,
+            'total_amount'              => $householdTotal + $linkedAccountTotal,
         ];
     }
 
@@ -235,6 +255,21 @@ class ChannelBillingService
         return Subscription::where('cancellation_reason', 'estate_optin')
             ->whereHas('channelSubscription', fn($q) => $q->where('channel_id', $channel->id))
             ->whereNotNull('channel_subscription_id')
+            ->count();
+    }
+
+
+    // Counts active AccountLinks whose primary is opted into estate
+    // billing for this channel — same base query as getOptedInCount(),
+    // just joined through to their linked accounts.
+    private function getActiveLinkedAccountCount(Channel $channel): int
+    {
+        $primaryIds = Subscription::where('cancellation_reason', 'estate_optin')
+            ->whereHas('channelSubscription', fn ($q) => $q->where('channel_id', $channel->id))
+            ->pluck('user_id');
+    
+        return AccountLink::where('status', 'active')
+            ->whereIn('primary_account_id', $primaryIds)
             ->count();
     }
 
@@ -258,6 +293,8 @@ class ChannelBillingService
             'channel_id'           => $channel->id,
             'household_count'      => $billing['household_count'],
             'amount_per_household' => $billing['amount_per_household'],
+            'linked_account_count'      => $billing['linked_account_count'],
+            'amount_per_linked_account' => $billing['amount_per_linked_account'],
             'total_amount'         => $billing['total_amount'],
             'status'               => 'pending',
             'billing_model'        => $channel->billing_model,
@@ -280,6 +317,7 @@ class ChannelBillingService
 
         $channelSubscription->update([
             'household_count' => $billing['household_count'],
+            'linked_account_count'      => $billing['linked_account_count'], 
             'total_amount'    => $billing['total_amount'],
         ]);
     }
@@ -313,6 +351,8 @@ class ChannelBillingService
                 'amount'                  => $channelSubscription->total_amount,
                 'household_count'         => $channelSubscription->household_count,
                 'amount_per_household'    => $channelSubscription->amount_per_household,
+                'linked_account_count'       => $channelSubscription->linked_account_count,
+                'amount_per_linked_account'  => $channelSubscription->amount_per_linked_account,
                 'payment_method'          => 'eft',
                 'status'                  => 'pending_review',
                 'merchant_reference'      => $merchantReference,
@@ -464,6 +504,8 @@ class ChannelBillingService
                 'amount'                  => $payfastData['amount_gross'] ?? $channelSubscription->total_amount,
                 'household_count'         => $channelSubscription->household_count,
                 'amount_per_household'    => $channelSubscription->amount_per_household,
+                'linked_account_count'       => $channelSubscription->linked_account_count,
+                'amount_per_linked_account'  => $channelSubscription->amount_per_linked_account,
                 'payment_method'          => 'payfast',
                 'status'                  => 'paid',
                 'merchant_reference'      => $payfastData['m_payment_id'] ?? null,
@@ -554,6 +596,21 @@ class ChannelBillingService
                     'estate_household',
                     $subscription
                 );
+
+
+                $accountLinks = \App\Models\AccountLink::where('primary_account_id', $subscription->user_id)
+                ->where('status', 'active')
+                ->get();
+ 
+                foreach ($accountLinks as $accountLink) {
+                    Invoice::createFromChannelPayment(
+                        $payment,
+                        $channelSubscription,
+                        'estate_linked_account',
+                        null,
+                        $accountLink
+                    );
+                }
             }
 
             // Earnings for security company client
@@ -573,4 +630,5 @@ class ChannelBillingService
             ]);
         }
     }
+ 
 }

@@ -119,46 +119,122 @@ class Invoice extends Model
 
     // ── Create invoice from estate bulk payment ──
 
-    /**
-     * invoice_type = 'estate_bulk'      → one invoice for the estate billing contact (full amount)
-     * invoice_type = 'estate_household' → one invoice per opted-in household (R80 each)
-     *
-     * Usage:
-     *   Invoice::createFromChannelPayment($payment, $channelSubscription, 'estate_bulk');
-     *   Invoice::createFromChannelPayment($payment, $channelSubscription, 'estate_household', $subscription);
-     */
-    public static function createFromChannelPayment(
-        ChannelSubscriptionPayment $payment,
-        ChannelSubscription $channelSubscription,
-        string $invoiceType = 'estate_bulk',
-        ?Subscription $subscription = null
-    ): self {
-        $isHousehold = $invoiceType === 'estate_household';
+    // ── createFromChannelPayment — extended signature ──
+    // New 5th param: $accountLink, used only when invoiceType is
+    // 'estate_linked_account'. Mirrors the existing 'estate_household'
+    // pattern exactly — same bulk payment, one more invoice per linked
+    // account instead of per household.
+    // ── createFromChannelPayment — extended signature ──
+// New 5th param: $accountLink, used only when invoiceType is
+// 'estate_linked_account'. Mirrors the existing 'estate_household'
+// pattern exactly — same bulk payment, one more invoice per linked
+// account instead of per household.
+public static function createFromChannelPayment(
+    ChannelSubscriptionPayment $payment,
+    ChannelSubscription $channelSubscription,
+    string $invoiceType = 'estate_bulk',
+    ?Subscription $subscription = null,
+    ?AccountLink $accountLink = null
+): self {
+    $total = match ($invoiceType) {
+        'estate_household'      => $channelSubscription->amount_per_household * 100,
+        'estate_linked_account' => $channelSubscription->amount_per_linked_account * 100,
+        default                 => $channelSubscription->total_amount * 100, // estate_bulk
+    };
 
-        $total = $isHousehold
-            ? $channelSubscription->amount_per_household * 100  // R80 in cents
-            : $channelSubscription->total_amount * 100;         // e.g. R2,720 in cents
+    $clientId = match ($invoiceType) {
+        'estate_household'      => $subscription?->user_id,
+        'estate_linked_account' => $accountLink?->linked_account_id,
+        default                 => $channelSubscription->channel->billingContact?->user_id,
+    };
 
-        $clientId = $isHousehold
-            ? $subscription?->user_id
-            : $channelSubscription->channel->billingContact?->user_id;
+    return self::create([
+        'channel_subscription_id'         => $channelSubscription->id,
+        'channel_subscription_payment_id' => $payment->id,
+        'subscription_id'                 => $subscription?->id,
+        'subscription_payment_id'         => null,
+        'client_id'                       => $clientId,
+        'invoice_number'                  => self::generateNumber(),
+        'status'                          => 'paid',
+        'subtotal'                        => $total,
+        'discount_amount'                 => 0,
+        'total'                           => $total,
+        'currency'                        => 'ZAR',
+        'paid_via_estate'                 => in_array($invoiceType, ['estate_household', 'estate_linked_account']),
+        'invoice_type'                    => $invoiceType,
+        'issued_at'                       => now(),
+        'due_date'                        => $channelSubscription->current_period_end,
+    ]);
+}
+    // public static function createFromChannelPayment(
+    //     ChannelSubscriptionPayment $payment,
+    //     ChannelSubscription $channelSubscription,
+    //     string $invoiceType = 'estate_bulk',
+    //     ?Subscription $subscription = null,
+    //     ?AccountLink $accountLink = null
+    // ): self {
+    //     $total = match ($invoiceType) {
+    //         'estate_household'      => $channelSubscription->amount_per_household * 100,
+    //         'estate_linked_account' => $channelSubscription->amount_per_linked_account * 100,
+    //         default                 => $channelSubscription->total_amount * 100, // estate_bulk
+    //     };
 
-        return self::create([
-            'channel_subscription_id'         => $channelSubscription->id,
-            'channel_subscription_payment_id' => $payment->id,
-            'subscription_id'                 => $subscription?->id,
-            'subscription_payment_id'         => null,
-            'client_id'                       => $clientId,
-            'invoice_number'                  => self::generateNumber(),
-            'status'                          => 'paid',
-            'subtotal'                        => $total,
-            'discount_amount'                 => 0,
-            'total'                           => $total,
-            'currency'                        => 'ZAR',
-            'paid_via_estate'                 => $isHousehold,
-            'invoice_type'                    => $invoiceType,
-            'issued_at'                       => now(),
-            'due_date'                        => $channelSubscription->current_period_end,
-        ]);
-    }
+    //     $clientId = match ($invoiceType) {
+    //         'estate_household'      => $subscription?->user_id,
+    //         'estate_linked_account' => $accountLink?->linked_account_id,
+    //         default                 => $channelSubscription->channel->billingContact?->user_id,
+    //     };
+
+    //     return self::create([
+    //         'channel_subscription_id'         => $channelSubscription->id,
+    //         'channel_subscription_payment_id' => $payment->id,
+    //         'subscription_id'                 => $subscription?->id,
+    //         'subscription_payment_id'         => null,
+    //         'client_id'                       => $clientId,
+    //         'invoice_number'                  => self::generateNumber(),
+    //         'status'                          => 'paid',
+    //         'subtotal'                        => $total,
+    //         'discount_amount'                 => 0,
+    //         'total'                           => $total,
+    //         'currency'                        => 'ZAR',
+    //         'paid_via_estate'                 => in_array($invoiceType, ['estate_household', 'estate_linked_account']),
+    //         'invoice_type'                    => $invoiceType,
+    //         'issued_at'                       => now(),
+    //         'due_date'                        => $channelSubscription->current_period_end,
+    //     ]);
+    // }
+    // public static function createFromChannelPayment(
+    //     ChannelSubscriptionPayment $payment,
+    //     ChannelSubscription $channelSubscription,
+    //     string $invoiceType = 'estate_bulk',
+    //     ?Subscription $subscription = null
+    // ): self {
+    //     $isHousehold = $invoiceType === 'estate_household';
+
+    //     $total = $isHousehold
+    //         ? $channelSubscription->amount_per_household * 100  // R80 in cents
+    //         : $channelSubscription->total_amount * 100;         // e.g. R2,720 in cents
+
+    //     $clientId = $isHousehold
+    //         ? $subscription?->user_id
+    //         : $channelSubscription->channel->billingContact?->user_id;
+
+    //     return self::create([
+    //         'channel_subscription_id'         => $channelSubscription->id,
+    //         'channel_subscription_payment_id' => $payment->id,
+    //         'subscription_id'                 => $subscription?->id,
+    //         'subscription_payment_id'         => null,
+    //         'client_id'                       => $clientId,
+    //         'invoice_number'                  => self::generateNumber(),
+    //         'status'                          => 'paid',
+    //         'subtotal'                        => $total,
+    //         'discount_amount'                 => 0,
+    //         'total'                           => $total,
+    //         'currency'                        => 'ZAR',
+    //         'paid_via_estate'                 => $isHousehold,
+    //         'invoice_type'                    => $invoiceType,
+    //         'issued_at'                       => now(),
+    //         'due_date'                        => $channelSubscription->current_period_end,
+    //     ]);
+    // }
 }

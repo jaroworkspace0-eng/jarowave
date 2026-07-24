@@ -82,7 +82,8 @@ class ChannelController extends Controller
             'billing_contact_name'   => 'required_if:billing_model,bulk|string|max:255',
             'billing_contact_email'  => 'required_if:billing_model,bulk|email|unique:users,email',
             'billing_contact_phone'  => 'nullable|string|max:15',
-            'amount_per_household'   => 'nullable|numeric|min:1',
+            'amount_per_household'   => 'nullable|numeric|min:0',
+            'amount_per_linked_account' => 'nullable|numeric|min:0',
             'guard_fixed_amount'     => 'nullable|numeric|min:0',
             'security_pool'          => 'nullable|numeric|min:0',
             'security_percentage'    => 'nullable|numeric|min:0|max:100',
@@ -95,6 +96,7 @@ class ChannelController extends Controller
             'client_id'            => $validated['client_id'],
             'billing_model'        => $validated['billing_model'] ?? 'individual',
             'amount_per_household' => $validated['amount_per_household'] ?? 80,
+            'amount_per_linked_account' => $validated['amount_per_linked_account'] ?? 0,
             'guard_fixed_amount'   => $validated['guard_fixed_amount'] ?? 0,
             'security_pool'        => $validated['security_pool'] ?? null,
             'security_percentage'  => $validated['security_percentage'] ?? null,
@@ -135,7 +137,8 @@ class ChannelController extends Controller
                 ),
             ],
             'billing_contact_phone'  => 'nullable|string|max:15',
-            'amount_per_household'   => 'nullable|numeric|min:1',
+            'amount_per_household'   => 'nullable|numeric|min:0',
+            'amount_per_linked_account' => 'nullable|numeric|min:0',
             'guard_fixed_amount'     => 'nullable|numeric|min:0',
             'security_pool'          => 'nullable|numeric|min:0',
             'security_percentage'    => 'nullable|numeric|min:0|max:100',
@@ -148,6 +151,7 @@ class ChannelController extends Controller
             'client_id'            => $validated['client_id'],
             'billing_model'        => $validated['billing_model'] ?? $channel->billing_model,
             'amount_per_household' => $validated['amount_per_household'] ?? $channel->amount_per_household,
+            'amount_per_linked_account' => $validated['amount_per_linked_account'] ?? $channel->amount_per_linked_account,
             'guard_fixed_amount'   => $validated['guard_fixed_amount'] ?? $channel->guard_fixed_amount,
             'security_pool'        => $validated['security_pool'] ?? $channel->security_pool,
             'security_percentage'  => $validated['security_percentage'] ?? $channel->security_percentage,
@@ -158,6 +162,7 @@ class ChannelController extends Controller
             ->whereIn('status', ['pending', 'active'])
             ->update([
                 'amount_per_household' => $validated['amount_per_household'] ?? $channel->amount_per_household,
+                'amount_per_linked_account' => $validated['amount_per_linked_account'] ?? $channel->amount_per_linked_account,
             ]);
 
         if (($validated['billing_model'] ?? null) === 'bulk') {

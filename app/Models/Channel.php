@@ -19,6 +19,7 @@ class Channel extends Model
         'channel_type',
         'billing_model',
         'amount_per_household',
+        'amount_per_linked_account',
         'is_active',
         'guard_fixed_amount',
         'security_pool',

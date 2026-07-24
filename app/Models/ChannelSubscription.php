@@ -13,6 +13,7 @@ class ChannelSubscription extends Model
         'channel_id',
         'household_count',
         'amount_per_household',
+        'amount_per_linked_account',
         'total_amount',
         'status',
         'billing_model',

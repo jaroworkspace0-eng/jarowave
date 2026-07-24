@@ -44,6 +44,40 @@ class PayFastService
         return $this->baseUrl . '?' . http_build_query($data);
     }
 
+
+    public function fetchSubscription(string $token): ?array
+    {
+        $timestamp = now()->toIso8601String();
+        $version   = 'v1';
+
+        $parts = [
+            'merchant-id=' . urlencode($this->merchantId),
+            'passphrase='  . urlencode($this->passphrase),
+            'timestamp='   . urlencode($timestamp),
+            'version='     . urlencode($version),
+        ];
+        $signature = md5(implode('&', $parts));
+
+        $response = Http::withHeaders([
+            'merchant-id' => $this->merchantId,
+            'passphrase'  => $this->passphrase,
+            'timestamp'   => $timestamp,
+            'version'     => $version,
+            'signature'   => $signature,
+        ])->get("https://api.payfast.co.za/subscriptions/{$token}/fetch");
+
+        if (! $response->successful()) {
+            Log::warning('PayFast fetch subscription failed', [
+                'token'  => $token,
+                'status' => $response->status(),
+                'body'   => $response->body(),
+            ]);
+            return null;
+        }
+
+        return $response->json('data.response');
+    }
+
     public function buildSubscriptionForm(array $params): string
     {
         $data = $this->basePayload($params, '0.00');
@@ -149,32 +183,32 @@ class PayFastService
         return hash_equals(md5($queryString), $receivedSignature);
     }
     public function isValidIp(string $ip): bool
-{
-    $validRanges = [
-        '3.163.232.0/21',       // PayFast primary AWS (Cape Town)
-        '197.97.145.144/28',    // Legacy
-        '41.74.179.192/27',     // Legacy
-        '102.216.36.0/28',      // Legacy
-        '102.216.36.128/28',    // Legacy
-        '144.126.193.139/32',   // Legacy single IP
-    ];
+    {
+        $validRanges = [
+            '3.163.232.0/21',       // PayFast primary AWS (Cape Town)
+            '197.97.145.144/28',    // Legacy
+            '41.74.179.192/27',     // Legacy
+            '102.216.36.0/28',      // Legacy
+            '102.216.36.128/28',    // Legacy
+            '144.126.193.139/32',   // Legacy single IP
+        ];
 
-    foreach ($validRanges as $range) {
-        if ($this->ipInCidr($ip, $range)) {
-            return true;
+        foreach ($validRanges as $range) {
+            if ($this->ipInCidr($ip, $range)) {
+                return true;
+            }
         }
+
+        return false;
     }
 
-    return false;
-}
+    private function ipInCidr(string $ip, string $cidr): bool
+    {
+        [$subnet, $bits] = explode('/', $cidr);
+        $mask = ~((1 << (32 - (int)$bits)) - 1);
 
-private function ipInCidr(string $ip, string $cidr): bool
-{
-    [$subnet, $bits] = explode('/', $cidr);
-    $mask = ~((1 << (32 - (int)$bits)) - 1);
-
-    return (ip2long($ip) & $mask) === (ip2long($subnet) & $mask);
-}
+        return (ip2long($ip) & $mask) === (ip2long($subnet) & $mask);
+    }
 
     public function verifyItn(array $data): bool
     {
@@ -212,7 +246,7 @@ private function ipInCidr(string $ip, string $cidr): bool
             'timestamp'   => $timestamp,
             'version'     => $version,
             'signature'   => $signature,
-        ])->put("https://api.payfast.co.za/subscriptions/{$token}/cancel");
+        ])->patch("https://api.payfast.co.za/subscriptions/{$token}/cancel");
 
         Log::debug('PayFast cancel response: ' . $response->status() . ' ' . $response->body());
 
@@ -248,6 +282,34 @@ private function ipInCidr(string $ip, string $cidr): bool
         return $response->successful();
     }
 
+    public function updateSubscriptionAmount(string $token, float $newAmount): bool
+    {
+        $timestamp = now()->toIso8601String();
+        $version   = 'v1';
+
+        $parts = [
+            'merchant-id=' . urlencode($this->merchantId),
+            'passphrase='  . urlencode($this->passphrase),
+            'timestamp='   . urlencode($timestamp),
+            'version='     . urlencode($version),
+        ];
+        $signature = md5(implode('&', $parts));
+
+        $response = Http::withHeaders([
+            'merchant-id' => $this->merchantId,
+            'passphrase'  => $this->passphrase,
+            'timestamp'   => $timestamp,
+            'version'     => $version,
+            'signature'   => $signature,
+        ])->put("https://api.payfast.co.za/subscriptions/{$token}/update", [
+            'amount' => (int) round($newAmount * 100), // cents
+        ]);
+
+        Log::debug('PayFast update-amount response: ' . $response->status() . ' ' . $response->body());
+
+        return $response->successful();
+    }
+
     public function buildOneTimeFields(array $params): array
     {
         $data = [
@@ -273,4 +335,6 @@ private function ipInCidr(string $ip, string $cidr): bool
 
         return $data;
     }
+
+    
 }
