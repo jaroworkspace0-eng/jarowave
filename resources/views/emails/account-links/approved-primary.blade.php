@@ -37,7 +37,7 @@
 
 @if($isEstateBilled)
 <p style="font-size:13px; color:#888; text-align:center; margin:16px 0;">
-    This household is billed through your estate's bulk billing — there's nothing further for you to pay or set up.
+    This household is billed through your estate's bulk billing - there's nothing further for you to pay or set up.
 </p>
 @elseif($newMonthlyAmount !== null)
 <p style="font-size:13px; color:#888; text-align:center; margin:16px 0;">

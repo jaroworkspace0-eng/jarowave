@@ -7,10 +7,11 @@ use Illuminate\Support\Facades\Log;
 
 class PayFastService
 {
+    
     private string $merchantId;
     private string $merchantKey;
     private string $passphrase;
-    private string $baseUrl = 'https://www.payfast.co.za/eng/process';
+    private string $baseUrl;
 
     // PayFast-mandated field order for signature generation
     private array $fieldOrder = [
@@ -31,6 +32,7 @@ class PayFastService
         $this->merchantId  = config('payfast.merchant_id');
         $this->merchantKey = config('payfast.merchant_key');
         $this->passphrase  = config('payfast.passphrase');
+        $this->baseUrl     = config('payfast.base_url', 'https://www.payfast.co.za/eng/process');
     }
 
     public function buildSubscriptionUrl(array $params): string
@@ -58,13 +60,18 @@ class PayFastService
         ];
         $signature = md5(implode('&', $parts));
 
+        $url = "https://api.payfast.co.za/subscriptions/{$token}/fetch";
+        if (config('payfast.testing')) {
+            $url .= '?testing=true';
+        }
+
         $response = Http::withHeaders([
             'merchant-id' => $this->merchantId,
             'passphrase'  => $this->passphrase,
             'timestamp'   => $timestamp,
             'version'     => $version,
             'signature'   => $signature,
-        ])->get("https://api.payfast.co.za/subscriptions/{$token}/fetch");
+        ])->get($url);
 
         if (! $response->successful()) {
             Log::warning('PayFast fetch subscription failed', [
@@ -77,6 +84,39 @@ class PayFastService
 
         return $response->json('data.response');
     }
+
+    // public function fetchSubscription(string $token): ?array
+    // {
+    //     $timestamp = now()->toIso8601String();
+    //     $version   = 'v1';
+
+    //     $parts = [
+    //         'merchant-id=' . urlencode($this->merchantId),
+    //         'passphrase='  . urlencode($this->passphrase),
+    //         'timestamp='   . urlencode($timestamp),
+    //         'version='     . urlencode($version),
+    //     ];
+    //     $signature = md5(implode('&', $parts));
+
+    //     $response = Http::withHeaders([
+    //         'merchant-id' => $this->merchantId,
+    //         'passphrase'  => $this->passphrase,
+    //         'timestamp'   => $timestamp,
+    //         'version'     => $version,
+    //         'signature'   => $signature,
+    //     ])->get("https://api.payfast.co.za/subscriptions/{$token}/fetch");
+
+    //     if (! $response->successful()) {
+    //         Log::warning('PayFast fetch subscription failed', [
+    //             'token'  => $token,
+    //             'status' => $response->status(),
+    //             'body'   => $response->body(),
+    //         ]);
+    //         return null;
+    //     }
+
+    //     return $response->json('data.response');
+    // }
 
     public function buildSubscriptionForm(array $params): string
     {
@@ -227,6 +267,8 @@ class PayFastService
         return $response === 'VALID';
     }
 
+
+
     public function cancelSubscription(string $token): bool
     {
         $timestamp = now()->toIso8601String();
@@ -240,18 +282,49 @@ class PayFastService
         ];
         $signature = md5(implode('&', $parts));
 
+        $url = "https://api.payfast.co.za/subscriptions/{$token}/cancel";
+        if (config('payfast.testing')) {
+            $url .= '?testing=true';
+        }
+
         $response = Http::withHeaders([
             'merchant-id' => $this->merchantId,
             'passphrase'  => $this->passphrase,
             'timestamp'   => $timestamp,
             'version'     => $version,
             'signature'   => $signature,
-        ])->patch("https://api.payfast.co.za/subscriptions/{$token}/cancel");
+        ])->put($url);
 
         Log::debug('PayFast cancel response: ' . $response->status() . ' ' . $response->body());
 
         return $response->successful();
     }
+
+    // public function cancelSubscription(string $token): bool
+    // {
+    //     $timestamp = now()->toIso8601String();
+    //     $version   = 'v1';
+
+    //     $parts = [
+    //         'merchant-id=' . urlencode($this->merchantId),
+    //         'passphrase='  . urlencode($this->passphrase),
+    //         'timestamp='   . urlencode($timestamp),
+    //         'version='     . urlencode($version),
+    //     ];
+    //     $signature = md5(implode('&', $parts));
+
+    //     $response = Http::withHeaders([
+    //         'merchant-id' => $this->merchantId,
+    //         'passphrase'  => $this->passphrase,
+    //         'timestamp'   => $timestamp,
+    //         'version'     => $version,
+    //         'signature'   => $signature,
+    //     ])->put("https://api.payfast.co.za/subscriptions/{$token}/cancel");
+
+    //     Log::debug('PayFast cancel response: ' . $response->status() . ' ' . $response->body());
+
+    //     return $response->successful();
+    // }
 
     public function chargeAdhoc(string $token, float $amount): bool
     {
@@ -282,12 +355,44 @@ class PayFastService
         return $response->successful();
     }
 
+    // public function updateSubscriptionAmount(string $token, float $newAmount): bool
+    // {
+    //     $timestamp = now()->toIso8601String();
+    //     $version   = 'v1';
+
+    //     $parts = [
+    //         'merchant-id=' . urlencode($this->merchantId),
+    //         'passphrase='  . urlencode($this->passphrase),
+    //         'timestamp='   . urlencode($timestamp),
+    //         'version='     . urlencode($version),
+    //     ];
+    //     $signature = md5(implode('&', $parts));
+
+    //     $response = Http::withHeaders([
+    //         'merchant-id' => $this->merchantId,
+    //         'passphrase'  => $this->passphrase,
+    //         'timestamp'   => $timestamp,
+    //         'version'     => $version,
+    //         'signature'   => $signature,
+    //     ])->patch("https://api.payfast.co.za/subscriptions/{$token}/update", [
+    //         'amount' => (int) round($newAmount * 100), // cents
+    //     ]);
+
+    //     Log::debug('PayFast update-amount response: ' . $response->status() . ' ' . $response->body());
+
+    //     return $response->successful();
+    // }
+
+
     public function updateSubscriptionAmount(string $token, float $newAmount): bool
     {
         $timestamp = now()->toIso8601String();
         $version   = 'v1';
+        $amount    = (int) round($newAmount * 100); // cents
 
+        // alphabetical order: amount, merchant-id, passphrase, timestamp, version
         $parts = [
+            'amount='      . urlencode($amount),
             'merchant-id=' . urlencode($this->merchantId),
             'passphrase='  . urlencode($this->passphrase),
             'timestamp='   . urlencode($timestamp),
@@ -295,14 +400,19 @@ class PayFastService
         ];
         $signature = md5(implode('&', $parts));
 
+        $url = "https://api.payfast.co.za/subscriptions/{$token}/update";
+        if (config('payfast.testing')) {
+            $url .= '?testing=true';
+        }
+
         $response = Http::withHeaders([
             'merchant-id' => $this->merchantId,
             'passphrase'  => $this->passphrase,
             'timestamp'   => $timestamp,
             'version'     => $version,
             'signature'   => $signature,
-        ])->put("https://api.payfast.co.za/subscriptions/{$token}/update", [
-            'amount' => (int) round($newAmount * 100), // cents
+        ])->patch($url, [
+            'amount' => $amount,
         ]);
 
         Log::debug('PayFast update-amount response: ' . $response->status() . ' ' . $response->body());
@@ -334,6 +444,13 @@ class PayFastService
         $data['signature'] = $this->generateSignature($data);
 
         return $data;
+    }
+
+
+    private function apiUrl(string $path): string
+    {
+        $suffix = config('payfast.testing') ? '?testing=true' : '';
+        return "https://api.payfast.co.za{$path}{$suffix}";
     }
 
     
