@@ -3,14 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\ChannelResource;
+use App\Jobs\ResyncChannelStandaloneSubscribers;
+use App\Mail\ChannelRateChangedMail;
 use App\Models\Channel;
 use App\Models\ChannelSubscription;
 use App\Models\Client;
 use App\Models\Employee;
+use App\Services\ChannelBillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
@@ -120,6 +124,7 @@ class ChannelController extends Controller
         ]);
     }
 
+    
     public function update(Request $request, Channel $channel)
     {
         $validated = $request->validate([
@@ -144,14 +149,24 @@ class ChannelController extends Controller
             'security_percentage'    => 'nullable|numeric|min:0|max:100',
         ]);
 
+        // Capture old rates BEFORE overwriting the channel
+        $oldAmountPerHousehold     = (float) $channel->amount_per_household;
+        $oldAmountPerLinkedAccount = (float) $channel->amount_per_linked_account;
+
+        $newAmountPerHousehold     = (float) ($validated['amount_per_household'] ?? $channel->amount_per_household);
+        $newAmountPerLinkedAccount = (float) ($validated['amount_per_linked_account'] ?? $channel->amount_per_linked_account);
+
+        $amountChanged = $oldAmountPerHousehold !== $newAmountPerHousehold
+            || $oldAmountPerLinkedAccount !== $newAmountPerLinkedAccount;
+
         $channel->update([
             'name'                 => $validated['name'],
             'category'             => $validated['category'],
             'channel_type'         => $validated['channel_type'],
             'client_id'            => $validated['client_id'],
             'billing_model'        => $validated['billing_model'] ?? $channel->billing_model,
-            'amount_per_household' => $validated['amount_per_household'] ?? $channel->amount_per_household,
-            'amount_per_linked_account' => $validated['amount_per_linked_account'] ?? $channel->amount_per_linked_account,
+            'amount_per_household' => $newAmountPerHousehold,
+            'amount_per_linked_account' => $newAmountPerLinkedAccount,
             'guard_fixed_amount'   => $validated['guard_fixed_amount'] ?? $channel->guard_fixed_amount,
             'security_pool'        => $validated['security_pool'] ?? $channel->security_pool,
             'security_percentage'  => $validated['security_percentage'] ?? $channel->security_percentage,
@@ -161,8 +176,8 @@ class ChannelController extends Controller
         ChannelSubscription::where('channel_id', $channel->id)
             ->whereIn('status', ['pending', 'active'])
             ->update([
-                'amount_per_household' => $validated['amount_per_household'] ?? $channel->amount_per_household,
-                'amount_per_linked_account' => $validated['amount_per_linked_account'] ?? $channel->amount_per_linked_account,
+                'amount_per_household' => $newAmountPerHousehold,
+                'amount_per_linked_account' => $newAmountPerLinkedAccount,
             ]);
 
         if (($validated['billing_model'] ?? null) === 'bulk') {
@@ -189,9 +204,39 @@ class ChannelController extends Controller
             }
         }
 
+        // Notify the estate's billing contact if bulk rates changed
+        if ($channel->billing_model === 'bulk' && $amountChanged) {
+            $billingContact = $channel->billingContact()->where('is_active', true)->first()?->user;
+
+            if ($billingContact?->email) {
+                $billingService = app(ChannelBillingService::class);
+
+                $channel->amount_per_household = $oldAmountPerHousehold;
+                $channel->amount_per_linked_account = $oldAmountPerLinkedAccount;
+                $oldBilling = $billingService->calculateBillingAmount($channel);
+
+                $channel->amount_per_household = $newAmountPerHousehold;
+                $channel->amount_per_linked_account = $newAmountPerLinkedAccount;
+                $newBilling = $billingService->calculateBillingAmount($channel);
+
+                Mail::to($billingContact->email)->queue(new ChannelRateChangedMail(
+                    $channel,
+                    $billingContact,
+                    $oldAmountPerHousehold,
+                    $newAmountPerHousehold,
+                    $newBilling['household_count'],
+                    $oldBilling['total_amount'],
+                    $newBilling['total_amount'],
+                ));
+            }
+        }
+
+        // Resync standalone subscribers' PayFast amounts asynchronously
+        ResyncChannelStandaloneSubscribers::dispatch($channel->id);
+
         return response()->json([
             'success' => true,
-            'message' => 'Channel updated successfully.',
+            'message' => 'Channel updated successfully. Standalone subscriber billing will sync shortly.',
             'channel' => $channel,
         ]);
     }

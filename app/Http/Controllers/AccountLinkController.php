@@ -8,77 +8,16 @@ use App\Mail\AccountLinkRejectedMail;
 use App\Models\AccountLink;
 use App\Models\User;
 use App\Services\BillingService;
+use App\Services\ChannelBillingService;
 use App\Services\PayFastService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class AccountLinkController extends Controller
 {
-
-    // ── New private helper — add anywhere in the class ──
-    // Recalculates a standalone (non-estate) primary's subscription price
-    // from their base rate + active linked accounts, and pushes the new
-    // amount to PayFast if they're on an active tokenized subscription.
-    // No-ops silently for estate-billed households (ChannelBillingService
-    // already recalculates those every cycle) and for anyone without an
-    // active PayFast token.
-    private function syncStandaloneSubscriptionAmount(User $primary): ?float
-    {
-        $subscription = $primary->subscription;
-    
-        if (
-            ! $subscription
-            || ! in_array($subscription->status, ['active', 'trialing', 'past_due'])
-            || ! $subscription->payfast_token
-        ) {
-            return null; // not on a standalone tokenized subscription — estate-billed or inactive
-        }
-    
-        $channel = $primary->employee?->channels->first();
-        if (! $channel) {
-            return null;
-        }
-    
-        $basePrice  = BillingService::unitPrice($channel->amount_per_household);
-        $linkedRate = BillingService::unitPrice($channel->amount_per_linked_account);
-    
-        $activeLinkedCount = AccountLink::where('primary_account_id', $primary->id)
-            ->where('status', 'active')
-            ->count();
-    
-        $newPrice = $basePrice + ($activeLinkedCount * $linkedRate);
-    
-        if ((float) $subscription->price === $newPrice) {
-            return $newPrice; // already correct — still return it for the email
-        }
-    
-        $subscription->update(['price' => $newPrice]);
-    
-        try {
-            $updated = app(PayFastService::class)->updateSubscriptionAmount($subscription->payfast_token, $newPrice);
-    
-            if (! $updated) {
-                Log::warning('PayFast subscription amount update returned unsuccessful', [
-                    'user_id'         => $primary->id,
-                    'subscription_id' => $subscription->id,
-                    'new_price'       => $newPrice,
-                ]);
-            }
-        } catch (\Throwable $e) {
-            Log::warning('PayFast subscription amount update failed', [
-                'user_id'         => $primary->id,
-                'subscription_id' => $subscription->id,
-                'new_price'       => $newPrice,
-                'error'           => $e->getMessage(),
-            ]);
-        }
-    
-        return $newPrice;
-    }
-    
-
 
     // ── Is the current user eligible to be a "primary" and link others? ──
     // A user is NOT eligible if they themselves are currently linked
@@ -212,50 +151,90 @@ class AccountLinkController extends Controller
     }
 
     // Cancel a pending request (primary-initiated)
+    // Cancel a pending request (primary-initiated), or unlink an active one
     public function destroy(Request $request, int $id): JsonResponse
     {
         $userId = $request->user()->id;
-    
-        $link = AccountLink::with('primaryAccount')->where('id', $id) // eager-load primaryAccount
+
+        $link = AccountLink::with(['primaryAccount', 'linkedAccount.subscription'])
+            ->where('id', $id)
             ->where(function ($q) use ($userId) {
                 $q->where('primary_account_id', $userId)
                 ->orWhere('linked_account_id', $userId);
             })
             ->firstOrFail();
-    
+
         $wasActive = $link->status === 'active';
-        $primary   = $link->primaryAccount; // NEW
-        $link->delete();
-    
+        $primary   = $link->primaryAccount;
+        $linkedSub = $link->linkedAccount?->subscription;
+
         if ($wasActive) {
-            $this->syncStandaloneSubscriptionAmount($primary); // NEW
+            if ($linkedSub) {
+                $linkedSub->update([
+                    'channel_subscription_id' => null,
+                    'cancellation_reason'     => null,
+                    'status'                  => 'cancelled',
+                    'ends_at'                 => now(),
+                ]);
+            }
+
+            $link->linkedAccount?->update(['subscription_status' => 'cancelled']);
+
+            try {
+                Http::timeout(5)
+                    ->withHeaders([
+                        'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
+                        'Content-Type'  => 'application/json',
+                    ])
+                    ->post(rtrim(env('PTT_SERVER_URL'), '/') . '/payment-failed', [
+                        'userId'       => $link->linked_account_id,
+                        'forceSuspend' => true,
+                        'reason'       => 'account_unlinked',
+                    ]);
+            } catch (\Throwable $e) {
+                Log::warning('destroy: failed to notify Node of linked account suspension', [
+                    'linked_user_id' => $link->linked_account_id,
+                    'error'          => $e->getMessage(),
+                ]);
+            }
         }
-    
+
+        $link->delete();
+
+        $syncFailed = false;
+
+        if ($wasActive) {
+            $sync = app(ChannelBillingService::class)->syncStandaloneSubscriptionAmount($primary);
+            $syncFailed = $sync['failed'];
+        }
+
         return response()->json([
-            'success' => true,
-            'action'  => $wasActive ? 'unlinked' : 'cancelled',
+            'success'             => true,
+            'action'              => $wasActive ? 'unlinked' : 'cancelled',
+            'billing_sync_failed' => $syncFailed,
         ]);
+
     }
  
 
-    // ── Approval — called by estate admin or Echo Link admin dashboard ──
+    // ── Approval - called by estate admin or Echo Link admin dashboard ──
     public function approve(Request $request, int $id): JsonResponse
     {
-        $link = AccountLink::with(['primaryAccount', 'linkedAccount'])->findOrFail($id); // CHANGED — added linkedAccount
-    
+        $link = AccountLink::with(['primaryAccount', 'linkedAccount'])->findOrFail($id);
+
         if ($link->status !== 'pending') {
             return response()->json(['error' => 'Link is not pending'], 422);
         }
-    
+
         $approverType = $request->user()->role === 'admin' ? 'echo_link_admin' : 'estate_admin';
-    
+
         $link->update([
             'status'            => 'active',
             'approved_by_type'  => $approverType,
             'approved_by_id'    => $request->user()->id,
             'approved_at'       => now(),
         ]);
-    
+
         $primary = $link->primaryAccount;
         User::where('id', $link->linked_account_id)->update([
             'address_line_1' => $primary->address_line_1,
@@ -265,12 +244,31 @@ class AccountLinkController extends Controller
             'latitude'       => $primary->latitude,
             'longitude'      => $primary->longitude,
         ]);
-    
-        $newMonthlyAmount = $this->syncStandaloneSubscriptionAmount($primary);
-        $isEstateBilled   = $newMonthlyAmount === null && $primary->subscription()
+
+        // If the primary is on estate billing, fold the linked account into the
+        // same channel subscription so it's picked up by activateOptedInHouseholds()
+        // / suspendChannel() automatically, same as the primary is.
+        $primarySubscription = $primary->subscription()
             ->where('cancellation_reason', 'estate_optin')
-            ->exists();
-    
+            ->whereNotNull('channel_subscription_id')
+            ->first();
+
+        $isEstateBilled = (bool) $primarySubscription;
+
+        if ($isEstateBilled) {
+            $link->linkedAccount?->subscription?->update([
+                'channel_subscription_id' => $primarySubscription->channel_subscription_id,
+                'cancellation_reason'     => 'estate_optin',
+            ]);
+            $newMonthlyAmount = null;
+            $priceSyncFailed  = false;
+        } else {
+            $sync             = app(ChannelBillingService::class)->syncStandaloneSubscriptionAmount($primary);
+            $newMonthlyAmount = $sync['amount'];
+            $priceSyncFailed  = $sync['failed'];
+        }
+
+
         // NEW — notify both sides
         if ($primary->email) {
             Mail::to($primary->email)->queue(new AccountLinkApprovedPrimaryMail(
@@ -278,16 +276,17 @@ class AccountLinkController extends Controller
                 $link->linkedAccount,
                 $isEstateBilled,
                 $newMonthlyAmount,
+                $priceSyncFailed,
             ));
         }
-    
+
         if ($link->linkedAccount?->email) {
             Mail::to($link->linkedAccount->email)->queue(new AccountLinkedMail(
                 $link->linkedAccount,
                 $primary,
             ));
         }
-    
+
         return response()->json(['success' => true]);
     }
     
@@ -333,31 +332,71 @@ class AccountLinkController extends Controller
     public function forceUnlink(Request $request, int $id): JsonResponse
     {
         $user = $request->user();
-    
+
         if (! in_array($user->role, ['admin', 'estate_billing'])) {
             abort(403);
         }
-    
-        $link = AccountLink::with('primaryAccount.employee.channels')->findOrFail($id);
-    
+
+        $link = AccountLink::with(['primaryAccount.employee.channels', 'linkedAccount.subscription'])->findOrFail($id);
+
         if ($link->status !== 'active') {
             return response()->json(['error' => 'Link is not active'], 422);
         }
-    
+
         if ($user->role === 'estate_billing') {
             $channelIds = $user->accessibleChannelIds();
             $primaryChannelId = $link->primaryAccount?->employee?->channels->first()?->id;
-    
+
             if (! $primaryChannelId || ! $channelIds->contains($primaryChannelId)) {
                 abort(403, 'Not your estate.');
             }
         }
-    
-        $primary = $link->primaryAccount; // NEW — capture before delete
+
+        $primary   = $link->primaryAccount;
+        $linkedSub = $link->linkedAccount?->subscription;
+
+        // Unwind the linked account's coverage — no billing relationship covers
+        // them anymore, whether they were folded into estate billing or riding
+        // on the primary's standalone PayFast subscription.
+        if ($linkedSub) {
+            $linkedSub->update([
+                'channel_subscription_id' => null,
+                'cancellation_reason'     => null,
+                'status'                  => 'cancelled',
+                'ends_at'                 => now(),
+            ]);
+        }
+
+        $link->linkedAccount?->update(['subscription_status' => 'cancelled']);
+
+        try {
+            Http::timeout(5)
+                ->withHeaders([
+                    'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
+                    'Content-Type'  => 'application/json',
+                ])
+                ->post(rtrim(env('PTT_SERVER_URL'), '/') . '/payment-failed', [
+                    'userId'       => $link->linked_account_id,
+                    'forceSuspend' => true,
+                    'reason'       => 'account_unlinked',
+                ]);
+        } catch (\Throwable $e) {
+            Log::warning('forceUnlink: failed to notify Node of linked account suspension', [
+                'linked_user_id' => $link->linked_account_id,
+                'error'          => $e->getMessage(),
+            ]);
+        }
+
         $link->delete();
-    
-        $this->syncStandaloneSubscriptionAmount($primary); // NEW
-    
-        return response()->json(['success' => true, 'action' => 'force_unlinked']);
+
+
+        $sync = app(ChannelBillingService::class)->syncStandaloneSubscriptionAmount($primary);
+
+        return response()->json([
+            'success'            => true,
+            'action'             => 'force_unlinked',
+            'billing_sync_failed' => $sync['failed'],
+        ]);
+
     }
 }

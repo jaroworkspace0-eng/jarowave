@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Mail\ConductBlockMail;
 use App\Mail\ConductUnblockMail;
 use App\Mail\PaymentSuccessMail;
+use App\Models\AccountLink;
 use App\Models\Earning;
 use App\Models\Invoice;
 use App\Models\Subscription;
@@ -71,6 +72,14 @@ class AdminSubscriptionController extends Controller
      */
     public function markEftPaid(Request $request, Subscription $subscription)
     {
+
+        if ($subscription->cancellation_reason === 'estate_optin' || $subscription->channel_subscription_id) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This household is billed through estate/bulk billing, not individually. Process payment via the channel\'s estate billing instead.',
+            ], 422);
+        }
+        
         $request->validate([
             'amount' => 'required|numeric|min:1',
             'note'   => 'required|string|max:255',
@@ -81,6 +90,7 @@ class AdminSubscriptionController extends Controller
         $amountRands  = round($request->amount, 2);
         $eftReference = 'EFT-' . strtoupper(uniqid());
         $user         = $subscription->user;
+        $channel      = $user->employee?->channels()->first();
 
         $payment = DB::transaction(function () use (
             $request, $subscription, $proofPath, $amountRands, $eftReference
@@ -129,6 +139,8 @@ class AdminSubscriptionController extends Controller
 
         $invoiceSent     = false;
         $sideEffectError = null;
+        $linkedPayments  = []; // payment IDs, for the response
+        $linkedUserIds   = []; // user IDs, for notifying Node
 
         try {
             if ($subscription->client) {
@@ -151,10 +163,101 @@ class AdminSubscriptionController extends Controller
                 $subscription->update([
                     'activation_fee_paid'    => true,
                     'activation_fee_paid_at' => now(),
-                    // 'price'                  => BillingService::UNIT_PRICE / 100,
-                    'price' => BillingService::unitPrice($user->employee?->channels->first()?->amount_per_household),
+                    'price' => BillingService::unitPrice($channel?->amount_per_household),
                 ]);
             }
+
+            // Consolidate and mark paid any accounts linked under this subscriber
+            $linkedAccounts = AccountLink::with('linkedAccount.subscription')
+                ->where('primary_account_id', $subscription->user_id)
+                ->where('status', 'active')
+                ->get();
+
+            $linkedAmount = BillingService::unitPrice($channel?->amount_per_linked_account);
+
+            foreach ($linkedAccounts as $link) {
+                $linkedUser = $link->linkedAccount;
+                $linkedSub  = $linkedUser?->subscription;
+
+                if (!$linkedUser || !$linkedSub) {
+                    Log::warning('EFT payment: linked account has no subscription to activate', [
+                        'primary_subscription_id' => $subscription->id,
+                        'account_link_id'         => $link->id,
+                        'linked_user_id'          => $link->linked_account_id,
+                    ]);
+                    continue;
+                }
+
+                $linkedPeriodStart = $linkedSub->current_period_end ?? $subscription->current_period_start;
+                $linkedPeriodEnd   = $subscription->current_period_end;
+
+                $linkedPayment = DB::transaction(function () use (
+                    $linkedSub, $linkedUser, $linkedAmount, $eftReference,
+                    $proofPath, $request, $linkedPeriodStart, $linkedPeriodEnd
+                ) {
+                    $linkedPayment = SubscriptionPayment::create([
+                        'subscription_id'           => $linkedSub->id,
+                        'user_id'                   => $linkedSub->user_id,
+                        'amount'                    => $linkedAmount,
+                        'amount_gross'              => $linkedAmount,
+                        'amount_fee'                => 0,
+                        'amount_net'                => $linkedAmount,
+                        'status'                    => 'complete',
+                        'gateway'                   => 'manual_eft',
+                        'gateway_transaction_id'    => null,
+                        'gateway_payment_reference' => $eftReference . '-L' . $linkedSub->id,
+                        'gateway_status'            => 'COMPLETE',
+                        'merchant_reference'        => $eftReference,
+                        'currency'                  => 'ZAR',
+                        'payment_method'            => 'eft',
+                        'payer_name'                => trim($linkedUser->name ?? '') ?: null,
+                        'payer_email'               => $linkedUser->email ?? null,
+                        'gateway_payload'           => null,
+                        'signature'                 => null,
+                        'ip_address'                => $request->ip(),
+                        'billing_period_start'      => $linkedPeriodStart,
+                        'billing_period_end'        => $linkedPeriodEnd,
+                        'paid_at'                   => now(),
+                        'notes'                     => 'Consolidated under linked account EFT: ' . $eftReference,
+                        'proof_of_payment'          => $proofPath,
+                    ]);
+
+                    $linkedSub->update([
+                        'status'               => 'active',
+                        'payment_failed_at'    => null,
+                        'sos_suspended_at'     => null,
+                        'gateway'              => 'manual_eft',
+                        'current_period_start' => $linkedPeriodStart,
+                        'current_period_end'   => $linkedPeriodEnd,
+                    ]);
+
+                    return $linkedPayment;
+                });
+
+                try {
+                    $linkedInvoice = Invoice::createFromPayment($linkedPayment);
+                    $linkedInvoice->load('payment.subscription', 'client');
+
+                    if ($linkedUser->email) {
+                        Mail::to($linkedUser->email)->queue(new PaymentSuccessMail(
+                            userName:  $linkedUser->name,
+                            amount:    $linkedAmount,
+                            periodEnd: $linkedSub->fresh()->current_period_end->format('d M Y'),
+                            invoice:   $linkedInvoice,
+                        ));
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning('EFT payment: linked account invoice/email failed', [
+                        'linked_subscription_id' => $linkedSub->id,
+                        'linked_payment_id'      => $linkedPayment->id,
+                        'error'                  => $e->getMessage(),
+                    ]);
+                }
+
+                $linkedPayments[] = $linkedPayment->id;
+                $linkedUserIds[]  = $linkedUser->id;
+            }
+
         } catch (\Throwable $e) {
             $sideEffectError = $e->getMessage();
             Log::warning('EFT payment: earning/invoice/email failed', [
@@ -169,11 +272,19 @@ class AdminSubscriptionController extends Controller
             'note'   => 'EFT payment confirmed by admin',
         ]);
 
+        foreach ($linkedUserIds as $linkedUserId) {
+            $this->notifyNode('POST', '/payment-resolved', [
+                'userId' => $linkedUserId,
+                'note'   => 'EFT payment confirmed by admin (consolidated under primary)',
+            ]);
+        }
+
         return response()->json([
             'success'           => true,
             'message'           => 'EFT payment recorded. SOS re-enabled.',
             'invoice_sent'      => $invoiceSent,
             'side_effect_error' => $sideEffectError,
+            'linked_payments'   => $linkedPayments,
         ]);
     }
 

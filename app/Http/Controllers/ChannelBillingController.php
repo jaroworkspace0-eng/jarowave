@@ -213,6 +213,15 @@ class ChannelBillingController extends Controller
      */
     public function markEftPaid(Request $request, Channel $channel)
     {
+
+         if ($channel->billing_model !== 'bulk') {
+            return response()->json([
+                'success' => false,
+                'message' => 'This channel is not on estate/bulk billing. Process payment via individual subscriber billing instead.',
+            ], 422);
+        }
+
+        
         $request->validate([
             'amount' => 'required|numeric|min:1',
             'note'   => 'required|string|max:255',

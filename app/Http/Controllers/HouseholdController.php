@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Mail\HouseholdWelcomeMail;
 use App\Mail\InvoiceMail;
+use App\Models\AccountLink;
 use App\Models\Channel;
 use App\Models\Employee;
 use App\Models\HouseholdInvite;
@@ -294,13 +295,27 @@ class HouseholdController extends Controller
         $orgType = $subscription->client_type ?? $subscription->client?->user?->organisation_type ?? 'watch';
         $amounts = BillingService::getDisplayAmounts($orgType);
 
-        $subChannel = $subscription->channelSubscription?->channel;
-
         $employee = Employee::where('user_id', $request->user()->id)
-        ->with('channels')
-        ->first();
+            ->with('channels')
+            ->first();
 
         $channel = $employee?->channels()->first();
+
+        $isEstateBilled = $subscription->cancellation_reason === 'estate_optin'
+            || $subscription->channel_subscription_id !== null;
+
+        // Consolidated amount actually charged for standalone subscribers —
+        // base rate + linked accounts, kept in sync by
+        // ChannelBillingService::syncStandaloneSubscriptionAmount(). Not
+        // meaningful for estate-billed households, whose price is frozen at
+        // opt-in time and billed via the channel's ChannelSubscription instead.
+        $billedAmount = $isEstateBilled
+            ? null
+            : (
+                $subscription->price !== null
+                    ? (float) $subscription->price
+                    : (float) ($channel?->amount_per_household ?? 0)
+            );
 
         return response()->json([
             'subscription' => [
@@ -309,7 +324,7 @@ class HouseholdController extends Controller
                 'gateway'              => $subscription->gateway,
                 'payfast_token'        => $subscription->payfast_token,
                 'client_type'          => $orgType,
-                'amounts'              => $amounts, // { total: 80, client: 52|30, platform: 28|50 }
+                'amounts'              => $amounts,
                 'trial_ends_at'        => $subscription->trial_ends_at,
                 'billing_cycle'        => $subscription->billing_cycle,
                 'current_period_start' => $subscription->current_period_start,
@@ -320,10 +335,12 @@ class HouseholdController extends Controller
                     'organisation_name' => $subscription->client->user->organisation_name,
                     'organisation_type' => $orgType,
                 ] : null,
-                'channel_name' => $channel?->name,
+                'channel_name'          => $channel?->name,
                 'amount_per_household'  => number_format($channel?->amount_per_household, 0),
+                'billed_amount'         => $billedAmount !== null ? number_format($billedAmount, 0) : null,
+                'is_estate_billed'      => $isEstateBilled,
                 'billing_model'         => $channel?->billing_model,
-                'is_active'             => $channel?->is_active
+                'is_active'             => $channel?->is_active,
             ],
         ]);
     }
@@ -572,6 +589,10 @@ class HouseholdController extends Controller
             return response()->json(['message' => 'No payment method on file.'], 400);
         }
 
+        if ($subscription->cancellation_reason === 'estate_optin' || $subscription->channel_subscription_id) {
+            return response()->json(['message' => 'This household is billed through estate billing, not individually.'], 400);
+        }
+
         // Prevent double charge with DB lock
         $locked = Cache::lock('pay_now_' . $user->id, 30);
         if (!$locked->get()) {
@@ -580,13 +601,29 @@ class HouseholdController extends Controller
 
         try {
             $payfast = new \App\Services\PayFastService();
-            $success = $payfast->chargeAdhoc($subscription->payfast_token, 80.00);
+
+            // Confirm the subscription is actually ACTIVE on PayFast's side before charging
+            $remote = $payfast->fetchSubscription($subscription->payfast_token);
+
+            if (!$remote || strtoupper($remote['status_text'] ?? '') !== 'ACTIVE') {
+                return response()->json([
+                    'message' => 'Your subscription is not active with our payment provider. Please contact support.',
+                ], 400);
+            }
+
+            $amountDue = (float) $subscription->price;
+
+            if ($amountDue <= 0) {
+                return response()->json(['message' => 'Unable to determine amount due.'], 400);
+            }
+
+            $success = $payfast->chargeAdhoc($subscription->payfast_token, $amountDue);
 
             if (!$success) {
                 return response()->json(['message' => 'Payment failed. Please update your card details.'], 400);
             }
 
-            return response()->json(['message' => 'Payment successful.']);
+            return response()->json(['message' => 'Payment successful.', 'amount' => $amountDue]);
         } finally {
             $locked->release();
         }
@@ -605,10 +642,24 @@ class HouseholdController extends Controller
             return response()->json(['message' => 'No subscription found.'], 404);
         }
 
+        if ($subscription->cancellation_reason === 'estate_optin' || $subscription->channel_subscription_id) {
+            return response()->json(['message' => 'This household is billed through estate billing, not individually.'], 400);
+        }
+
         $merchantReference = 'OT-' . $user->id . '-' . time();
 
-        $payfast = new \App\Services\PayFastService();
         $channel = $user->employee?->channels()->first();
+
+        $basePrice  = BillingService::unitPrice($channel?->amount_per_household);
+        $linkedRate = BillingService::unitPrice($channel?->amount_per_linked_account);
+
+        $activeLinkedCount = AccountLink::where('primary_account_id', $user->id)
+            ->where('status', 'active')
+            ->count();
+
+        $totalAmount = $basePrice + ($activeLinkedCount * $linkedRate);
+
+        $payfast = new \App\Services\PayFastService();
         $fields  = $payfast->buildOneTimeFields([
             'name_first'       => explode(' ', $user->name)[0],
             'name_last'        => explode(' ', $user->name, 2)[1] ?? '',
@@ -618,13 +669,13 @@ class HouseholdController extends Controller
             'item_name'        => 'Echo Link Community Protection',
             'item_description' => 'Monthly neighbourhood watch subscription',
             'custom_str1'      => (string) $user->id,
-            'amount_per_household' => $channel?->amount_per_household,
+            'amount_per_household' => $totalAmount,
         ]);
 
         return response()->json([
             'type'   => 'onetime',
             'fields' => $fields,
-            'action' => 'https://www.payfast.co.za/eng/process',
+            'action' => config('payfast.base_url', 'https://www.payfast.co.za/eng/process'),
         ]);
     }
 

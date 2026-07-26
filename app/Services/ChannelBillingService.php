@@ -85,7 +85,7 @@ class ChannelBillingService
             ->where('status', 'past_due')
             ->exists();
 
-         $balance = Subscription::where('user_id', $user->id)
+        $balance = Subscription::where('user_id', $user->id)
             ->where('status', 'past_due')
             ->first();
 
@@ -120,6 +120,62 @@ class ChannelBillingService
             $user->update([
                 'subscription_status' => $channelSubscription?->status === 'active' ? 'active' : 'pending',
             ]);
+
+            // Fold any accounts linked under this household into the same
+            // channel subscription, so they're covered by estate billing too
+            // (picked up automatically by activateOptedInHouseholds()/suspendChannel()).
+            $accountLinks = \App\Models\AccountLink::with('linkedAccount.subscription')
+                ->where('primary_account_id', $user->id)
+                ->where('status', 'active')
+                ->get();
+
+            foreach ($accountLinks as $link) {
+                $linkedUser = $link->linkedAccount;
+                $linkedSub  = $linkedUser?->subscription;
+
+                if (!$linkedUser || !$linkedSub) {
+                    Log::warning('optInHousehold: linked account has no subscription', [
+                        'primary_user_id' => $user->id,
+                        'account_link_id' => $link->id,
+                        'linked_user_id'  => $link->linked_account_id,
+                    ]);
+                    continue;
+                }
+
+                if ($linkedSub->payfast_token) {
+                    $this->cancelPayfastSubscription($linkedSub->payfast_token);
+                }
+
+                $linkedSub->update([
+                    'status'                  => 'cancelled',
+                    'cancelled_at'            => now(),
+                    'ends_at'                 => $linkedSub->current_period_end,
+                    'cancellation_reason'     => 'estate_optin',
+                    'channel_subscription_id' => $channelSubscription?->id,
+                ]);
+
+                $linkedUser->update([
+                    'subscription_status' => $channelSubscription?->status === 'active' ? 'active' : 'pending',
+                ]);
+
+                // Clear any independent payment-failure suspension this linked account
+                // may have had on Node before being folded into estate billing.
+                try {
+                    Http::timeout(5)
+                        ->withHeaders([
+                            'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
+                            'Content-Type'  => 'application/json',
+                        ])
+                        ->post(rtrim(env('PTT_SERVER_URL'), '/') . '/payment-resolved', [
+                            'userId' => $linkedUser->id,
+                        ]);
+                } catch (\Throwable $e) {
+                    Log::warning('optInHousehold: failed to notify Node of linked account payment restoration', [
+                        'linked_user_id' => $linkedUser->id,
+                        'error'          => $e->getMessage(),
+                    ]);
+                }
+            }
         });
 
 
@@ -210,23 +266,6 @@ class ChannelBillingService
     // -------------------------------------------------------------------------
     // Channel Subscription Management
     // -------------------------------------------------------------------------
-
-    /**
-     * Calculate the current billing amount for a channel based on opted-in households.
-     */
-    // public function calculateBillingAmount(Channel $channel): array
-    // {
-    //     $householdCount = $this->getOptedInCount($channel);
-    //     // $amountPerHousehold = BillingService::UNIT_PRICE / 100; // R80
-    //     $amountPerHousehold = BillingService::unitPrice($channel->amount_per_household);
-    //     $totalAmount = $householdCount * $amountPerHousehold;
-
-    //     return [
-    //         'household_count'      => $householdCount,
-    //         'amount_per_household' => $amountPerHousehold,
-    //         'total_amount'         => $totalAmount,
-    //     ];
-    // }
 
     public function calculateBillingAmount(Channel $channel): array
     {
@@ -384,6 +423,10 @@ class ChannelBillingService
     ChannelSubscriptionPayment $payment,
     string $ipAddress
     ): void {
+
+        if ($payment->status !== 'pending_review') {
+            return; // or throw, depending on how you want the controller to respond
+        }
         $channelSubscription = $payment->channelSubscription;
 
         $this->refreshChannelSubscription($channelSubscription);
@@ -629,6 +672,63 @@ class ChannelBillingService
                 'error'                           => $e->getMessage(),
             ]);
         }
+    }
+
+
+   
+    public function syncStandaloneSubscriptionAmount(User $primary): array
+    {
+        $subscription = $primary->subscription;
+        if (
+            ! $subscription
+            || ! in_array($subscription->status, ['active', 'trialing', 'past_due'])
+            || ! $subscription->payfast_token
+        ) {
+            return ['amount' => null, 'failed' => false];
+        }
+
+        $channel = $primary->employee?->channels->first();
+        if (! $channel) {
+            return ['amount' => null, 'failed' => false];
+        }
+
+        $basePrice  = BillingService::unitPrice($channel->amount_per_household);
+        $linkedRate = BillingService::unitPrice($channel->amount_per_linked_account);
+
+        $activeLinkedCount = AccountLink::where('primary_account_id', $primary->id)
+            ->where('status', 'active')
+            ->count();
+
+        $newPrice = $basePrice + ($activeLinkedCount * $linkedRate);
+
+        if ((float) $subscription->price === $newPrice) {
+            return ['amount' => $newPrice, 'failed' => false];
+        }
+
+        try {
+            $updated = app(PayFastService::class)->updateSubscriptionAmount($subscription->payfast_token, $newPrice);
+        } catch (\Throwable $e) {
+            Log::error('PayFast subscription amount update failed — local price NOT changed', [
+                'user_id'         => $primary->id,
+                'subscription_id' => $subscription->id,
+                'attempted_price' => $newPrice,
+                'error'           => $e->getMessage(),
+            ]);
+            return ['amount' => null, 'failed' => true];
+        }
+
+        if (! $updated) {
+            Log::error('PayFast subscription amount update rejected — local price NOT changed', [
+                'user_id'         => $primary->id,
+                'subscription_id' => $subscription->id,
+                'attempted_price' => $newPrice,
+            ]);
+            return ['amount' => null, 'failed' => true];
+        }
+
+        $subscription->update(['price' => $newPrice]);
+
+        return ['amount' => $newPrice, 'failed' => false];
     }
  
 }
