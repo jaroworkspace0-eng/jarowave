@@ -1,11 +1,17 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useAuthStore } from '@/stores/auth';
+import { type BreadcrumbItem } from '@/types';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
 
 const auth = useAuthStore();
+
+const breadcrumbs: BreadcrumbItem[] = [
+    // { title: 'Dashboard', href: '/dashboard' },
+    // { title: 'Incident Reports', href: '/incident-reports' },
+];
 
 onMounted(() => {
     if (auth.user?.role !== 'admin') {
@@ -122,6 +128,16 @@ function handleSearch() {
     searchTimeout = setTimeout(() => loadReports(), 400);
 }
 
+function setStatus(v: string) {
+    filterStatus.value = v;
+    loadReports();
+}
+
+function setOutcome(v: string) {
+    filterOutcome.value = v;
+    loadReports();
+}
+
 async function openDetail(report: any) {
     selectedReport.value = report;
     showDetail.value = true;
@@ -138,6 +154,12 @@ async function openDetail(report: any) {
     } finally {
         detailLoading.value = false;
     }
+}
+
+function closeDetail() {
+    showDetail.value = false;
+    selectedReport.value = null;
+    actionNotes.value = '';
 }
 
 async function takeAction(action: string) {
@@ -275,37 +297,31 @@ function fmtDateTime(d: string) {
     });
 }
 
+const statusOptions = [
+    { value: '', label: 'All' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'reviewed', label: 'Reviewed' },
+    { value: 'warned', label: 'Warned' },
+    { value: 'blocked', label: 'Blocked' },
+    { value: 'dismissed', label: 'Dismissed' },
+] as const;
+
+const outcomeOptions = [
+    { value: '', label: 'All' },
+    { value: 'misuse', label: 'Misuse' },
+    { value: 'legitimate', label: 'Legitimate' },
+] as const;
+
 const statusConfig: Record<string, { label: string; cls: string }> = {
-    pending: {
-        label: '⏳ Pending',
-        cls: 'border-amber-200 bg-amber-50 text-amber-700',
-    },
-    reviewed: {
-        label: '👁 Reviewed',
-        cls: 'border-blue-200 bg-blue-50 text-blue-700',
-    },
-    warned: {
-        label: '⚠ Warned',
-        cls: 'border-orange-200 bg-orange-50 text-orange-700',
-    },
-    blocked: {
-        label: '🚫 Blocked',
-        cls: 'border-red-200 bg-red-50 text-red-700',
-    },
-    dismissed: {
-        label: '✕ Dismissed',
-        cls: 'border-gray-200 bg-gray-50 text-gray-500',
-    },
+    pending: { label: 'Pending', cls: 'bg-amber-50 text-amber-700' },
+    reviewed: { label: 'Reviewed', cls: 'bg-blue-50 text-blue-700' },
+    warned: { label: 'Warned', cls: 'bg-orange-50 text-orange-700' },
+    blocked: { label: 'Blocked', cls: 'bg-red-50 text-red-600' },
+    dismissed: { label: 'Dismissed', cls: 'bg-slate-100 text-slate-500' },
 };
 const outcomeConfig: Record<string, { label: string; cls: string }> = {
-    legitimate: {
-        label: '✓ Legitimate',
-        cls: 'border-green-200 bg-green-50 text-green-700',
-    },
-    misuse: {
-        label: '⚠ Misuse',
-        cls: 'border-red-200 bg-red-50 text-red-700',
-    },
+    legitimate: { label: 'Legitimate', cls: 'bg-emerald-50 text-emerald-700' },
+    misuse: { label: 'Misuse', cls: 'bg-red-50 text-red-600' },
 };
 const misuseCategoryLabel: Record<string, string> = {
     accidental: 'Accidental',
@@ -321,302 +337,337 @@ onMounted(() => loadReports());
 
 <template>
     <Head title="Incident Reports" />
-    <AppLayout>
-        <div
-            class="relative flex h-full w-full flex-col rounded-xl bg-white bg-clip-border text-gray-700 shadow-md"
-        >
-            <!-- HEADER -->
-            <div class="border-b border-gray-100 px-6 py-5">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h1 class="text-lg font-bold text-gray-900">
-                            Incident Reports
-                        </h1>
-                        <p class="mt-0.5 text-sm text-gray-500">
-                            SOS alert reports submitted by patrollers — review
-                            and take action
-                        </p>
-                    </div>
-                    <div class="flex items-center gap-2">
-                        <button
-                            @click="showExport = true"
-                            :disabled="exportLoading"
-                            class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+
+    <AppLayout :breadcrumbs="breadcrumbs">
+        <div class="page-root">
+            <!-- PAGE HEADER -->
+            <div class="page-header">
+                <div class="page-header__left">
+                    <div class="page-header__eyebrow">Safety</div>
+                    <h1 class="page-header__title">Incident Reports</h1>
+                    <p class="page-header__sub">
+                        SOS alert reports submitted by patrollers — review and
+                        take action
+                    </p>
+                </div>
+                <div class="page-header__right">
+                    <button
+                        class="btn-secondary"
+                        :disabled="exportLoading"
+                        @click="showExport = true"
+                    >
+                        <svg
+                            v-if="!exportLoading"
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-4 w-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="2"
                         >
-                            <span
-                                v-if="exportLoading"
-                                class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-700"
-                            ></span>
-                            <span v-else>⬇</span>
-                            {{
-                                exportLoading ? 'Generating...' : 'Download PDF'
-                            }}
-                        </button>
-                        <button
-                            @click="showEmail = true"
-                            class="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"
+                            />
+                        </svg>
+                        <svg
+                            v-else
+                            class="spin h-4 w-4"
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
                         >
-                            ✉ Email Report
-                        </button>
-                        <div
-                            v-if="flash"
-                            :class="[
-                                'rounded-xl px-4 py-2 text-sm font-semibold shadow',
-                                flash.type === 'success'
-                                    ? 'bg-green-600 text-white'
-                                    : 'bg-red-600 text-white',
-                            ]"
+                            <circle
+                                class="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                stroke-width="4"
+                            />
+                            <path
+                                class="opacity-75"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                            />
+                        </svg>
+                        {{ exportLoading ? 'Generating…' : 'Download PDF' }}
+                    </button>
+                    <button class="btn-primary" @click="showEmail = true">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-4 w-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="2"
                         >
-                            {{ flash.type === 'success' ? '✓' : '⚠' }}
-                            {{ flash.msg }}
-                        </div>
-                    </div>
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+                            />
+                        </svg>
+                        Email Report
+                    </button>
                 </div>
             </div>
 
-            <!-- DATE RANGE -->
-            <div
-                class="flex flex-wrap items-end gap-3 border-b border-gray-100 bg-gray-50 px-5 py-3"
-            >
-                <div>
-                    <label
-                        class="mb-1 block text-xs font-bold tracking-wide text-gray-500 uppercase"
-                        >From</label
-                    >
-                    <input
-                        v-model="dateFrom"
-                        type="date"
-                        :max="dateTo"
-                        class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
-                    />
+            <!-- STAT CARDS -->
+            <div class="stat-row stat-row--six">
+                <div class="stat-card">
+                    <div class="stat-card__label">Total</div>
+                    <div class="stat-card__value">{{ reports.total ?? 0 }}</div>
                 </div>
-                <div>
-                    <label
-                        class="mb-1 block text-xs font-bold tracking-wide text-gray-500 uppercase"
-                        >To</label
-                    >
-                    <input
-                        v-model="dateTo"
-                        type="date"
-                        :min="dateFrom"
-                        :max="today"
-                        class="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
-                    />
-                </div>
-                <button
-                    @click="loadReports()"
-                    :disabled="loading"
-                    class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-bold text-white hover:bg-gray-700 disabled:opacity-50"
-                >
-                    {{ loading ? 'Loading...' : 'Apply' }}
-                </button>
-                <p v-if="dateError" class="text-xs text-red-600">
-                    {{ dateError }}
-                </p>
-            </div>
-
-            <!-- STATS -->
-            <div class="grid grid-cols-6 gap-3 border-b border-gray-100 p-5">
-                <div class="rounded-xl bg-gray-900 p-4 text-center">
-                    <div class="text-2xl font-bold text-white">
-                        {{ reports.total ?? 0 }}
-                    </div>
-                    <div class="mt-1 text-xs text-gray-400">Total</div>
-                </div>
-                <div
-                    class="rounded-xl border border-amber-100 bg-amber-50 p-4 text-center"
-                >
-                    <div class="text-2xl font-bold text-amber-700">
+                <div class="stat-card">
+                    <div class="stat-card__label">Pending</div>
+                    <div class="stat-card__value stat-card__value--orange">
                         {{ stats.pending }}
                     </div>
-                    <div class="mt-1 text-xs text-amber-600">Pending</div>
                 </div>
-                <div
-                    class="rounded-xl border border-red-100 bg-red-50 p-4 text-center"
-                >
-                    <div class="text-2xl font-bold text-red-700">
+                <div class="stat-card">
+                    <div class="stat-card__label">Misuse</div>
+                    <div class="stat-card__value stat-card__value--red">
                         {{ stats.misuse }}
                     </div>
-                    <div class="mt-1 text-xs text-red-500">Misuse</div>
                 </div>
-                <div
-                    class="rounded-xl border border-green-100 bg-green-50 p-4 text-center"
-                >
-                    <div class="text-2xl font-bold text-green-700">
+                <div class="stat-card">
+                    <div class="stat-card__label">Legitimate</div>
+                    <div class="stat-card__value stat-card__value--green">
                         {{ stats.legitimate }}
                     </div>
-                    <div class="mt-1 text-xs text-green-600">Legitimate</div>
                 </div>
-                <div
-                    class="rounded-xl border border-orange-100 bg-orange-50 p-4 text-center"
-                >
-                    <div class="text-2xl font-bold text-orange-700">
+                <div class="stat-card">
+                    <div class="stat-card__label">Warned</div>
+                    <div class="stat-card__value stat-card__value--orange">
                         {{ stats.warned }}
                     </div>
-                    <div class="mt-1 text-xs text-orange-600">Warned</div>
                 </div>
-                <div
-                    class="rounded-xl border border-rose-100 bg-rose-50 p-4 text-center"
-                >
-                    <div class="text-2xl font-bold text-rose-700">
+                <div class="stat-card">
+                    <div class="stat-card__label">Blocked</div>
+                    <div class="stat-card__value stat-card__value--red">
                         {{ stats.blocked }}
                     </div>
-                    <div class="mt-1 text-xs text-rose-600">Blocked</div>
                 </div>
             </div>
 
-            <!-- FILTERS -->
-            <div
-                class="flex items-center gap-3 border-b border-gray-100 px-5 py-3"
-            >
-                <div class="relative max-w-sm flex-1">
+            <!-- FILTER BAR -->
+            <div class="filter-card">
+                <div class="filter-card__top">
+                    <div class="search-input-row search-input-row--standalone">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="search-icon"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                            />
+                        </svg>
+                        <input
+                            v-model="searchQuery"
+                            @input="handleSearch"
+                            type="text"
+                            class="search-input"
+                            placeholder="Search by household name…"
+                        />
+                        <span
+                            v-if="searchQuery"
+                            class="search-clear"
+                            @click="
+                                searchQuery = '';
+                                loadReports();
+                            "
+                            >×</span
+                        >
+                    </div>
+
+                    <div class="date-range">
+                        <div class="date-field">
+                            <label class="date-field__label">From</label>
+                            <input
+                                v-model="dateFrom"
+                                type="date"
+                                :max="dateTo"
+                                class="field__input field__input--date"
+                            />
+                        </div>
+                        <div class="date-field">
+                            <label class="date-field__label">To</label>
+                            <input
+                                v-model="dateTo"
+                                type="date"
+                                :min="dateFrom"
+                                :max="today"
+                                class="field__input field__input--date"
+                            />
+                        </div>
+                        <button
+                            class="btn-secondary btn-secondary--compact"
+                            :disabled="loading"
+                            @click="loadReports()"
+                        >
+                            {{ loading ? 'Loading…' : 'Apply' }}
+                        </button>
+                    </div>
+                </div>
+                <p v-if="dateError" class="date-error">{{ dateError }}</p>
+
+                <div class="filter-groups">
+                    <div class="filter-group">
+                        <span class="filter-group__label">Status</span>
+                        <div class="filter-bar__chips">
+                            <button
+                                v-for="f in statusOptions"
+                                :key="f.value"
+                                class="chip"
+                                :class="{
+                                    'chip--active': filterStatus === f.value,
+                                }"
+                                @click="setStatus(f.value)"
+                            >
+                                {{ f.label }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="filter-group">
+                        <span class="filter-group__label">Outcome</span>
+                        <div class="filter-bar__chips">
+                            <button
+                                v-for="f in outcomeOptions"
+                                :key="f.value"
+                                class="chip"
+                                :class="{
+                                    'chip--active': filterOutcome === f.value,
+                                }"
+                                @click="setOutcome(f.value)"
+                            >
+                                {{ f.label }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <button class="btn-secondary btn-secondary--compact ml-auto" @click="loadReports()">
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- TABLE CARD -->
+            <div class="table-card">
+                <div v-if="loading" class="empty-state">
                     <svg
+                        class="spin h-6 w-6 text-slate-400"
                         xmlns="http://www.w3.org/2000/svg"
-                        class="pointer-events-none absolute top-2.5 left-3 h-4 w-4 text-gray-400"
                         fill="none"
                         viewBox="0 0 24 24"
-                        stroke="currentColor"
                     >
+                        <circle
+                            class="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            stroke-width="4"
+                        />
                         <path
-                            stroke-linecap="round"
-                            stroke-linejoin="round"
-                            stroke-width="2"
-                            d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"
+                            class="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                         />
                     </svg>
-                    <input
-                        v-model="searchQuery"
-                        @input="handleSearch"
-                        type="text"
-                        placeholder="Search by household name..."
-                        class="w-full rounded-lg border border-gray-200 bg-gray-50 py-2 pr-4 pl-9 text-sm focus:border-gray-400 focus:bg-white focus:outline-none"
-                    />
+                    <span class="mt-2 text-sm text-slate-400"
+                        >Loading reports…</span
+                    >
                 </div>
-                <select
-                    v-model="filterStatus"
-                    @change="loadReports()"
-                    class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:outline-none"
-                >
-                    <option value="">All Statuses</option>
-                    <option value="pending">Pending</option>
-                    <option value="reviewed">Reviewed</option>
-                    <option value="warned">Warned</option>
-                    <option value="blocked">Blocked</option>
-                    <option value="dismissed">Dismissed</option>
-                </select>
-                <select
-                    v-model="filterOutcome"
-                    @change="loadReports()"
-                    class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm focus:outline-none"
-                >
-                    <option value="">All Outcomes</option>
-                    <option value="misuse">Misuse</option>
-                    <option value="legitimate">Legitimate</option>
-                </select>
-                <button
-                    @click="loadReports()"
-                    class="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50"
-                >
-                    ↻ Refresh
-                </button>
-            </div>
 
-            <!-- TABLE -->
-            <div class="overflow-x-auto">
-                <table class="w-full min-w-max table-auto text-left text-sm">
+                <div v-else-if="reportList.length === 0" class="empty-state">
+                    <div class="empty-state__icon">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-8 w-8"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="1.2"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            />
+                        </svg>
+                    </div>
+                    <p class="empty-state__title">No reports found</p>
+                    <p class="empty-state__sub">
+                        Try adjusting the date range or filters
+                    </p>
+                </div>
+
+                <table v-else class="data-table">
                     <thead>
-                        <tr class="bg-gray-50">
-                            <th
-                                class="border-b border-gray-200 p-4 text-xs font-bold tracking-wide text-gray-500 uppercase"
-                            >
-                                Household
-                            </th>
-                            <th
-                                class="border-b border-gray-200 p-4 text-xs font-bold tracking-wide text-gray-500 uppercase"
-                            >
-                                Reporter
-                            </th>
-                            <th
-                                class="border-b border-gray-200 p-4 text-xs font-bold tracking-wide text-gray-500 uppercase"
-                            >
-                                Outcome
-                            </th>
-                            <th
-                                class="border-b border-gray-200 p-4 text-xs font-bold tracking-wide text-gray-500 uppercase"
-                            >
-                                Category
-                            </th>
-                            <th
-                                class="border-b border-gray-200 p-4 text-xs font-bold tracking-wide text-gray-500 uppercase"
-                            >
-                                Status
-                            </th>
-                            <th
-                                class="border-b border-gray-200 p-4 text-xs font-bold tracking-wide text-gray-500 uppercase"
-                            >
-                                Date
-                            </th>
-                            <th
-                                class="border-b border-gray-200 p-4 text-xs font-bold tracking-wide text-gray-500 uppercase"
-                            >
-                                Action
-                            </th>
+                        <tr>
+                            <th>Household</th>
+                            <th>Reporter</th>
+                            <th>Outcome</th>
+                            <th>Category</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                            <th></th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-if="loading">
-                            <td colspan="7" class="p-12 text-center">
-                                <div
-                                    class="mx-auto h-6 w-6 animate-spin rounded-full border-2 border-gray-200 border-t-gray-800"
-                                ></div>
-                            </td>
-                        </tr>
-                        <tr v-else-if="reportList.length === 0">
-                            <td colspan="7" class="p-12 text-center">
-                                <div class="mb-2 text-3xl">📋</div>
-                                <div class="font-semibold text-gray-600">
-                                    No reports found
-                                </div>
-                                <div class="mt-1 text-xs text-gray-400">
-                                    Try adjusting the date range or filters
-                                </div>
-                            </td>
-                        </tr>
                         <tr
                             v-for="report in reportList"
                             :key="report.id"
-                            class="cursor-pointer border-b border-gray-100 last:border-0 hover:bg-gray-50/50"
+                            class="clickable-row"
                             @click="openDetail(report)"
                         >
-                            <td class="p-4">
-                                <p class="font-semibold text-gray-900">
-                                    {{ report.household?.name ?? '—' }}
-                                </p>
-                                <p class="text-xs text-gray-400">
-                                    {{ report.household?.email }}
-                                </p>
+                            <td>
+                                <div class="reporter-cell">
+                                    <div class="reporter-cell__avatar">
+                                        {{
+                                            (report.household?.name || 'H')
+                                                .charAt(0)
+                                                .toUpperCase()
+                                        }}
+                                    </div>
+                                    <div>
+                                        <div class="reporter-cell__name">
+                                            {{ report.household?.name ?? '—' }}
+                                        </div>
+                                        <div class="reporter-cell__sub">
+                                            {{ report.household?.email }}
+                                        </div>
+                                    </div>
+                                </div>
                             </td>
-                            <td class="p-4">
-                                <p class="text-gray-700">
+                            <td>
+                                <div class="reporter-cell__name">
                                     {{ report.reporter?.name ?? '—' }}
-                                </p>
-                                <p class="text-xs text-gray-400">
+                                </div>
+                                <div class="reporter-cell__sub">
                                     {{ report.reporter?.email }}
-                                </p>
+                                </div>
                             </td>
-                            <td class="p-4">
+                            <td>
                                 <span
-                                    :class="[
-                                        'rounded-full border px-2.5 py-1 text-xs font-bold',
-                                        outcomeConfig[report.outcome]?.cls,
-                                    ]"
+                                    class="type-badge"
+                                    :class="outcomeConfig[report.outcome]?.cls"
                                     >{{
                                         outcomeConfig[report.outcome]?.label ??
                                         report.outcome
                                     }}</span
                                 >
                             </td>
-                            <td class="p-4 text-xs text-gray-600">
+                            <td class="td-time">
                                 {{
                                     report.misuse_category
                                         ? misuseCategoryLabel[
@@ -625,542 +676,1511 @@ onMounted(() => loadReports());
                                         : '—'
                                 }}
                             </td>
-                            <td class="p-4">
+                            <td>
                                 <span
-                                    :class="[
-                                        'rounded-full border px-2.5 py-1 text-xs font-bold',
-                                        statusConfig[report.status]?.cls,
-                                    ]"
+                                    class="type-badge"
+                                    :class="statusConfig[report.status]?.cls"
                                     >{{
                                         statusConfig[report.status]?.label ??
                                         report.status
                                     }}</span
                                 >
                             </td>
-                            <td class="p-4 text-xs text-gray-600">
+                            <td class="td-time">
                                 {{ fmtDate(report.created_at) }}
                             </td>
-                            <td class="p-4">
+                            <td>
                                 <button
+                                    class="row-action-btn"
                                     @click.stop="openDetail(report)"
-                                    class="rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-100"
                                 >
-                                    View →
+                                    View
                                 </button>
                             </td>
                         </tr>
                     </tbody>
                 </table>
-            </div>
 
-            <!-- PAGINATION -->
-            <div
-                class="flex items-center justify-between border-t border-gray-100 p-4"
-            >
-                <div class="text-sm text-gray-500">
-                    Showing {{ reports.from ?? 0 }} to {{ reports.to ?? 0 }} of
-                    {{ reports.total ?? 0 }} reports
-                </div>
-                <div class="flex gap-1.5">
-                    <template v-for="(link, i) in reports.links" :key="i">
-                        <button
-                            v-if="link.url"
-                            @click="loadReports(link.url)"
-                            v-html="link.label"
-                            :class="[
-                                'inline-block min-w-[36px] rounded-lg border px-3 py-1.5 text-center text-xs font-semibold transition-all',
-                                link.active
-                                    ? 'border-gray-900 bg-gray-900 text-white'
-                                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50',
-                            ]"
-                        />
-                        <span
-                            v-else
-                            v-html="link.label"
-                            class="inline-block min-w-[36px] cursor-not-allowed rounded-lg border border-gray-200 bg-gray-100 px-3 py-1.5 text-center text-xs text-gray-400"
-                        />
-                    </template>
-                </div>
-            </div>
-        </div>
-
-        <!-- DETAIL MODAL -->
-        <div
-            v-if="showDetail"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm"
-        >
-            <div
-                class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
-            >
                 <div
-                    class="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-6 py-4"
+                    class="pagination-bar"
+                    v-if="!loading && reportList.length > 0"
                 >
-                    <div>
-                        <h2 class="text-base font-bold text-gray-900">
-                            Incident Report #{{ selectedReport?.id }}
-                        </h2>
-                        <p class="text-xs text-gray-500">
-                            {{ fmtDateTime(selectedReport?.created_at) }}
-                        </p>
-                    </div>
-                    <button
-                        @click="showDetail = false"
-                        class="rounded-lg p-2 text-gray-400 hover:bg-gray-100"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            class="h-5 w-5"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                stroke-width="2"
-                                d="M6 18L18 6M6 6l12 12"
-                            />
-                        </svg>
-                    </button>
-                </div>
-                <div
-                    v-if="detailLoading"
-                    class="flex items-center justify-center py-16"
-                >
-                    <div
-                        class="h-6 w-6 animate-spin rounded-full border-2 border-gray-200 border-t-gray-800"
-                    ></div>
-                </div>
-                <div v-else class="space-y-6 p-6">
-                    <div class="flex flex-wrap items-center gap-3">
-                        <span
-                            :class="[
-                                'rounded-full border px-3 py-1.5 text-xs font-bold',
-                                outcomeConfig[selectedReport?.outcome]?.cls,
-                            ]"
-                            >{{
-                                outcomeConfig[selectedReport?.outcome]?.label
-                            }}</span
-                        >
-                        <span
-                            :class="[
-                                'rounded-full border px-3 py-1.5 text-xs font-bold',
-                                statusConfig[selectedReport?.status]?.cls,
-                            ]"
-                            >{{
-                                statusConfig[selectedReport?.status]?.label
-                            }}</span
-                        >
-                        <span
-                            v-if="selectedReport?.misuse_category"
-                            class="rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600"
-                            >{{
-                                misuseCategoryLabel[
-                                    selectedReport.misuse_category
-                                ]
-                            }}</span
-                        >
-                    </div>
-                    <div class="grid grid-cols-2 gap-4">
-                        <div
-                            class="rounded-xl border border-gray-100 bg-gray-50 p-4"
-                        >
-                            <p
-                                class="mb-2 text-xs font-bold tracking-wide text-gray-400 uppercase"
-                            >
-                                Household
-                            </p>
-                            <p class="font-semibold text-gray-900">
-                                {{ selectedReport?.household?.name }}
-                            </p>
-                            <p class="text-xs text-gray-500">
-                                {{ selectedReport?.household?.email }}
-                            </p>
-                            <p class="text-xs text-gray-500">
-                                {{ selectedReport?.household?.phone }}
-                            </p>
-                        </div>
-                        <div
-                            class="rounded-xl border border-gray-100 bg-gray-50 p-4"
-                        >
-                            <p
-                                class="mb-2 text-xs font-bold tracking-wide text-gray-400 uppercase"
-                            >
-                                Patroller
-                            </p>
-                            <p class="font-semibold text-gray-900">
-                                {{ selectedReport?.reporter?.name }}
-                            </p>
-                            <p class="text-xs text-gray-500">
-                                {{ selectedReport?.reporter?.email }}
-                            </p>
-                            <p class="text-xs text-gray-500">
-                                {{ selectedReport?.reporter?.phone }}
-                            </p>
-                        </div>
-                    </div>
-                    <div
-                        class="grid grid-cols-2 gap-3 rounded-xl border border-gray-100 bg-gray-50 p-4"
-                    >
-                        <div>
-                            <p
-                                class="text-xs font-bold tracking-wide text-gray-400 uppercase"
-                            >
-                                Arrived At
-                            </p>
-                            <p class="mt-1 text-sm font-semibold text-gray-800">
-                                {{ fmtDateTime(selectedReport?.arrived_at) }}
-                            </p>
-                        </div>
-                        <div>
-                            <p
-                                class="text-xs font-bold tracking-wide text-gray-400 uppercase"
-                            >
-                                Departed At
-                            </p>
-                            <p class="mt-1 text-sm font-semibold text-gray-800">
-                                {{ fmtDateTime(selectedReport?.departed_at) }}
-                            </p>
-                        </div>
-                        <div>
-                            <p
-                                class="text-xs font-bold tracking-wide text-gray-400 uppercase"
-                            >
-                                Injuries
-                            </p>
-                            <p
-                                class="mt-1 text-sm font-semibold"
-                                :class="
-                                    selectedReport?.injuries_reported
-                                        ? 'text-red-600'
-                                        : 'text-gray-500'
-                                "
-                            >
-                                {{
-                                    selectedReport?.injuries_reported
-                                        ? 'Yes'
-                                        : 'No'
-                                }}
-                            </p>
-                        </div>
-                        <div>
-                            <p
-                                class="text-xs font-bold tracking-wide text-gray-400 uppercase"
-                            >
-                                Property Damage
-                            </p>
-                            <p
-                                class="mt-1 text-sm font-semibold"
-                                :class="
-                                    selectedReport?.property_damage
-                                        ? 'text-red-600'
-                                        : 'text-gray-500'
-                                "
-                            >
-                                {{
-                                    selectedReport?.property_damage
-                                        ? 'Yes'
-                                        : 'No'
-                                }}
-                            </p>
-                        </div>
-                    </div>
-                    <div>
-                        <p
-                            class="mb-2 text-xs font-bold tracking-wide text-gray-400 uppercase"
-                        >
-                            Patroller's Account
-                        </p>
-                        <div
-                            class="rounded-xl border border-gray-200 bg-white p-4 text-sm leading-relaxed text-gray-700 italic"
-                        >
-                            "{{ selectedReport?.narrative }}"
-                        </div>
-                    </div>
-                    <div v-if="selectedReport?.additional_notes">
-                        <p
-                            class="mb-2 text-xs font-bold tracking-wide text-gray-400 uppercase"
-                        >
-                            Additional Notes
-                        </p>
-                        <div
-                            class="rounded-xl border border-gray-100 bg-gray-50 p-4 text-sm text-gray-600"
-                        >
-                            {{ selectedReport.additional_notes }}
-                        </div>
-                    </div>
-                    <div
-                        v-if="selectedReport?.emergency_alert_id"
-                        class="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3"
-                    >
-                        <p class="text-xs font-semibold text-blue-700">
-                            📡 Linked to Emergency Alert #{{
-                                selectedReport.emergency_alert_id
-                            }}
-                        </p>
-                    </div>
-                    <div
-                        v-if="selectedReport?.actioned_by"
-                        class="rounded-xl border border-gray-200 bg-gray-50 p-4"
-                    >
-                        <p
-                            class="mb-1 text-xs font-bold tracking-wide text-gray-400 uppercase"
-                        >
-                            Previous Action
-                        </p>
-                        <p class="text-sm text-gray-700">
-                            By
-                            <span class="font-semibold">{{
-                                selectedReport.actioned_by?.name
-                            }}</span>
-                            on {{ fmtDateTime(selectedReport.actioned_at) }}
-                        </p>
-                        <p
-                            v-if="selectedReport.admin_notes"
-                            class="mt-2 text-sm text-gray-500 italic"
-                        >
-                            {{ selectedReport.admin_notes }}
-                        </p>
-                    </div>
-                    <div
-                        v-if="
-                            !['blocked', 'dismissed'].includes(
-                                selectedReport?.status,
-                            )
-                        "
-                        class="rounded-xl border border-gray-200 bg-gray-50 p-5"
-                    >
-                        <p class="mb-3 text-sm font-bold text-gray-900">
-                            Take Action
-                        </p>
-                        <div class="mb-4">
-                            <label
-                                class="mb-1 block text-xs font-semibold text-gray-600"
-                                >Admin Notes (optional)</label
-                            ><textarea
-                                v-model="actionNotes"
-                                rows="2"
-                                placeholder="Add internal notes..."
-                                class="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
-                            ></textarea>
-                        </div>
-                        <div class="flex flex-wrap gap-2">
-                            <button
-                                v-if="selectedReport?.status === 'pending'"
-                                @click="takeAction('review')"
-                                :disabled="actionLoading"
-                                class="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
-                            >
-                                <span
-                                    v-if="actionLoading"
-                                    class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-blue-300 border-t-blue-700"
-                                ></span
-                                >👁 Mark Reviewed
-                            </button>
-                            <button
-                                v-if="
-                                    selectedReport?.outcome === 'misuse' &&
-                                    selectedReport?.status !== 'warned'
-                                "
-                                @click="takeAction('warn')"
-                                :disabled="actionLoading"
-                                class="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-100 disabled:opacity-50"
-                            >
-                                <span
-                                    v-if="actionLoading"
-                                    class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-amber-300 border-t-amber-700"
-                                ></span
-                                >⚠ Send Warning
-                            </button>
-                            <button
-                                v-if="selectedReport?.outcome === 'misuse'"
-                                @click="takeAction('block')"
-                                :disabled="actionLoading"
-                                class="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
-                            >
-                                <span
-                                    v-if="actionLoading"
-                                    class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-red-300 border-t-red-700"
-                                ></span
-                                >🚫 Block SOS
-                            </button>
-                            <button
-                                @click="takeAction('dismiss')"
-                                :disabled="actionLoading"
-                                class="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-50"
-                            >
-                                <span
-                                    v-if="actionLoading"
-                                    class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-600"
-                                ></span
-                                >✕ Dismiss
-                            </button>
-                        </div>
-                    </div>
-                    <div
-                        v-else
-                        class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-center text-sm text-gray-500"
-                    >
-                        Report
-                        <span class="font-semibold text-gray-700">{{
-                            selectedReport?.status
-                        }}</span>
-                        — no further action required.
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- DOWNLOAD CONFIRM MODAL -->
-        <div
-            v-if="showExport"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm"
-        >
-            <div class="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
-                <h3 class="mb-1 text-base font-bold text-gray-900">
-                    Download PDF Report
-                </h3>
-                <p class="mb-5 text-sm text-gray-500">
-                    A PDF report will be generated for the selected period and
-                    filters.
-                </p>
-                <div
-                    class="mb-5 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm"
-                >
-                    <div class="flex justify-between">
-                        <span class="text-gray-500">Period</span
-                        ><span class="font-semibold text-gray-800"
-                            >{{ dateFrom }} → {{ dateTo }}</span
-                        >
-                    </div>
-                    <div
-                        v-if="filterStatus || filterOutcome"
-                        class="mt-1 flex justify-between"
-                    >
-                        <span class="text-gray-500">Filters</span
-                        ><span class="text-gray-600">{{
-                            [filterStatus, filterOutcome]
-                                .filter(Boolean)
-                                .join(', ')
-                        }}</span>
-                    </div>
-                </div>
-                <div class="flex gap-3">
-                    <button
-                        @click="showExport = false"
-                        class="flex-1 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        @click="downloadPdf"
-                        class="flex-1 rounded-lg bg-gray-900 px-4 py-2.5 text-sm font-semibold text-white hover:bg-gray-700"
-                    >
-                        ⬇ Download PDF
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- EMAIL MODAL -->
-        <div
-            v-if="showEmail"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm"
-        >
-            <div class="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-                <h3 class="mb-1 text-base font-bold text-gray-900">
-                    Email PDF Report
-                </h3>
-                <p class="mb-5 text-xs text-gray-500">
-                    A PDF report will be compiled for the selected period and
-                    emailed as an attachment.
-                </p>
-                <div
-                    class="mb-5 rounded-xl border border-gray-100 bg-gray-50 px-4 py-3 text-sm"
-                >
-                    <div class="flex justify-between">
-                        <span class="text-gray-500">Period</span
-                        ><span class="font-semibold text-gray-800"
-                            >{{ dateFrom }} → {{ dateTo }}</span
-                        >
-                    </div>
-                </div>
-                <p
-                    class="mb-2 text-xs font-bold tracking-wide text-gray-500 uppercase"
-                >
-                    Recipients
-                </p>
-                <div class="mb-2 flex gap-2">
-                    <input
-                        v-model="emailInput"
-                        type="email"
-                        placeholder="email@example.com"
-                        @keydown.enter.prevent="addEmail"
-                        class="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
-                    />
-                    <button
-                        @click="addEmail"
-                        class="rounded-lg bg-gray-900 px-4 py-2 text-sm font-bold text-white hover:bg-gray-700"
-                    >
-                        Add
-                    </button>
-                </div>
-                <p v-if="emailError" class="mb-2 text-xs text-red-600">
-                    {{ emailError }}
-                </p>
-                <div
-                    v-if="emailList.length > 0"
-                    class="mb-4 flex flex-wrap gap-2"
-                >
-                    <span
-                        v-for="e in emailList"
-                        :key="e"
-                        class="flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700"
-                    >
-                        {{ e }}
-                        <button
-                            @click="removeEmail(e)"
-                            class="ml-1 text-blue-400 hover:text-blue-700"
-                        >
-                            ✕
-                        </button>
+                    <span class="pagination-bar__info">
+                        Showing {{ reports.from ?? 0 }} to
+                        {{ reports.to ?? 0 }} of {{ reports.total ?? 0 }}
+                        reports
                     </span>
-                </div>
-                <p v-else class="mb-4 text-xs text-gray-400">
-                    No recipients yet — press Enter or click Add.
-                </p>
-                <div class="flex gap-3">
-                    <button
-                        @click="
-                            showEmail = false;
-                            emailList = [];
-                            emailError = '';
-                        "
-                        class="flex-1 rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        @click="sendEmail"
-                        :disabled="emailLoading || emailList.length === 0"
-                        class="flex-1 rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-                    >
-                        <span
-                            v-if="emailLoading"
-                            class="flex items-center justify-center gap-2"
-                            ><span
-                                class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white"
-                            ></span
-                            >Sending...</span
-                        >
-                        <span v-else
-                            >✉ Send to {{ emailList.length }} recipient{{
-                                emailList.length !== 1 ? 's' : ''
-                            }}</span
-                        >
-                    </button>
+                    <div class="pagination-bar__pages">
+                        <template v-for="(link, i) in reports.links" :key="i">
+                            <button
+                                v-if="link.url"
+                                @click="loadReports(link.url)"
+                                v-html="link.label"
+                                class="page-btn"
+                                :class="{ 'page-btn--active': link.active }"
+                            />
+                            <span
+                                v-else
+                                v-html="link.label"
+                                class="page-btn page-btn--disabled"
+                            />
+                        </template>
+                    </div>
                 </div>
             </div>
         </div>
+
+        <!-- ═══════════════ DETAIL MODAL ═══════════════ -->
+        <Teleport to="body">
+            <transition name="modal">
+                <div
+                    v-if="showDetail"
+                    class="modal-backdrop"
+                    @click.self="closeDetail"
+                >
+                    <div class="modal-sheet">
+                        <div class="modal-sheet__header">
+                            <div class="modal-sheet__header-left">
+                                <div>
+                                    <div class="modal-sheet__title">
+                                        Incident Report #{{
+                                            selectedReport?.id
+                                        }}
+                                    </div>
+                                    <div class="modal-sheet__sub">
+                                        {{
+                                            fmtDateTime(
+                                                selectedReport?.created_at,
+                                            )
+                                        }}
+                                    </div>
+                                </div>
+                            </div>
+                            <button class="close-btn" @click="closeDetail">
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    class="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        d="M6 18L18 6M6 6l12 12"
+                                    />
+                                </svg>
+                            </button>
+                        </div>
+
+                        <div
+                            v-if="detailLoading"
+                            class="flex items-center justify-center py-16"
+                        >
+                            <svg
+                                class="spin h-6 w-6 text-slate-400"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                            >
+                                <circle
+                                    class="opacity-25"
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    stroke="currentColor"
+                                    stroke-width="4"
+                                />
+                                <path
+                                    class="opacity-75"
+                                    fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                />
+                            </svg>
+                        </div>
+
+                        <div v-else class="modal-sheet__body">
+                            <div class="toggle-row">
+                                <span
+                                    class="type-badge"
+                                    :class="
+                                        outcomeConfig[selectedReport?.outcome]
+                                            ?.cls
+                                    "
+                                    >{{
+                                        outcomeConfig[selectedReport?.outcome]
+                                            ?.label
+                                    }}</span
+                                >
+                                <span
+                                    class="type-badge"
+                                    :class="
+                                        statusConfig[selectedReport?.status]
+                                            ?.cls
+                                    "
+                                    >{{
+                                        statusConfig[selectedReport?.status]
+                                            ?.label
+                                    }}</span
+                                >
+                                <span
+                                    v-if="selectedReport?.misuse_category"
+                                    class="type-badge bg-slate-100 text-slate-600"
+                                    >{{
+                                        misuseCategoryLabel[
+                                            selectedReport.misuse_category
+                                        ]
+                                    }}</span
+                                >
+                            </div>
+
+                            <div class="toggle-row">
+                                <div class="review-info-panel">
+                                    <div class="field__label">Household</div>
+                                    <div class="review-info-panel__name">
+                                        {{ selectedReport?.household?.name }}
+                                    </div>
+                                    <div class="review-info-panel__sub">
+                                        {{ selectedReport?.household?.email }}
+                                    </div>
+                                    <div class="review-info-panel__sub">
+                                        {{ selectedReport?.household?.phone }}
+                                    </div>
+                                </div>
+                                <div class="review-info-panel">
+                                    <div class="field__label">Patroller</div>
+                                    <div class="review-info-panel__name">
+                                        {{ selectedReport?.reporter?.name }}
+                                    </div>
+                                    <div class="review-info-panel__sub">
+                                        {{ selectedReport?.reporter?.email }}
+                                    </div>
+                                    <div class="review-info-panel__sub">
+                                        {{ selectedReport?.reporter?.phone }}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="review-info-panel">
+                                <div class="detail-grid">
+                                    <div>
+                                        <div class="field__label">
+                                            Arrived At
+                                        </div>
+                                        <div class="detail-grid__value">
+                                            {{
+                                                fmtDateTime(
+                                                    selectedReport?.arrived_at,
+                                                )
+                                            }}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="field__label">
+                                            Departed At
+                                        </div>
+                                        <div class="detail-grid__value">
+                                            {{
+                                                fmtDateTime(
+                                                    selectedReport?.departed_at,
+                                                )
+                                            }}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="field__label">
+                                            Injuries
+                                        </div>
+                                        <div
+                                            class="detail-grid__value"
+                                            :class="{
+                                                'detail-grid__value--danger':
+                                                    selectedReport?.injuries_reported,
+                                            }"
+                                        >
+                                            {{
+                                                selectedReport?.injuries_reported
+                                                    ? 'Yes'
+                                                    : 'No'
+                                            }}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="field__label">
+                                            Property Damage
+                                        </div>
+                                        <div
+                                            class="detail-grid__value"
+                                            :class="{
+                                                'detail-grid__value--danger':
+                                                    selectedReport?.property_damage,
+                                            }"
+                                        >
+                                            {{
+                                                selectedReport?.property_damage
+                                                    ? 'Yes'
+                                                    : 'No'
+                                            }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="field__label"
+                                    >Patroller's Account</label
+                                >
+                                <p class="review-description">
+                                    {{ selectedReport?.narrative }}
+                                </p>
+                            </div>
+
+                            <div
+                                v-if="selectedReport?.additional_notes"
+                                class="field"
+                            >
+                                <label class="field__label"
+                                    >Additional Notes</label
+                                >
+                                <p class="review-description">
+                                    {{ selectedReport.additional_notes }}
+                                </p>
+                            </div>
+
+                            <div
+                                v-if="selectedReport?.emergency_alert_id"
+                                class="flag-panel flag-panel--warn"
+                            >
+                                Linked to Emergency Alert #{{
+                                    selectedReport.emergency_alert_id
+                                }}
+                            </div>
+
+                            <div
+                                v-if="selectedReport?.actioned_by"
+                                class="review-info-panel"
+                            >
+                                <div class="field__label">Previous Action</div>
+                                <p class="review-info-panel__name">
+                                    By {{ selectedReport.actioned_by?.name }}
+                                    on
+                                    {{
+                                        fmtDateTime(
+                                            selectedReport.actioned_at,
+                                        )
+                                    }}
+                                </p>
+                                <p
+                                    v-if="selectedReport.admin_notes"
+                                    class="review-info-panel__sub"
+                                >
+                                    {{ selectedReport.admin_notes }}
+                                </p>
+                            </div>
+
+                            <div
+                                v-if="
+                                    !['blocked', 'dismissed'].includes(
+                                        selectedReport?.status,
+                                    )
+                                "
+                            >
+                                <div class="field">
+                                    <label class="field__label"
+                                        >Admin Notes (optional)</label
+                                    >
+                                    <textarea
+                                        v-model="actionNotes"
+                                        class="field__input field__textarea"
+                                        rows="2"
+                                        placeholder="Add internal notes…"
+                                    ></textarea>
+                                </div>
+                                <div class="modal-actions">
+                                    <button
+                                        v-if="
+                                            selectedReport?.status ===
+                                            'pending'
+                                        "
+                                        class="btn-secondary"
+                                        :disabled="actionLoading"
+                                        @click="takeAction('review')"
+                                    >
+                                        Mark Reviewed
+                                    </button>
+                                    <button
+                                        v-if="
+                                            selectedReport?.outcome ===
+                                                'misuse' &&
+                                            selectedReport?.status !== 'warned'
+                                        "
+                                        class="btn-secondary"
+                                        :disabled="actionLoading"
+                                        @click="takeAction('warn')"
+                                    >
+                                        Send Warning
+                                    </button>
+                                    <button
+                                        v-if="
+                                            selectedReport?.outcome ===
+                                            'misuse'
+                                        "
+                                        class="btn-danger"
+                                        :disabled="actionLoading"
+                                        @click="takeAction('block')"
+                                    >
+                                        Block SOS
+                                    </button>
+                                    <button
+                                        class="btn-ghost"
+                                        :disabled="actionLoading"
+                                        @click="takeAction('dismiss')"
+                                    >
+                                        Dismiss
+                                    </button>
+                                </div>
+                            </div>
+                            <div v-else class="review-description text-center">
+                                Report
+                                <strong>{{ selectedReport?.status }}</strong>
+                                — no further action required.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+        </Teleport>
+
+        <!-- ═══════════════ DOWNLOAD CONFIRM MODAL ═══════════════ -->
+        <Teleport to="body">
+            <transition name="modal">
+                <div
+                    v-if="showExport"
+                    class="modal-backdrop"
+                    @click.self="showExport = false"
+                >
+                    <div class="modal-sheet modal-sheet--sm">
+                        <div class="modal-sheet__header">
+                            <div class="modal-sheet__header-left">
+                                <div>
+                                    <div class="modal-sheet__title">
+                                        Download PDF Report
+                                    </div>
+                                    <div class="modal-sheet__sub">
+                                        Generated for the selected period and
+                                        filters
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                class="close-btn"
+                                @click="showExport = false"
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    class="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        d="M6 18L18 6M6 6l12 12"
+                                    />
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="modal-sheet__body">
+                            <div class="review-info-panel">
+                                <div class="toggle-row" style="justify-content: space-between">
+                                    <span class="field__label" style="margin: 0">Period</span>
+                                    <span class="review-info-panel__name">
+                                        {{ dateFrom }} → {{ dateTo }}
+                                    </span>
+                                </div>
+                                <div
+                                    v-if="filterStatus || filterOutcome"
+                                    class="toggle-row"
+                                    style="justify-content: space-between; margin-top: 6px"
+                                >
+                                    <span class="field__label" style="margin: 0">Filters</span>
+                                    <span class="review-info-panel__sub">
+                                        {{
+                                            [filterStatus, filterOutcome]
+                                                .filter(Boolean)
+                                                .join(', ')
+                                        }}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="modal-actions">
+                                <button
+                                    class="btn-ghost"
+                                    @click="showExport = false"
+                                >
+                                    Cancel
+                                </button>
+                                <button class="btn-primary" @click="downloadPdf">
+                                    Download PDF
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+        </Teleport>
+
+        <!-- ═══════════════ EMAIL MODAL ═══════════════ -->
+        <Teleport to="body">
+            <transition name="modal">
+                <div
+                    v-if="showEmail"
+                    class="modal-backdrop"
+                    @click.self="showEmail = false"
+                >
+                    <div class="modal-sheet modal-sheet--sm">
+                        <div class="modal-sheet__header">
+                            <div class="modal-sheet__header-left">
+                                <div>
+                                    <div class="modal-sheet__title">
+                                        Email PDF Report
+                                    </div>
+                                    <div class="modal-sheet__sub">
+                                        Compiled for the selected period and
+                                        sent as an attachment
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                class="close-btn"
+                                @click="showEmail = false"
+                            >
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    class="h-4 w-4"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        d="M6 18L18 6M6 6l12 12"
+                                    />
+                                </svg>
+                            </button>
+                        </div>
+                        <div class="modal-sheet__body">
+                            <div class="review-info-panel">
+                                <div class="toggle-row" style="justify-content: space-between">
+                                    <span class="field__label" style="margin: 0">Period</span>
+                                    <span class="review-info-panel__name">
+                                        {{ dateFrom }} → {{ dateTo }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="field">
+                                <label class="field__label">Recipients</label>
+                                <div class="email-add-row">
+                                    <input
+                                        v-model="emailInput"
+                                        type="email"
+                                        class="field__input"
+                                        placeholder="email@example.com"
+                                        @keydown.enter.prevent="addEmail"
+                                    />
+                                    <button
+                                        class="btn-primary btn-primary--compact"
+                                        @click="addEmail"
+                                    >
+                                        Add
+                                    </button>
+                                </div>
+                                <p v-if="emailError" class="date-error">
+                                    {{ emailError }}
+                                </p>
+                                <div
+                                    v-if="emailList.length > 0"
+                                    class="email-chip-row"
+                                >
+                                    <span
+                                        v-for="e in emailList"
+                                        :key="e"
+                                        class="email-chip"
+                                    >
+                                        {{ e }}
+                                        <button
+                                            class="email-chip__remove"
+                                            @click="removeEmail(e)"
+                                        >
+                                            ×
+                                        </button>
+                                    </span>
+                                </div>
+                                <p v-else class="empty-state__sub" style="text-align: left; padding: 0; margin-top: 4px">
+                                    No recipients yet — press Enter or click
+                                    Add.
+                                </p>
+                            </div>
+
+                            <div class="modal-actions">
+                                <button
+                                    class="btn-ghost"
+                                    @click="
+                                        showEmail = false;
+                                        emailList = [];
+                                        emailError = '';
+                                    "
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    class="btn-primary"
+                                    :disabled="
+                                        emailLoading || emailList.length === 0
+                                    "
+                                    @click="sendEmail"
+                                >
+                                    <svg
+                                        v-if="emailLoading"
+                                        class="spin h-4 w-4"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                    >
+                                        <circle
+                                            class="opacity-25"
+                                            cx="12"
+                                            cy="12"
+                                            r="10"
+                                            stroke="currentColor"
+                                            stroke-width="4"
+                                        />
+                                        <path
+                                            class="opacity-75"
+                                            fill="currentColor"
+                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                        />
+                                    </svg>
+                                    {{
+                                        emailLoading
+                                            ? 'Sending…'
+                                            : `Send to ${emailList.length} recipient${emailList.length !== 1 ? 's' : ''}`
+                                    }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+        </Teleport>
+
+        <!-- ═══════════════ FLASH TOAST ═══════════════ -->
+        <Teleport to="body">
+            <transition name="modal">
+                <div
+                    v-if="flash"
+                    class="toast"
+                    :class="
+                        flash.type === 'success' ? 'toast--success' : 'toast--error'
+                    "
+                >
+                    {{ flash.msg }}
+                </div>
+            </transition>
+        </Teleport>
     </AppLayout>
 </template>
+
+<style scoped>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
+
+.page-root,
+.modal-backdrop,
+.toast {
+    --c-bg: #f4f6f9;
+    --c-surface: #ffffff;
+    --c-border: #e4e8ef;
+    --c-text: #1a2332;
+    --c-muted: #64748b;
+    --c-faint: #94a3b8;
+    --c-primary: #ea580c;
+    --c-primary-h: #c2410c;
+    --c-danger: #dc2626;
+    --c-danger-h: #b91c1c;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.14);
+    font-family: 'DM Sans', system-ui, sans-serif;
+}
+
+/* PAGE ROOT */
+.page-root {
+    padding: 28px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-height: 100%;
+    background: #f4f6f9;
+}
+
+/* PAGE HEADER */
+.page-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.page-header__eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #ea580c;
+    margin-bottom: 4px;
+}
+.page-header__title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1a2332;
+    margin: 0;
+    letter-spacing: -0.3px;
+}
+.page-header__sub {
+    font-size: 13px;
+    color: #64748b;
+    margin: 4px 0 0;
+}
+.page-header__right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: #ffffff;
+    color: #1a2332;
+    border: 1.5px solid #e4e8ef;
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.18s;
+    white-space: nowrap;
+    font-family: 'DM Sans', system-ui, sans-serif;
+}
+.btn-secondary:hover:not(:disabled) {
+    border-color: #ea580c;
+    color: #ea580c;
+    background: #fff7ed;
+}
+.btn-secondary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.btn-secondary--compact {
+    padding: 8px 14px;
+    font-size: 12px;
+}
+
+/* STAT ROW */
+.stat-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+.stat-row--six {
+    grid-template-columns: repeat(6, 1fr);
+}
+.stat-card {
+    background: #ffffff;
+    border: 1px solid #e4e8ef;
+    border-radius: 16px;
+    padding: 20px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    transition:
+        box-shadow 0.2s,
+        transform 0.2s;
+}
+.stat-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+.stat-card__label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+}
+.stat-card__value {
+    font-size: 30px;
+    font-weight: 800;
+    color: #1a2332;
+    line-height: 1;
+    letter-spacing: -1px;
+}
+.stat-card__value--red {
+    color: #dc2626;
+}
+.stat-card__value--orange {
+    color: #ea580c;
+}
+.stat-card__value--green {
+    color: #059669;
+}
+
+/* FILTER CARD */
+.filter-card {
+    background: #ffffff;
+    border: 1px solid #e4e8ef;
+    border-radius: 16px;
+    box-shadow: var(--shadow-sm);
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.filter-card__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.search-input-row--standalone {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 14px;
+    border-radius: 10px;
+    background: #f8fafc;
+    border: 1.5px solid #e4e8ef;
+    transition: border-color 0.15s;
+    max-width: 340px;
+    flex: 1;
+}
+.search-input-row--standalone:focus-within {
+    border-color: #ea580c;
+}
+.search-icon {
+    width: 15px;
+    height: 15px;
+    color: #94a3b8;
+    flex-shrink: 0;
+}
+.search-input {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    font-family: inherit;
+    color: #1a2332;
+    outline: none;
+}
+.search-input::placeholder {
+    color: #94a3b8;
+}
+.search-clear {
+    font-size: 16px;
+    color: #94a3b8;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 2px;
+    transition: color 0.15s;
+}
+.search-clear:hover {
+    color: #64748b;
+}
+
+.date-range {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+}
+.date-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.date-field__label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+}
+.date-error {
+    font-size: 12px;
+    color: #dc2626;
+    margin: -4px 0 0;
+}
+
+.filter-groups {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 20px;
+}
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.filter-group__label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+}
+.ml-auto {
+    margin-left: auto;
+}
+
+/* FILTER BAR / CHIPS */
+.filter-bar__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.chip {
+    padding: 5px 14px;
+    border-radius: 20px;
+    border: 1px solid #e4e8ef;
+    background: #ffffff;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+}
+.chip:hover {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+}
+.chip--active {
+    background: #ea580c;
+    color: #fff;
+    border-color: #ea580c;
+}
+
+/* TABLE CARD */
+.table-card {
+    background: #ffffff;
+    border: 1px solid #e4e8ef;
+    border-radius: 16px;
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 64px 24px;
+    gap: 8px;
+}
+.empty-state__icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    margin-bottom: 6px;
+}
+.empty-state__title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a2332;
+}
+.empty-state__sub {
+    font-size: 13px;
+    color: #64748b;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.data-table thead tr {
+    background: #f8fafc;
+    border-bottom: 1px solid #e4e8ef;
+}
+.data-table th {
+    padding: 11px 16px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #94a3b8;
+    text-align: left;
+    white-space: nowrap;
+}
+.data-table tbody tr {
+    border-bottom: 1px solid #e4e8ef;
+    transition: background 0.12s;
+}
+.data-table tbody tr:last-child {
+    border-bottom: none;
+}
+.data-table td {
+    padding: 13px 16px;
+    vertical-align: middle;
+}
+.clickable-row {
+    cursor: pointer;
+}
+.clickable-row:hover {
+    background: #fafbfc;
+}
+
+.type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    text-transform: capitalize;
+}
+
+.reporter-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.reporter-cell__avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #ea580c, #c2410c);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.reporter-cell__name {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1a2332;
+}
+.reporter-cell__sub {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 1px;
+}
+.td-time {
+    color: #64748b;
+    white-space: nowrap;
+    font-size: 12px;
+}
+
+.row-action-btn {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1.5px solid #e4e8ef;
+    background: #ffffff;
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+    white-space: nowrap;
+}
+.row-action-btn:hover {
+    border-color: #ea580c;
+    color: #ea580c;
+    background: #fff7ed;
+}
+
+/* PAGINATION */
+.pagination-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-top: 1px solid #e4e8ef;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.pagination-bar__info {
+    font-size: 12px;
+    color: #94a3b8;
+}
+.pagination-bar__pages {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+.page-btn {
+    min-width: 34px;
+    height: 34px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 12px;
+    border: 1px solid #e4e8ef;
+    border-radius: 8px;
+    background: #ffffff;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.page-btn:hover:not(.page-btn--disabled) {
+    border-color: #ea580c;
+    color: #ea580c;
+}
+.page-btn--active {
+    background: #ea580c;
+    border-color: #ea580c;
+    color: #fff;
+}
+.page-btn--disabled {
+    background: #f8fafc;
+    color: #94a3b8;
+    cursor: default;
+}
+
+/* BUTTONS */
+.btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: #ea580c !important;
+    color: #ffffff !important;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.18s;
+    box-shadow: 0 2px 8px rgba(234, 88, 12, 0.3);
+    white-space: nowrap;
+    font-family: 'DM Sans', system-ui, sans-serif;
+}
+.btn-primary:hover:not(:disabled) {
+    background: #c2410c !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(234, 88, 12, 0.35);
+}
+.btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+.btn-primary--compact {
+    padding: 9px 16px;
+    font-size: 12px;
+}
+
+.btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: #f1f5f9;
+    color: #64748b;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.btn-ghost:hover:not(:disabled) {
+    background: #e2e8f0;
+}
+.btn-ghost:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-danger {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: #dc2626;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.2);
+}
+.btn-danger:hover:not(:disabled) {
+    background: #b91c1c;
+    transform: translateY(-1px);
+}
+.btn-danger:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* MODAL */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 18, 30, 0.55) !important;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 24px;
+}
+.modal-sheet {
+    background: #ffffff !important;
+    border-radius: 20px;
+    width: 100%;
+    max-width: 580px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+    border: 1px solid #e4e8ef;
+}
+.modal-sheet--sm {
+    max-width: 440px;
+}
+.modal-sheet__header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 22px 24px;
+    border-bottom: 1px solid #e4e8ef;
+    position: sticky;
+    top: 0;
+    background: #ffffff !important;
+    z-index: 2;
+}
+.modal-sheet__header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex: 1;
+    min-width: 0;
+}
+.modal-sheet__title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a2332;
+}
+.modal-sheet__sub {
+    font-size: 12px;
+    color: #94a3b8;
+}
+.close-btn {
+    flex-shrink: 0;
+    width: 34px;
+    height: 34px;
+    background: #f1f5f9;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+}
+.close-btn:hover {
+    background: #e2e8f0;
+}
+.modal-sheet__body {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.review-info-panel {
+    background: #f8fafc;
+    border: 1.5px solid #e4e8ef;
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1;
+}
+.review-info-panel__name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1a2332;
+}
+.review-info-panel__sub {
+    font-size: 12px;
+    color: #94a3b8;
+}
+.review-description {
+    background: #f8fafc;
+    border: 1.5px solid #e4e8ef;
+    border-radius: 10px;
+    padding: 12px 14px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #475569;
+    margin: 0;
+}
+
+.detail-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+.detail-grid__value {
+    margin-top: 2px;
+    font-size: 13px;
+    font-weight: 700;
+    color: #1a2332;
+}
+.detail-grid__value--danger {
+    color: #dc2626;
+}
+
+.flag-panel {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 14px;
+    border: 1.5px solid #e4e8ef;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #94a3b8;
+}
+.flag-panel--warn {
+    border-color: #93c5fd;
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+/* FIELDS */
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.field__label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+    letter-spacing: 0.3px;
+}
+.field__input {
+    width: 100%;
+    box-sizing: border-box;
+    background: #f8fafc;
+    border: 1.5px solid #e4e8ef;
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 14px;
+    font-family: inherit;
+    color: #1a2332;
+    outline: none;
+    transition:
+        border-color 0.15s,
+        background 0.15s;
+}
+.field__input:focus {
+    border-color: #ea580c;
+    background: #fff;
+}
+.field__input--date {
+    background: #ffffff;
+    padding: 8px 12px;
+    font-size: 13px;
+}
+.field__textarea {
+    resize: vertical;
+    min-height: 60px;
+    line-height: 1.6;
+}
+
+.toggle-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.email-add-row {
+    display: flex;
+    gap: 8px;
+}
+.email-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+}
+.email-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 20px;
+    border: 1px solid #fed7aa;
+    background: #fff7ed;
+    color: #c2410c;
+    padding: 5px 6px 5px 12px;
+    font-size: 12px;
+    font-weight: 700;
+}
+.email-chip__remove {
+    background: none;
+    border: none;
+    color: #ea580c;
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    padding: 2px;
+}
+.email-chip__remove:hover {
+    color: #c2410c;
+}
+
+/* MODAL ACTIONS */
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    padding-top: 4px;
+    flex-wrap: wrap;
+}
+.modal-actions .btn-ghost,
+.modal-actions .btn-danger,
+.modal-actions .btn-secondary,
+.modal-actions .btn-primary {
+    flex: 1;
+    justify-content: center;
+    min-width: 120px;
+}
+
+/* TOAST */
+.toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 10000;
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 700;
+    box-shadow: var(--shadow-lg);
+    color: #fff;
+}
+.toast--success {
+    background: #059669;
+}
+.toast--error {
+    background: #dc2626;
+}
+
+/* TRANSITIONS */
+.modal-enter-active,
+.modal-leave-active {
+    transition: opacity 0.22s ease;
+}
+.modal-enter-active .modal-sheet,
+.modal-leave-active .modal-sheet {
+    transition:
+        transform 0.22s ease,
+        opacity 0.22s ease;
+}
+.modal-enter-from,
+.modal-leave-to {
+    opacity: 0;
+}
+.modal-enter-from .modal-sheet,
+.modal-leave-to .modal-sheet {
+    transform: scale(0.97) translateY(12px);
+}
+
+.spin {
+    animation: spin 0.65s linear infinite;
+}
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* RESPONSIVE */
+@media (max-width: 1024px) {
+    .stat-row--six {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+@media (max-width: 768px) {
+    .stat-row {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+    .filter-groups {
+        gap: 14px;
+    }
+    .filter-card__top {
+        flex-direction: column;
+        align-items: stretch;
+    }
+}
+@media (max-width: 640px) {
+    .page-root {
+        padding: 16px;
+    }
+    .stat-card {
+        padding: 14px;
+    }
+    .stat-card__value {
+        font-size: 22px;
+    }
+    .data-table {
+        min-width: 760px;
+    }
+    .table-card {
+        overflow-x: auto;
+    }
+    .search-input-row--standalone {
+        max-width: none;
+    }
+}
+</style>
