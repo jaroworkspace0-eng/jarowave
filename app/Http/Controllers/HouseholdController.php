@@ -500,8 +500,15 @@ class HouseholdController extends Controller
         $channel = $user->employee?->channels()->first();
         $amountPerHousehold = BillingService::unitPrice($channel?->amount_per_household);
 
+        $trialDays = config('billing.trial_days', 14); // or a class constant
+
+        $billingDate = $subscription->trial_ends_at
+            ? $subscription->trial_ends_at->format('Y-m-d')
+            : $subscription->created_at->copy()->addDays($trialDays)->format('Y-m-d');
+
         $fields = $payfast->buildSubscriptionFields([
-            'billing_date'         => $subscription->trial_ends_at->format('Y-m-d'),
+            // 'billing_date'         => $subscription->trial_ends_at->format('Y-m-d'),
+            'billing_date'         => $billingDate,
             'name_first'           => explode(' ', $user->name)[0],
             'name_last'            => explode(' ', $user->name, 2)[1] ?? '',
             'email_address'        => $user->email,
