@@ -541,7 +541,7 @@ class HouseholdController extends Controller
         $subscription = Subscription::where('user_id', $user->id)->latest()->first();
 
         if (!$subscription) {
-            return response()->json(['message' => 'No subscription found.'], 404);
+            return response()->json(['message' => 'No subscription found. - ' . $user->id], 404);
         }
 
         if ($subscription->status !== 'cancelled') {
