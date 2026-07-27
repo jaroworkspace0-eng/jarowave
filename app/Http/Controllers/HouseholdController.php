@@ -300,24 +300,21 @@ class HouseholdController extends Controller
         $isEstateBilled = $subscription->cancellation_reason === 'estate_optin'
             || $subscription->channel_subscription_id !== null;
 
-        // ── Is this user a linked account? ──
         $activeLink = AccountLink::where('linked_account_id', $userId)
             ->where('status', 'active')
             ->with('primaryAccount.employee.channels')
             ->first();
 
         if ($activeLink) {
-            // Linked account — they only ever see their own linked-account rate.
+            // Linked account — always show their real linked-account rate,
+            // whether or not the estate is the one actually paying it.
             $channel = $activeLink->primaryAccount?->employee?->channels->first();
 
-            $billedAmount = $isEstateBilled
-                ? null
-                : (float) ($channel?->amount_per_linked_account ?? 0);
-
+            $billedAmount      = (float) ($channel?->amount_per_linked_account ?? 0);
             $channelAmount     = null;
             $linkedAmountTotal = null;
         } else {
-            // Primary (or unlinked household) — build the breakdown.
+            // Primary — build the real breakdown regardless of billing model.
             $employee = Employee::where('user_id', $userId)->with('channels')->first();
             $channel  = $employee?->channels()->first();
 
@@ -329,42 +326,41 @@ class HouseholdController extends Controller
 
             $linkedAmountTotal = $activeLinkedCount * (float) ($channel?->amount_per_linked_account ?? 0);
 
-            $billedAmount = $isEstateBilled
-                ? null
-                : (
-                    $subscription->price !== null
-                        ? (float) $subscription->price
-                        : ($channelAmount + $linkedAmountTotal)
-                );
+            // $subscription->price is only kept in sync for standalone billing
+            // (syncStandaloneSubscriptionAmount) — for estate-billed primaries
+            // it's stale/irrelevant, so always derive the real total instead.
+            $billedAmount = (!$isEstateBilled && $subscription->price !== null)
+                ? (float) $subscription->price
+                : ($channelAmount + $linkedAmountTotal);
         }
 
         return response()->json([
             'subscription' => [
-                'status'                => $subscription->status,
-                'plan'                  => $subscription->plan,
-                'gateway'               => $subscription->gateway,
-                'payfast_token'         => $subscription->payfast_token,
-                'client_type'           => $orgType,
-                'amounts'               => $amounts,
-                'trial_ends_at'         => $subscription->trial_ends_at,
-                'billing_cycle'         => $subscription->billing_cycle,
-                'current_period_start'  => $subscription->current_period_start,
-                'current_period_end'    => $subscription->current_period_end,
-                'ends_at'               => $subscription->ends_at,
-                'days_left_in_trial'    => $subscription->daysLeftInTrial(),
-                'watch_group'           => $subscription->client ? [
+                'status'               => $subscription->status,
+                'plan'                 => $subscription->plan,
+                'gateway'              => $subscription->gateway,
+                'payfast_token'        => $subscription->payfast_token,
+                'client_type'          => $orgType,
+                'amounts'              => $amounts,
+                'trial_ends_at'        => $subscription->trial_ends_at,
+                'billing_cycle'        => $subscription->billing_cycle,
+                'current_period_start' => $subscription->current_period_start,
+                'current_period_end'   => $subscription->current_period_end,
+                'ends_at'              => $subscription->ends_at,
+                'days_left_in_trial'   => $subscription->daysLeftInTrial(),
+                'watch_group'          => $subscription->client ? [
                     'organisation_name' => $subscription->client->user->organisation_name,
                     'organisation_type' => $orgType,
                 ] : null,
-                'channel_name'          => $channel?->name,
-                'is_linked_account'     => (bool) $activeLink,
-                'amount_per_household'  => number_format($channel?->amount_per_household, 0),
-                'channel_amount'        => $channelAmount !== null ? number_format($channelAmount, 0) : null,
-                'linked_amount_total'   => $linkedAmountTotal !== null ? number_format($linkedAmountTotal, 0) : null,
-                'billed_amount'         => $billedAmount !== null ? number_format($billedAmount, 0) : null,
-                'is_estate_billed'      => $isEstateBilled,
-                'billing_model'         => $channel?->billing_model,
-                'is_active'             => $channel?->is_active,
+                'channel_name'         => $channel?->name,
+                'is_linked_account'    => (bool) $activeLink,
+                'amount_per_household' => number_format($channel?->amount_per_household, 0),
+                'channel_amount'       => $channelAmount !== null ? number_format($channelAmount, 0) : null,
+                'linked_amount_total'  => $linkedAmountTotal !== null ? number_format($linkedAmountTotal, 0) : null,
+                'billed_amount'        => number_format($billedAmount, 0),
+                'is_estate_billed'     => $isEstateBilled,
+                'billing_model'        => $channel?->billing_model,
+                'is_active'            => $channel?->is_active,
             ],
         ]);
     }
