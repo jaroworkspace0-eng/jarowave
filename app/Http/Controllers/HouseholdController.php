@@ -661,7 +661,7 @@ class HouseholdController extends Controller
             ->first();
 
         if (!$subscription) {
-            return response()->json(['message' => 'No subscription found.'], 404);
+            return response()->json(['message' => 'No subscription found - ' . $user->id], 404);
         }
 
         if ($subscription->cancellation_reason === 'estate_optin' || $subscription->channel_subscription_id) {
