@@ -36,21 +36,21 @@
 ---
 
 @if($isEstateBilled)
-    <p style="font-size:13px; color:#888; text-align:center; margin:16px 0;">
-        This household is billed through your estate's bulk billing - there's nothing further for you to pay or set up.
-    </p>
+<p style="font-size:13px; color:#888; text-align:center; margin:16px 0;">
+    This household is billed through your estate's bulk billing - there's nothing further for you to pay or set up.
+</p>
 @elseif($priceSyncFailed)
-    <p style="font-size:13px; color:#888; text-align:center; margin:16px 0;">
-        Your linked account is active. We're finalizing your updated monthly billing amount and will confirm it separately - no action is needed from you right now.
-    </p>
+<p style="font-size:13px; color:#888; text-align:center; margin:16px 0;">
+    Your linked account is active. We're finalizing your updated monthly billing amount and will confirm it separately - no action is needed from you right now.
+</p>
 @elseif($newMonthlyAmount !== null)
-    <p style="font-size:13px; color:#888; text-align:center; margin:16px 0;">
-        Your subscription has been updated automatically and will charge R{{ number_format($newMonthlyAmount, 2) }} from your next billing date, using your existing payment method. No action is needed from you.
-    </p>
+<p style="font-size:13px; color:#888; text-align:center; margin:16px 0;">
+    Your subscription has been updated automatically and will charge R{{ number_format($newMonthlyAmount, 2) }} from your next billing date, using your existing payment method. No action is needed from you.
+</p>
 @else
-    <p style="font-size:13px; color:#888; text-align:center; margin:16px 0;">
-        No action is needed from you - this is confirmation only.
-    </p>
+<p style="font-size:13px; color:#888; text-align:center; margin:16px 0;">
+    No action is needed from you - this is confirmation only.
+</p>
 @endif
 
 @component('mail::button', ['url' => config('app.url') . '/dashboard.html', 'color' => 'primary'])
