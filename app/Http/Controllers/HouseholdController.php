@@ -495,19 +495,30 @@ class HouseholdController extends Controller
             $subscription->update(['merchant_reference' => $merchantReference]);
         }
 
-        $payfast = new \App\Services\PayFastService();
-        
-        $channel = $user->employee?->channels()->first();
-        $amountPerHousehold = BillingService::unitPrice($channel?->amount_per_household);
+        $payfast  = new \App\Services\PayFastService();
+        $employee = Employee::where('user_id', $user->id)->with('channels')->first();
+        $channel  = $employee?->channels()->first();
 
-        $trialDays = config('billing.trial_days', 14); // or a class constant
+        $channelAmount = (float) ($channel?->amount_per_household ?? 0);
 
-        $billingDate = $subscription->trial_ends_at
-            ? $subscription->trial_ends_at->format('Y-m-d')
-            : $subscription->created_at->copy()->addDays($trialDays)->format('Y-m-d');
+        $activeLinkedCount = AccountLink::where('primary_account_id', $user->id)
+            ->where('status', 'active')
+            ->count();
+
+        $linkedAmountTotal = $activeLinkedCount * (float) ($channel?->amount_per_linked_account ?? 0);
+
+        $billedAmount = $channelAmount + $linkedAmountTotal;
+
+        // Trial handling: null trial_ends_at means legacy subscription created before
+        // the trial field existed — treat as "no trial", bill today.
+        $hasTrial   = (bool) $subscription->trial_ends_at;
+        $trialEnded = !$hasTrial || $subscription->trial_ends_at->isPast();
+
+        $billingDate = $trialEnded
+            ? now()->format('Y-m-d')
+            : $subscription->trial_ends_at->format('Y-m-d');
 
         $fields = $payfast->buildSubscriptionFields([
-            // 'billing_date'         => $subscription->trial_ends_at->format('Y-m-d'),
             'billing_date'         => $billingDate,
             'name_first'           => explode(' ', $user->name)[0],
             'name_last'            => explode(' ', $user->name, 2)[1] ?? '',
@@ -515,13 +526,15 @@ class HouseholdController extends Controller
             'cell_number'          => $this->formatPhone($user->phone ?? ''),
             'm_payment_id'         => $merchantReference,
             'item_name'            => 'Echo Link Community Protection',
-            'item_description'     => "14-day free trial then R{$amountPerHousehold} per month neighbourhood watch subscription",
+            'item_description'     => $hasTrial && !$trialEnded
+                ? "14-day free trial then R{$billedAmount} per month neighbourhood watch subscription"
+                : "R{$billedAmount} per month neighbourhood watch subscription",
             'custom_str1'          => (string) $user->id,
-            'amount_per_household' => $channel?->amount_per_household,
+            'amount_per_household' => $billedAmount,
         ]);
 
         return response()->json(['type' => 'new', 'fields' => $fields, 'action' => 'https://www.payfast.co.za/eng/process']);
-    } 
+    }
 
     // ── Private: format phone number for PayFast (10 digits, starting with 0) ─────
     private function formatPhone(string $phone): string
@@ -668,7 +681,7 @@ class HouseholdController extends Controller
             ->first();
 
         if (!$subscription) {
-            return response()->json(['message' => 'No subscription found - ' . $user->id], 404);
+            return response()->json(['message' => 'No subscription found'], 404);
         }
 
         if ($subscription->cancellation_reason === 'estate_optin' || $subscription->channel_subscription_id) {
