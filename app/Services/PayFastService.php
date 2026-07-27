@@ -85,38 +85,6 @@ class PayFastService
         return $response->json('data.response');
     }
 
-    // public function fetchSubscription(string $token): ?array
-    // {
-    //     $timestamp = now()->toIso8601String();
-    //     $version   = 'v1';
-
-    //     $parts = [
-    //         'merchant-id=' . urlencode($this->merchantId),
-    //         'passphrase='  . urlencode($this->passphrase),
-    //         'timestamp='   . urlencode($timestamp),
-    //         'version='     . urlencode($version),
-    //     ];
-    //     $signature = md5(implode('&', $parts));
-
-    //     $response = Http::withHeaders([
-    //         'merchant-id' => $this->merchantId,
-    //         'passphrase'  => $this->passphrase,
-    //         'timestamp'   => $timestamp,
-    //         'version'     => $version,
-    //         'signature'   => $signature,
-    //     ])->get("https://api.payfast.co.za/subscriptions/{$token}/fetch");
-
-    //     if (! $response->successful()) {
-    //         Log::warning('PayFast fetch subscription failed', [
-    //             'token'  => $token,
-    //             'status' => $response->status(),
-    //             'body'   => $response->body(),
-    //         ]);
-    //         return null;
-    //     }
-
-    //     return $response->json('data.response');
-    // }
 
     public function buildSubscriptionForm(array $params): string
     {
@@ -316,8 +284,12 @@ class PayFastService
     {
         $timestamp = now()->toIso8601String();
         $version   = 'v1';
+        $amountCents = (int)($amount * 100);
+        $itemName  = 'Echo Link Community Protection';
 
         $parts = [
+            'amount='      . urlencode($amountCents),
+            'item_name='   . urlencode($itemName),
             'merchant-id=' . urlencode($this->merchantId),
             'passphrase='  . urlencode($this->passphrase),
             'timestamp='   . urlencode($timestamp),
@@ -325,15 +297,20 @@ class PayFastService
         ];
         $signature = md5(implode('&', $parts));
 
+        $url = "https://api.payfast.co.za/subscriptions/{$token}/adhoc";
+        if (config('payfast.testing')) {
+            $url .= '?testing=true';
+        }
+
         $response = Http::withHeaders([
             'merchant-id' => $this->merchantId,
             'passphrase'  => $this->passphrase,
             'timestamp'   => $timestamp,
             'version'     => $version,
             'signature'   => $signature,
-        ])->post("https://api.payfast.co.za/subscriptions/{$token}/adhoc", [
-            'amount'    => (int)($amount * 100), // in cents
-            'item_name' => 'Echo Link Community Protection',
+        ])->post($url, [
+            'amount'    => $amountCents,
+            'item_name' => $itemName,
         ]);
 
         Log::debug('PayFast adhoc response: ' . $response->status() . ' ' . $response->body());

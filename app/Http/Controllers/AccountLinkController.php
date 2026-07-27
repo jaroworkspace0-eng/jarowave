@@ -6,6 +6,7 @@ use App\Mail\AccountLinkApprovedPrimaryMail;
 use App\Mail\AccountLinkedMail;
 use App\Mail\AccountLinkRejectedMail;
 use App\Models\AccountLink;
+use App\Models\Subscription;
 use App\Models\User;
 use App\Services\BillingService;
 use App\Services\ChannelBillingService;
@@ -134,6 +135,17 @@ class AccountLinkController extends Controller
 
             if ($targetIsPrimaryElsewhere) {
                 $skipped[] = $targetId;
+                continue;
+            }
+
+
+            $targetIsEstateOptedIn = Subscription::where('user_id', $targetId)
+                ->where('cancellation_reason', 'estate_optin')
+                ->whereNotNull('channel_subscription_id')
+                ->exists();
+
+            if ($targetIsEstateOptedIn) {
+                $skipped[] = ['id' => $targetId, 'reason' => 'target_estate_opted_in'];
                 continue;
             }
 
@@ -311,16 +323,34 @@ class AccountLinkController extends Controller
         return response()->json(['success' => true]);
     }
 
-   public function eligibility(Request $request): JsonResponse
+ 
+    public function eligibility(Request $request): JsonResponse
     {
         try {
-            $userId = $request->user()->id;
+            $user   = $request->user();
+            $userId = $user->id;
 
             $isLinkedAsChild = AccountLink::where('linked_account_id', $userId)
                 ->whereIn('status', ['pending', 'active'])
                 ->exists();
 
-            return response()->json(['is_primary' => !$isLinkedAsChild]);
+            $estateSubscription = $user->subscription()
+                ->where('cancellation_reason', 'estate_optin')
+                ->whereNotNull('channel_subscription_id')
+                ->first();
+
+            $channel = $user->employee?->channels->first();
+
+            $billingMode = $estateSubscription ? 'estate' : 'standalone';
+            $amountPerLinkedAccount = $channel
+                ? BillingService::unitPrice($channel->amount_per_linked_account)
+                : null;
+
+            return response()->json([
+                'is_primary'                 => !$isLinkedAsChild,
+                'billing_mode'               => $billingMode,
+                'amount_per_linked_account'  => $amountPerLinkedAccount,
+            ]);
         } catch (\Throwable $e) {
             return response()->json(['error' => $e->getMessage()], 500);
         }

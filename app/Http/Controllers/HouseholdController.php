@@ -283,7 +283,9 @@ class HouseholdController extends Controller
     // ── GET /api/household/subscription ──────────────────────────────────────
     public function subscription(Request $request)
     {
-        $subscription = Subscription::where('user_id', $request->user()->id)
+        $userId = $request->user()->id;
+
+        $subscription = Subscription::where('user_id', $userId)
             ->with('client.user')
             ->latest()
             ->first();
@@ -295,48 +297,70 @@ class HouseholdController extends Controller
         $orgType = $subscription->client_type ?? $subscription->client?->user?->organisation_type ?? 'watch';
         $amounts = BillingService::getDisplayAmounts($orgType);
 
-        $employee = Employee::where('user_id', $request->user()->id)
-            ->with('channels')
-            ->first();
-
-        $channel = $employee?->channels()->first();
-
         $isEstateBilled = $subscription->cancellation_reason === 'estate_optin'
             || $subscription->channel_subscription_id !== null;
 
-        // Consolidated amount actually charged for standalone subscribers —
-        // base rate + linked accounts, kept in sync by
-        // ChannelBillingService::syncStandaloneSubscriptionAmount(). Not
-        // meaningful for estate-billed households, whose price is frozen at
-        // opt-in time and billed via the channel's ChannelSubscription instead.
-        $billedAmount = $isEstateBilled
-            ? null
-            : (
-                $subscription->price !== null
-                    ? (float) $subscription->price
-                    : (float) ($channel?->amount_per_household ?? 0)
-            );
+        // ── Is this user a linked account? ──
+        $activeLink = AccountLink::where('linked_account_id', $userId)
+            ->where('status', 'active')
+            ->with('primaryAccount.employee.channels')
+            ->first();
+
+        if ($activeLink) {
+            // Linked account — they only ever see their own linked-account rate.
+            $channel = $activeLink->primaryAccount?->employee?->channels->first();
+
+            $billedAmount = $isEstateBilled
+                ? null
+                : (float) ($channel?->amount_per_linked_account ?? 0);
+
+            $channelAmount     = null;
+            $linkedAmountTotal = null;
+        } else {
+            // Primary (or unlinked household) — build the breakdown.
+            $employee = Employee::where('user_id', $userId)->with('channels')->first();
+            $channel  = $employee?->channels()->first();
+
+            $channelAmount = (float) ($channel?->amount_per_household ?? 0);
+
+            $activeLinkedCount = AccountLink::where('primary_account_id', $userId)
+                ->where('status', 'active')
+                ->count();
+
+            $linkedAmountTotal = $activeLinkedCount * (float) ($channel?->amount_per_linked_account ?? 0);
+
+            $billedAmount = $isEstateBilled
+                ? null
+                : (
+                    $subscription->price !== null
+                        ? (float) $subscription->price
+                        : ($channelAmount + $linkedAmountTotal)
+                );
+        }
 
         return response()->json([
             'subscription' => [
-                'status'               => $subscription->status,
-                'plan'                 => $subscription->plan,
-                'gateway'              => $subscription->gateway,
-                'payfast_token'        => $subscription->payfast_token,
-                'client_type'          => $orgType,
-                'amounts'              => $amounts,
-                'trial_ends_at'        => $subscription->trial_ends_at,
-                'billing_cycle'        => $subscription->billing_cycle,
-                'current_period_start' => $subscription->current_period_start,
-                'current_period_end'   => $subscription->current_period_end,
-                'ends_at'              => $subscription->ends_at,
-                'days_left_in_trial'   => $subscription->daysLeftInTrial(),
-                'watch_group'          => $subscription->client ? [
+                'status'                => $subscription->status,
+                'plan'                  => $subscription->plan,
+                'gateway'               => $subscription->gateway,
+                'payfast_token'         => $subscription->payfast_token,
+                'client_type'           => $orgType,
+                'amounts'               => $amounts,
+                'trial_ends_at'         => $subscription->trial_ends_at,
+                'billing_cycle'         => $subscription->billing_cycle,
+                'current_period_start'  => $subscription->current_period_start,
+                'current_period_end'    => $subscription->current_period_end,
+                'ends_at'               => $subscription->ends_at,
+                'days_left_in_trial'    => $subscription->daysLeftInTrial(),
+                'watch_group'           => $subscription->client ? [
                     'organisation_name' => $subscription->client->user->organisation_name,
                     'organisation_type' => $orgType,
                 ] : null,
                 'channel_name'          => $channel?->name,
+                'is_linked_account'     => (bool) $activeLink,
                 'amount_per_household'  => number_format($channel?->amount_per_household, 0),
+                'channel_amount'        => $channelAmount !== null ? number_format($channelAmount, 0) : null,
+                'linked_amount_total'   => $linkedAmountTotal !== null ? number_format($linkedAmountTotal, 0) : null,
                 'billed_amount'         => $billedAmount !== null ? number_format($billedAmount, 0) : null,
                 'is_estate_billed'      => $isEstateBilled,
                 'billing_model'         => $channel?->billing_model,
