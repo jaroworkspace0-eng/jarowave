@@ -518,6 +518,12 @@ class HouseholdController extends Controller
             ? now()->format('Y-m-d')
             : $subscription->trial_ends_at->format('Y-m-d');
 
+
+
+        $initialAmount = $trialEnded
+            ? number_format($billedAmount, 2, '.', '')
+            : '0.00';
+
         $fields = $payfast->buildSubscriptionFields([
             'billing_date'         => $billingDate,
             'name_first'           => explode(' ', $user->name)[0],
@@ -531,7 +537,7 @@ class HouseholdController extends Controller
                 : "R{$billedAmount} per month neighbourhood watch subscription",
             'custom_str1'          => (string) $user->id,
             'amount_per_household' => $billedAmount,
-        ]);
+        ], $initialAmount);
 
         return response()->json(['type' => 'new', 'fields' => $fields, 'action' => 'https://www.payfast.co.za/eng/process']);
     }
