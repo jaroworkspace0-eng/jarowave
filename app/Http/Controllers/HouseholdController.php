@@ -329,9 +329,11 @@ class HouseholdController extends Controller
             // $subscription->price is only kept in sync for standalone billing
             // (syncStandaloneSubscriptionAmount) — for estate-billed primaries
             // it's stale/irrelevant, so always derive the real total instead.
-            $billedAmount = (!$isEstateBilled && $subscription->price !== null)
-                ? (float) $subscription->price
-                : ($channelAmount + $linkedAmountTotal);
+            // $billedAmount = (!$isEstateBilled && $subscription->price !== null)
+            //     ? (float) $subscription->price
+            //     : ($channelAmount + $linkedAmountTotal);
+
+            $billedAmount = ($channelAmount + $linkedAmountTotal);
         }
 
         return response()->json([
