@@ -510,20 +510,23 @@ class HouseholdController extends Controller
 
         $billedAmount = $channelAmount + $linkedAmountTotal;
 
-        // Trial handling: null trial_ends_at means legacy subscription created before
-        // the trial field existed — treat as "no trial", bill today.
-        $hasTrial   = (bool) $subscription->trial_ends_at;
-        $trialEnded = !$hasTrial || $subscription->trial_ends_at->isPast();
+        $trialEndsAt = $subscription->trial_ends_at ?? $subscription->created_at->copy()->addDays(14);
+        $trialEnded  = $trialEndsAt->isPast();
+
 
         $billingDate = $trialEnded
             ? now()->format('Y-m-d')
-            : $subscription->trial_ends_at->format('Y-m-d');
-
+            : $trialEndsAt->format('Y-m-d');
 
 
         $initialAmount = $trialEnded
             ? number_format($billedAmount, 2, '.', '')
             : '0.00';
+
+
+        $formattedAmount = number_format($billedAmount, 2, '.', '');
+
+        $initialAmount = $trialEnded ? $formattedAmount : '0.00';
 
         $fields = $payfast->buildSubscriptionFields([
             'billing_date'         => $billingDate,
@@ -533,9 +536,9 @@ class HouseholdController extends Controller
             'cell_number'          => $this->formatPhone($user->phone ?? ''),
             'm_payment_id'         => $merchantReference,
             'item_name'            => 'Echo Link Community Protection',
-            'item_description'     => $hasTrial && !$trialEnded
-                ? "14-day free trial then R{$billedAmount} per month neighbourhood watch subscription"
-                : "R{$billedAmount} per month neighbourhood watch subscription",
+            'item_description' => !$trialEnded
+                ? "14-day free trial then R{$formattedAmount} per month neighbourhood watch subscription"
+                : "R{$formattedAmount} per month neighbourhood watch subscription",
             'custom_str1'          => (string) $user->id,
             'amount_per_household' => $billedAmount,
         ], $initialAmount);
