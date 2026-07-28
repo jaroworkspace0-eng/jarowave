@@ -33,7 +33,7 @@ use App\Http\Controllers\ChannelBillingController;
 use App\Http\Controllers\CheckpointController;
 use App\Http\Controllers\DvRecordingController;
 use App\Http\Controllers\GuardBankDetailController;
-use App\Http\Controllers\HouseholdBillingController;
+use App\Http\Controllers\Api\HouseholdBillingController;
 use App\Http\Controllers\HouseholdSettingController;
 use App\Http\Controllers\Internal\InternalDashboardUserController;
 use App\Http\Controllers\InviteController;
