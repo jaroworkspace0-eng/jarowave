@@ -93,8 +93,7 @@ class HouseholdBillingController extends Controller
         $code = Str::random(40);
         Cache::put("household-billing-handshake:{$code}", $household->id, now()->addMinutes(10));
 
-        $url = config('app.dashboard_url', 'https://admin.jaroworkspace.com')
-            . '/household/billing?handshake=' . $code;
+        $url = 'https://admin.jaroworkspace.com/household/billing?handshake=' . $code;
 
         return response()->json(['url' => $url]);
     }

@@ -21,6 +21,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class HouseholdController extends Controller
 {
@@ -724,6 +725,50 @@ class HouseholdController extends Controller
             'type'   => 'onetime',
             'fields' => $fields,
             'action' => config('payfast.base_url', 'https://www.payfast.co.za/eng/process'),
+        ]);
+    }
+
+
+    /**
+     * GET /api/household/dashboard-manage-link
+     * Called by the MOBILE APP. Mints a one-time code and returns
+     * the dashboard URL for the app to open in an external browser.
+     */
+    public function dashboardManageLink(Request $request)
+    {
+        $user = $request->user();
+    
+        $code = Str::random(40);
+        Cache::put("household-dashboard-token:{$code}", $user->id, now()->addMinutes(5));
+    
+        $url = config('app.dashboard_url', 'https://admin.jaroworkspace.com')
+            . '/dashboard.html?exchange=' . $code;
+    
+        return response()->json(['url' => $url]);
+    }
+    
+    /**
+     * POST /api/household/exchange-dashboard-token
+     * Called by DASHBOARD.HTML's bootstrap script (not the app) with
+     * the ?exchange= code from the URL. Validates it, consumes it
+     * (one-time use), and returns a real Sanctum token + user payload
+     * for the page to store in localStorage as hh_token / hh_user.
+     */
+    public function exchangeDashboardToken(Request $request)
+    {
+        $code = $request->input('code');
+        $userId = $code ? Cache::pull("household-dashboard-token:{$code}") : null; // pull = get + forget, one-time use
+    
+        if (!$userId) {
+            return response()->json(['message' => 'Invalid or expired link'], 401);
+        }
+    
+        $user = User::findOrFail($userId);
+        $token = $user->createToken('dashboard-deep-link')->plainTextToken;
+    
+        return response()->json([
+            'token' => $token,
+            'user' => ['id' => $user->id, 'name' => $user->name],
         ]);
     }
 

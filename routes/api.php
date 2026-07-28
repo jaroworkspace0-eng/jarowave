@@ -270,6 +270,8 @@ Route::middleware('auth:sanctum')->prefix('household')->group(function () {
     Route::get('/payment-url', [HouseholdController::class, 'paymentUrl']);
     Route::get('/subscription', [HouseholdController::class, 'subscription']);
     Route::post('/subscription/cancel', [HouseholdController::class, 'cancelSubscription']);
+    Route::get('/dashboard-manage-link', [HouseholdController::class, 'dashboardManageLink']);
+    Route::post('/exchange-dashboard-token', [HouseholdController::class, 'exchangeDashboardToken']);
     Route::get('/invoices', [HouseholdController::class, 'invoices']);
     Route::get('/invoices/{id}/pdf', [HouseholdController::class, 'invoicePdf']);
     Route::get('/invoices/{id}/print', [HouseholdController::class, 'invoicePrint']);
