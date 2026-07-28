@@ -732,9 +732,13 @@ class ChannelBillingService
     }
 
 
+     
     public function nextInvoiceFor(User $household): array
     {
+        Log::info('[Billing] nextInvoiceFor start', ['user_id' => $household->id]);
+    
         $subscription = $household->subscription;
+        Log::info('[Billing] subscription loaded', ['found' => (bool) $subscription]);
     
         if (!$subscription) {
             return [
@@ -748,11 +752,13 @@ class ChannelBillingService
     
         $isEstateOptedIn = $subscription->cancellation_reason === 'estate_optin'
             && $subscription->channel_subscription_id;
+        Log::info('[Billing] estate check', ['is_estate' => $isEstateOptedIn]);
     
         if ($isEstateOptedIn) {
             // NOTE: assumes Subscription::channelSubscription() belongsTo
             // ChannelSubscription exists — add it if it doesn't yet.
             $channelSubscription = $subscription->channelSubscription;
+            Log::info('[Billing] estate branch resolved', ['channel_subscription_found' => (bool) $channelSubscription]);
     
             return [
                 'amount'       => 0, // covered by the estate, not billed to the household
@@ -766,14 +772,17 @@ class ChannelBillingService
         // Standalone: pull the channel's per-household / per-linked-account
         // rates the same way syncStandaloneSubscriptionAmount() does.
         $channel = $household->employee?->channels->first();
+        Log::info('[Billing] channel lookup', ['channel_found' => (bool) $channel]);
     
         $basePrice  = $channel ? BillingService::unitPrice($channel->amount_per_household) : (float) $subscription->price;
         $linkedRate = $channel ? BillingService::unitPrice($channel->amount_per_linked_account) : 0;
+        Log::info('[Billing] rates resolved', ['base' => $basePrice, 'linked' => $linkedRate]);
     
         $linkedAccounts = AccountLink::where('primary_account_id', $household->id)
             ->where('status', 'active')
             ->with('linkedAccount')
             ->get();
+        Log::info('[Billing] linked accounts loaded', ['count' => $linkedAccounts->count()]);
     
         $breakdown = collect([[
             'id'     => $household->id,
@@ -789,13 +798,30 @@ class ChannelBillingService
             ])
         );
     
+        Log::info('[Billing] nextInvoiceFor complete', ['amount' => $basePrice + ($linkedAccounts->count() * $linkedRate)]);
+    
+        // Use the sum of the breakdown, not the raw stored subscription price —
+        // if syncStandaloneSubscriptionAmount() hasn't run/succeeded since the
+        // last link change, subscription->price can be stale and would show a
+        // total that contradicts its own breakdown.
+        $computedAmount = (float) $breakdown->sum('amount');
+    
+        if ((float) $subscription->price !== $computedAmount) {
+            Log::warning('[Billing] subscription price out of sync with breakdown', [
+                'user_id'          => $household->id,
+                'stored_price'     => $subscription->price,
+                'computed_amount'  => $computedAmount,
+            ]);
+        }
+    
         return [
-            'amount'       => (float) $subscription->price,
+            'amount'       => $computedAmount,
             'due_date'     => $subscription->current_period_end,
             'status'       => $subscription->status, // active | trialing | past_due | cancelled
             'billing_mode' => 'standalone',
             'breakdown'    => $breakdown->values(),
         ];
     }
+ 
  
 }
