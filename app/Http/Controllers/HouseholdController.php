@@ -741,7 +741,7 @@ class HouseholdController extends Controller
         $code = Str::random(40);
         Cache::put("household-dashboard-token:{$code}", $user->id, now()->addMinutes(5));
     
-        $url = config('app.dashboard_url', 'https://admin.jaroworkspace.com')
+        $url = config('app.dashboard_url', 'https://account.jaroworkspace.com')
             . '/dashboard.html?exchange=' . $code;
     
         return response()->json(['url' => $url]);
