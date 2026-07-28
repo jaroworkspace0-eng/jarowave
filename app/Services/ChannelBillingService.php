@@ -730,5 +730,72 @@ class ChannelBillingService
 
         return ['amount' => $newPrice, 'failed' => false];
     }
+
+
+    public function nextInvoiceFor(User $household): array
+    {
+        $subscription = $household->subscription;
+    
+        if (!$subscription) {
+            return [
+                'amount'       => 0,
+                'due_date'     => null,
+                'status'       => 'inactive',
+                'billing_mode' => 'standalone',
+                'breakdown'    => [],
+            ];
+        }
+    
+        $isEstateOptedIn = $subscription->cancellation_reason === 'estate_optin'
+            && $subscription->channel_subscription_id;
+    
+        if ($isEstateOptedIn) {
+            // NOTE: assumes Subscription::channelSubscription() belongsTo
+            // ChannelSubscription exists — add it if it doesn't yet.
+            $channelSubscription = $subscription->channelSubscription;
+    
+            return [
+                'amount'       => 0, // covered by the estate, not billed to the household
+                'due_date'     => $channelSubscription?->current_period_end,
+                'status'       => $household->subscription_status ?? 'active',
+                'billing_mode' => 'estate',
+                'breakdown'    => [], // nothing to break down — estate pays as a whole
+            ];
+        }
+    
+        // Standalone: pull the channel's per-household / per-linked-account
+        // rates the same way syncStandaloneSubscriptionAmount() does.
+        $channel = $household->employee?->channels->first();
+    
+        $basePrice  = $channel ? BillingService::unitPrice($channel->amount_per_household) : (float) $subscription->price;
+        $linkedRate = $channel ? BillingService::unitPrice($channel->amount_per_linked_account) : 0;
+    
+        $linkedAccounts = AccountLink::where('primary_account_id', $household->id)
+            ->where('status', 'active')
+            ->with('linkedAccount')
+            ->get();
+    
+        $breakdown = collect([[
+            'id'     => $household->id,
+            'name'   => $household->name,
+            'role'   => 'primary',
+            'amount' => $basePrice,
+        ]])->merge(
+            $linkedAccounts->map(fn ($link) => [
+                'id'     => $link->linkedAccount->id,
+                'name'   => $link->linkedAccount->name,
+                'role'   => 'linked',
+                'amount' => $linkedRate,
+            ])
+        );
+    
+        return [
+            'amount'       => (float) $subscription->price,
+            'due_date'     => $subscription->current_period_end,
+            'status'       => $subscription->status, // active | trialing | past_due | cancelled
+            'billing_mode' => 'standalone',
+            'breakdown'    => $breakdown->values(),
+        ];
+    }
  
 }

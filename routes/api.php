@@ -33,6 +33,7 @@ use App\Http\Controllers\ChannelBillingController;
 use App\Http\Controllers\CheckpointController;
 use App\Http\Controllers\DvRecordingController;
 use App\Http\Controllers\GuardBankDetailController;
+use App\Http\Controllers\HouseholdBillingController;
 use App\Http\Controllers\HouseholdSettingController;
 use App\Http\Controllers\Internal\InternalDashboardUserController;
 use App\Http\Controllers\InviteController;
@@ -282,6 +283,10 @@ Route::middleware('auth:sanctum')->prefix('household')->group(function () {
     Route::post('/visitor-codes', [VisitorCodeController::class, 'generate']);
     Route::get('/visitor-codes', [VisitorCodeController::class, 'index']);
     Route::delete('/visitor-codes/{id}', [VisitorCodeController::class, 'revoke']);
+
+
+    Route::get('/billing/next', [HouseholdBillingController::class, 'next']);
+    Route::get('/billing/manage-link', [HouseholdBillingController::class, 'manageLink']);
 
     
 });
