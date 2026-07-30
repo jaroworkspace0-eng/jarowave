@@ -46,6 +46,8 @@ class User extends Authenticatable
         'is_estate',
         'alert_location_source',
         'sos_suspended_at',
+        'subscription_status',
+        'payment_failed_at',
         'is_gate_guard',
     ];
 
