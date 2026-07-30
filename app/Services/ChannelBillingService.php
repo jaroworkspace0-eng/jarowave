@@ -312,6 +312,17 @@ class ChannelBillingService
             ->count();
     }
 
+    
+    /**
+     * Flat length, in days, of a channel subscription's first billing
+     * period — from the moment it's created to its first current_period_end.
+     * Matches the `?? now()->addDays(30)` fallback already used in
+     * approveEftPayment/handlePayfastPayment, so there's one consistent
+     * "default period length" concept rather than two different
+     * conventions (day-20 month-end alignment here vs. a flat 30 there).
+     */
+    private const FIRST_BILLING_PERIOD_DAYS = 30;
+
     /**
      * Resolve or create the active channel subscription for the current billing period.
      */
@@ -339,11 +350,11 @@ class ChannelBillingService
             'billing_model'        => $channel->billing_model,
             'current_period_start' => now(),
 
-            // Bill to end of current month if created on or before the 20th,
-            // otherwise extend to end of next month to align with SA month-end salary cycles.
-            'current_period_end' => now()->day <= 20
-                ? now()->endOfMonth()
-                : now()->addMonthNoOverflow()->endOfMonth(),
+            // Flat first billing period — no month-end alignment. A
+            // day-of-month-based cliff (e.g. "day 20") gives wildly
+            // different runway to estates created a day apart on either
+            // side of the cutoff; a flat count avoids that entirely.
+            'current_period_end' => now()->addDays(self::FIRST_BILLING_PERIOD_DAYS),
         ]);
     }
 

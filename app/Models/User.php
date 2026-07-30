@@ -181,4 +181,25 @@ class User extends Authenticatable
             default => collect(),
         };
     }
+
+
+    public function accountLinksAsPrimary()
+    {
+        return $this->hasMany(AccountLink::class, 'primary_account_id')
+            ->where('status', 'active');
+    }
+
+
+    public function accountLinkAsLinked()
+    {
+        return $this->hasOne(AccountLink::class, 'linked_account_id')
+            ->where('status', 'active');
+    }
+
+    public function isLinkedAccount(): bool
+    {
+        return $this->relationLoaded('accountLinkAsLinked')
+            ? $this->accountLinkAsLinked !== null
+            : $this->accountLinkAsLinked()->exists();
+    }
 }

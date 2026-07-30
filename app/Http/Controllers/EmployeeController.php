@@ -484,7 +484,6 @@ class EmployeeController extends Controller
             'status'               => 'trialing',
             'plan'               => null,
             'billing_cycle'        => 'monthly',
-            // 'price'                => BillingService::UNIT_PRICE,
             'price' => BillingService::unitPrice($channel->amount_per_household ?? null),
             'trial_ends_at'        => now()->addDays(14), // 14-day trial for households
             'merchant_reference'   => 'HH-' . $user->id . '-' . time(),

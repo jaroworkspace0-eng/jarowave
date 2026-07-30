@@ -16,14 +16,30 @@ class SuspendNonPayingHouseholds extends Command
 
     private string $nodeUrl;
 
+    /**
+     * Flat grace period after a trial ends before hard suspension.
+     * Independent of PAYMENT_FAILED_GRACE_DAYS — does not stack with it.
+     */
+    private const TRIAL_GRACE_DAYS = 7;
+
+    /**
+     * Flat grace period after a recurring billing payment fails before
+     * hard suspension. Independent of TRIAL_GRACE_DAYS — does not stack
+     * with it. Shorter, since these are already-paying households just
+     * needing a quick card/payment fix, not a fresh buying decision.
+     */
+    private const PAYMENT_FAILED_GRACE_DAYS = 3;
+
     public function __construct()
     {
         parent::__construct();
         $this->nodeUrl = rtrim(env('PTT_SERVER_URL', 'https://radio.server.jaroworkspace.com'), '/');
     }
 
+   
     public function handle(): void
     {
+        // Group 1: trials that just expired — not yet past_due.
         $expiredTrials = Subscription::with('user')
             ->where('status', 'trialing')
             ->whereNull('sos_suspended_at')
@@ -32,49 +48,72 @@ class SuspendNonPayingHouseholds extends Command
             ->whereDate('trial_ends_at', '<', now()->toDateString())
             ->get();
 
-        $failedPayments = Subscription::with('user')
+        // Group 2: already past_due BECAUSE a trial expired (trial_ends_at
+        // is set), whose flat TRIAL_GRACE_DAYS window has now lapsed.
+        $trialGraceLapsed = Subscription::with('user')
             ->where('status', 'past_due')
             ->whereNull('sos_suspended_at')
-            ->whereNotNull('current_period_end')
+            ->whereNotNull('trial_ends_at')
             ->whereNull('channel_subscription_id')
-            ->whereDate('current_period_end', '<', now()->subDays(3)->toDateString())
+            ->whereDate('trial_ends_at', '<', now()->subDays(self::TRIAL_GRACE_DAYS)->toDateString())
             ->get();
 
-        $targets = $expiredTrials->merge($failedPayments);
+        // Group 3: already past_due from a genuine recurring billing
+        // failure (no trial involved), whose flat PAYMENT_FAILED_GRACE_DAYS
+        // window has now lapsed.
+        $paymentFailureLapsed = Subscription::with('user')
+            ->where('status', 'past_due')
+            ->whereNull('sos_suspended_at')
+            ->whereNull('trial_ends_at')
+            ->whereNotNull('current_period_end')
+            ->whereNull('channel_subscription_id')
+            ->whereDate('current_period_end', '<', now()->subDays(self::PAYMENT_FAILED_GRACE_DAYS)->toDateString())
+            ->get();
 
-        foreach ($targets as $subscription) {
+        $toTransition = $expiredTrials;
+        $toSuspend    = $trialGraceLapsed->merge($paymentFailureLapsed);
+
+        // Eager-load each user's active AccountLink so isLinkedAccount()
+        // doesn't fire a query per row inside the loop below.
+        $toSuspend->load('user.accountLinkAsLinked');
+
+        $transitionedCount = 0;
+        $suspendedCount    = 0;
+
+        // --- Trials that just expired: soft transition to past_due ---
+        foreach ($toTransition as $subscription) {
             $user = $subscription->user;
             if (!$user) continue;
 
-            $isExpiredTrial = $expiredTrials->contains($subscription);
+            // Deadline is purely informational here — TRIAL_GRACE_DAYS is
+            // enforced by the trialGraceLapsed query above, not by this date.
+            $trialEnd = $subscription->trial_ends_at;
+            $deadline = $trialEnd->copy()->addDays(self::TRIAL_GRACE_DAYS);
 
-            if ($isExpiredTrial) {
-                // Transition to past_due with month-end aligned billing period
-                // giving them until month end to pay before suspension kicks in.
-                $trialEnd = $subscription->trial_ends_at;
-                $periodEnd = $trialEnd->day <= 20
-                    ? $trialEnd->copy()->endOfMonth()
-                    : $trialEnd->copy()->addMonthNoOverflow()->endOfMonth();
+            $subscription->update([
+                'status'             => 'past_due',
+                'current_period_end' => $deadline,
+            ]);
 
-                $subscription->update([
-                    'status'             => 'past_due',
-                    'current_period_end' => $periodEnd,
-                ]);
+            $user->update(['subscription_status' => 'past_due']);
 
-                $user->update(['subscription_status' => 'past_due']);
+            $this->notifyNode('POST', '/payment-failed', [
+                'userId'            => $subscription->user_id,
+                'forceSuspend'      => false,
+                'reason'            => 'trial_expired',
+                'gracePeriodEndsAt' => $deadline->timestamp * 1000,
+            ]);
 
-                // Notify node of trial expiry (soft suspend — limited access)
-                $this->notifyNode('POST', '/payment-failed', [
-                    'userId'       => $subscription->user_id,
-                    'forceSuspend' => false,
-                    'reason'       => 'trial_expired',
-                    'gracePeriodEndsAt' => $periodEnd->timestamp * 1000, // Laravel's real deadline
-                ]);
+            $transitionedCount++;
+        }
 
-                continue;
-            }
+        // --- Grace period lapsed (either reason): hard suspend ---
+        foreach ($toSuspend as $subscription) {
+            $user = $subscription->user;
+            if (!$user) continue;
 
-            // past_due and current_period_end has lapsed — hard suspend
+            $reason = $subscription->trial_ends_at ? 'trial_expired' : 'payment_failed';
+
             $subscription->update([
                 'status'           => 'cancelled',
                 'cancelled_at'     => now(),
@@ -83,24 +122,32 @@ class SuspendNonPayingHouseholds extends Command
             ]);
 
             $user->update([
-            'sos_suspended_at'    => now(),
-            'subscription_status' => 'cancelled',
-        ]);
+                'sos_suspended_at'    => now(),
+                'subscription_status' => 'cancelled',
+            ]);
 
             $this->notifyNode('POST', '/payment-failed', [
                 'userId'       => $subscription->user_id,
                 'forceSuspend' => true,
-                'reason'       => 'payment_failed',
+                'reason'       => $reason,
             ]);
 
-            if ($user->email) {
+            // Linked accounts don't own billing — the primary account's
+            // failed payment caused this, so only the primary gets emailed.
+            if ($user->email && !$user->isLinkedAccount()) {
                 Mail::to($user->email)->queue(new HouseholdSuspendedMail($user, $subscription));
-                $this->info("Suspended (payment_failed) & emailed: {$user->email}");
+                $this->info("Suspended ({$reason}) & emailed: {$user->email}");
+            } else {
+                $this->info("Suspended ({$reason}), no email (linked account): {$user->id}");
             }
+
+            $suspendedCount++;
         }
 
-        $this->info("Total suspended: {$targets->count()}");
+        $this->info("Transitioned to past_due: {$transitionedCount}");
+        $this->info("Hard suspended: {$suspendedCount}");
     }
+
 
     private function notifyNode(string $method, string $path, array $payload): void
     {

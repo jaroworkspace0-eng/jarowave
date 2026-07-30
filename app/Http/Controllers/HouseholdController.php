@@ -187,7 +187,6 @@ class HouseholdController extends Controller
             'status'             => 'trialing',
             'plan'               => null,
             'billing_cycle'      => 'monthly',
-            // 'price'              => BillingService::UNIT_PRICE, // 80.00
             'price' => BillingService::unitPrice($channel->amount_per_household),
             'trial_ends_at'      => now()->addDays(14), // 14-day trial
             'merchant_reference' => $merchantReference,
@@ -517,12 +516,6 @@ class HouseholdController extends Controller
         $billingDate = $trialEnded
             ? now()->format('Y-m-d')
             : $trialEndsAt->format('Y-m-d');
-
-
-        $initialAmount = $trialEnded
-            ? number_format($billedAmount, 2, '.', '')
-            : '0.00';
-
 
         $formattedAmount = number_format($billedAmount, 2, '.', '');
 
