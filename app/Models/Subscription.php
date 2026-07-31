@@ -150,4 +150,18 @@ class Subscription extends Model
     {
         return $this->belongsTo(ChannelSubscription::class);
     }
+
+
+    public function syncUserStatus(): void
+    {
+        $user = $this->user;
+        if (! $user) {
+            return;
+        }
+
+        $user->update([
+            'subscription_status' => $this->status,
+            'sos_suspended_at'    => $this->sos_suspended_at,
+        ]);
+    }
 }

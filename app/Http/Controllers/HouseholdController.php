@@ -591,6 +591,9 @@ class HouseholdController extends Controller
             'current_period_end'   => $trialStillValid ? null : $now->copy()->addMonth(),
         ]);
 
+
+        $subscription->syncUserStatus();
+
         $payfast = new \App\Services\PayFastService();
         $channel = $user->employee?->channels()->first();
         $amountPerHousehold = BillingService::unitPrice($channel?->amount_per_household);
@@ -706,7 +709,12 @@ class HouseholdController extends Controller
         // subscription via Subscription::where('merchant_reference', $merchantRef),
         // so without this the incoming ITN would 404 and the payment (plus any
         // linked-account fan-out) would silently never be recorded.
-        $subscription->update(['merchant_reference' => $merchantReference]);
+
+        $subscription->update([
+            'merchant_reference'   => $merchantReference,
+            'current_period_start' => now(),
+            'current_period_end'   => null,
+        ]);
 
         $channel = $user->employee?->channels()->first();
 

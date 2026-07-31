@@ -175,12 +175,24 @@ class AccountLinkController extends Controller
                 continue;
             }
 
+
+            $targetSubscription = Subscription::where('user_id', $targetId)->latest()->first();
+
+            if ($targetSubscription && in_array($targetSubscription->status, ['cancelled', 'past_due'])) {
+                $skipped[] = [
+                    'id'      => $targetId,
+                    'reason'  => 'target_not_active',
+                    'message' => 'This person\'s account must be active before it can be linked. They must resolve any outstanding payment first.',
+                ];
+                continue;
+            }
+
             // Target must not already have their own live standalone PayFast
             // subscription — linking them without resolving this first would
             // create double billing (their own token still auto-debiting, plus
             // being counted in the primary's linked-account rate).
             $targetHasOwnPayfastSubscription = Subscription::where('user_id', $targetId)
-                ->whereIn('status', ['active', 'trialing', 'past_due'])
+                ->whereIn('status', ['active', 'trialing'])
                 ->whereNotNull('payfast_token')
                 ->exists();
 

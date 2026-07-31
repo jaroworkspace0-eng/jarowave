@@ -117,7 +117,7 @@ class PayfastWebhookController extends Controller
 
                 // Compute period end once so the DB record and the email always agree
                 // $periodStart = $subscription->current_period_end ?? now();
-                
+
                 $periodStart = ($subscription->current_period_end && $subscription->current_period_end->isPast())
                     ? $subscription->current_period_end
                     : ($subscription->current_period_start ?? now());
@@ -140,6 +140,9 @@ class PayfastWebhookController extends Controller
                         'current_period_end'   => $periodEnd,
                     ]);
 
+
+                    $subscription->syncUserStatus();
+            
                     $linkedAccounts = AccountLink::with('linkedAccount.subscription')
                         ->where('primary_account_id', $subscription->user_id)
                         ->where('status', 'active')
@@ -160,6 +163,9 @@ class PayfastWebhookController extends Controller
                             'current_period_start' => $linkedSub->current_period_end ?? $periodStart,
                             'current_period_end'   => $periodEnd,
                         ]);
+
+                        $linkedSub->syncUserStatus();
+
                     }
 
                     return $subscription->payments()->create(

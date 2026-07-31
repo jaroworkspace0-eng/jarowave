@@ -95,7 +95,9 @@ class AdminSubscriptionController extends Controller
         $payment = DB::transaction(function () use (
             $request, $subscription, $proofPath, $amountRands, $eftReference
         ) {
-            $periodStart = $subscription->current_period_end ?? now();
+            $periodStart = ($subscription->current_period_end && $subscription->current_period_end->isPast())
+                ? $subscription->current_period_end
+                : ($subscription->current_period_start ?? now());
             $periodEnd   = $periodStart->copy()->addDays(30);
 
             $payment = SubscriptionPayment::create([
@@ -133,6 +135,9 @@ class AdminSubscriptionController extends Controller
                 'current_period_start' => $periodStart,
                 'current_period_end'   => $periodEnd,
             ]);
+
+            $subscription->syncUserStatus();
+
 
             return $payment;
         });
@@ -188,7 +193,9 @@ class AdminSubscriptionController extends Controller
                     continue;
                 }
 
-                $linkedPeriodStart = $linkedSub->current_period_end ?? $subscription->current_period_start;
+                $linkedPeriodStart = ($linkedSub->current_period_end && $linkedSub->current_period_end->isPast())
+                    ? $linkedSub->current_period_end
+                    : ($linkedSub->current_period_start ?? $subscription->current_period_start);
                 $linkedPeriodEnd   = $subscription->current_period_end;
 
                 $linkedPayment = DB::transaction(function () use (
@@ -230,6 +237,9 @@ class AdminSubscriptionController extends Controller
                         'current_period_start' => $linkedPeriodStart,
                         'current_period_end'   => $linkedPeriodEnd,
                     ]);
+                    
+                     $linkedSub->syncUserStatus();
+
 
                     return $linkedPayment;
                 });
