@@ -721,6 +721,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('opt-out',                   [ChannelBillingController::class, 'optOut']);
         Route::post('mark-eft-paid',             [ChannelBillingController::class, 'markEftPaid']);
         Route::post('remove-household', [ChannelBillingController::class, 'removeHousehold']);
+        Route::post('pay-now', [ChannelBillingController::class, 'payNow']);
     });
 
 

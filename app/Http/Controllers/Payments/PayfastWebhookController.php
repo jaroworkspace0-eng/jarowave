@@ -13,7 +13,9 @@ use App\Mail\PaymentSuccessMail;
 use App\Mail\SubscriptionCancelledMail;
 use App\Mail\TrialCardFailedMail;
 use App\Models\AccountLink;
+use App\Models\ChannelSubscriptionPayment;
 use App\Services\BillingService;
+use App\Services\ChannelBillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -30,6 +32,8 @@ class PayfastWebhookController extends Controller
      * Side effects (earning, invoice, email, Node notify) run outside the transaction intentionally —
      * a billing side-effect failure should never roll back a confirmed payment record.
      */
+
+    public function __construct(private ChannelBillingService $billingService) {}
     
     public function handle(Request $request, PayFastService $payfast)
     {
@@ -63,6 +67,12 @@ class PayfastWebhookController extends Controller
             Log::warning('PayFast ITN missing m_payment_id');
             return response('Missing reference', 400);
         }
+
+        // Estate/bulk channel payment — separate resolution path, no Subscription row involved
+        if (str_starts_with($merchantRef, 'EST-')) {
+            return $this->handleChannelPaymentItn($data, $merchantRef);
+        }
+
 
         $subscription = Subscription::where('merchant_reference', $merchantRef)->first();
         if (!$subscription) {
@@ -336,5 +346,70 @@ class PayfastWebhookController extends Controller
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Handle ITN for estate/bulk channel payments (merchant_reference prefix "EST-").
+     * Reuses ChannelBillingService::approveEftPayment so PayFast-triggered activation
+     * follows the exact same transaction/activation/side-effects/email path as an
+     * admin manually approving an EFT proof.
+     */
+    private function handleChannelPaymentItn(array $data, string $merchantRef)
+    {
+        $payment = ChannelSubscriptionPayment::where('merchant_reference', $merchantRef)->first();
+
+        if (!$payment) {
+            Log::warning('PayFast ITN channel payment not found', ['m_payment_id' => $merchantRef]);
+            return response('Payment not found', 404);
+        }
+
+        $paymentStatus = $data['payment_status'] ?? '';
+
+        switch ($paymentStatus) {
+            case 'COMPLETE':
+                if ($payment->status === 'paid') {
+                    Log::info('PayFast ITN duplicate - channel payment already paid, skipping', [
+                        'payment_id' => $payment->id,
+                    ]);
+                    break;
+                }
+
+                // approveEftPayment already guards on status !== 'pending_review' —
+                // payNow leaves the payment as 'pending', so bump it here first.
+                if ($payment->status === 'pending') {
+                    $payment->update(['status' => 'pending_review']);
+                }
+
+                $payment->update([
+                    'gateway_transaction_id' => $data['pf_payment_id'] ?? null,
+                    'gateway_payload'        => $data,
+                ]);
+
+                $this->billingService->approveEftPayment($payment, request()->ip());
+
+                Log::info('PayFast estate payment activated via ITN', ['payment_id' => $payment->id]);
+                break;
+
+            case 'FAILED':
+            case 'CANCELLED':
+                $payment->update([
+                    'status'          => 'failed',
+                    'gateway_payload' => $data,
+                ]);
+
+                Log::warning('PayFast estate payment failed/cancelled', [
+                    'payment_id' => $payment->id,
+                    'status'     => $paymentStatus,
+                ]);
+                break;
+
+            default:
+                Log::info('PayFast estate ITN unhandled status', [
+                    'status'     => $paymentStatus,
+                    'payment_id' => $payment->id,
+                ]);
+        }
+
+        return response('OK', 200);
     }
 }

@@ -13,6 +13,7 @@ use App\Models\Employee;
 use App\Models\User;
 use App\Services\ChannelBillingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
@@ -331,5 +332,108 @@ class ChannelBillingController extends Controller
             ->paginate(20);
 
         return response()->json(['success' => true, 'payments' => $payments]);
+    }
+
+
+    /**
+     * Initiate a once-off PayFast payment for the channel's current
+     * outstanding bulk billing amount.
+     */
+    public function payNow(Request $request, Channel $channel)
+    {
+        if ($channel->billing_model !== 'bulk') {
+            return response()->json([
+                'success' => false,
+                'message' => 'This channel is not on estate/bulk billing. Process payment via individual subscriber billing instead.',
+            ], 422);
+        }
+
+        $channelSubscription = $this->billingService->resolveActiveChannelSubscription($channel);
+
+        if ($channelSubscription->isCancelled()) {
+            return response()->json(['message' => 'This subscription has been cancelled.'], 400);
+        }
+
+        if ($channelSubscription->isActive()) {
+            return response()->json(['message' => 'This billing period is already paid.'], 400);
+        }
+
+        $contact = ChannelBillingContact::where('channel_id', $channel->id)
+            ->where('is_active', true)
+            ->with('user')
+            ->first();
+
+        if (!$contact) {
+            return response()->json(['message' => 'No billing contact on file for this channel.'], 400);
+        }
+
+        $user = $contact->user;
+
+        // Prevent duplicate charge attempts while one is in flight
+        $locked = Cache::lock('channel_pay_now_' . $channel->id, 30);
+        if (!$locked->get()) {
+            return response()->json(['message' => 'Payment already in progress.'], 429);
+        }
+
+        try {
+            $merchantReference = 'EST-' . $channel->id . '-' . time();
+
+            // Persist the pending payment row now — the ITN webhook resolves the
+            // payment via ChannelSubscriptionPayment::where('merchant_reference', ...),
+            // so without this the incoming ITN would find nothing to mark paid.
+            $payment = ChannelSubscriptionPayment::create([
+                'channel_subscription_id' => $channelSubscription->id,
+                'amount'                  => $channelSubscription->total_amount,
+                'household_count'         => $channelSubscription->household_count,
+                'amount_per_household'    => $channelSubscription->amount_per_household,
+                'payment_method'          => 'payfast',
+                'status'                  => 'pending',
+                'merchant_reference'      => $merchantReference,
+                'ip_address'              => $request->ip(),
+            ]);
+
+            $formattedAmount = number_format((float) $channelSubscription->total_amount, 2, '.', '');
+
+            $payfast = new \App\Services\PayFastService();
+            $fields = $payfast->buildOneTimeFields([
+                'name_first'            => explode(' ', $user->name)[0],
+                'name_last'             => explode(' ', $user->name, 2)[1] ?? '',
+                'email_address'         => $user->email,
+                'cell_number'           => $this->formatPhone($user->phone ?? ''),
+                'm_payment_id'          => $merchantReference,
+                'item_name'             => 'Echo Link Estate Billing',
+                'item_description'      => "R{$formattedAmount} estate billing for {$channelSubscription->household_count} households",
+                'custom_str1'           => (string) $channel->id,
+                'amount_per_household'  => $channelSubscription->total_amount,
+            ]);
+
+            return response()->json([
+                'type'   => 'estate',
+                'fields' => $fields,
+                'action' => config('payfast.base_url', 'https://www.payfast.co.za/eng/process'),
+            ]);
+        } finally {
+            $locked->release();
+        }
+    }
+
+
+     // ── Private: format phone number for PayFast (10 digits, starting with 0) ─────
+    private function formatPhone(string $phone): string
+    {
+        // Strip everything except digits
+        $digits = preg_replace('/\D/', '', $phone);
+
+        // Convert +27 or 27 prefix → 0
+        if (str_starts_with($digits, '27') && strlen($digits) === 11) {
+            $digits = '0' . substr($digits, 2);
+        }
+
+        // Must be exactly 10 digits starting with 0
+        if (strlen($digits) !== 10 || !str_starts_with($digits, '0')) {
+            return ''; // return empty rather than send invalid — PayFast ignores blank cell_number
+        }
+
+        return $digits;
     }
 }

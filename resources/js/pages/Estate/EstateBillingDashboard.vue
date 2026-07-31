@@ -5,19 +5,13 @@ import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import {
     AlertTriangle,
-    Ban,
     Building2,
-    CalendarDays,
     CheckCircle,
-    CircleDollarSign,
     Clock,
     Copy,
     CreditCard,
-    FileText,
-    RefreshCw,
     Trash2,
     Upload,
-    Users,
 } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
 
@@ -104,7 +98,7 @@ const getHeaders = () => ({
 
 const showFlash = (msg: string, type: 'success' | 'error' = 'success') => {
     flash.value = { msg, type };
-    setTimeout(() => (flash.value = null), 6000);
+    setTimeout(() => (flash.value = null), 3500);
 };
 
 const fmt = (val: number | null | undefined) =>
@@ -192,25 +186,60 @@ const statusConfig = computed(() => {
 
     switch (effectiveStatus) {
         case 'active':
-            return { label: 'Active', cls: 'status-active', icon: CheckCircle };
+            return {
+                label: 'Active',
+                cls: 'stat-card__value--green',
+                icon: CheckCircle,
+            };
         case 'pending':
             return {
                 label: 'Pending Payment',
-                cls: 'status-pending',
+                cls: 'stat-card__value--orange',
                 icon: Clock,
             };
         case 'overdue':
             return {
                 label: 'Overdue',
-                cls: 'status-overdue',
+                cls: 'stat-card__value--red',
                 icon: AlertTriangle,
             };
         case 'cancelled':
-            return { label: 'Cancelled', cls: 'status-cancelled', icon: Ban };
+            return { label: 'Cancelled', cls: '', icon: Clock };
         default:
             return { label: '—', cls: '', icon: Clock };
     }
 });
+
+const householdBadge = (status: string) => {
+    if (status === 'active')
+        return { label: 'Active', cls: 'bg-emerald-50 text-emerald-700' };
+    if (status === 'trialing')
+        return { label: 'Trialing', cls: 'bg-amber-50 text-amber-700' };
+    if (status === 'past_due')
+        return { label: 'Past Due', cls: 'bg-red-50 text-red-600' };
+    if (status === 'cancelled')
+        return { label: 'Cancelled', cls: 'bg-slate-100 text-slate-500' };
+    return { label: status, cls: 'bg-slate-100 text-slate-500' };
+};
+
+const paymentBadge = (status: string) => {
+    if (status === 'paid')
+        return { label: 'Approved', cls: 'bg-emerald-50 text-emerald-700' };
+    if (status === 'pending_review')
+        return { label: 'Pending Review', cls: 'bg-amber-50 text-amber-700' };
+    if (status === 'rejected')
+        return { label: 'Rejected', cls: 'bg-red-50 text-red-600' };
+    if (status === 'failed')
+        return { label: 'Failed', cls: 'bg-red-50 text-red-600' };
+    return { label: status, cls: 'bg-slate-100 text-slate-500' };
+};
+
+const initials = (name: string) =>
+    (name || '?')
+        .split(' ')
+        .slice(0, 2)
+        .map((w) => w[0]?.toUpperCase() ?? '')
+        .join('');
 
 // ── Data ──────────────────────────────────────────────────────────────────
 const base = () =>
@@ -417,143 +446,140 @@ const filteredPayments = computed(() => {
 <template>
     <Head :title="`${channel?.name} · Estate Billing`" />
     <AppLayout>
-        <div class="eb-root">
-            <!-- HEADER -->
-            <div class="eb-header">
-                <div class="eb-header-left">
-                    <div class="eb-channel-icon">
-                        <Building2 :size="20" stroke-width="2" />
-                    </div>
-                    <div>
-                        <h1 class="eb-title">{{ channel?.name }}</h1>
-                        <p class="eb-sub">Estate Billing Dashboard</p>
-                    </div>
+        <div class="page-root">
+            <div class="page-header">
+                <div class="page-header__left">
+                    <div class="page-header__eyebrow">Estate Billing</div>
+                    <h1 class="page-header__title">{{ channel?.name }}</h1>
                 </div>
                 <button class="btn-icon" @click="fetchAll" title="Refresh">
-                    <RefreshCw :size="16" stroke-width="2" />
+                    <RefreshCw v-if="false" />
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                    >
+                        <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+                        <path d="M21 3v6h-6" />
+                    </svg>
                 </button>
             </div>
 
-            <!-- FLASH -->
-            <div v-if="flash" :class="['flash', flash.type]">
-                {{ flash.type === 'success' ? '✓' : '⚠' }} {{ flash.msg }}
-            </div>
-
             <!-- LOADING -->
-            <div v-if="isLoading" class="loading">
-                <div class="spinner"></div>
-                <p>Loading billing data…</p>
+            <div v-if="isLoading" class="table-card">
+                <div class="empty-state">
+                    <svg
+                        class="spin h-6 w-6 text-slate-400"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                    >
+                        <circle
+                            class="opacity-25"
+                            cx="12"
+                            cy="12"
+                            r="10"
+                            stroke="currentColor"
+                            stroke-width="4"
+                        />
+                        <path
+                            class="opacity-75"
+                            fill="currentColor"
+                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                        />
+                    </svg>
+                    <span class="mt-2 text-sm text-slate-400"
+                        >Loading billing data…</span
+                    >
+                </div>
             </div>
 
             <template v-else-if="summary">
                 <!-- DUE SOON WARNING -->
-                <div v-if="isDueSoon" class="due-soon-banner">
+                <div v-if="isDueSoon" class="alert-banner alert-banner--warn">
                     <AlertTriangle :size="16" stroke-width="2" />
                     <span>
-                        <strong
-                            >Payment due
+                        <strong>
+                            Payment due
                             {{
                                 daysUntilDue === 0
                                     ? 'today'
                                     : `in ${daysUntilDue} day${daysUntilDue !== 1 ? 's' : ''}`
-                            }}.</strong
-                        >
+                            }}.
+                        </strong>
                         Please submit your EFT proof to keep all households
                         active.
                     </span>
                 </div>
 
                 <!-- OVERDUE WARNING -->
-                <div v-if="isPastDue" class="overdue-banner">
+                <div v-if="isPastDue" class="alert-banner alert-banner--danger">
                     <AlertTriangle :size="16" stroke-width="2" />
                     <span>
-                        <strong
-                            >Payment overdue by {{ daysOverdue }} day{{
+                        <strong>
+                            Payment overdue by {{ daysOverdue }} day{{
                                 daysOverdue !== 1 ? 's' : ''
-                            }}.</strong
-                        >
+                            }}.
+                        </strong>
                         Household access may be suspended until payment is
                         confirmed.
                     </span>
                 </div>
 
-                <!-- SUMMARY CARDS -->
-                <div class="summary-row">
-                    <div class="sum-card">
-                        <div class="sum-icon blue">
-                            <Users :size="18" stroke-width="2" />
-                        </div>
-                        <div>
-                            <div class="sum-val">
-                                {{ summary.household_count }}
-                            </div>
-                            <div class="sum-lbl">Opted-In Households</div>
+                <!-- SUMMARY -->
+                <div class="stat-row">
+                    <div class="stat-card">
+                        <div class="stat-card__label">Opted-In Households</div>
+                        <div class="stat-card__value">
+                            {{ summary.household_count }}
                         </div>
                     </div>
-                    <div class="sum-card">
-                        <div class="sum-icon orange">
-                            <CircleDollarSign :size="18" stroke-width="2" />
+                    <div class="stat-card">
+                        <div class="stat-card__label">
+                            {{
+                                summary.status === 'active'
+                                    ? 'Current Period'
+                                    : 'Amount Due'
+                            }}
                         </div>
-                        <div>
-                            <div class="sum-val">
-                                {{
-                                    summary.status === 'active'
-                                        ? 'Paid'
-                                        : fmt(summary.total_amount)
-                                }}
-                            </div>
-                            <div class="sum-lbl">
-                                {{
-                                    summary.status === 'active'
-                                        ? 'Current Period'
-                                        : 'Amount Due'
-                                }}
-                            </div>
+                        <div class="stat-card__value stat-card__value--orange">
+                            {{
+                                summary.status === 'active'
+                                    ? 'Paid'
+                                    : fmt(summary.total_amount)
+                            }}
                         </div>
                     </div>
-                    <div class="sum-card">
-                        <div class="sum-icon green">
-                            <CalendarDays :size="18" stroke-width="2" />
-                        </div>
-                        <div>
-                            <div class="sum-val">
-                                {{ formatDate(summary.current_period_end) }}
-                            </div>
-                            <div class="sum-lbl">Period Ends</div>
+                    <div class="stat-card">
+                        <div class="stat-card__label">Period Ends</div>
+                        <div class="stat-card__value">
+                            {{ formatDate(summary.current_period_end) }}
                         </div>
                     </div>
-                    <div class="sum-card">
-                        <div
-                            :class="[
-                                'sum-icon',
-                                statusConfig.cls.replace('status-', ''),
-                            ]"
-                        >
-                            <component
-                                :is="statusConfig.icon"
-                                :size="18"
-                                stroke-width="2"
-                            />
-                        </div>
-                        <div>
-                            <div :class="['sum-val', statusConfig.cls]">
-                                {{ statusConfig.label }}
-                            </div>
-                            <div class="sum-lbl">Billing Status</div>
+                    <div class="stat-card">
+                        <div class="stat-card__label">Billing Status</div>
+                        <div class="stat-card__value" :class="statusConfig.cls">
+                            {{ statusConfig.label }}
                         </div>
                     </div>
                 </div>
 
-                <!-- PERIOD + PAY ROW -->
-                <div class="pay-row">
-                    <div class="period-info">
-                        <span class="period-label">Billing Period</span>
-                        <span class="period-dates">
+                <!-- PERIOD + PAY PANEL -->
+                <div class="table-card pay-panel">
+                    <div class="pay-panel__info">
+                        <div class="pay-panel__label">Billing Period</div>
+                        <div class="pay-panel__dates">
                             {{ formatDate(summary.current_period_start) }}
                             &rarr;
                             {{ formatDate(summary.current_period_end) }}
-                        </span>
-                        <span class="period-rate">
+                        </div>
+                        <div class="pay-panel__rate">
                             {{ summary.household_count }} households ×
                             {{ fmt(summary.amount_per_household) }}
                             <template v-if="summary.linked_account_count">
@@ -561,11 +587,11 @@ const filteredPayments = computed(() => {
                                 {{ fmt(summary.amount_per_linked_account) }}
                             </template>
                             = <strong>{{ fmt(summary.total_amount) }}</strong>
-                        </span>
+                        </div>
                     </div>
-                    <div class="pay-actions">
+                    <div class="pay-panel__actions">
                         <button
-                            class="btn-eft"
+                            class="btn-ghost btn-ghost--outline"
                             :disabled="summary.status === 'cancelled'"
                             @click="openEftModal"
                         >
@@ -573,7 +599,7 @@ const filteredPayments = computed(() => {
                             Submit EFT Proof
                         </button>
                         <button
-                            class="btn-paynow"
+                            class="btn-primary"
                             :disabled="
                                 summary.status === 'cancelled' || isPayingNow
                             "
@@ -589,78 +615,114 @@ const filteredPayments = computed(() => {
                 </div>
 
                 <!-- TABS -->
-                <div class="tabs">
-                    <button
-                        :class="['tab', { active: activeTab === 'households' }]"
-                        @click="activeTab = 'households'"
-                    >
-                        <Users :size="14" stroke-width="2" />
-                        Households ({{ households.length }})
-                    </button>
-                    <button
-                        :class="['tab', { active: activeTab === 'payments' }]"
-                        @click="activeTab = 'payments'"
-                    >
-                        <FileText :size="14" stroke-width="2" />
-                        Payment History ({{ payments.length }})
-                    </button>
+                <div class="filter-bar">
+                    <div class="filter-bar__chips">
+                        <button
+                            class="chip"
+                            :class="{
+                                'chip--active': activeTab === 'households',
+                            }"
+                            @click="activeTab = 'households'"
+                        >
+                            Households ({{ households.length }})
+                        </button>
+                        <button
+                            class="chip"
+                            :class="{
+                                'chip--active': activeTab === 'payments',
+                            }"
+                            @click="activeTab = 'payments'"
+                        >
+                            Payment History ({{ payments.length }})
+                        </button>
+                    </div>
                 </div>
 
                 <!-- HOUSEHOLDS TAB -->
-                <div v-if="activeTab === 'households'">
-                    <div v-if="!households.length" class="empty-card">
-                        <Users :size="32" stroke-width="1.5" color="#bbb" />
-                        <div class="empty-title">
+                <div v-if="activeTab === 'households'" class="table-card">
+                    <div v-if="!households.length" class="empty-state">
+                        <p class="empty-state__title">
                             No opted-in households yet
-                        </div>
-                        <div class="empty-desc">
+                        </p>
+                        <p class="empty-state__sub">
                             Households in this channel will see an opt-in banner
                             in the app.
-                        </div>
+                        </p>
                     </div>
 
-                    <div v-else class="hh-list">
-                        <div
-                            v-for="hh in households"
-                            :key="hh.id"
-                            class="hh-card"
-                        >
-                            <div class="hh-avatar">
-                                {{ hh.name.charAt(0).toUpperCase() }}
-                            </div>
-                            <div class="hh-info">
-                                <div class="hh-name">{{ hh.name }}</div>
-                                <div class="hh-meta">{{ hh.email }}</div>
-                                <div class="hh-meta" v-if="hh.unit_number">
-                                    Unit {{ hh.unit_number }}
-                                </div>
-                            </div>
-                            <div class="hh-right">
-                                <span
-                                    :class="[
-                                        'sub-badge',
-                                        hh.subscription_status,
-                                    ]"
-                                >
-                                    {{ hh.subscription_status }}
-                                </span>
-                                <button
-                                    class="btn-remove"
-                                    @click="confirmRemove(hh)"
-                                    title="Remove from estate billing"
-                                >
-                                    <Trash2 :size="14" stroke-width="2" />
-                                    Remove
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    <table v-else class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Household</th>
+                                <th>Unit</th>
+                                <th>Status</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="hh in households" :key="hh.id">
+                                <td>
+                                    <div class="person-cell">
+                                        <div class="avatar">
+                                            {{ initials(hh.name) }}
+                                        </div>
+                                        <div>
+                                            <div class="td-announce__title">
+                                                {{ hh.name }}
+                                            </div>
+                                            <div class="td-announce__sub">
+                                                {{ hh.email }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="td-time">
+                                    {{ hh.unit_number ?? '—' }}
+                                </td>
+                                <td>
+                                    <span
+                                        class="type-badge"
+                                        :class="
+                                            householdBadge(
+                                                hh.subscription_status,
+                                            ).cls
+                                        "
+                                    >
+                                        {{
+                                            householdBadge(
+                                                hh.subscription_status,
+                                            ).label
+                                        }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div
+                                        style="
+                                            display: flex;
+                                            justify-content: flex-end;
+                                        "
+                                    >
+                                        <button
+                                            class="btn-ghost"
+                                            style="padding: 7px 14px"
+                                            @click="confirmRemove(hh)"
+                                        >
+                                            <Trash2
+                                                :size="14"
+                                                stroke-width="2"
+                                            />
+                                            Remove
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
 
                 <!-- PAYMENTS TAB -->
                 <div v-if="activeTab === 'payments'">
-                    <!-- Filters -->
-                    <div class="pay-filters">
+                    <div class="table-card pay-filters">
                         <div class="pf-search-wrap">
                             <input
                                 class="pf-search"
@@ -696,92 +758,121 @@ const filteredPayments = computed(() => {
                         </div>
                         <button
                             v-if="hasPayFilters"
-                            class="btn-clear-pay"
+                            class="btn-ghost"
                             @click="clearPayFilters"
                         >
                             ✕ Clear
                         </button>
                     </div>
 
-                    <div v-if="!filteredPayments.length" class="empty-card">
-                        <FileText :size="32" stroke-width="1.5" color="#bbb" />
-                        <div class="empty-title">No payments found</div>
-                        <div class="empty-desc">
-                            Try adjusting your filters.
-                        </div>
-                    </div>
-
-                    <div v-else class="payment-list">
+                    <div class="table-card">
                         <div
-                            v-for="payment in filteredPayments"
-                            :key="payment.id"
-                            :class="['payment-card', payment.status]"
+                            v-if="!filteredPayments.length"
+                            class="empty-state"
                         >
-                            <div class="pay-left">
-                                <div class="pay-ref">
-                                    {{ payment.merchant_reference ?? '—' }}
-                                </div>
-                                <div class="pay-meta">
-                                    {{ payment.payment_method?.toUpperCase() }}
-                                    · {{ payment.household_count }} households ·
-                                    Submitted
-                                    {{ formatDate(payment.created_at) }}
-                                </div>
-                                <div class="pay-meta" v-if="payment.paid_at">
-                                    Approved {{ formatDate(payment.paid_at) }}
-                                </div>
-                                <div
-                                    class="pay-meta pay-note"
-                                    v-if="payment.notes"
-                                >
-                                    "{{ payment.notes }}"
-                                </div>
-                            </div>
-                            <div class="pay-right">
-                                <div class="pay-amount">
-                                    {{ fmt(payment.amount) }}
-                                </div>
-                                <span :class="['pay-badge', payment.status]">
-                                    {{
-                                        payment.status === 'pending_review'
-                                            ? 'Pending Review'
-                                            : payment.status === 'paid'
-                                              ? 'Approved'
-                                              : payment.status
-                                    }}
-                                </span>
-                            </div>
+                            <p class="empty-state__title">No payments found</p>
+                            <p class="empty-state__sub">
+                                Try adjusting your filters.
+                            </p>
                         </div>
+
+                        <table v-else class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Reference</th>
+                                    <th>Details</th>
+                                    <th>Status</th>
+                                    <th style="text-align: right">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr
+                                    v-for="payment in filteredPayments"
+                                    :key="payment.id"
+                                >
+                                    <td class="td-announce__title">
+                                        {{ payment.merchant_reference ?? '—' }}
+                                    </td>
+                                    <td>
+                                        <div class="td-announce__sub">
+                                            {{
+                                                payment.payment_method?.toUpperCase()
+                                            }}
+                                            ·
+                                            {{ payment.household_count }}
+                                            households · Submitted
+                                            {{ formatDate(payment.created_at) }}
+                                        </div>
+                                        <div
+                                            v-if="payment.paid_at"
+                                            class="td-announce__sub"
+                                        >
+                                            Approved
+                                            {{ formatDate(payment.paid_at) }}
+                                        </div>
+                                        <div
+                                            v-if="payment.notes"
+                                            class="td-announce__sub pay-note"
+                                        >
+                                            "{{ payment.notes }}"
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span
+                                            class="type-badge"
+                                            :class="
+                                                paymentBadge(payment.status).cls
+                                            "
+                                        >
+                                            {{
+                                                paymentBadge(payment.status)
+                                                    .label
+                                            }}
+                                        </span>
+                                    </td>
+                                    <td class="pay-amount-cell">
+                                        {{ fmt(payment.amount) }}
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </template>
 
             <!-- NO SUBSCRIPTION YET -->
-            <div v-else-if="!isLoading" class="empty-card">
-                <Building2 :size="32" stroke-width="1.5" color="#bbb" />
-                <div class="empty-title">Estate billing not activated</div>
-                <div class="empty-desc">
-                    Please contact Echo Link admin to activate estate billing
-                    for this channel.
+            <div v-else-if="!isLoading" class="table-card">
+                <div class="empty-state">
+                    <Building2 :size="32" stroke-width="1.5" color="#94a3b8" />
+                    <p class="empty-state__title">
+                        Estate billing not activated
+                    </p>
+                    <p class="empty-state__sub">
+                        Please contact Echo Link admin to activate estate
+                        billing for this channel.
+                    </p>
                 </div>
             </div>
+        </div>
 
-            <!-- ── EFT MODAL ───────────────────────────────────────────────── -->
+        <!-- ── EFT MODAL ───────────────────────────────────────────────── -->
+        <transition name="modal">
             <div
                 v-if="showEftModal"
-                class="modal-overlay"
+                class="modal-backdrop"
                 @click.self="showEftModal = false"
             >
-                <div class="modal">
-                    <div class="modal-title">Submit EFT Proof</div>
-                    <p class="modal-note">
+                <div
+                    class="confirm-modal confirm-modal--wide confirm-modal--form"
+                >
+                    <h2 class="confirm-modal__title">Submit EFT Proof</h2>
+                    <p class="confirm-modal__body">
                         Transfer
                         <strong>{{ fmt(summary?.total_amount) }}</strong> to the
                         Echo Link bank account, then upload your proof of
                         payment below.
                     </p>
 
-                    <!-- EFT Reference Banner -->
                     <div class="payout-ref-banner">
                         <div class="prb-top">
                             <span class="prb-label">Payment Reference</span>
@@ -798,7 +889,6 @@ const filteredPayments = computed(() => {
                         </div>
                     </div>
 
-                    <!-- Echo Link Bank Details -->
                     <div class="bank-details-box">
                         <div class="bdb-title">Echo Link Bank Details</div>
                         <div class="bdb-row">
@@ -819,8 +909,8 @@ const filteredPayments = computed(() => {
                             <span>Account Type</span><strong>Cheque</strong>
                         </div>
                         <div class="bdb-row">
-                            <span>Amount</span
-                            ><strong class="orange-text">{{
+                            <span>Amount</span>
+                            <strong class="orange-text">{{
                                 fmt(summary?.total_amount)
                             }}</strong>
                         </div>
@@ -853,7 +943,7 @@ const filteredPayments = computed(() => {
                             <Upload
                                 :size="20"
                                 stroke-width="1.5"
-                                color="#aaa"
+                                color="#94a3b8"
                             />
                             <span v-if="eftForm.proof">{{
                                 eftForm.proof.name
@@ -871,12 +961,13 @@ const filteredPayments = computed(() => {
                         />
                     </div>
 
-                    <div class="modal-actions">
+                    <div class="confirm-modal__actions">
                         <button class="btn-ghost" @click="showEftModal = false">
                             Cancel
                         </button>
                         <button
-                            class="btn-process"
+                            class="btn-primary"
+                            style="flex: 1.4; justify-content: center"
                             :disabled="
                                 isSubmittingEft ||
                                 !eftForm.proof ||
@@ -893,22 +984,40 @@ const filteredPayments = computed(() => {
                     </div>
                 </div>
             </div>
+        </transition>
 
-            <!-- ── REMOVE HOUSEHOLD MODAL ──────────────────────────────────── -->
+        <!-- ── REMOVE HOUSEHOLD MODAL ──────────────────────────────────── -->
+        <transition name="modal">
             <div
                 v-if="showRemoveModal"
-                class="modal-overlay"
+                class="modal-backdrop"
                 @click.self="showRemoveModal = false"
             >
-                <div class="modal modal-sm">
-                    <div class="modal-title">Remove Household</div>
-                    <p class="modal-note">
+                <div class="confirm-modal">
+                    <div class="confirm-modal__icon">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-7 w-7 text-red-500"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M6 18L18 6M6 6l12 12"
+                            />
+                        </svg>
+                    </div>
+                    <h2 class="confirm-modal__title">Remove Household</h2>
+                    <p class="confirm-modal__body">
                         Are you sure you want to remove
                         <strong>{{ householdToRemove?.name }}</strong> from
                         estate billing? They will be moved back to individual
                         billing.
                     </p>
-                    <div class="modal-actions">
+                    <div class="confirm-modal__actions">
                         <button
                             class="btn-ghost"
                             @click="showRemoveModal = false"
@@ -926,566 +1035,513 @@ const filteredPayments = computed(() => {
                     </div>
                 </div>
             </div>
-        </div>
+        </transition>
+
+        <transition name="toast">
+            <div
+                v-if="flash"
+                class="toast"
+                :class="flash.type === 'error' ? 'toast--error' : ''"
+            >
+                {{ flash.msg }}
+            </div>
+        </transition>
     </AppLayout>
 </template>
 
 <style scoped>
-.eb-root {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 36px 24px 64px;
-    font-family: 'Segoe UI', sans-serif;
-    color: #111;
-    width: 100%;
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
+
+.page-root,
+.modal-backdrop,
+.toast {
+    --c-primary: #ea580c;
+    font-family: 'DM Sans', system-ui, sans-serif;
+}
+.page-root {
+    padding: 28px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-height: 100%;
+    background: #f4f6f9;
 }
 
-.eb-header {
+/* Header */
+.page-header {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: space-between;
-    margin-bottom: 24px;
+    gap: 16px;
 }
-.eb-header-left {
-    display: flex;
-    align-items: center;
-    gap: 14px;
+.page-header__eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #ea580c;
+    margin-bottom: 4px;
 }
-.eb-channel-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
-    background: linear-gradient(135deg, #f97316, #ea580c);
-    color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-.eb-title {
+.page-header__title {
     font-size: 22px;
-    font-weight: 800;
-    letter-spacing: -0.5px;
-    margin: 0 0 2px;
-}
-.eb-sub {
-    font-size: 13px;
-    color: #888;
+    font-weight: 700;
+    color: #1a2332;
     margin: 0;
+    letter-spacing: -0.3px;
 }
-
 .btn-icon {
-    padding: 8px;
-    border: 1.5px solid #e5e5e5;
+    padding: 9px;
+    border: 1px solid #e4e8ef;
     border-radius: 10px;
     background: #fff;
     cursor: pointer;
     display: flex;
     align-items: center;
-    color: #555;
-    transition: all 0.2s;
+    color: #64748b;
+    transition: all 0.15s;
 }
 .btn-icon:hover {
-    border-color: #f97316;
-    color: #f97316;
+    border-color: #ea580c;
+    color: #ea580c;
 }
 
-.flash {
-    padding: 11px 16px;
-    border-radius: 10px;
-    font-size: 13px;
-    font-weight: 600;
-    margin-bottom: 18px;
-}
-.flash.success {
-    background: #dcfce7;
-    border: 1.5px solid #86efac;
-    color: #16a34a;
-}
-.flash.error {
-    background: #fef2f2;
-    border: 1.5px solid #fecaca;
-    color: #dc2626;
-}
-
-.loading {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 14px;
-    padding: 80px 0;
-    color: #999;
-}
-
-/* Banners */
-.due-soon-banner {
+/* Alert banners */
+.alert-banner {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 12px 16px;
+    padding: 13px 16px;
+    border-radius: 16px;
+    font-size: 13px;
+    line-height: 1.5;
+}
+.alert-banner--warn {
     background: #fff7ed;
-    border: 1.5px solid #fed7aa;
-    border-radius: 12px;
-    font-size: 13px;
+    border: 1px solid #fed7aa;
     color: #c2410c;
-    margin-bottom: 16px;
 }
-.overdue-banner {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px 16px;
+.alert-banner--danger {
     background: #fef2f2;
-    border: 1.5px solid #fecaca;
-    border-radius: 12px;
-    font-size: 13px;
+    border: 1px solid #fecaca;
     color: #dc2626;
-    margin-bottom: 16px;
 }
 
-/* Summary */
-.summary-row {
+/* Stats */
+.stat-row {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    margin-bottom: 16px;
+    gap: 16px;
 }
-.sum-card {
+.stat-card {
     background: #fff;
-    border: 1.5px solid #ebebeb;
-    border-radius: 14px;
-    padding: 16px 20px;
+    border: 1px solid #e4e8ef;
+    border-radius: 16px;
+    padding: 20px 22px;
     display: flex;
-    align-items: center;
-    gap: 14px;
+    flex-direction: column;
+    gap: 6px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
-.sum-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
+.stat-card__label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
 }
-.sum-icon.blue {
-    background: rgba(37, 99, 235, 0.1);
-    color: #2563eb;
-}
-.sum-icon.orange {
-    background: rgba(249, 115, 22, 0.1);
-    color: #f97316;
-}
-.sum-icon.green {
-    background: rgba(22, 163, 74, 0.1);
-    color: #16a34a;
-}
-.sum-icon.active {
-    background: rgba(22, 163, 74, 0.1);
-    color: #16a34a;
-}
-.sum-icon.pending {
-    background: rgba(249, 115, 22, 0.1);
-    color: #f97316;
-}
-.sum-icon.overdue {
-    background: rgba(220, 38, 38, 0.1);
-    color: #dc2626;
-}
-.sum-icon.cancelled {
-    background: rgba(100, 100, 100, 0.1);
-    color: #888;
-}
-.sum-val {
-    font-size: 18px;
+.stat-card__value {
+    font-size: 26px;
     font-weight: 800;
-    color: #111;
+    color: #1a2332;
+    line-height: 1.15;
     letter-spacing: -0.5px;
 }
-.sum-val.status-active {
-    color: #16a34a;
-}
-.sum-val.status-pending {
-    color: #f97316;
-}
-.sum-val.status-overdue {
+.stat-card__value--red {
     color: #dc2626;
 }
-.sum-val.status-cancelled {
-    color: #888;
+.stat-card__value--green {
+    color: #16a34a;
 }
-.sum-lbl {
-    font-size: 11px;
-    color: #aaa;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    margin-top: 2px;
+.stat-card__value--orange {
+    color: #ea580c;
 }
 
-/* Pay row */
-.pay-row {
-    background: #fff;
-    border: 1.5px solid #ebebeb;
-    border-radius: 14px;
-    padding: 18px 20px;
+/* Pay panel */
+.pay-panel {
+    padding: 18px 22px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 16px;
-    margin-bottom: 20px;
     flex-wrap: wrap;
 }
-.period-info {
+.pay-panel__info {
     display: flex;
     flex-direction: column;
     gap: 4px;
 }
-.period-label {
+.pay-panel__label {
     font-size: 11px;
     font-weight: 700;
-    color: #aaa;
+    color: #94a3b8;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.8px;
 }
-.period-dates {
-    font-size: 14px;
-    font-weight: 600;
-    color: #111;
-}
-.period-rate {
-    font-size: 13px;
-    color: #888;
-}
-.pay-actions {
-    display: flex;
-    gap: 10px;
-    flex-wrap: wrap;
-}
-
-.btn-eft {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 10px 18px;
-    background: #fff;
-    color: #f97316;
-    border: 1.5px solid #f97316;
-    border-radius: 10px;
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: 'Segoe UI', sans-serif;
-    transition: all 0.2s;
-}
-.btn-eft:hover:not(:disabled) {
-    background: rgba(249, 115, 22, 0.06);
-}
-.btn-eft:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-.btn-paynow {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 10px 18px;
-    background: #f97316;
-    color: #fff;
-    border: none;
-    border-radius: 10px;
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: 'Segoe UI', sans-serif;
-    transition: all 0.2s;
-}
-.btn-paynow:hover:not(:disabled) {
-    background: #ea580c;
-}
-.btn-paynow:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-}
-
-/* Tabs */
-.tabs {
-    display: flex;
-    gap: 4px;
-    margin-bottom: 16px;
-    border-bottom: 1.5px solid #ebebeb;
-}
-.tab {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 10px 16px;
-    background: none;
-    border: none;
-    border-bottom: 2.5px solid transparent;
-    margin-bottom: -1.5px;
-    font-size: 13px;
-    font-weight: 600;
-    color: #888;
-    cursor: pointer;
-    font-family: 'Segoe UI', sans-serif;
-    transition: all 0.15s;
-}
-.tab:hover {
-    color: #f97316;
-}
-.tab.active {
-    color: #f97316;
-    border-bottom-color: #f97316;
-}
-
-/* Households */
-.hh-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-.hh-card {
-    background: #fff;
-    border: 1.5px solid #ebebeb;
-    border-radius: 14px;
-    padding: 16px 20px;
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    flex-wrap: wrap;
-}
-.hh-avatar {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    background: linear-gradient(135deg, #f97316, #ea580c);
-    color: #fff;
-    font-size: 16px;
-    font-weight: 800;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-.hh-info {
-    flex: 1;
-    min-width: 140px;
-}
-.hh-name {
+.pay-panel__dates {
     font-size: 14px;
     font-weight: 700;
-    color: #111;
+    color: #1a2332;
 }
-.hh-meta {
-    font-size: 12px;
-    color: #888;
+.pay-panel__rate {
+    font-size: 13px;
+    color: #64748b;
 }
-.hh-right {
+.pay-panel__actions {
     display: flex;
-    align-items: center;
     gap: 10px;
-    margin-left: auto;
     flex-wrap: wrap;
 }
 
-.sub-badge {
-    padding: 4px 10px;
-    border-radius: 100px;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: capitalize;
-}
-.sub-badge.active {
-    background: rgba(22, 163, 74, 0.1);
-    color: #16a34a;
-    border: 1px solid rgba(22, 163, 74, 0.2);
-}
-.sub-badge.trialing {
-    background: rgba(37, 99, 235, 0.1);
-    color: #2563eb;
-    border: 1px solid rgba(37, 99, 235, 0.2);
-}
-.sub-badge.past_due {
-    background: rgba(220, 38, 38, 0.1);
-    color: #dc2626;
-    border: 1px solid rgba(220, 38, 38, 0.2);
-}
-.sub-badge.cancelled {
-    background: rgba(100, 100, 100, 0.1);
-    color: #888;
-    border: 1px solid #e5e5e5;
-}
-
-.btn-remove {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    padding: 6px 12px;
-    background: rgba(220, 38, 38, 0.06);
-    color: #dc2626;
-    border: 1px solid rgba(220, 38, 38, 0.2);
-    border-radius: 8px;
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    font-family: 'Segoe UI', sans-serif;
-    transition: all 0.15s;
-}
-.btn-remove:hover {
-    background: rgba(220, 38, 38, 0.12);
-}
-
-/* Payments */
-.payment-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-.payment-card {
-    background: #fff;
-    border: 1.5px solid #ebebeb;
-    border-radius: 14px;
-    padding: 16px 20px;
+/* Filter bar / tabs */
+.filter-bar {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 14px;
-    flex-wrap: wrap;
+    gap: 12px;
 }
-.pay-left {
-    flex: 1;
-}
-.pay-ref {
-    font-size: 14px;
-    font-weight: 700;
-    color: #111;
-}
-.pay-meta {
-    font-size: 12px;
-    color: #888;
-    margin-top: 2px;
-}
-.pay-right {
+.filter-bar__chips {
     display: flex;
-    flex-direction: column;
-    align-items: flex-end;
+    flex-wrap: wrap;
     gap: 6px;
 }
-.pay-amount {
-    font-size: 16px;
-    font-weight: 800;
-    color: #f97316;
+.chip {
+    padding: 7px 16px;
+    border-radius: 20px;
+    border: 1px solid #e4e8ef;
+    background: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: 'DM Sans', system-ui, sans-serif;
 }
-.pay-badge {
-    padding: 3px 10px;
-    border-radius: 100px;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: capitalize;
+.chip:hover {
+    border-color: #cbd5e1;
+    background: #f8fafc;
 }
-.pay-badge.paid {
-    background: rgba(22, 163, 74, 0.1);
-    color: #16a34a;
-    border: 1px solid rgba(22, 163, 74, 0.2);
-}
-.pay-badge.pending {
-    background: rgba(249, 115, 22, 0.1);
-    color: #f97316;
-    border: 1px solid rgba(249, 115, 22, 0.2);
-}
-.pay-badge.failed {
-    background: rgba(220, 38, 38, 0.1);
-    color: #dc2626;
-    border: 1px solid rgba(220, 38, 38, 0.2);
+.chip--active {
+    background: #ea580c;
+    color: #fff;
+    border-color: #ea580c;
 }
 
-.pay-badge.pending_review {
-    background: rgba(249, 115, 22, 0.1);
-    color: #f97316;
-    border: 1px solid rgba(249, 115, 22, 0.2);
+/* Table card */
+.table-card {
+    background: #fff;
+    border: 1px solid #e4e8ef;
+    border-radius: 16px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    overflow: hidden;
 }
-.pay-badge.rejected {
-    background: rgba(220, 38, 38, 0.1);
-    color: #dc2626;
-    border: 1px solid rgba(220, 38, 38, 0.2);
-}
-
-/* Empty */
-.empty-card {
+.empty-state {
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
+    justify-content: center;
     padding: 64px 24px;
+    gap: 8px;
     text-align: center;
-    background: #fff;
-    border: 1.5px solid #ebebeb;
-    border-radius: 16px;
 }
-.empty-title {
-    font-size: 14px;
+.empty-state__title {
+    font-size: 15px;
     font-weight: 700;
-    color: #111;
+    color: #1a2332;
+    margin: 0;
 }
-.empty-desc {
+.empty-state__sub {
     font-size: 13px;
-    color: #999;
+    color: #64748b;
+    margin: 0;
     max-width: 340px;
     line-height: 1.6;
 }
 
-/* Modal */
-.modal-overlay {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.45);
-    z-index: 500;
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.data-table thead tr {
+    background: #f8fafc;
+    border-bottom: 1px solid #e4e8ef;
+}
+.data-table th {
+    padding: 11px 16px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #94a3b8;
+    text-align: left;
+    white-space: nowrap;
+}
+.data-table tbody tr {
+    border-bottom: 1px solid #e4e8ef;
+    transition: background 0.12s;
+}
+.data-table tbody tr:last-child {
+    border-bottom: none;
+}
+.data-table tbody tr:hover {
+    background: #fafbfc;
+}
+.data-table td {
+    padding: 13px 16px;
+    vertical-align: middle;
+}
+
+.person-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 20px;
+    font-size: 12px;
+    font-weight: 800;
+    color: #ea580c;
+    flex-shrink: 0;
 }
-.modal {
-    background: #fff;
+
+.type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
     border-radius: 20px;
-    padding: 32px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.bg-emerald-50 {
+    background: #ecfdf5;
+}
+.text-emerald-700 {
+    color: #047857;
+}
+.bg-red-50 {
+    background: #fef2f2;
+}
+.text-red-600 {
+    color: #dc2626;
+}
+.bg-amber-50 {
+    background: #fffbeb;
+}
+.text-amber-700 {
+    color: #b45309;
+}
+.bg-slate-100 {
+    background: #f1f5f9;
+}
+.text-slate-500 {
+    color: #64748b;
+}
+
+.td-announce__title {
+    font-weight: 600;
+    color: #1a2332;
+}
+.td-announce__sub {
+    font-size: 12px;
+    color: #94a3b8;
+}
+.pay-note {
+    font-style: italic;
+}
+.td-time {
+    color: #94a3b8;
+    white-space: nowrap;
+    font-size: 12px;
+}
+.pay-amount-cell {
+    text-align: right;
+    font-weight: 800;
+    color: #ea580c;
+    white-space: nowrap;
+}
+
+/* Buttons */
+.btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: #ea580c !important;
+    color: #fff !important;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.18s;
+    font-family: 'DM Sans', system-ui, sans-serif;
+}
+.btn-primary:hover:not(:disabled) {
+    background: #c2410c !important;
+}
+.btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: #f1f5f9;
+    color: #64748b;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+    font-family: 'DM Sans', system-ui, sans-serif;
+}
+.btn-ghost:hover:not(:disabled) {
+    background: #e2e8f0;
+}
+.btn-ghost:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.btn-ghost--outline {
+    background: #fff;
+    color: #ea580c;
+    border: 1px solid #ea580c;
+}
+.btn-ghost--outline:hover:not(:disabled) {
+    background: #fff7ed;
+}
+.btn-danger {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: #dc2626;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'DM Sans', system-ui, sans-serif;
+}
+.btn-danger:hover:not(:disabled) {
+    background: #b91c1c;
+}
+.btn-danger:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.btn-spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: inline-block;
+}
+
+/* Modal */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 18, 30, 0.55) !important;
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 24px;
+}
+.confirm-modal {
+    background: #fff !important;
+    border-radius: 20px;
     width: 100%;
-    max-width: 520px;
-    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.18);
+    max-width: 380px;
+    padding: 32px 28px 26px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+    border: 1px solid #e4e8ef;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 10px;
     max-height: 90vh;
     overflow-y: auto;
 }
-.modal-sm {
-    max-width: 400px;
+.confirm-modal--wide {
+    max-width: 520px;
 }
-.modal-title {
-    font-size: 18px;
-    font-weight: 800;
-    color: #111;
+.confirm-modal--form {
+    align-items: stretch;
+    text-align: left;
+}
+.confirm-modal__icon {
+    width: 60px;
+    height: 60px;
+    background: #fef2f2;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     margin-bottom: 6px;
 }
-.modal-note {
-    font-size: 13px;
-    color: #888;
-    margin-bottom: 20px;
-    line-height: 1.5;
+.confirm-modal__title {
+    font-size: 17px;
+    font-weight: 800;
+    color: #1a2332;
+    margin: 0;
 }
-.modal-actions {
+.confirm-modal__body {
+    font-size: 13px;
+    color: #64748b;
+    line-height: 1.6;
+    margin: 0 0 8px;
+}
+.confirm-modal__actions {
     display: flex;
     gap: 10px;
-    justify-content: flex-end;
-    margin-top: 22px;
+    width: 100%;
+    margin-top: 4px;
+}
+.confirm-modal__actions .btn-ghost {
+    flex: 1;
+    justify-content: center;
+}
+.confirm-modal__actions .btn-danger {
+    flex: 1.4;
+    justify-content: center;
 }
 
-/* Payout ref banner */
+/* EFT reference banner */
 .payout-ref-banner {
     background: #fff7ed;
-    border: 1.5px solid #fed7aa;
+    border: 1px solid #fed7aa;
     border-radius: 12px;
     padding: 14px 16px;
-    margin-bottom: 18px;
+    margin-bottom: 16px;
 }
 .prb-top {
     display: flex;
@@ -1498,7 +1554,7 @@ const filteredPayments = computed(() => {
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.8px;
     color: #c2410c;
 }
 .prb-hint {
@@ -1524,36 +1580,35 @@ const filteredPayments = computed(() => {
     align-items: center;
     gap: 5px;
     padding: 6px 14px;
-    background: #f97316;
+    background: #ea580c;
     color: #fff;
     border: none;
     border-radius: 8px;
     font-size: 12px;
     font-weight: 700;
     cursor: pointer;
-    font-family: 'Segoe UI', sans-serif;
-    transition: all 0.15s;
+    font-family: 'DM Sans', system-ui, sans-serif;
     white-space: nowrap;
     flex-shrink: 0;
 }
 .prb-copy-btn:hover {
-    background: #ea580c;
+    background: #c2410c;
 }
 
 /* Bank details box */
 .bank-details-box {
-    background: #f9f9f9;
-    border: 1.5px solid #ebebeb;
+    background: #f8fafc;
+    border: 1px solid #e4e8ef;
     border-radius: 12px;
     padding: 16px;
-    margin-bottom: 18px;
+    margin-bottom: 16px;
 }
 .bdb-title {
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: #888;
+    letter-spacing: 0.8px;
+    color: #94a3b8;
     margin-bottom: 10px;
 }
 .bdb-row {
@@ -1561,16 +1616,19 @@ const filteredPayments = computed(() => {
     justify-content: space-between;
     padding: 5px 0;
     font-size: 13px;
-    color: #555;
-    border-bottom: 1px solid #f0f0f0;
+    color: #475569;
+    border-bottom: 1px solid #eef1f5;
 }
 .bdb-row:last-child {
     border-bottom: none;
 }
+.orange-text {
+    color: #ea580c;
+}
 
-/* File drop */
+/* File drop / form fields */
 .file-drop {
-    border: 1.5px dashed #e5e5e5;
+    border: 1.5px dashed #e4e8ef;
     border-radius: 10px;
     padding: 20px;
     display: flex;
@@ -1580,174 +1638,59 @@ const filteredPayments = computed(() => {
     cursor: pointer;
     transition: all 0.15s;
     font-size: 13px;
-    color: #888;
+    color: #64748b;
 }
 .file-drop:hover {
-    border-color: #f97316;
-    color: #f97316;
+    border-color: #ea580c;
+    color: #ea580c;
 }
 .file-hint {
     font-size: 12px;
-    color: #bbb;
+    color: #94a3b8;
 }
-
 .mf {
     margin-bottom: 14px;
 }
 .ml {
     font-size: 11px;
     font-weight: 700;
-    color: #555;
+    color: #475569;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.8px;
     display: block;
     margin-bottom: 6px;
 }
 .mi {
     width: 100%;
     padding: 10px 14px;
-    border: 1.5px solid #e5e5e5;
+    border: 1px solid #e4e8ef;
     border-radius: 10px;
     font-size: 14px;
-    font-family: 'Segoe UI', sans-serif;
-    color: #111;
+    font-family: 'DM Sans', system-ui, sans-serif;
+    color: #1a2332;
     outline: none;
     transition: all 0.15s;
     box-sizing: border-box;
 }
 .mi:focus {
-    border-color: #f97316;
-    box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.1);
+    border-color: #ea580c;
+    box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.1);
 }
 .mi-hint {
     font-size: 12px;
-    color: #aaa;
+    color: #94a3b8;
     margin: 5px 0 0;
     line-height: 1.5;
 }
 
-.btn-ghost {
-    padding: 10px 20px;
-    background: #fff;
-    color: #555;
-    border: 1.5px solid #e5e5e5;
-    border-radius: 10px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    font-family: 'Segoe UI', sans-serif;
-    transition: all 0.2s;
-}
-.btn-ghost:hover {
-    border-color: #ccc;
-    color: #111;
-}
-
-.btn-process {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 20px;
-    background: #f97316;
-    color: #fff;
-    border: none;
-    border-radius: 10px;
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: 'Segoe UI', sans-serif;
-    transition: all 0.2s;
-}
-.btn-process:hover:not(:disabled) {
-    background: #ea580c;
-}
-.btn-process:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.btn-danger {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 20px;
-    background: #dc2626;
-    color: #fff;
-    border: none;
-    border-radius: 10px;
-    font-size: 14px;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: 'Segoe UI', sans-serif;
-    transition: all 0.2s;
-}
-.btn-danger:hover:not(:disabled) {
-    background: #b91c1c;
-}
-.btn-danger:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-}
-
-.orange-text {
-    color: #f97316;
-}
-
-.spinner {
-    width: 28px;
-    height: 28px;
-    border: 3px solid #f0f0f0;
-    border-top-color: #f97316;
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-}
-.btn-spinner {
-    width: 14px;
-    height: 14px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-top-color: #fff;
-    border-radius: 50%;
-    animation: spin 0.7s linear infinite;
-    display: inline-block;
-}
-@keyframes spin {
-    to {
-        transform: rotate(360deg);
-    }
-}
-
-@media (max-width: 900px) {
-    .summary-row {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-@media (max-width: 640px) {
-    .pay-row {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    .hh-card {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    .hh-right {
-        margin-left: 0;
-    }
-    .summary-row {
-        grid-template-columns: 1fr 1fr;
-    }
-}
-
+/* Payment filters bar */
 .pay-filters {
     display: flex;
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
+    padding: 14px 18px;
     margin-bottom: 16px;
-    background: #fff;
-    border: 1.5px solid #ebebeb;
-    border-radius: 14px;
-    padding: 12px 16px;
 }
 .pf-search-wrap {
     flex: 1;
@@ -1756,27 +1699,27 @@ const filteredPayments = computed(() => {
 .pf-search {
     width: 100%;
     padding: 8px 12px;
-    border: 1.5px solid #ebebeb;
+    border: 1px solid #e4e8ef;
     border-radius: 10px;
     font-size: 13px;
-    color: #111;
-    background: #f9f9f9;
+    color: #1a2332;
+    background: #f8fafc;
     outline: none;
-    font-family: 'Segoe UI', sans-serif;
+    font-family: 'DM Sans', system-ui, sans-serif;
     box-sizing: border-box;
 }
 .pf-search:focus {
-    border-color: #f97316;
+    border-color: #ea580c;
 }
 .pf-select {
     padding: 8px 12px;
-    border: 1.5px solid #ebebeb;
+    border: 1px solid #e4e8ef;
     border-radius: 10px;
     font-size: 13px;
-    color: #111;
-    background: #f9f9f9;
+    color: #1a2332;
+    background: #f8fafc;
     outline: none;
-    font-family: 'Segoe UI', sans-serif;
+    font-family: 'DM Sans', system-ui, sans-serif;
     cursor: pointer;
 }
 .pf-date-wrap {
@@ -1787,46 +1730,91 @@ const filteredPayments = computed(() => {
 .pf-date-label {
     font-size: 11px;
     font-weight: 700;
-    color: #aaa;
+    color: #94a3b8;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.8px;
     white-space: nowrap;
 }
-.btn-clear-pay {
-    padding: 8px 14px;
-    background: #fef2f2;
-    color: #dc2626;
-    border: 1.5px solid #fecaca;
-    border-radius: 10px;
-    font-size: 12px;
-    font-weight: 700;
-    cursor: pointer;
-    font-family: 'Segoe UI', sans-serif;
+
+/* Toast */
+.toast {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    background: #1a2332;
+    color: #f1f5f9;
+    padding: 12px 18px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 600;
+    z-index: 99999;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+    border-left: 3px solid #ea580c;
 }
-.payment-card.pending_review {
-    border-left: 4px solid #f97316;
+.toast--error {
+    border-left-color: #dc2626;
 }
-.payment-card.paid {
-    border-left: 4px solid #16a34a;
+
+/* Transitions */
+.modal-enter-active,
+.modal-leave-active {
+    transition: opacity 0.22s ease;
 }
-.payment-card.rejected {
-    border-left: 4px solid #dc2626;
+.modal-enter-active .confirm-modal,
+.modal-leave-active .confirm-modal {
+    transition:
+        transform 0.22s ease,
+        opacity 0.22s ease;
 }
-.payment-card.failed {
-    border-left: 4px solid #dc2626;
+.modal-enter-from,
+.modal-leave-to {
+    opacity: 0;
 }
-.pay-badge.pending_review {
-    background: rgba(249, 115, 22, 0.1);
-    color: #f97316;
-    border: 1px solid rgba(249, 115, 22, 0.2);
+.modal-enter-from .confirm-modal,
+.modal-leave-to .confirm-modal {
+    transform: scale(0.97) translateY(12px);
 }
-.pay-badge.rejected {
-    background: rgba(220, 38, 38, 0.1);
-    color: #dc2626;
-    border: 1px solid rgba(220, 38, 38, 0.2);
+.toast-enter-active,
+.toast-leave-active {
+    transition: all 0.25s ease;
 }
-.pay-note {
-    font-style: italic;
-    margin-top: 4px;
+.toast-enter-from,
+.toast-leave-to {
+    opacity: 0;
+    transform: translateY(8px);
+}
+.spin {
+    animation: spin 0.65s linear infinite;
+}
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@media (max-width: 900px) {
+    .stat-row {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+@media (max-width: 768px) {
+    .stat-row {
+        gap: 10px;
+    }
+}
+@media (max-width: 640px) {
+    .page-root {
+        padding: 16px;
+    }
+    .table-card {
+        overflow-x: auto;
+    }
+    .data-table {
+        min-width: 560px;
+    }
+    .pay-panel {
+        flex-direction: column;
+        align-items: flex-start;
+    }
 }
 </style>
