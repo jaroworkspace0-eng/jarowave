@@ -374,8 +374,10 @@ class PayFastService
         $data = [
             'merchant_id'      => $this->merchantId,
             'merchant_key'     => $this->merchantKey,
-            'return_url'       => config('payfast.return_url'),
-            'cancel_url'       => config('payfast.cancel_url'),
+            'return_url'       => $params['return_url'] ?? config('payfast.return_url'),
+            'cancel_url'       => $params['cancel_url'] ?? config('payfast.cancel_url'),
+            // 'return_url'       => config('payfast.return_url'),
+            // 'cancel_url'       => config('payfast.cancel_url'),
             'notify_url'       => config('payfast.notify_url'),
             'name_first'       => $params['name_first'] ?? '',
             'name_last'        => $params['name_last'] ?? '',

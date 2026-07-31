@@ -12,6 +12,7 @@ class ChannelSubscription extends Model
     protected $fillable = [
         'channel_id',
         'household_count',
+        'linked_account_count',
         'amount_per_household',
         'amount_per_linked_account',
         'total_amount',

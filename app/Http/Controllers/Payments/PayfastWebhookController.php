@@ -368,22 +368,15 @@ class PayfastWebhookController extends Controller
         switch ($paymentStatus) {
             case 'COMPLETE':
                 if ($payment->status === 'paid') {
-                    Log::info('PayFast ITN duplicate - channel payment already paid, skipping', [
+                    Log::info('PayFast ITN duplicate — channel payment already paid, skipping', [
                         'payment_id' => $payment->id,
                     ]);
                     break;
                 }
 
-                // approveEftPayment already guards on status !== 'pending_review' —
-                // payNow leaves the payment as 'pending', so bump it here first.
                 if ($payment->status === 'pending') {
                     $payment->update(['status' => 'pending_review']);
                 }
-
-                $payment->update([
-                    'gateway_transaction_id' => $data['pf_payment_id'] ?? null,
-                    'gateway_payload'        => $data,
-                ]);
 
                 $this->billingService->approveEftPayment($payment, request()->ip());
 
@@ -392,10 +385,7 @@ class PayfastWebhookController extends Controller
 
             case 'FAILED':
             case 'CANCELLED':
-                $payment->update([
-                    'status'          => 'failed',
-                    'gateway_payload' => $data,
-                ]);
+                $payment->update(['status' => 'failed']);
 
                 Log::warning('PayFast estate payment failed/cancelled', [
                     'payment_id' => $payment->id,

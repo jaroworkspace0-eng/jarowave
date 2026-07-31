@@ -369,7 +369,6 @@ class ChannelBillingController extends Controller
 
         $user = $contact->user;
 
-        // Prevent duplicate charge attempts while one is in flight
         $locked = Cache::lock('channel_pay_now_' . $channel->id, 30);
         if (!$locked->get()) {
             return response()->json(['message' => 'Payment already in progress.'], 429);
@@ -378,33 +377,34 @@ class ChannelBillingController extends Controller
         try {
             $merchantReference = 'EST-' . $channel->id . '-' . time();
 
-            // Persist the pending payment row now — the ITN webhook resolves the
-            // payment via ChannelSubscriptionPayment::where('merchant_reference', ...),
-            // so without this the incoming ITN would find nothing to mark paid.
             $payment = ChannelSubscriptionPayment::create([
-                'channel_subscription_id' => $channelSubscription->id,
-                'amount'                  => $channelSubscription->total_amount,
-                'household_count'         => $channelSubscription->household_count,
-                'amount_per_household'    => $channelSubscription->amount_per_household,
-                'payment_method'          => 'payfast',
-                'status'                  => 'pending',
-                'merchant_reference'      => $merchantReference,
-                'ip_address'              => $request->ip(),
+                'channel_subscription_id'   => $channelSubscription->id,
+                'amount'                    => $channelSubscription->total_amount,
+                'household_count'           => $channelSubscription->household_count,
+                'linked_account_count'      => $channelSubscription->linked_account_count,
+                'amount_per_household'      => $channelSubscription->amount_per_household,
+                'amount_per_linked_account' => $channelSubscription->amount_per_linked_account,
+                'payment_method'            => 'payfast',
+                'status'                    => 'pending',
+                'merchant_reference'        => $merchantReference,
+                'ip_address'                => $request->ip(),
             ]);
 
             $formattedAmount = number_format((float) $channelSubscription->total_amount, 2, '.', '');
 
             $payfast = new \App\Services\PayFastService();
             $fields = $payfast->buildOneTimeFields([
-                'name_first'            => explode(' ', $user->name)[0],
-                'name_last'             => explode(' ', $user->name, 2)[1] ?? '',
-                'email_address'         => $user->email,
-                'cell_number'           => $this->formatPhone($user->phone ?? ''),
-                'm_payment_id'          => $merchantReference,
-                'item_name'             => 'Echo Link Estate Billing',
-                'item_description'      => "R{$formattedAmount} estate billing for {$channelSubscription->household_count} households",
-                'custom_str1'           => (string) $channel->id,
-                'amount_per_household'  => $channelSubscription->total_amount,
+                'name_first'           => explode(' ', $user->name)[0],
+                'name_last'            => explode(' ', $user->name, 2)[1] ?? '',
+                'email_address'        => $user->email,
+                'cell_number'          => $this->formatPhone($user->phone ?? ''),
+                'm_payment_id'         => $merchantReference,
+                'item_name'            => 'Echo Link Estate Billing',
+                'item_description'     => "R{$formattedAmount} estate billing for {$channelSubscription->household_count} households",
+                'custom_str1'          => (string) $channel->id,
+                'amount_per_household' => $channelSubscription->total_amount,
+                'return_url'           => 'https://admin.jaroworkspace.com/estate/dashboard',
+                'cancel_url'           => 'https://admin.jaroworkspace.com/estate/dashboard',
             ]);
 
             return response()->json([

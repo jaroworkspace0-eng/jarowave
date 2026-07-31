@@ -443,8 +443,12 @@ class ChannelBillingService
         $this->refreshChannelSubscription($channelSubscription);
         $channelSubscription->refresh();
 
-        $periodStart = $channelSubscription->current_period_start ?? now();
-        $periodEnd   = $channelSubscription->current_period_end ?? now()->addDays(30);
+
+        $periodStart = ($channelSubscription->current_period_end && $channelSubscription->current_period_end->isPast())
+            ? now()
+            : ($channelSubscription->current_period_start ?? now());
+
+        $periodEnd = $periodStart->copy()->addDays(30);
 
         try {
             DB::transaction(function () use ($payment, $channelSubscription, $periodStart, $periodEnd, $ipAddress) {
@@ -595,25 +599,26 @@ class ChannelBillingService
      * Updates both subscriptions and users tables.
      */
     private function activateOptedInHouseholds(
-        ChannelSubscription $channelSubscription,
-        $periodStart,
-        $periodEnd
+    ChannelSubscription $channelSubscription,
+    $periodStart,
+    $periodEnd
     ): void {
         $subscriptions = Subscription::where('channel_subscription_id', $channelSubscription->id)
             ->where('cancellation_reason', 'estate_optin')
             ->get();
 
         foreach ($subscriptions as $subscription) {
-
-            // If the subscription was already active (e.g. from a previous period), just update the period end
+            
             $subscription->update([
-                'status' => 'active',
+                'status'               => 'active',
+                'payment_failed_at'    => null,
+                'sos_suspended_at'     => null,
+                'gateway'              => 'payfast',
+                'current_period_start' => $periodStart,
+                'current_period_end'   => $periodEnd,
             ]);
 
-            // Update the user subscription status if they are linked to this subscription
-            $subscription->user?->update([
-                'subscription_status' => 'active',
-            ]);
+            $subscription->syncUserStatus();
         }
 
         Log::info('Activated opted-in households', [
