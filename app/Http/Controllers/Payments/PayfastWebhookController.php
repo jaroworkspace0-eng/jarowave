@@ -116,7 +116,11 @@ class PayfastWebhookController extends Controller
                 }
 
                 // Compute period end once so the DB record and the email always agree
-                $periodStart = $subscription->current_period_end ?? now();
+                // $periodStart = $subscription->current_period_end ?? now();
+                
+                $periodStart = ($subscription->current_period_end && $subscription->current_period_end->isPast())
+                    ? $subscription->current_period_end
+                    : ($subscription->current_period_start ?? now());
                 $periodEnd   = $periodStart->copy()->addDays(30);
 
                 // --- Core writes in a transaction ---
