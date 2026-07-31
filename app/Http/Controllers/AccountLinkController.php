@@ -94,7 +94,8 @@ class AccountLinkController extends Controller
         return response()->json($links);
     }
 
-    public function store(Request $request): JsonResponse
+ 
+   public function store(Request $request): JsonResponse
     {
         $request->validate([
             'linked_account_ids'   => 'required|array|min:1',
@@ -104,6 +105,17 @@ class AccountLinkController extends Controller
         $primaryId = $request->user()->id;
         $this->assertCanLink($primaryId);
 
+        $primarySubscription = Subscription::where('user_id', $primaryId)->latest()->first();
+        $primaryIsEstateBilled = $primarySubscription
+            && $primarySubscription->cancellation_reason === 'estate_optin'
+            && $primarySubscription->channel_subscription_id;
+
+        if (! $primaryIsEstateBilled && $primarySubscription?->status === 'cancelled') {
+            return response()->json([
+                'message' => 'Your subscription is cancelled. Reactivate before linking accounts.',
+            ], 422);
+        }
+
         $created = [];
         $skipped = [];
 
@@ -111,7 +123,11 @@ class AccountLinkController extends Controller
             $targetId = (int) $targetId;
 
             if ($targetId === $primaryId) {
-                $skipped[] = $targetId;
+                $skipped[] = [
+                    'id'      => $targetId,
+                    'reason'  => 'self_link',
+                    'message' => 'You can\'t link your own account.',
+                ];
                 continue;
             }
 
@@ -121,8 +137,11 @@ class AccountLinkController extends Controller
                 ->exists();
 
             if ($alreadyLinked) {
-                // $skipped[] = $targetId;
-                $skipped[] = ['id' => $targetId, 'reason' => 'already_linked'];
+                $skipped[] = [
+                    'id'      => $targetId,
+                    'reason'  => 'already_linked',
+                    'message' => 'This person is already linked to another account.',
+                ];
                 continue;
             }
 
@@ -134,10 +153,13 @@ class AccountLinkController extends Controller
                 ->exists();
 
             if ($targetIsPrimaryElsewhere) {
-                $skipped[] = $targetId;
+                $skipped[] = [
+                    'id'      => $targetId,
+                    'reason'  => 'target_is_primary_elsewhere',
+                    'message' => 'This person already has their own linked accounts and can\'t be linked as a dependent.',
+                ];
                 continue;
             }
-
 
             $targetIsEstateOptedIn = Subscription::where('user_id', $targetId)
                 ->where('cancellation_reason', 'estate_optin')
@@ -145,7 +167,29 @@ class AccountLinkController extends Controller
                 ->exists();
 
             if ($targetIsEstateOptedIn) {
-                $skipped[] = ['id' => $targetId, 'reason' => 'target_estate_opted_in'];
+                $skipped[] = [
+                    'id'      => $targetId,
+                    'reason'  => 'target_estate_opted_in',
+                    'message' => 'This person is already covered under their own estate billing.',
+                ];
+                continue;
+            }
+
+            // Target must not already have their own live standalone PayFast
+            // subscription — linking them without resolving this first would
+            // create double billing (their own token still auto-debiting, plus
+            // being counted in the primary's linked-account rate).
+            $targetHasOwnPayfastSubscription = Subscription::where('user_id', $targetId)
+                ->whereIn('status', ['active', 'trialing', 'past_due'])
+                ->whereNotNull('payfast_token')
+                ->exists();
+
+            if ($targetHasOwnPayfastSubscription) {
+                $skipped[] = [
+                    'id'      => $targetId,
+                    'reason'  => 'target_has_own_subscription',
+                    'message' => 'This person already has their own active subscription. Ask them to cancel it first.',
+                ];
                 continue;
             }
 
