@@ -180,6 +180,13 @@ class AccountLinkController extends Controller
         $primary   = $link->primaryAccount;
         $linkedSub = $link->linkedAccount?->subscription;
 
+
+         if ($wasActive && ! $primary) {
+            Log::error('destroy: AccountLink has no primaryAccount', ['link_id' => $link->id]);
+            return response()->json(['error' => 'Link has no primary account'], 422);
+        }
+
+
         if ($wasActive) {
             if ($linkedSub) {
                 $linkedSub->update([
@@ -232,10 +239,28 @@ class AccountLinkController extends Controller
     // ── Approval - called by estate admin or Echo Link admin dashboard ──
     public function approve(Request $request, int $id): JsonResponse
     {
-        $link = AccountLink::with(['primaryAccount', 'linkedAccount'])->findOrFail($id);
+        $link = AccountLink::with(['primaryAccount.employee.channels', 'linkedAccount'])->findOrFail($id);
 
         if ($link->status !== 'pending') {
             return response()->json(['error' => 'Link is not pending'], 422);
+        }
+
+        if (! in_array($request->user()->role, ['admin', 'estate_billing'])) {
+            abort(403);
+        }
+
+        if (! $link->primaryAccount) {
+            Log::error('approve: AccountLink has no primaryAccount', ['link_id' => $link->id]);
+            return response()->json(['error' => 'Link has no primary account'], 422);
+        }
+
+        if ($request->user()->role === 'estate_billing') {
+            $channelIds = $request->user()->accessibleChannelIds();
+            $primaryChannelId = $link->primaryAccount->employee?->channels->first()?->id;
+
+            if (! $primaryChannelId || ! $channelIds->contains($primaryChannelId)) {
+                abort(403, 'Not your estate.');
+            }
         }
 
         $approverType = $request->user()->role === 'admin' ? 'echo_link_admin' : 'estate_admin';
@@ -384,6 +409,13 @@ class AccountLinkController extends Controller
 
         $primary   = $link->primaryAccount;
         $linkedSub = $link->linkedAccount?->subscription;
+
+
+        if (! $primary) {
+            Log::error('forceUnlink: AccountLink has no primaryAccount', ['link_id' => $link->id]);
+            return response()->json(['error' => 'Link has no primary account'], 422);
+        }
+
 
         // Unwind the linked account's coverage — no billing relationship covers
         // them anymore, whether they were folded into estate billing or riding

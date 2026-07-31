@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Payments;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ProcessPayfastPaymentSideEffects;
 use App\Models\Earning;
 use App\Models\Invoice;
 use App\Models\Subscription;
@@ -11,6 +12,7 @@ use App\Mail\PaymentFailedMail;
 use App\Mail\PaymentSuccessMail;
 use App\Mail\SubscriptionCancelledMail;
 use App\Mail\TrialCardFailedMail;
+use App\Models\AccountLink;
 use App\Services\BillingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -28,6 +30,7 @@ class PayfastWebhookController extends Controller
      * Side effects (earning, invoice, email, Node notify) run outside the transaction intentionally —
      * a billing side-effect failure should never roll back a confirmed payment record.
      */
+    
     public function handle(Request $request, PayFastService $payfast)
     {
         $data = $request->all();
@@ -119,7 +122,10 @@ class PayfastWebhookController extends Controller
                 // --- Core writes in a transaction ---
                 // Subscription update + payment create are atomic. A crash between
                 // them would otherwise leave an active subscription with no payment
-                // record, or vice versa.
+                // record, or vice versa. Linked accounts' subscription state is
+                // updated here too (not deferred to the job) so their SOS lockout
+                // clears instantly, same as the primary's — only their payment/
+                // invoice/email/Node-notify is deferred.
                 $payment = DB::transaction(function () use (
                     $subscription, $data, $request, $periodStart, $periodEnd
                 ) {
@@ -130,6 +136,28 @@ class PayfastWebhookController extends Controller
                         'current_period_end'   => $periodEnd,
                     ]);
 
+                    $linkedAccounts = AccountLink::with('linkedAccount.subscription')
+                        ->where('primary_account_id', $subscription->user_id)
+                        ->where('status', 'active')
+                        ->get();
+
+                    foreach ($linkedAccounts as $link) {
+                        $linkedSub = $link->linkedAccount?->subscription;
+
+                        if (! $linkedSub) {
+                            continue;
+                        }
+
+                        $linkedSub->update([
+                            'status'               => 'active',
+                            'payment_failed_at'    => null,
+                            'sos_suspended_at'     => null,
+                            'gateway'              => 'payfast',
+                            'current_period_start' => $linkedSub->current_period_end ?? $periodStart,
+                            'current_period_end'   => $periodEnd,
+                        ]);
+                    }
+
                     return $subscription->payments()->create(
                         $this->buildPaymentData($data, 'complete', $request) + [
                             'paid_at'              => now(),
@@ -139,40 +167,15 @@ class PayfastWebhookController extends Controller
                     );
                 });
 
-                // --- Side effects (outside transaction) ---
-                try {
-                    if ($subscription->client) {
-                        Earning::createFromPayment($payment, $subscription->client);
-                    }
-
-                    $invoice = Invoice::createFromPayment($payment);
-                    $invoice->load('payment.subscription', 'client');
-
-                    Mail::to($user->email)->queue(new PaymentSuccessMail(
-                        userName:  $user->name,
-                        amount:    $data['amount_gross'] ?? null,
-                        // Use the same $periodEnd we stored — not a second now()->addDays(30)
-                        periodEnd: $periodEnd->format('d M Y'),
-                        invoice:   $invoice,
-                    ));
-
-                    // Mark activation fee paid on first successful payment
-                    if (!$subscription->activation_fee_paid) {
-                        $subscription->update([
-                            'activation_fee_paid'    => true,
-                            'activation_fee_paid_at' => now(),
-                            // NOTE: Sets price to system default. Revisit if custom pricing is added.
-                            // 'price'                  => BillingService::UNIT_PRICE / 100,
-                            'price'                     => BillingService::unitPrice($subscription->user->employee?->channels->first()?->amount_per_household),
-                        ]);
-                    }
-                } catch (\Throwable $e) {
-                    Log::warning('PayFast COMPLETE: side effect failed', [
-                        'subscription_id' => $subscription->id,
-                        'payment_id'      => $payment->id,
-                        'error'           => $e->getMessage(),
-                    ]);
-                }
+                // --- Side effects (queued — auto-retries on failure) ---
+                // Handles payment/invoice/email/earning for the primary, plus
+                // the same for each linked account, plus per-linked-account
+                // Node notify. Subscription state itself is already updated above.
+                ProcessPayfastPaymentSideEffects::dispatch(
+                    $payment,
+                    $periodEnd->format('d M Y'),
+                    $data['amount_gross'] ?? null,
+                );
 
                 Log::info('PayFast subscription activated', [
                     'subscription_id' => $subscription->id,

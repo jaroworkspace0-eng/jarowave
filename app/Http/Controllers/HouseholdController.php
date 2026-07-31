@@ -618,6 +618,7 @@ class HouseholdController extends Controller
         ]);
     }
 
+    
     public function payNow(Request $request)
     {
         $user         = $request->user();
@@ -656,6 +657,14 @@ class HouseholdController extends Controller
                 ], 400);
             }
 
+            // $subscription->price already reflects base + linked accounts — kept in
+            // sync by ChannelBillingService::syncStandaloneSubscriptionAmount() on
+            // every link/unlink event — so charging this amount already covers
+            // whatever linked accounts are currently active. No separate calculation
+            // needed here. The ITN triggered by this charge (assuming chargeAdhoc
+            // reliably fires one — unconfirmed) is what actually fans the payment
+            // out to linked accounts' own records, via merchant_reference matching
+            // this subscription's existing reference.
             $amountDue = (float) $subscription->price;
 
             if ($amountDue <= 0) {
@@ -692,6 +701,12 @@ class HouseholdController extends Controller
         }
 
         $merchantReference = 'OT-' . $user->id . '-' . time();
+
+        // Persist the reference before redirecting — the ITN webhook resolves the
+        // subscription via Subscription::where('merchant_reference', $merchantRef),
+        // so without this the incoming ITN would 404 and the payment (plus any
+        // linked-account fan-out) would silently never be recorded.
+        $subscription->update(['merchant_reference' => $merchantReference]);
 
         $channel = $user->employee?->channels()->first();
 
