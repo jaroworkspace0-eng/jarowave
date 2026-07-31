@@ -83,8 +83,8 @@ class ChannelController extends Controller
             'channel_type'           => 'required|string',
             'client_id'              => 'required|exists:clients,id',
             'billing_model'          => 'nullable|in:individual,bulk',
-            'billing_contact_name'   => 'required_if:billing_model,bulk|string|max:255',
-            'billing_contact_email'  => 'required_if:billing_model,bulk|email|unique:users,email',
+            'billing_contact_name'   => 'nullable|required_if:billing_model,bulk|string|max:255',
+            'billing_contact_email'  => 'nullable|required_if:billing_model,bulk|email|unique:users,email',
             'billing_contact_phone'  => 'nullable|string|max:15',
             'amount_per_household'   => 'nullable|numeric|min:0',
             'amount_per_linked_account' => 'nullable|numeric|min:0',
@@ -133,8 +133,9 @@ class ChannelController extends Controller
             'channel_type'           => 'required|string',
             'client_id'              => 'required|exists:clients,id',
             'billing_model'          => 'nullable|in:individual,bulk',
-            'billing_contact_name'   => 'required_if:billing_model,bulk|string|max:255',
+            'billing_contact_name'   => 'nullable|required_if:billing_model,bulk|string|max:255',
             'billing_contact_email'  => [
+                'nullable',
                 'required_if:billing_model,bulk',
                 'email',
                 Rule::unique('users', 'email')->ignore(

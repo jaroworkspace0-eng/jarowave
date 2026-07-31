@@ -13,6 +13,8 @@ onMounted(() => {
     }
 });
 
+const isBulkBilling = computed(() => form.value.billing_model === 'bulk');
+
 // --- State ---
 const showModal = ref(false);
 const isEditing = ref(false);
@@ -266,7 +268,32 @@ const editChannel = (channel: any) => {
     showModal.value = true;
 };
 
+function validateBillingContact(): boolean {
+    if (!isBulkBilling.value) return true;
+
+    const newErrors: { [key: string]: string[] } = {};
+    if (!form.value.billing_contact_name?.trim()) {
+        newErrors.billing_contact_name = [
+            'Billing contact name is required for bulk billing.',
+        ];
+    }
+    if (!form.value.billing_contact_email?.trim()) {
+        newErrors.billing_contact_email = [
+            'Billing contact email is required for bulk billing.',
+        ];
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+        errors.value = { ...errors.value, ...newErrors };
+        return false;
+    }
+    return true;
+}
+
 const handleSubmit = () => {
+    errors.value = {};
+    if (!validateBillingContact()) return;
+
     if (isEditing.value) {
         updateChannel();
     } else {
@@ -747,13 +774,26 @@ const echoLinkKeepsPreview = computed(
                                 "
                             >
                                 <div class="field" style="margin-bottom: 0">
-                                    <label class="field__label"
-                                        >Billing Contact Name</label
-                                    >
+                                    <label class="field__label">
+                                        Billing Contact Name
+                                        <span
+                                            class="field__hint"
+                                            style="
+                                                color: #dc2626;
+                                                font-style: normal;
+                                            "
+                                            >required</span
+                                        >
+                                    </label>
                                     <input
                                         v-model="form.billing_contact_name"
                                         type="text"
                                         class="field__input"
+                                        :class="{
+                                            'field__input--error':
+                                                errors.billing_contact_name,
+                                        }"
+                                        required
                                         placeholder="e.g. Jane Smith"
                                     />
                                     <span
@@ -766,13 +806,26 @@ const echoLinkKeepsPreview = computed(
                                 </div>
 
                                 <div class="field" style="margin-bottom: 0">
-                                    <label class="field__label"
-                                        >Billing Contact Email</label
-                                    >
+                                    <label class="field__label">
+                                        Billing Contact Email
+                                        <span
+                                            class="field__hint"
+                                            style="
+                                                color: #dc2626;
+                                                font-style: normal;
+                                            "
+                                            >required</span
+                                        >
+                                    </label>
                                     <input
                                         v-model="form.billing_contact_email"
                                         type="email"
                                         class="field__input"
+                                        :class="{
+                                            'field__input--error':
+                                                errors.billing_contact_email,
+                                        }"
+                                        required
                                         placeholder="billing@estate.co.za"
                                     />
                                     <span
