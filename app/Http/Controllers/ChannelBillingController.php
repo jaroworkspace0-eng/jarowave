@@ -273,10 +273,7 @@ class ChannelBillingController extends Controller
      */
     public function optedInHouseholds(Channel $channel)
     {
-        $channelSubscription = ChannelSubscription::where('channel_id', $channel->id)
-            ->whereIn('status', ['pending', 'active'])
-            ->latest()
-            ->first();
+        $channelSubscription = $this->billingService->resolveActiveChannelSubscription($channel);
 
         if (!$channelSubscription) {
             return response()->json(['success' => true, 'households' => []]);

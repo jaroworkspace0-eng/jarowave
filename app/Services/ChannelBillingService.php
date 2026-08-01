@@ -326,7 +326,7 @@ class ChannelBillingService
     /**
      * Resolve or create the active channel subscription for the current billing period.
      */
-    public function resolveActiveChannelSubscription(Channel $channel): ChannelSubscription
+   public function resolveActiveChannelSubscription(Channel $channel): ChannelSubscription
     {
         $existing = ChannelSubscription::where('channel_id', $channel->id)
             ->whereIn('status', ['pending', 'active'])
@@ -339,7 +339,7 @@ class ChannelBillingService
 
         $billing = $this->calculateBillingAmount($channel);
 
-        return ChannelSubscription::create([
+        $new = ChannelSubscription::create([
             'channel_id'           => $channel->id,
             'household_count'      => $billing['household_count'],
             'amount_per_household' => $billing['amount_per_household'],
@@ -349,13 +349,19 @@ class ChannelBillingService
             'status'               => 'pending',
             'billing_model'        => $channel->billing_model,
             'current_period_start' => now(),
-
-            // Flat first billing period — no month-end alignment. A
-            // day-of-month-based cliff (e.g. "day 20") gives wildly
-            // different runway to estates created a day apart on either
-            // side of the cutoff; a flat count avoids that entirely.
-            'current_period_end' => now()->addDays(self::FIRST_BILLING_PERIOD_DAYS),
+            'current_period_end'   => now()->addDays(self::FIRST_BILLING_PERIOD_DAYS),
         ]);
+
+        // Carry forward households still legitimately opted in under a
+        // superseded (e.g. overdue) cycle onto the new one — they never
+        // opted out, so they shouldn't silently vanish from the households
+        // list just because the channel rolled to a new billing cycle.
+        Subscription::where('cancellation_reason', 'estate_optin')
+            ->where('status', 'active')
+            ->whereHas('channelSubscription', fn($q) => $q->where('channel_id', $channel->id)->where('id', '!=', $new->id))
+            ->update(['channel_subscription_id' => $new->id]);
+
+        return $new;
     }
 
     /**
