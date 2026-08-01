@@ -372,6 +372,15 @@ class ChannelBillingController extends Controller
         }
 
         try {
+
+            // Supersede any abandoned prior attempt for this billing cycle —
+            // otherwise every incomplete checkout leaves a permanently-pending
+            // row cluttering Payment History.
+            ChannelSubscriptionPayment::where('channel_subscription_id', $channelSubscription->id)
+                ->where('status', 'pending')
+                ->update(['status' => 'abandoned']);
+
+
             $merchantReference = 'EST-' . $channel->id . '-' . time();
 
             $payment = ChannelSubscriptionPayment::create([

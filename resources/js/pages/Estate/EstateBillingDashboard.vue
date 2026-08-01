@@ -231,6 +231,8 @@ const paymentBadge = (status: string) => {
         return { label: 'Rejected', cls: 'bg-red-50 text-red-600' };
     if (status === 'failed')
         return { label: 'Failed', cls: 'bg-red-50 text-red-600' };
+    if (status === 'abandoned')
+        return { label: 'Abandoned', cls: 'bg-slate-100 text-slate-500' };
     return { label: status, cls: 'bg-slate-100 text-slate-500' };
 };
 
