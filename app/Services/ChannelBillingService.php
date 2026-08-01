@@ -333,35 +333,34 @@ class ChannelBillingService
             ->latest()
             ->first();
 
-        if ($existing) {
-            return $existing;
+        if (!$existing) {
+            $billing = $this->calculateBillingAmount($channel);
+
+            $existing = ChannelSubscription::create([
+                'channel_id'           => $channel->id,
+                'household_count'      => $billing['household_count'],
+                'amount_per_household' => $billing['amount_per_household'],
+                'linked_account_count'      => $billing['linked_account_count'],
+                'amount_per_linked_account' => $billing['amount_per_linked_account'],
+                'total_amount'         => $billing['total_amount'],
+                'status'               => 'pending',
+                'billing_model'        => $channel->billing_model,
+                'current_period_start' => now(),
+                'current_period_end'   => now()->addDays(self::FIRST_BILLING_PERIOD_DAYS),
+            ]);
         }
 
-        $billing = $this->calculateBillingAmount($channel);
-
-        $new = ChannelSubscription::create([
-            'channel_id'           => $channel->id,
-            'household_count'      => $billing['household_count'],
-            'amount_per_household' => $billing['amount_per_household'],
-            'linked_account_count'      => $billing['linked_account_count'],
-            'amount_per_linked_account' => $billing['amount_per_linked_account'],
-            'total_amount'         => $billing['total_amount'],
-            'status'               => 'pending',
-            'billing_model'        => $channel->billing_model,
-            'current_period_start' => now(),
-            'current_period_end'   => now()->addDays(self::FIRST_BILLING_PERIOD_DAYS),
-        ]);
-
-        // Carry forward households still legitimately opted in under a
-        // superseded (e.g. overdue) cycle onto the new one — they never
-        // opted out, so they shouldn't silently vanish from the households
-        // list just because the channel rolled to a new billing cycle.
+        // Sync any household still legitimately opted in but pointing at a
+        // superseded ChannelSubscription row (e.g. left overdue by a cycle
+        // rollover) onto the current one — runs every resolve, not just on
+        // creation, so an already-orphaned household self-heals too.
         Subscription::where('cancellation_reason', 'estate_optin')
             ->where('status', 'active')
-            ->whereHas('channelSubscription', fn($q) => $q->where('channel_id', $channel->id)->where('id', '!=', $new->id))
-            ->update(['channel_subscription_id' => $new->id]);
+            ->whereHas('channelSubscription', fn($q) => $q->where('channel_id', $channel->id))
+            ->where('channel_subscription_id', '!=', $existing->id)
+            ->update(['channel_subscription_id' => $existing->id]);
 
-        return $new;
+        return $existing;
     }
 
     /**
