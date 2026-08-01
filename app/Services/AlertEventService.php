@@ -121,7 +121,7 @@ class AlertEventService
     {
         Http::withToken(env('ASSIGN_SECRET'))
             ->post(env('PTT_SERVER_URL') . '/emit', [
-                'channelId' => $alert->client_id,
+                'channelId' => $alert->channel_id,
                 'event' => 'alert:event',
                 'data' => [
                     'alert_id' => $alert->id,
@@ -170,9 +170,16 @@ class AlertEventService
 
         Http::withToken(env('ASSIGN_SECRET'))
             ->post(env('PTT_SERVER_URL') . '/emit', [
-                'clientId' => $alert->household->client_id,
+                'channelId' => $alert->channel_id,
                 'event' => 'alert:resolved',
                 'data' => ['alert_id' => $alert->id],
             ]);
+
+        // Http::withToken(env('ASSIGN_SECRET'))
+        //     ->post(env('PTT_SERVER_URL') . '/emit', [
+        //         'clientId' => $alert->household->client_id,
+        //         'event' => 'alert:resolved',
+        //         'data' => ['alert_id' => $alert->id],
+        //     ]);
     }
 }

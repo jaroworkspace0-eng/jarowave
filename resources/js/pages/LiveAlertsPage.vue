@@ -18,10 +18,18 @@ const {
     toggleMute,
     logCallAttempt,
     resolve,
+    dispatchGuard,
     soundEnabled,
     enableSound,
     markAlertSeen,
 } = useAdminAlerts();
+
+async function handleDispatch(alertId, guardId) {
+    const res = await dispatchGuard(alertId, guardId);
+    if (res.status === 'error') {
+        alert(res.message); // swap for your toast pattern if you have one
+    }
+}
 
 const activeFilter = ref('all');
 
@@ -181,6 +189,7 @@ function handleSeen(alertId) {
                     @call-log="logCallAttempt"
                     @resolve="handleResolve"
                     @seen="handleSeen"
+                    @dispatch="handleDispatch"
                 />
             </div>
         </div>

@@ -28,7 +28,18 @@ const emit = defineEmits([
     'resolve',
     'seen',
     'notify-guards',
+    'dispatch',
 ]);
+
+const selectedDispatchGuardId = ref('');
+const dispatching = ref(false);
+
+function dispatchSelectedGuard() {
+    if (!selectedDispatchGuardId.value) return;
+    dispatching.value = true;
+    emit('dispatch', props.alert.id, Number(selectedDispatchGuardId.value));
+    setTimeout(() => (dispatching.value = false), 1500);
+}
 
 const expanded = ref(false);
 const mapFullscreen = ref(false);
@@ -803,6 +814,48 @@ function onResolveChange(e) {
                                     >
                                         No guard responding yet
                                     </p>
+                                </div>
+
+                                <div class="ac-detail-group ac-notify-group">
+                                    <p class="ac-detail-group__label">
+                                        Dispatch guard
+                                    </p>
+                                    <select
+                                        v-model="selectedDispatchGuardId"
+                                        class="ac-notify-select"
+                                        style="min-height: auto"
+                                    >
+                                        <option value="" disabled>
+                                            Select a guard…
+                                        </option>
+                                        <option
+                                            v-for="g in channelGuards"
+                                            :key="g.id"
+                                            :value="g.id"
+                                        >
+                                            {{ g.username
+                                            }}{{
+                                                g.phone ? ' · ' + g.phone : ''
+                                            }}
+                                        </option>
+                                    </select>
+                                    <button
+                                        type="button"
+                                        class="ac-notify-send"
+                                        :disabled="
+                                            !selectedDispatchGuardId ||
+                                            dispatching
+                                        "
+                                        @click="dispatchSelectedGuard"
+                                    >
+                                        {{
+                                            dispatching
+                                                ? 'Dispatching…'
+                                                : alert.currentResponder
+                                                  ? 'Reassign'
+                                                  : 'Dispatch'
+                                        }}
+                                    </button>
                                 </div>
 
                                 <div class="ac-detail-group">

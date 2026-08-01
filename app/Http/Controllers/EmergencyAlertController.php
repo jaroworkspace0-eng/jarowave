@@ -151,15 +151,28 @@ class EmergencyAlertController extends Controller
             'responder_user_id'  => 'required|exists:users,id',
             'start_latitude'     => 'nullable|numeric',
             'start_longitude'    => 'nullable|numeric',
+            'dispatched_by'      => 'nullable|exists:users,id', // set when web dispatches on the guard's behalf
         ]);
 
+        $alert = EmergencyAlert::findOrFail($request->emergency_alert_id);
+
+        // Self-accept (mobile guard accepting their own alert) is always allowed.
+        // Web dispatch (choosing someone else) requires the caller to belong
+        // to this alert's channel, unless they're a platform admin.
+        $caller = $request->user();
+        $isSelfAccept = $caller->id === (int) $request->responder_user_id;
+
+        if (! $isSelfAccept
+            && $caller->role !== 'admin'
+            && ! $caller->accessibleChannelIds()->contains($alert->channel_id)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'You are not authorized to dispatch on this channel.',
+            ], 403);
+        }
+
         try {
-            // 1. USE A TRANSACTION: This ensures that if two people click at the exact 
-            // same millisecond, the database handles them one by one.
-            return DB::transaction(function () use ($request) {
-                
-                // 2. CHECK FOR EXISTING RESOLUTION: 
-                // We look for any resolution already tied to this alert.
+            return DB::transaction(function () use ($request, $alert) {
                 $existing = EmergencyResolution::where('emergency_alert_id', $request->emergency_alert_id)
                     ->first();
 
@@ -167,21 +180,32 @@ class EmergencyAlertController extends Controller
                     return response()->json([
                         'status' => 'error',
                         'message' => 'This alert has already been claimed by another Responder.',
-                    ], 409); // 409 = Conflict
+                    ], 409);
                 }
 
-                // 3. CREATE OR UPDATE:
-                // Using updateOrCreate ensures we don't double-up records.
                 $resolution = EmergencyResolution::updateOrCreate(
                     ['emergency_alert_id' => $request->emergency_alert_id],
                     [
                         'responder_user_id' => $request->responder_user_id,
-                        'status'            => 'responding', // Force initial status
+                        'status'            => 'responding',
                         'accepted_at'       => now(),
-                        // We store where the patroller WAS when they clicked accept
                         'start_latitude'    => $request->start_latitude,
                         'start_longitude'   => $request->start_longitude,
                         'confirmation_status' => 'pending',
+                    ]
+                );
+
+                $responder = \App\Models\User::find($request->responder_user_id);
+
+                app(\App\Services\AlertEventService::class)->record(
+                    $alert,
+                    'guard',
+                    $request->responder_user_id,
+                    'guard_responding',
+                    [
+                        'username' => $responder->name,
+                        'phone' => $responder->phone,
+                        'dispatched_by' => $request->dispatched_by,
                     ]
                 );
 

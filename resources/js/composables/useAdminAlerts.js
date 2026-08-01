@@ -249,6 +249,24 @@ export function useAdminAlerts() {
         }
     }
 
+    function authHeadersJson() {
+        return authHeaders({ 'Content-Type': 'application/json' });
+    }
+
+    async function dispatchGuard(alertId, guardId) {
+        const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+        const res = await fetch('/api/emergency/accept', {
+            method: 'POST',
+            headers: authHeadersJson(),
+            body: JSON.stringify({
+                emergency_alert_id: alertId,
+                responder_user_id: guardId,
+                dispatched_by: currentUser.id,
+            }),
+        });
+        return res.json();
+    }
+
     function logCallAttempt(alertId, outcome) {
         fetch(`/api/admin/alerts/${alertId}/call-log`, {
             method: 'POST',
@@ -273,6 +291,7 @@ export function useAdminAlerts() {
         toggleMute,
         logCallAttempt,
         resolve,
+        dispatchGuard,
         soundEnabled,
         enableSound,
         markAlertSeen,
