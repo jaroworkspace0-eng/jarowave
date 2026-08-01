@@ -136,10 +136,16 @@ public static function createFromChannelPayment(
     ?Subscription $subscription = null,
     ?AccountLink $accountLink = null
 ): self {
+    // $total = match ($invoiceType) {
+    //     'estate_household'      => $channelSubscription->amount_per_household * 100,
+    //     'estate_linked_account' => $channelSubscription->amount_per_linked_account * 100,
+    //     default                 => $channelSubscription->total_amount * 100, // estate_bulk
+    // };
+
     $total = match ($invoiceType) {
-        'estate_household'      => $channelSubscription->amount_per_household * 100,
-        'estate_linked_account' => $channelSubscription->amount_per_linked_account * 100,
-        default                 => $channelSubscription->total_amount * 100, // estate_bulk
+        'estate_household'      => $channelSubscription->amount_per_household,
+        'estate_linked_account' => $channelSubscription->amount_per_linked_account,
+        default                 => $channelSubscription->total_amount, // estate_bulk
     };
 
     $clientId = match ($invoiceType) {
