@@ -7,6 +7,7 @@ import {
     Megaphone,
     Send,
     Siren,
+    UserPlus,
     X,
 } from 'lucide-vue-next';
 import {
@@ -31,15 +32,31 @@ const emit = defineEmits([
     'dispatch',
 ]);
 
+/* ---------------- Dispatch ---------------- */
+
 const selectedDispatchGuardId = ref('');
 const dispatching = ref(false);
+const dispatchError = ref('');
 
-function dispatchSelectedGuard() {
-    if (!selectedDispatchGuardId.value) return;
+async function dispatchSelectedGuard() {
+    if (!selectedDispatchGuardId.value || dispatching.value) return;
+    dispatchError.value = '';
     dispatching.value = true;
-    emit('dispatch', props.alert.id, Number(selectedDispatchGuardId.value));
-    setTimeout(() => (dispatching.value = false), 1500);
+    try {
+        await emit(
+            'dispatch',
+            props.alert.id,
+            Number(selectedDispatchGuardId.value),
+        );
+    } finally {
+        // The parent (LiveAlertsPage) owns the actual API call and error
+        // surfacing today. We keep a local timeout so the button doesn't
+        // stay stuck "Dispatching…" forever if the parent silently fails.
+        setTimeout(() => (dispatching.value = false), 1500);
+    }
 }
+
+/* ------------------------------------------- */
 
 const expanded = ref(false);
 const mapFullscreen = ref(false);
@@ -391,8 +408,7 @@ onBeforeUnmount(() => {
 /* ---------------- Guard broadcast (one-way push, not a chat) ---------------- */
 
 // Expects alert.channelGuards = [{ id, username, phone }] — the roster of
-// guards assigned to this channel. Adjust the prop path if it lives
-// elsewhere in your payload.
+// guards assigned to this channel.
 const channelGuards = computed(() => props.alert.channelGuards || []);
 
 const notifyTarget = ref('all'); // 'all' | 'responder' | 'selected'
@@ -816,14 +832,15 @@ function onResolveChange(e) {
                                     </p>
                                 </div>
 
-                                <div class="ac-detail-group ac-notify-group">
+                                <!-- Dispatch guard — clearly separated, high-contrast button -->
+                                <div class="ac-detail-group ac-dispatch-group">
                                     <p class="ac-detail-group__label">
+                                        <UserPlus :size="12" />
                                         Dispatch guard
                                     </p>
                                     <select
                                         v-model="selectedDispatchGuardId"
-                                        class="ac-notify-select"
-                                        style="min-height: auto"
+                                        class="ac-dispatch-select"
                                     >
                                         <option value="" disabled>
                                             Select a guard…
@@ -839,9 +856,20 @@ function onResolveChange(e) {
                                             }}
                                         </option>
                                     </select>
+                                    <p
+                                        v-if="channelGuards.length === 0"
+                                        class="ac-dispatch-empty"
+                                    >
+                                        No guards found for this channel.
+                                    </p>
                                     <button
                                         type="button"
-                                        class="ac-notify-send"
+                                        class="ac-dispatch-btn"
+                                        :class="{
+                                            'ac-dispatch-btn--ready':
+                                                !!selectedDispatchGuardId &&
+                                                !dispatching,
+                                        }"
                                         :disabled="
                                             !selectedDispatchGuardId ||
                                             dispatching
@@ -852,10 +880,16 @@ function onResolveChange(e) {
                                             dispatching
                                                 ? 'Dispatching…'
                                                 : alert.currentResponder
-                                                  ? 'Reassign'
-                                                  : 'Dispatch'
+                                                  ? 'Reassign guard'
+                                                  : 'Dispatch guard'
                                         }}
                                     </button>
+                                    <p
+                                        v-if="dispatchError"
+                                        class="ac-dispatch-error"
+                                    >
+                                        {{ dispatchError }}
+                                    </p>
                                 </div>
 
                                 <div class="ac-detail-group">
@@ -1571,6 +1605,67 @@ function onResolveChange(e) {
 .ac-modal-enter-from,
 .ac-modal-leave-to {
     opacity: 0;
+}
+
+/* Dispatch guard panel — deliberately high-contrast, distinct from the
+   Notify panel below it, so the button state is unambiguous at a glance. */
+.ac-dispatch-group {
+    padding: 12px;
+    background: #eff6ff;
+    border: 1.5px solid #bfdbfe;
+    border-radius: 10px;
+}
+.ac-dispatch-select {
+    width: 100%;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--c-text);
+    background: #fff;
+    border: 1.5px solid #bfdbfe;
+    border-radius: 8px;
+    padding: 8px 10px;
+    outline: none;
+    margin-bottom: 8px;
+    cursor: pointer;
+}
+.ac-dispatch-select:focus {
+    border-color: #2563eb;
+}
+.ac-dispatch-empty {
+    font-size: 11px;
+    color: var(--c-faint);
+    font-style: italic;
+    margin: 0 0 8px;
+}
+.ac-dispatch-btn {
+    width: 100%;
+    padding: 9px 14px;
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 700;
+    border-radius: 8px;
+    border: 1.5px solid #cbd5e1;
+    background: #e2e8f0;
+    color: #94a3b8;
+    cursor: not-allowed;
+    transition: all 0.15s;
+}
+.ac-dispatch-btn--ready {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #fff;
+    cursor: pointer;
+}
+.ac-dispatch-btn--ready:hover {
+    background: #1d4ed8;
+    border-color: #1d4ed8;
+}
+.ac-dispatch-error {
+    margin: 8px 0 0;
+    font-size: 11px;
+    font-weight: 600;
+    color: #dc2626;
 }
 
 /* Guard broadcast panel */
