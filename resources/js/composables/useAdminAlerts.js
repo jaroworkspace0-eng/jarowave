@@ -102,6 +102,8 @@ export function useAdminAlerts() {
     });
 
     socket.on('alert:new', (alert) => {
+        console.log('[alert:new] received:', alert);
+        console.log('[alert:new] channelGuards:', alert.channelGuards);
         const isLiveArrival = hydrated.value;
         const existingKey = findAlertKey(alerts, alert.id);
         alerts.set(existingKey !== undefined ? existingKey : alert.id, {
