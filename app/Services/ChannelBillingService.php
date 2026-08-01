@@ -619,6 +619,8 @@ class ChannelBillingService
             ]);
 
             $subscription->syncUserStatus();
+
+            $this->notifyNode('POST', '/payment-resolved', ['userId' => $subscription->user_id]);
         }
 
         Log::info('Activated opted-in households', [
@@ -837,6 +839,20 @@ class ChannelBillingService
             'billing_mode' => 'standalone',
             'breakdown'    => $breakdown->values(),
         ];
+    }
+
+
+    private function notifyNode(string $method, string $path, array $payload): void
+    {
+        try {
+            Http::withHeaders(['Authorization' => 'Bearer ' . config('services.ptt.secret')])
+                ->{strtolower($method)}(config('services.ptt.url') . $path, $payload);
+        } catch (\Exception $e) {
+            Log::warning('Failed to notify Node.js', [
+                'path'  => $path,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
  
  
