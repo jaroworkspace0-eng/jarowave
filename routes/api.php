@@ -108,7 +108,11 @@ Route::post('/login', function (Request $request) {
     }
 
     $appRoles = ['employee','household','resident'];
-    if (in_array($user->role, $appRoles) && $request->source !== 'app') {
+    $isGrantedWebGuard = $user->role === 'employee'
+        && $user->is_gate_guard
+        && $user->employee?->has_dashboard_access;
+
+    if (in_array($user->role, $appRoles) && $request->source !== 'app' && ! $isGrantedWebGuard) {
         return response()->json([
             'status'  => 'error',
             'message' => 'Access denied. Please use the mobile application to manage your profile.'
@@ -125,8 +129,12 @@ Route::post('/login', function (Request $request) {
     }
 
     // Reset old tokens
-    $user->tokens()->delete();
+    // $user->tokens()->delete();
+    // $tokenName = $request->source === 'app' ? 'mobile-access' : 'web-access';
+    // $token = $user->createToken($tokenName)->plainTextToken;
+
     $tokenName = $request->source === 'app' ? 'mobile-access' : 'web-access';
+    $user->tokens()->where('name', $tokenName)->delete();
     $token = $user->createToken($tokenName)->plainTextToken;
 
     $channels = $user->employee?->channels->map(function ($channel) {
@@ -164,6 +172,7 @@ Route::post('/login', function (Request $request) {
                 ->whereNotNull('channel_subscription_id')
                 ->exists(),
             'is_gate_guard' => $user->is_gate_guard,
+            'has_dashboard_access' => $user->employee?->has_dashboard_access,
             'alert_location_source' => $user->alert_location_source,
         ],
         'channels' => $channels,
@@ -332,6 +341,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/estate/tenants', [EstateTenantController::class, 'store']);
     Route::put('/estate/tenants/{employee}', [EstateTenantController::class, 'update']);
     Route::delete('/estate/tenants/{employee}', [EstateTenantController::class, 'destroy']);
+    Route::post('/estate/guards', [EstateTenantController::class, 'storeGuard']);
+    Route::get('/estate/guards', [EstateTenantController::class, 'guards']);
+    Route::delete('/estate/guards/{employee}', [EstateTenantController::class, 'destroyGuard']);
+    Route::patch('/estate/guards/{employee}/dashboard-access', [EstateTenantController::class, 'toggleDashboardAccess']);
 });
 
 
@@ -388,8 +401,53 @@ Route::get('/export',    [PayoutController::class, 'export']);
 
 
 Route::middleware(['auth:sanctum'])->group(function () { 
-        Route::get('/user', function (Request $request) {
-        return $request->user();
+    //     Route::get('/user', function (Request $request) {
+    //     return $request->user();
+    // });
+
+
+
+    Route::get('/user', function (Request $request) {
+        $user = $request->user()->load('employee.client', 'employee.channels');
+
+        $channels = $user->employee?->channels->map(function ($channel) {
+            return [
+                'id'   => $channel->id,
+                'name' => $channel->name,
+                'billing_model' => $channel->billing_model,
+            ];
+        }) ?? collect([]);
+
+        return response()->json([
+            'id' => $user->id,
+            'user_id'   => $user->id,
+            'employee_id' => $user->employee?->id,
+            'name'      => $user->name,
+            'organisation_type' => $user->organisation_type,
+            'organisation_name' => $user->organisation_name,
+            'email'     => $user->email,
+            'phone'     => $user->phone,
+            'occupation'=> $user->occupation,
+            'role'      => $user->role,
+            'address' => $user->address_line_1,
+            'suburb' => $user->suburb,
+            'longitude' => $user->longitude,
+            'latitude' => $user->latitude,
+            'complex' => $user->complex_name,
+            'safe_cancel_pin' => $user->safe_cancel_pin,
+            'duress_pin' => $user->duress_pin,
+            'unit_number' => $user->unit_number,
+            'plan'              => $user->plan,
+            'is_estate' => $user->is_estate,
+            'is_estate_opted_in' => $user->subscription()
+                ->where('cancellation_reason', 'estate_optin')
+                ->whereNotNull('channel_subscription_id')
+                ->exists(),
+            'is_gate_guard' => $user->is_gate_guard,
+            'has_dashboard_access' => $user->employee?->has_dashboard_access,
+            'alert_location_source' => $user->alert_location_source,
+            'channels' => $channels,
+        ]);
     });
 
     Route::get('/account-links', [AccountLinkController::class, 'index']);

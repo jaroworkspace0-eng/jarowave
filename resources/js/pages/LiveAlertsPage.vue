@@ -2,7 +2,15 @@
 import AlertCard from '@/components/AlertCard.vue';
 import { useAdminAlerts } from '@/composables/useAdminAlerts';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { useAuthStore } from '@/stores/auth';
 import { computed, ref } from 'vue';
+
+const auth = useAuthStore();
+
+const showChannelLabel = computed(() => auth.user?.role !== 'admin');
+const channelLabel = computed(
+    () => auth.user?.channels?.map((c) => c.name).join(', ') || null,
+);
 
 const {
     alerts,
@@ -70,6 +78,13 @@ function handleSeen(alertId) {
                 <div class="page-header__left">
                     <div class="page-header__eyebrow">Community Safety</div>
                     <h1 class="page-header__title">Live Alerts</h1>
+                    <p
+                        v-if="showChannelLabel && channelLabel"
+                        class="page-header__channel"
+                    >
+                        <span class="page-header__channel-label">Channel</span>
+                        {{ channelLabel }}
+                    </p>
                 </div>
                 <div class="page-header__right">
                     <button
@@ -399,5 +414,18 @@ function handleSeen(alertId) {
     font-size: 11px;
     font-weight: 600;
     color: #ea580c; /* orange accent, matches your existing design system */
+}
+.page-header__channel {
+    font-size: 15px;
+    font-weight: 600;
+    color: #1a2332;
+    margin-top: 2px;
+}
+.page-header__channel-label {
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-right: 5px;
 }
 </style>

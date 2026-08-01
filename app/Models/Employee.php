@@ -12,6 +12,7 @@ class Employee extends Model
     protected $fillable = [
         'user_id',
         'client_id',
+        'has_dashboard_access',
     ];
 
     public function client() {

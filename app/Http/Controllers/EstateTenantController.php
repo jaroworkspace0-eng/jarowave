@@ -193,4 +193,100 @@ class EstateTenantController extends Controller
             Log::warning("PTT server notify failed [{$endpoint}]: " . $e->getMessage());
         }
     }
+
+
+    public function guards(Request $request)
+    {
+        $channelIds = $this->myChannelIds($request);
+
+        $guards = Employee::whereHas('channels', fn ($q) =>
+                $q->whereIn('channels.id', $channelIds))
+            ->whereHas('user', fn ($q) => $q->where('is_gate_guard', true))
+            ->with('user:id,name,phone,is_gate_guard')
+            ->get();
+
+        return response()->json($guards);
+    }
+
+    public function toggleDashboardAccess(Request $request, Employee $employee)
+    {
+        $channelIds = $this->myChannelIds($request);
+        abort_unless(
+            $employee->channels()->whereIn('channels.id', $channelIds)->exists(),
+            403,
+        );
+        abort_unless($employee->user->is_gate_guard, 422, 'This employee is not a gate guard.');
+
+        $employee->update(['has_dashboard_access' => !$employee->has_dashboard_access]);
+
+        return response()->json([
+            'message' => $employee->has_dashboard_access
+                ? 'Dashboard access granted.'
+                : 'Dashboard access revoked.',
+            'has_dashboard_access' => $employee->has_dashboard_access,
+        ]);
+    }
+
+
+    public function storeGuard(Request $request)
+    {
+        $channelIds = $this->myChannelIds($request);
+
+        $validated = $request->validate([
+            'channel_id' => 'required|integer',
+            'name'       => 'required|string|max:255',
+            'email'      => 'required|email|max:255|unique:users,email',
+            'phone'      => 'required|string|max:20',
+        ]);
+
+        $channel = Channel::whereIn('id', $channelIds)->findOrFail($validated['channel_id']);
+        $plainPassword = Str::password(12);
+
+        return DB::transaction(function () use ($validated, $channel, $plainPassword) {
+            $user = User::create([
+                'name'         => $validated['name'],
+                'email'        => $validated['email'],
+                'phone'        => $validated['phone'],
+                'password'     => Hash::make($plainPassword),
+                'occupation'   => 'security_guard',
+                'role'         => 'employee',
+                'is_gate_guard' => true,
+            ]);
+
+            $employee = Employee::create([
+                'user_id'              => $user->id,
+                'client_id'            => $channel->client_id,
+                'has_dashboard_access' => false,
+            ]);
+
+            $employee->channels()->attach($channel->id);
+
+            return response()->json([
+                'message'       => 'Guard added successfully.',
+                'temp_password' => $plainPassword,
+            ]);
+        });
+    }
+
+
+    public function destroyGuard(Request $request, Employee $employee)
+    {
+        $channelIds = $this->myChannelIds($request);
+        abort_unless(
+            $employee->channels()->whereIn('channels.id', $channelIds)->exists(),
+            403,
+        );
+        abort_unless($employee->user->is_gate_guard, 422, 'This employee is not a gate guard.');
+
+        $userId = $employee->user_id;
+        User::where('id', $userId)->delete();
+        $employee->delete();
+
+        $this->notifyPttServer('/force-disconnect', [
+            'userId' => $userId,
+            'reason' => 'user_inactive',
+        ]);
+
+        return response()->json(['message' => 'Guard removed successfully.']);
+    }
 }

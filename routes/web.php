@@ -106,12 +106,18 @@ Route::get('/estate/dashboard', function () {
     return inertia('Estate/EstateBillingDashboard');
 });
 
+
+
 Route::get('/estate/invoices', function () {
     return inertia('Estate/EstateInvoices');
 });
 
 Route::get('/estate/tenants', function () {
     return inertia('Estate/Tenants');
+});
+
+Route::get('/estate/guards', function () {
+    return inertia('Estate/Guards');
 });
 
 Route::get('/admin/estate-payments', function () {

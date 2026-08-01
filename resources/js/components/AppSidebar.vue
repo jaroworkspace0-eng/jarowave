@@ -191,7 +191,10 @@ const estateBillingGroups: NavGroup[] = [
     },
     {
         label: 'Tenants',
-        items: [{ title: 'Tenants', href: '/estate/tenants', icon: UserPlus }],
+        items: [
+            { title: 'Tenants', href: '/estate/tenants', icon: UserPlus },
+            { title: 'Guards', href: '/estate/guards', icon: Shield },
+        ],
     },
     {
         label: 'Support',
@@ -217,7 +220,8 @@ const gateGuardGroups: NavGroup[] = [
 
 const navGroups = computed<NavGroup[]>(() => {
     if (auth.user?.role === 'admin') return adminGroups;
-    if (auth.user?.role === 'gate_guard') return gateGuardGroups;
+    if (auth.user?.is_gate_guard && auth.user?.has_dashboard_access)
+        return gateGuardGroups;
     if (auth.user?.role === 'estate_billing') return estateBillingGroups;
     if (auth.user?.role === 'client') return clientGroups;
     return [];

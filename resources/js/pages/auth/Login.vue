@@ -29,6 +29,12 @@ async function login() {
 
         if (user.role === 'estate_billing') {
             window.location.href = '/estate/dashboard';
+        } else if (
+            user.role === 'employee' &&
+            user.is_gate_guard &&
+            user.has_dashboard_access
+        ) {
+            window.location.href = '/live-alerts';
         } else {
             window.location.href = '/dashboard';
         }

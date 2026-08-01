@@ -18,16 +18,25 @@ class InternalDashboardUserController extends Controller
 
         $code = $request->bearerToken();
         $userId = $code ? Cache::get("dashboard-handshake:{$code}") : null;
-        $user = $userId ? User::find($userId) : null;
+        // $user = $userId ? User::with('employee')->find($userId) : null;
+        $user = $userId ? User::with('employee.channels')->find($userId) : null;
 
         if (!$user) {
             return response()->json(['error' => 'Invalid handshake code'], 401);
         }
 
+        $isGrantedGuard = $user->is_gate_guard && $user->employee?->has_dashboard_access;
+
+        if ($user->role === 'employee' && !$isGrantedGuard) {
+            return response()->json(['error' => 'Unauthorized'], 401);
+        }
+
+        $role = $isGrantedGuard ? 'gate_guard' : $user->role;
+
         return response()->json([
             'id' => $user->id,
-            'role' => $user->role,
-            'channelIds' => $user->role === 'admin' ? [] : $user->accessibleChannelIds(),
+            'role' => $role,
+            'channelIds' => $role === 'admin' ? [] : $user->accessibleChannelIds(),
         ]);
     }
 

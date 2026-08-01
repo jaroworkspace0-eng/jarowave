@@ -18,7 +18,11 @@ import { computed, onMounted, ref } from 'vue';
 const auth = useAuthStore();
 
 onMounted(() => {
-    if (auth.user?.role !== 'estate_billing') {
+    const isEstateBilling = auth.user?.role === 'estate_billing';
+    const isGrantedGuard =
+        auth.user?.is_gate_guard && auth.user?.has_dashboard_access;
+
+    if (!isEstateBilling && !isGrantedGuard) {
         router.visit('/dashboard');
     }
 });
