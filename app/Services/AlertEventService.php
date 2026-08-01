@@ -132,6 +132,17 @@ class AlertEventService
 
     public function broadcastNewAlert(EmergencyAlert $alert): void
     {
+        $channelGuards = \App\Models\Employee::whereHas('channels', fn ($q) =>
+                $q->where('channels.id', $alert->channel_id))
+            ->whereHas('user', fn ($q) => $q->where('is_gate_guard', true))
+            ->with('user:id,name,phone')
+            ->get()
+            ->map(fn ($e) => [
+                'id' => $e->user->id,
+                'username' => $e->user->name,
+                'phone' => $e->user->phone,
+            ]);
+
         Http::withToken(env('ASSIGN_SECRET'))
             ->post(env('PTT_SERVER_URL') . '/emit', [
                 'channelId' => $alert->channel_id,
@@ -143,7 +154,6 @@ class AlertEventService
                     'type' => $alert->alert_type,
                     'household_name' => $alert->user->name,
                     'household_phone' => $alert->user->phone,
-                    // 'home_address' => $alert->user->home_address,
                     'home_address' => collect([
                             $alert->user->address_line_1,
                             $alert->user->complex_name,
@@ -158,6 +168,7 @@ class AlertEventService
                     'guardian_count' => 0,
                     'guardian_ids' => [],
                     'events' => [],
+                    'channelGuards' => $channelGuards,
                 ],
             ]);
     }

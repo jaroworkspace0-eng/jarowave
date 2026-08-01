@@ -14,7 +14,7 @@ class AdminAlertController extends Controller
      * anything the live feed couldn't have delivered while disconnected.
      */
    
-    public function open(Request $request)
+   public function open(Request $request)
     {
         $user = $request->user();
         $cutoff = now()->subHours(4);
@@ -35,38 +35,56 @@ class AdminAlertController extends Controller
             ->orderByDesc('created_at')
             ->get();
 
-        return response()->json($alerts->map(fn ($alert) => [
-            'id' => $alert->id,
-            'type' => $alert->alert_type,
-            'household_name' => $alert->user->name,
-            'household_phone' => $alert->user->phone,
-            'home_address' => collect([
-                $alert->user->complex_name,
-                $alert->user->address_line_1,
-                $alert->user->suburb,
-            ])->filter()->implode(', '),
-            'channel_name' => $alert->channel->name,
-            'created_at' => $alert->created_at,
-            'first_ack_at' => $alert->first_ack_at,
-            'last_lat' => $alert->last_lat,
-            'last_lng' => $alert->last_lng,
-            'accuracy' => $alert->accuracy,
-            'muted' => $alert->muted,
-            'guardian_count' => $alert->guardianNotifications->count(),
-            'guardians' => $alert->guardianNotifications->map(fn ($n) => [
-                'id' => $n->guardian_id,
-                'name' => $n->guardian->name ?? 'Guardian #' . $n->guardian_id,
-                'notified_at' => $n->notified_at,
-                'responded_at' => $n->responded_at,
-                'response_type' => $n->response_type,
-            ]),
-            'events' => $alert->events,
-            'current_responder' => $alert->resolution && $alert->resolution->responder_user_id ? [
-                'userId' => $alert->resolution->responder_user_id,
-                'username' => $alert->resolution->responder->name ?? null,
-                'phone' => $alert->resolution->responder->phone ?? null,
-            ] : null,
-        ]));
+        $channelGuardsCache = [];
+
+        return response()->json($alerts->map(function ($alert) use (&$channelGuardsCache) {
+            if (! isset($channelGuardsCache[$alert->channel_id])) {
+                $channelGuardsCache[$alert->channel_id] = \App\Models\Employee::whereHas('channels', fn ($q) =>
+                        $q->where('channels.id', $alert->channel_id))
+                    ->whereHas('user', fn ($q) => $q->where('is_gate_guard', true))
+                    ->with('user:id,name,phone')
+                    ->get()
+                    ->map(fn ($e) => [
+                        'id' => $e->user->id,
+                        'username' => $e->user->name,
+                        'phone' => $e->user->phone,
+                    ]);
+            }
+
+            return [
+                'id' => $alert->id,
+                'type' => $alert->alert_type,
+                'household_name' => $alert->user->name,
+                'household_phone' => $alert->user->phone,
+                'home_address' => collect([
+                    $alert->user->complex_name,
+                    $alert->user->address_line_1,
+                    $alert->user->suburb,
+                ])->filter()->implode(', '),
+                'channel_name' => $alert->channel->name,
+                'created_at' => $alert->created_at,
+                'first_ack_at' => $alert->first_ack_at,
+                'last_lat' => $alert->last_lat,
+                'last_lng' => $alert->last_lng,
+                'accuracy' => $alert->accuracy,
+                'muted' => $alert->muted,
+                'guardian_count' => $alert->guardianNotifications->count(),
+                'guardians' => $alert->guardianNotifications->map(fn ($n) => [
+                    'id' => $n->guardian_id,
+                    'name' => $n->guardian->name ?? 'Guardian #' . $n->guardian_id,
+                    'notified_at' => $n->notified_at,
+                    'responded_at' => $n->responded_at,
+                    'response_type' => $n->response_type,
+                ]),
+                'events' => $alert->events,
+                'current_responder' => $alert->resolution && $alert->resolution->responder_user_id ? [
+                    'userId' => $alert->resolution->responder_user_id,
+                    'username' => $alert->resolution->responder->name ?? null,
+                    'phone' => $alert->resolution->responder->phone ?? null,
+                ] : null,
+                'channelGuards' => $channelGuardsCache[$alert->channel_id],
+            ];
+        }));
     }
 
     public function unresolvedCount(Request $request)
