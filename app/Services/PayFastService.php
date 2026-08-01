@@ -369,6 +369,68 @@ class PayFastService
         return $response->successful();
     }
 
+
+    // method not used by maybe in the future to rectify incorrect billing dates.
+    // Here's how to run this method in tinker:
+    // $service = app(\App\Services\PayFastService::class);
+    // $service->updateSubscriptionRunDate('SUBSCRIPTION_TOKEN', '2024-07-01');
+
+    // or you can run it directly in tinker like this:
+    
+    // app(\App\Services\PayFastService::class)->updateSubscriptionRunDate(
+    //     'the-payfast-token-here',
+    //     '2026-09-15'
+    //  );
+    public function updateSubscriptionRunDate(string $token, string $runDate): bool
+    {
+        $current = $this->fetchSubscription($token);
+
+        if (! $current) {
+            Log::warning('PayFast update-run-date: could not fetch subscription before update', ['token' => $token]);
+            return false;
+        }
+
+        if (strtoupper($current['status_text'] ?? '') !== 'ACTIVE') {
+            Log::warning('PayFast update-run-date: refusing update, subscription not active', [
+                'token'       => $token,
+                'status_text' => $current['status_text'] ?? null,
+            ]);
+            return false;
+        }
+
+        $timestamp = now()->toIso8601String();
+        $version   = 'v1';
+
+        // alphabetical order: merchant-id, passphrase, run_date, timestamp, version
+        $parts = [
+            'merchant-id=' . urlencode($this->merchantId),
+            'passphrase='  . urlencode($this->passphrase),
+            'run_date='    . urlencode($runDate),
+            'timestamp='   . urlencode($timestamp),
+            'version='     . urlencode($version),
+        ];
+        $signature = md5(implode('&', $parts));
+
+        $url = "https://api.payfast.co.za/subscriptions/{$token}/update";
+        if (config('payfast.testing')) {
+            $url .= '?testing=true';
+        }
+
+        $response = Http::withHeaders([
+            'merchant-id' => $this->merchantId,
+            'passphrase'  => $this->passphrase,
+            'timestamp'   => $timestamp,
+            'version'     => $version,
+            'signature'   => $signature,
+        ])->patch($url, [
+            'run_date' => $runDate,
+        ]);
+
+        Log::debug('PayFast update-run-date response: ' . $response->status() . ' ' . $response->body());
+
+        return $response->successful();
+    }
+
     public function buildOneTimeFields(array $params): array
     {
         $data = [
