@@ -34,6 +34,7 @@ use App\Http\Controllers\CheckpointController;
 use App\Http\Controllers\DvRecordingController;
 use App\Http\Controllers\GuardBankDetailController;
 use App\Http\Controllers\Api\HouseholdBillingController;
+use App\Http\Controllers\EstateTenantController;
 use App\Http\Controllers\HouseholdSettingController;
 use App\Http\Controllers\Internal\InternalDashboardUserController;
 use App\Http\Controllers\InviteController;
@@ -321,6 +322,16 @@ Route::middleware('auth:sanctum')->prefix('earnings')->group(function () {
     Route::get('/summary',  [EarningController::class, 'summary']);
     Route::get('/export',   [EarningController::class, 'export']); 
     Route::get('/{earning}', [EarningController::class, 'show']);
+});
+
+
+// Estate adding tenants
+Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/estate/tenants', [EstateTenantController::class, 'index']);
+    Route::get('/estate/tenants/channels', [EstateTenantController::class, 'channels']);
+    Route::post('/estate/tenants', [EstateTenantController::class, 'store']);
+    Route::put('/estate/tenants/{employee}', [EstateTenantController::class, 'update']);
+    Route::delete('/estate/tenants/{employee}', [EstateTenantController::class, 'destroy']);
 });
 
 

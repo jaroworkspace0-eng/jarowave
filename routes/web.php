@@ -110,6 +110,10 @@ Route::get('/estate/invoices', function () {
     return inertia('Estate/EstateInvoices');
 });
 
+Route::get('/estate/tenants', function () {
+    return inertia('Estate/Tenants');
+});
+
 Route::get('/admin/estate-payments', function () {
     return inertia('Admin/EstatePayments');
 });

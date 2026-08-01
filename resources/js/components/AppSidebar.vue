@@ -36,6 +36,7 @@ import {
     Shield,
     Ticket as TicketIcon,
     Trash2,
+    UserPlus,
 } from 'lucide-vue-next';
 import AppLogo from './AppLogo.vue';
 
@@ -176,17 +177,21 @@ const estateBillingGroups: NavGroup[] = [
             { title: 'Dashboard', href: '/estate/dashboard', icon: HomeIcon },
         ],
     },
-    {
-        label: 'Live Monitoring',
-        items: [
-            { title: 'Live Alerts', href: '/live-alerts', icon: AlertTriangle },
-        ],
-    },
+    // {
+    //     label: 'Live Monitoring',
+    //     items: [
+    //         { title: 'Live Alerts', href: '/live-alerts', icon: AlertTriangle },
+    //     ],
+    // },
     {
         label: 'Finance',
         items: [
             { title: 'Invoices', href: '/estate/invoices', icon: FileText },
         ],
+    },
+    {
+        label: 'Tenants',
+        items: [{ title: 'Tenants', href: '/estate/tenants', icon: UserPlus }],
     },
     {
         label: 'Support',
@@ -201,8 +206,18 @@ const estateBillingGroups: NavGroup[] = [
     },
 ];
 
+const gateGuardGroups: NavGroup[] = [
+    {
+        label: 'Live Monitoring',
+        items: [
+            { title: 'Live Alerts', href: '/live-alerts', icon: AlertTriangle },
+        ],
+    },
+];
+
 const navGroups = computed<NavGroup[]>(() => {
     if (auth.user?.role === 'admin') return adminGroups;
+    if (auth.user?.role === 'gate_guard') return gateGuardGroups;
     if (auth.user?.role === 'estate_billing') return estateBillingGroups;
     if (auth.user?.role === 'client') return clientGroups;
     return [];
