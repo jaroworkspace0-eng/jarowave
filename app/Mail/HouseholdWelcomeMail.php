@@ -16,11 +16,12 @@ class HouseholdWelcomeMail extends Mailable
     public function __construct(
         public User   $user,
         public string $organisationName,
-        public string $gateway,           // 'payfast' | 'ozow' | 'none'
-        public bool   $adminAdded = false, // true = added by admin, false = self-registered
-        public ?string $tempPassword = null, // only set for admin-added households
+        public string $gateway,
+        public bool   $adminAdded = false,
+        public ?string $tempPassword = null,
         public ?string $amountPerHousehold = null,
         public ?string $channelName = null,
+        public bool   $estateBilled = false,   // new
     ) {}
 
     public function envelope(): Envelope
@@ -35,11 +36,10 @@ class HouseholdWelcomeMail extends Mailable
         return new Content(
             markdown: 'emails.household.welcome',
             with: [
-                'amount_per_household' => $this->amountPerHousehold 
-                ? number_format($this->amountPerHousehold, 0) 
-                : 'R80',
-                'channel_name' => $this->channelName
-            ]
+                'amount_per_household' => $this->amountPerHousehold ? number_format($this->amountPerHousehold, 0) : 'R80',
+                'channel_name' => $this->channelName,
+                'estate_billed' => $this->estateBilled,   // new
+            ],
         );
     }
 }

@@ -2,13 +2,28 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\HouseholdWelcomeMail;
 use App\Models\Channel;
 use App\Models\ChannelBillingContact;
 use App\Models\Employee;
+use App\Models\User;
+use App\Services\ChannelBillingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class EstateTenantController extends Controller
 {
+
+    public function __construct(
+        protected EmployeeController $employeeController,
+        protected ChannelBillingService $billingService,
+    ) {}
+
     // Only channels this billing contact is actively responsible for —
     // never trust a channel_id the client sends.
     private function myChannelIds(Request $request): array
@@ -21,8 +36,18 @@ class EstateTenantController extends Controller
 
     public function channels(Request $request)
     {
-        return Channel::whereIn('id', $this->myChannelIds($request))
-            ->get(['id', 'name']);
+        $user = $request->user();
+        $channelIds = $this->myChannelIds($request);
+
+        return Channel::whereIn('id', $channelIds)
+            ->get(['id', 'name', 'client_id'])
+            ->map(fn ($channel) => [
+                'id'             => $channel->id,
+                'name'           => $channel->name,
+                'client_id'      => $channel->client_id,
+                'address_line_1' => $user->address_line_1,
+                'suburb'         => $user->suburb,
+            ]);
     }
 
     public function index(Request $request)
@@ -45,24 +70,93 @@ class EstateTenantController extends Controller
         ]);
     }
 
+    
     public function store(Request $request)
     {
         $channelIds = $this->myChannelIds($request);
 
-        if (!in_array($request->input('channel_id'), $channelIds)) {
-            abort(403, 'You do not manage this channel.');
-        }
+        $validated = $request->validate([
+            'channel_id'      => 'required|integer',
+            'name'            => 'required|string|max:255',
+            'email'           => 'required|email|max:255|unique:users,email',
+            'phone'           => 'required|string|max:20',
+            'unit_number'     => 'nullable|string|max:50',
+            'safe_cancel_pin' => 'required|string|size:6',
+            'duress_pin'      => 'required|string|size:6',
+        ]);
 
-        // ...same Employee/User creation logic as the existing
-        // /api/employees household branch, just forced to this channel
+        $channel = Channel::whereIn('id', $channelIds)->findOrFail($validated['channel_id']);
+        $billingContact = $request->user();
+        $plainPassword = Str::password(12);
+
+        return DB::transaction(function () use ($validated, $channel, $billingContact, $plainPassword) {
+            $user = User::create([
+                'name'            => $validated['name'],
+                'email'           => $validated['email'],
+                'phone'           => $validated['phone'],
+                'password'        => Hash::make($plainPassword),
+                'occupation'      => 'household',
+                'role'            => 'household',
+                'address_line_1'  => $billingContact->address_line_1,
+                'suburb'          => $billingContact->suburb,
+                'latitude'        => $billingContact->latitude,
+                'longitude'       => $billingContact->longitude,
+                'complex_name'    => $channel->name,
+                'unit_number'     => $validated['unit_number'] ?? null,
+                'safe_cancel_pin' => $validated['safe_cancel_pin'],
+                'duress_pin'      => $validated['duress_pin'],
+            ]);
+
+    $employee = Employee::create([
+        'user_id'   => $user->id,
+        'client_id' => $channel->client_id,
+    ]);
+
+    $employee->channels()->attach($channel->id);
+
+    // Create the individual subscription first (same as any household),
+    // then immediately opt in — optInHousehold() finds this subscription
+    // and cancels it with cancellation_reason: 'estate_optin' and
+    // channel_subscription_id set, leaving a real audit trail instead
+    // of skipping subscription creation altogether.
+    $this->employeeController->createHouseholdSubscription($user, $channel->client_id, false);
+    $this->billingService->optInHousehold($user, $channel);
+
+    $this->employeeController->sendHouseholdWelcomeMail(
+        $user, $channel->client_id, $plainPassword, $channel, estateBilled: true,
+    );
+
+    return response()->json(['message' => 'Tenant added successfully. Welcome email sent.']);
+});
     }
 
     public function update(Request $request, Employee $employee)
     {
         $channelIds = $this->myChannelIds($request);
+        abort_unless(
+            $employee->channels()->whereIn('channels.id', $channelIds)->exists(),
+            403,
+        );
 
-        // guard: employee must currently belong to one of my channels,
-        // and any new channel_id in the payload must also be in $channelIds
+        $newChannelId = $request->input('channel_id');
+        abort_unless(in_array($newChannelId, $channelIds), 403);
+        $channel = Channel::findOrFail($newChannelId);
+
+        $employee->user->update([
+            'name'           => $request->input('name'),
+            'email'          => $request->input('email'),
+            'phone'          => $request->input('phone'),
+            'unit_number'    => $request->input('unit_number'),
+            'address_line_1' => $request->user()->address_line_1,
+            'suburb'         => $request->user()->suburb,
+            'latitude'       => $request->user()->latitude,
+            'longitude'      => $request->user()->longitude,
+            'complex_name'   => $channel->name,
+        ]);
+
+        $employee->channels()->sync([$channel->id]);
+
+        return response()->json(['message' => 'Tenant updated successfully.']);
     }
 
     public function destroy(Request $request, Employee $employee)
@@ -72,6 +166,31 @@ class EstateTenantController extends Controller
             $employee->channels()->whereIn('channels.id', $channelIds)->exists(),
             403,
         );
-        // ...delete
+
+        $userId = $employee->user_id;
+
+        User::where('id', $userId)->delete();
+        $employee->delete();
+
+        $this->notifyPttServer('/force-disconnect', [
+            'userId' => $userId,
+            'reason' => 'user_inactive',
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Tenant deleted successfully!',
+        ]);
+    }
+
+    private function notifyPttServer(string $endpoint, array $payload): void
+    {
+        try {
+            Http::timeout(5)
+                ->withHeaders(['Authorization' => 'Bearer ' . env('ASSIGN_SECRET')])
+                ->post(env('PTT_SERVER_URL') . $endpoint, $payload);
+        } catch (\Exception $e) {
+            Log::warning("PTT server notify failed [{$endpoint}]: " . $e->getMessage());
+        }
     }
 }

@@ -470,7 +470,7 @@ class EmployeeController extends Controller
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private function createHouseholdSubscription(User $user, ?int $clientId, bool $activationFeePaid = false): void
+    public function createHouseholdSubscription(User $user, ?int $clientId, bool $activationFeePaid = false): void
     {
         $client  = Client::with('user')->find($clientId);
         $orgType = $client?->user?->organisation_type ?? 'watch';
@@ -492,21 +492,27 @@ class EmployeeController extends Controller
         ]);
     }
 
-    private function sendHouseholdWelcomeMail(User $user, ?int $clientId, string $plainPassword, ?Channel $channel = null): void
-    {
+    public function sendHouseholdWelcomeMail(
+        User $user,
+        ?int $clientId,
+        string $plainPassword,
+        ?Channel $channel = null,
+        bool $estateBilled = false,
+    ): void {
         $client  = Client::with('user')->find($clientId);
         $orgName = $client?->user?->organisation_name
-                ?? $client?->user?->name
-                ?? 'Echo Link Community';
+                    ?? $client?->user?->name
+                    ?? 'Echo Link Community';
 
         Mail::to($user->email)->queue(new HouseholdWelcomeMail(
-            user:             $user,
-            organisationName: $orgName,
-            gateway:          'payfast',
-            adminAdded:       true,
-            tempPassword:     $plainPassword,
+            user:               $user,
+            organisationName:   $orgName,
+            gateway:            $estateBilled ? 'none' : 'payfast',
+            adminAdded:         true,
+            tempPassword:       $plainPassword,
             amountPerHousehold: $channel?->amount_per_household,
-            channelName: $channel?->name
+            channelName:        $channel?->name,
+            estateBilled:       $estateBilled,
         ));
     }
 

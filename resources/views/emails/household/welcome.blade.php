@@ -59,10 +59,17 @@
 {{-- ── TRIAL & BILLING ── --}}
 <p style="font-size:13px; font-weight:700; color:#1a1a2e; margin:24px 0 12px;">Your subscription</p>
 
+@if($estate_billed)
+<div style="background:#f0fdf4; border:1px solid #86efac; border-radius:10px; padding:14px 16px; margin-bottom:24px;">
+    <p style="font-size:13px; color:#15803d; margin:0; font-weight:600;">
+        Your monthly Echo Link fee is covered by {{ $organisationName }} as part of your estate's billing. No payment or card needed from you.
+    </p>
+</div>
+@else
 <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 24px;">
     <tr>
         <td style="padding:6px 0; font-size:13px; color:#888;">Monthly fee</td>
-        <td style="padding:6px 0; font-size:13px; font-weight:700; color:#f97316; text-align:right;">R{{ $amount_per_household }}/month</td>
+        <td style="padding:6px 0; font-size:13px; font-weight:700; color:#f97316; text-align:right;">{{ $amount_per_household }}/month</td>
     </tr>
     <tr>
         <td style="padding:6px 0; font-size:13px; color:#888;">Free trial</td>
@@ -87,6 +94,7 @@
 Take me to the dashboard
 @endcomponent
 @endif
+@endif
 
 ---
 
@@ -99,7 +107,7 @@ Take me to the dashboard
             <span style="display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; background:#fff7ed; border:1px solid #fed7aa; border-radius:50%; font-size:11px; font-weight:800; color:#f97316;">1</span>
         </td>
         <td style="padding:8px 0; font-size:13px; color:#444; vertical-align:top;">
-            <strong style="color:#1a1a2e;">Download the Echo Link app</strong> — this is how you trigger emergency alerts and stay connected to your patrol group 24/7.
+            <strong style="color:#1a1a2e;">Download the Echo Link app</strong> - this is how you trigger emergency alerts and stay connected to your patrol group 24/7.
         </td>
     </tr>
     <tr>
@@ -107,7 +115,7 @@ Take me to the dashboard
             <span style="display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; background:#fff7ed; border:1px solid #fed7aa; border-radius:50%; font-size:11px; font-weight:800; color:#f97316;">2</span>
         </td>
         <td style="padding:8px 0; font-size:13px; color:#444; vertical-align:top;">
-            <strong style="color:#1a1a2e;">Sign in with your email and password</strong> — use the same credentials you registered with on this email.
+            <strong style="color:#1a1a2e;">Sign in with your email and password</strong> - use the same credentials you registered with on this email.
         </td>
     </tr>
     <tr>
@@ -115,16 +123,16 @@ Take me to the dashboard
             <span style="display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; background:#fff7ed; border:1px solid #fed7aa; border-radius:50%; font-size:11px; font-weight:800; color:#f97316;">3</span>
         </td>
         <td style="padding:8px 0; font-size:13px; color:#444; vertical-align:top;">
-            <strong style="color:#1a1a2e;">Update your address immediately</strong> — go to Profile → Edit Address in the app. Your address is how responders find you during an emergency. An incorrect or missing address can delay help.
+            <strong style="color:#1a1a2e;">Update your address immediately</strong> - go to Profile → Edit Address in the app. Your address is how responders find you during an emergency. An incorrect or missing address can delay help.
         </td>
     </tr>
-    @if($adminAdded)
+    @if($adminAdded && !$estate_billed)
     <tr>
         <td style="padding:8px 0; vertical-align:top; width:28px;">
             <span style="display:inline-flex; align-items:center; justify-content:center; width:22px; height:22px; background:#fff7ed; border:1px solid #fed7aa; border-radius:50%; font-size:11px; font-weight:800; color:#f97316;">4</span>
         </td>
         <td style="padding:8px 0; font-size:13px; color:#444; vertical-align:top;">
-            <strong style="color:#1a1a2e;">Add your payment method</strong> — visit your account dashboard and add your card or bank details before your trial ends.
+            <strong style="color:#1a1a2e;">Add your payment method</strong> - visit your account dashboard and add your card or bank details before your trial ends.
         </td>
     </tr>
     @endif

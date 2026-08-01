@@ -12,7 +12,7 @@ const getHeaders = () => ({
     headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
 });
 
-// ── my channels (scoped, not the full admin list) ──────────────────────────
+// ── my channels ─────────────────────────────────────────────────────────────
 const myChannels = ref<any[]>([]);
 const loadMyChannels = async () => {
     const { data } = await axios.get(
@@ -22,19 +22,26 @@ const loadMyChannels = async () => {
     myChannels.value = data;
 };
 
-// ── tenants list ─────────────────────────────────────────────────────────────
+// ── tenants list ────────────────────────────────────────────────────────────
 const households = ref<any>({ data: [], from: 0, to: 0, total: 0, links: [] });
 const householdList = ref<any[]>([]);
 const searchQuery = ref('');
 let searchTimeout: any = null;
 
 const reloadTenants = async (url?: string) => {
-    const { data } = await axios.get(
-        url || `${import.meta.env.VITE_APP_URL}/api/estate/tenants`,
-        { params: { search: searchQuery.value || undefined }, ...getHeaders() },
-    );
-    households.value = data.households;
-    householdList.value = data.households.data;
+    try {
+        const { data } = await axios.get(
+            url || `${import.meta.env.VITE_APP_URL}/api/estate/tenants`,
+            {
+                params: { search: searchQuery.value || undefined },
+                ...getHeaders(),
+            },
+        );
+        households.value = data.households;
+        householdList.value = data.households.data;
+    } catch (e) {
+        console.error('Error fetching tenants', e);
+    }
 };
 
 const handleSearch = () => {
@@ -42,26 +49,33 @@ const handleSearch = () => {
     searchTimeout = setTimeout(() => reloadTenants(), 400);
 };
 
-// ── add / edit modal (household-only, channel fixed to my estate) ──────────
+// ── flash ───────────────────────────────────────────────────────────────────
+const flashMessage = ref<string | null>(null);
+function showMessage(message: string) {
+    flashMessage.value = message;
+    setTimeout(() => (flashMessage.value = null), 3500);
+}
+
+// ── add / edit modal ─────────────────────────────────────────────────────────
 const showModal = ref(false);
 const isEditing = ref(false);
 const loading = ref(false);
 const errors = ref<Record<string, string[]>>({});
 
 const form = ref({
-    id: null,
+    id: null as number | null,
     name: '',
     email: '',
     phone: '+27',
-    password: '',
-    address_line_1: '',
-    complex_name: '',
-    suburb: '',
     unit_number: '',
     safe_cancel_pin: '',
     duress_pin: '',
     channel_id: '' as any,
 });
+
+const selectedChannel = computed(() =>
+    myChannels.value.find((c) => c.id === form.value.channel_id),
+);
 
 const openModal = () => {
     isEditing.value = false;
@@ -71,10 +85,6 @@ const openModal = () => {
         name: '',
         email: '',
         phone: '+27',
-        password: '',
-        address_line_1: '',
-        complex_name: '',
-        suburb: '',
         unit_number: '',
         safe_cancel_pin: generatePin(),
         duress_pin: generatePin(),
@@ -91,10 +101,6 @@ const editTenant = (employee: any) => {
         name: employee.user.name,
         email: employee.user.email,
         phone: employee.user.phone,
-        password: '',
-        address_line_1: employee.user.address_line_1 || '',
-        complex_name: employee.user.complex_name || '',
-        suburb: employee.user.suburb || '',
         unit_number: employee.user.unit_number || '',
         safe_cancel_pin: employee.user.safe_cancel_pin || '',
         duress_pin: employee.user.duress_pin || '',
@@ -104,26 +110,38 @@ const editTenant = (employee: any) => {
 };
 
 const closeModal = () => (showModal.value = false);
+
 const regeneratePins = () => {
     form.value.safe_cancel_pin = generatePin();
     form.value.duress_pin = generatePin();
 };
 
+const handlePhoneInput = (val: string) => {
+    if (!val || !val.startsWith('+27')) {
+        form.value.phone = '+27';
+        return;
+    }
+    form.value.phone = val.replace(/\s+/g, '').replace(/[^0-9+]/g, '');
+};
+
 const submitTenant = async () => {
     loading.value = true;
+    errors.value = {};
     try {
         if (isEditing.value) {
-            await axios.put(
+            const { data } = await axios.put(
                 `${import.meta.env.VITE_APP_URL}/api/estate/tenants/${form.value.id}`,
                 form.value,
                 getHeaders(),
             );
+            showMessage(data.message);
         } else {
-            await axios.post(
+            const { data } = await axios.post(
                 `${import.meta.env.VITE_APP_URL}/api/estate/tenants`,
                 form.value,
                 getHeaders(),
             );
+            showMessage(data.message);
         }
         closeModal();
         await reloadTenants();
@@ -134,19 +152,32 @@ const submitTenant = async () => {
     }
 };
 
+// ── delete ───────────────────────────────────────────────────────────────────
 const showDeleteModal = ref(false);
 const tenantToDelete = ref<number | null>(null);
+const deleting = ref(false);
+
 const confirmDelete = (id: number) => {
     tenantToDelete.value = id;
     showDeleteModal.value = true;
 };
+
 const executeDelete = async () => {
-    await axios.delete(
-        `${import.meta.env.VITE_APP_URL}/api/estate/tenants/${tenantToDelete.value}`,
-        getHeaders(),
-    );
-    showDeleteModal.value = false;
-    await reloadTenants();
+    deleting.value = true;
+    try {
+        const { data } = await axios.delete(
+            `${import.meta.env.VITE_APP_URL}/api/estate/tenants/${tenantToDelete.value}`,
+            getHeaders(),
+        );
+        showMessage(data.message);
+        showDeleteModal.value = false;
+        tenantToDelete.value = null;
+        await reloadTenants();
+    } catch {
+        showMessage('Failed to delete tenant.');
+    } finally {
+        deleting.value = false;
+    }
 };
 
 onMounted(async () => {
@@ -155,8 +186,13 @@ onMounted(async () => {
 });
 </script>
 
+<script lang="ts">
+import { computed } from 'vue';
+</script>
+
 <template>
     <Head title="Tenants" />
+
     <AppLayout>
         <div class="page-root">
             <div class="page-header">
@@ -173,6 +209,20 @@ onMounted(async () => {
 
             <div class="filter-bar">
                 <div class="search-wrap">
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        class="search-wrap__icon"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        stroke-width="2"
+                    >
+                        <path
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            d="M21 21l-4.35-4.35M17 11A6 6 0 105 11a6 6 0 0012 0z"
+                        />
+                    </svg>
                     <input
                         v-model="searchQuery"
                         @input="handleSearch"
@@ -180,59 +230,149 @@ onMounted(async () => {
                         class="search-wrap__input"
                         placeholder="Search tenants…"
                     />
+                    <span
+                        v-if="searchQuery"
+                        class="search-wrap__clear"
+                        @click="
+                            searchQuery = '';
+                            reloadTenants();
+                        "
+                        >×</span
+                    >
                 </div>
             </div>
 
             <div class="table-card">
                 <div v-if="householdList.length === 0" class="empty-state">
+                    <div class="empty-state__icon">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-8 w-8"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="1.2"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
+                            />
+                        </svg>
+                    </div>
                     <p class="empty-state__title">No tenants yet</p>
                     <p class="empty-state__sub">
                         Add your first tenant to get started
                     </p>
                 </div>
-                <table v-else class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Tenant</th>
-                            <th>Contact</th>
-                            <th>Unit</th>
-                            <th>Address</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="t in householdList" :key="t.id">
-                            <td class="td-announce__title">
-                                {{ t.user.name }}
-                            </td>
-                            <td class="td-muted">
-                                {{ t.user.phone }}<br />{{ t.user.email }}
-                            </td>
-                            <td class="td-muted">{{ t.user.unit_number }}</td>
-                            <td class="td-muted">
-                                {{ t.user.address_line_1 }}
-                            </td>
-                            <td>
-                                <button
-                                    @click="editTenant(t)"
-                                    class="icon-btn icon-btn--edit"
-                                >
-                                    Edit
-                                </button>
-                                <button
-                                    @click="confirmDelete(t.id)"
-                                    class="icon-btn icon-btn--danger"
-                                >
-                                    Delete
-                                </button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+                <div v-else style="overflow-x: auto">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Tenant</th>
+                                <th>Contact</th>
+                                <th>Unit</th>
+                                <th>Estate</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="t in householdList" :key="t.id">
+                                <td class="td-announce">
+                                    <div class="td-announce__title">
+                                        {{ t.user.name }}
+                                    </div>
+                                    <div class="td-announce__sub">
+                                        {{ t.user.email }}
+                                    </div>
+                                </td>
+                                <td class="td-muted">{{ t.user.phone }}</td>
+                                <td class="td-muted">
+                                    {{ t.user.unit_number || '—' }}
+                                </td>
+                                <td class="td-muted">
+                                    {{ t.channels?.[0]?.name || '—' }}
+                                </td>
+                                <td>
+                                    <div style="display: flex; gap: 2px">
+                                        <button
+                                            @click="editTenant(t)"
+                                            class="icon-btn icon-btn--edit"
+                                            title="Edit"
+                                        >
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                class="h-4 w-4"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <path
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+                                                />
+                                            </svg>
+                                        </button>
+                                        <button
+                                            @click="confirmDelete(t.id)"
+                                            class="icon-btn icon-btn--danger"
+                                            title="Delete"
+                                        >
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                class="h-4 w-4"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <path
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                                />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="pagination-bar" v-if="householdList.length > 0">
+                    <span class="pagination-bar__info">
+                        Showing {{ households.from || 0 }}–{{
+                            households.to || 0
+                        }}
+                        of {{ households.total }}
+                    </span>
+                    <div class="pagination-bar__pages">
+                        <template
+                            v-for="(link, index) in households.links"
+                            :key="index"
+                        >
+                            <button
+                                v-if="link.url"
+                                @click="reloadTenants(link.url)"
+                                v-html="link.label"
+                                class="page-btn"
+                                :class="{ 'page-btn--active': link.active }"
+                            />
+                            <span
+                                v-else
+                                v-html="link.label"
+                                class="page-btn page-btn--disabled"
+                            />
+                        </template>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <!-- Add/Edit modal -->
+        <!-- ADD / EDIT MODAL -->
         <transition name="modal">
             <div
                 v-if="showModal"
@@ -241,75 +381,176 @@ onMounted(async () => {
             >
                 <div class="modal-sheet" style="max-width: 620px">
                     <div class="modal-sheet__header">
-                        <div class="modal-sheet__title">
-                            {{ isEditing ? 'Edit' : 'Add' }} Tenant
+                        <div class="modal-sheet__header-left">
+                            <div class="modal-sheet__title">
+                                {{ isEditing ? 'Edit' : 'Add' }} Tenant
+                            </div>
                         </div>
-                        <button class="close-btn" @click="closeModal">✕</button>
+                        <button class="close-btn" @click="closeModal">
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M6 18L18 6M6 6l12 12"
+                                />
+                            </svg>
+                        </button>
                     </div>
+
                     <form
                         @submit.prevent="submitTenant"
                         class="modal-sheet__body"
                     >
                         <div v-if="myChannels.length > 1" class="field">
-                            <label class="field__label">Channel</label>
-                            <select
-                                v-model="form.channel_id"
-                                class="field__select"
-                            >
-                                <option
-                                    v-for="ch in myChannels"
-                                    :key="ch.id"
-                                    :value="ch.id"
+                            <label class="field__label">Estate / Channel</label>
+                            <div class="select-wrapper">
+                                <select
+                                    v-model="form.channel_id"
+                                    class="field__select"
                                 >
-                                    {{ ch.name }}
-                                </option>
-                            </select>
+                                    <option
+                                        v-for="ch in myChannels"
+                                        :key="ch.id"
+                                        :value="ch.id"
+                                    >
+                                        {{ ch.name }}
+                                    </option>
+                                </select>
+                                <svg
+                                    class="select-caret"
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        d="M19 9l-7 7-7-7"
+                                    />
+                                </svg>
+                            </div>
                         </div>
 
-                        <div class="field">
-                            <label class="field__label">Name</label>
-                            <input v-model="form.name" class="field__input" />
-                            <span v-if="errors.name" class="field__error">{{
-                                errors.name[0]
-                            }}</span>
+                        <div
+                            style="
+                                display: grid;
+                                grid-template-columns: 1fr 1fr;
+                                gap: 14px;
+                            "
+                        >
+                            <div class="field">
+                                <label class="field__label">Name</label>
+                                <input
+                                    v-model="form.name"
+                                    class="field__input"
+                                    :class="{
+                                        'field__input--error': errors.name,
+                                    }"
+                                />
+                                <span v-if="errors.name" class="field__error">{{
+                                    errors.name[0]
+                                }}</span>
+                            </div>
+                            <div class="field">
+                                <label class="field__label">Email</label>
+                                <input
+                                    v-model="form.email"
+                                    class="field__input"
+                                    :class="{
+                                        'field__input--error': errors.email,
+                                    }"
+                                />
+                                <span
+                                    v-if="errors.email"
+                                    class="field__error"
+                                    >{{ errors.email[0] }}</span
+                                >
+                            </div>
                         </div>
-                        <div class="field">
-                            <label class="field__label">Email</label>
-                            <input v-model="form.email" class="field__input" />
+
+                        <div
+                            style="
+                                display: grid;
+                                grid-template-columns: 1fr 1fr;
+                                gap: 14px;
+                            "
+                        >
+                            <div class="field">
+                                <label class="field__label">Phone</label>
+                                <VueTelInput
+                                    v-model="form.phone"
+                                    mode="international"
+                                    :onlyCountries="['ZA']"
+                                    defaultCountry="ZA"
+                                    :autoFormat="true"
+                                    :inputOptions="{
+                                        showDialCode: true,
+                                        placeholder: '+27821234567',
+                                    }"
+                                    @input="handlePhoneInput"
+                                    class="custom-tel-input"
+                                />
+                                <span
+                                    v-if="errors.phone"
+                                    class="field__error"
+                                    >{{ errors.phone[0] }}</span
+                                >
+                            </div>
+                            <div class="field">
+                                <label class="field__label">Unit Number</label>
+                                <input
+                                    v-model="form.unit_number"
+                                    class="field__input"
+                                    placeholder="e.g. Unit 4B"
+                                />
+                            </div>
                         </div>
-                        <div class="field">
-                            <label class="field__label">Phone</label>
-                            <VueTelInput
-                                v-model="form.phone"
-                                mode="international"
-                                :onlyCountries="['ZA']"
-                                defaultCountry="ZA"
-                                class="custom-tel-input"
-                            />
-                        </div>
-                        <div class="field">
-                            <label class="field__label">Unit Number</label>
-                            <input
-                                v-model="form.unit_number"
-                                class="field__input"
-                            />
-                        </div>
-                        <div class="field">
-                            <label class="field__label">Street Address</label>
-                            <input
-                                v-model="form.address_line_1"
-                                class="field__input"
-                            />
-                        </div>
-                        <div class="field">
-                            <label class="field__label">Suburb</label>
-                            <input v-model="form.suburb" class="field__input" />
+
+                        <div class="callout callout--info">
+                            <span
+                                style="
+                                    width: 100%;
+                                    display: flex;
+                                    flex-direction: column;
+                                "
+                            >
+                                <span class="callout__label-title"
+                                    >Address (inherited from estate)</span
+                                >
+                                <span
+                                    class="callout__label-sub"
+                                    style="margin-top: 2px"
+                                >
+                                    {{
+                                        selectedChannel?.address_line_1 ||
+                                        'Not set for this estate yet - contact an admin to configure the estate address'
+                                    }}
+                                    <template v-if="selectedChannel?.suburb">
+                                        , {{ selectedChannel.suburb }}
+                                    </template>
+                                </span>
+                            </span>
                         </div>
 
                         <div class="pin-panel">
                             <div class="pin-panel__header">
-                                <div class="pin-panel__title">
-                                    Security Codes
+                                <div>
+                                    <div class="pin-panel__title">
+                                        Security Codes
+                                    </div>
+                                    <div class="pin-panel__sub">
+                                        Auto-generated. Send to the tenant on
+                                        their first login.
+                                    </div>
                                 </div>
                                 <button
                                     type="button"
@@ -326,29 +567,38 @@ onMounted(async () => {
                                     gap: 12px;
                                 "
                             >
-                                <input
-                                    v-model="form.safe_cancel_pin"
-                                    class="field__input pin-input pin-input--green"
-                                    readonly
-                                />
-                                <input
-                                    v-model="form.duress_pin"
-                                    class="field__input pin-input pin-input--red"
-                                    readonly
-                                />
+                                <div class="field" style="gap: 4px">
+                                    <label class="field__label">
+                                        <span
+                                            class="pin-dot pin-dot--green"
+                                        ></span>
+                                        Cancel Code
+                                    </label>
+                                    <input
+                                        v-model="form.safe_cancel_pin"
+                                        maxlength="6"
+                                        class="field__input pin-input pin-input--green"
+                                        readonly
+                                    />
+                                </div>
+                                <div class="field" style="gap: 4px">
+                                    <label class="field__label">
+                                        <span
+                                            class="pin-dot pin-dot--red"
+                                        ></span>
+                                        Duress Code
+                                    </label>
+                                    <input
+                                        v-model="form.duress_pin"
+                                        maxlength="6"
+                                        class="field__input pin-input pin-input--red"
+                                        readonly
+                                    />
+                                </div>
                             </div>
                         </div>
 
-                        <div class="field">
-                            <label class="field__label">Set Password</label>
-                            <input
-                                v-model="form.password"
-                                type="password"
-                                class="field__input"
-                            />
-                        </div>
-
-                        <div class="modal-actions">
+                        <div class="modal-actions mt-3">
                             <button
                                 type="button"
                                 @click="closeModal"
@@ -375,6 +625,7 @@ onMounted(async () => {
             </div>
         </transition>
 
+        <!-- DELETE CONFIRM -->
         <transition name="modal">
             <div
                 v-if="showDeleteModal"
@@ -382,8 +633,27 @@ onMounted(async () => {
                 @click.self="showDeleteModal = false"
             >
                 <div class="confirm-modal">
+                    <div class="confirm-modal__icon">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-7 w-7 text-red-500"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
+                        </svg>
+                    </div>
                     <h2 class="confirm-modal__title">Confirm Deletion</h2>
-                    <p class="confirm-modal__body">This action is permanent.</p>
+                    <p class="confirm-modal__body">
+                        Are you sure you want to delete this tenant? This will
+                        remove their access to Echo Link.
+                    </p>
                     <div class="confirm-modal__actions">
                         <button
                             @click="showDeleteModal = false"
@@ -391,11 +661,22 @@ onMounted(async () => {
                         >
                             Keep it
                         </button>
-                        <button @click="executeDelete" class="btn-danger">
-                            Yes, Delete
+                        <button
+                            @click="executeDelete"
+                            :disabled="deleting"
+                            class="btn-danger"
+                        >
+                            {{ deleting ? 'Deleting…' : 'Yes, Delete' }}
                         </button>
                     </div>
                 </div>
+            </div>
+        </transition>
+
+        <!-- FLASH -->
+        <transition name="toast">
+            <div v-if="flashMessage" class="toast">
+                {{ flashMessage }}
             </div>
         </transition>
     </AppLayout>
