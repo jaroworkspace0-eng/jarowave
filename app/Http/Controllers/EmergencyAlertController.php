@@ -97,41 +97,53 @@ class EmergencyAlertController extends Controller
 
         $alert->load(['user:id,name,phone,address_line_1,complex_name,suburb', 'channel:id,name']);
 
-        try {
-            \Illuminate\Support\Facades\Http::withHeaders([
-                'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
-            ])->timeout(5)->post(env('PTT_SERVER_URL') . '/emit', [
-                'channelId' => $alert->channel_id,
-                'householdId' => $alert->user_id,
-                'clientId' => $alert->client_id,
-                'event' => 'alert:new',
-                'data' => [
-                    'id' => $alert->id,
-                    'type' => $alert->alert_type,
-                    'household_name' => $alert->user->name,
-                    'household_phone' => $alert->user->phone,
-                    'home_address' => collect([
-                        $alert->user->complex_name,
-                        $alert->user->address_line_1,
-                        $alert->user->suburb,
-                    ])->filter()->implode(', '),
-                    'channel_name' => $alert->channel->name,
-                    'created_at' => $alert->created_at,
-                    'first_ack_at' => null,
-                    'last_lat' => $alert->latitude,
-                    'last_lng' => $alert->longitude,
-                    'muted' => false,
-                    'guardian_count' => 0,
-                    'guardian_ids' => [],
-                    'events' => [],
-                ],
-            ]);
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('Failed to push alert:new to dashboard', [
-                'alert_id' => $alert->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
+$channelGuards = \App\Models\Employee::whereHas('channels', fn ($q) =>
+        $q->where('channels.id', $alert->channel_id))
+    ->whereHas('user', fn ($q) => $q->where('is_gate_guard', true))
+    ->with('user:id,name,phone')
+    ->get()
+    ->map(fn ($e) => [
+        'id' => $e->user->id,
+        'username' => $e->user->name,
+        'phone' => $e->user->phone,
+    ]);
+
+try {
+    \Illuminate\Support\Facades\Http::withHeaders([
+        'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
+    ])->timeout(5)->post(env('PTT_SERVER_URL') . '/emit', [
+        'channelId' => $alert->channel_id,
+        'householdId' => $alert->user_id,
+        'clientId' => $alert->client_id,
+        'event' => 'alert:new',
+        'data' => [
+            'id' => $alert->id,
+            'type' => $alert->alert_type,
+            'household_name' => $alert->user->name,
+            'household_phone' => $alert->user->phone,
+            'home_address' => collect([
+                $alert->user->complex_name,
+                $alert->user->address_line_1,
+                $alert->user->suburb,
+            ])->filter()->implode(', '),
+            'channel_name' => $alert->channel->name,
+            'created_at' => $alert->created_at,
+            'first_ack_at' => null,
+            'last_lat' => $alert->latitude,
+            'last_lng' => $alert->longitude,
+            'muted' => false,
+            'guardian_count' => 0,
+            'guardian_ids' => [],
+            'events' => [],
+            'channelGuards' => $channelGuards,
+        ],
+    ]);
+} catch (\Throwable $e) {
+    \Illuminate\Support\Facades\Log::warning('Failed to push alert:new to dashboard', [
+        'alert_id' => $alert->id,
+        'error' => $e->getMessage(),
+    ]);
+}
 
         return response()->json([
             'status' => 'success',
