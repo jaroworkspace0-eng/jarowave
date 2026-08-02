@@ -32,6 +32,8 @@ const emit = defineEmits([
     'dispatch',
 ]);
 
+console.log('Data:', props.alert);
+
 /* ---------------- Dispatch ---------------- */
 
 const selectedDispatchGuardId = ref('');
