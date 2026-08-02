@@ -3,12 +3,10 @@ import AlertCard from '@/components/AlertCard.vue';
 import { useAdminAlerts } from '@/composables/useAdminAlerts';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useAuthStore } from '@/stores/auth';
-import { usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
-const page = usePage();
-
-const isGateGuard = computed(() => !!page.props.auth?.user?.is_gate_guard);
+const storedUser = JSON.parse(localStorage.getItem('user') || 'null');
+const isGateGuard = computed(() => !!storedUser?.is_gate_guard);
 const auth = useAuthStore();
 
 const showChannelLabel = computed(() => auth.user?.role !== 'admin');

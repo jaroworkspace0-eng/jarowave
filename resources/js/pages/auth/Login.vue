@@ -25,6 +25,7 @@ async function login() {
 
         const userRes = await axios.get('/api/user');
         const user = userRes.data;
+
         localStorage.setItem('user', JSON.stringify(userRes.data));
 
         if (user.role === 'estate_billing') {
