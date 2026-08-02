@@ -3,6 +3,17 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import {
+    BellRing,
+    CheckCircle2,
+    Crosshair,
+    MapPin,
+    Siren,
+    UserCheck,
+    X,
+} from 'lucide-vue-next';
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 
 const breadcrumbs: BreadcrumbItem[] = [];
@@ -143,7 +154,7 @@ function fmtDate(d: string) {
         year: 'numeric',
     });
 }
-function fmtDateTime(d: string) {
+function fmtDateTime(d: string | null | undefined) {
     const date = toDate(d);
     if (!date) return '—';
     return date.toLocaleString('en-ZA', {
@@ -192,31 +203,41 @@ function fmtDuration(v: number | string | null | undefined) {
     return mins > 0 ? `${hrs} hr ${mins} min` : `${hrs} hr`;
 }
 
-// ══════════ Map (Leaflet via CDN) + reverse geocoding ══════════
+// ══════════ Map (Leaflet, npm package — matches LiveAlertsCard.vue) ══════════
+// Points, roles, reverse-geocoded names, an OSRM route between the guard's
+// start/arrival, and permanent named tooltips on every marker.
 
 const mapEl = ref<HTMLElement | null>(null);
 const mapLoading = ref(false);
 const geocoded = ref<Record<string, string | null>>({});
+const routeCoords = ref<[number, number][] | null>(null);
 let mapInstance: any = null;
-let leafletPromise: Promise<any> | null = null;
 
-const mapPoints = computed(() => {
+type MapPoint = {
+    key: string;
+    label: string;
+    role: 'household' | 'guard';
+    person: string;
+    color: string;
+    lat: number;
+    lng: number;
+};
+
+const mapPoints = computed<MapPoint[]>(() => {
     const r = selectedReport.value;
     if (!r) return [];
     const a = r.alert;
     const res = r.resolution;
-    const pts: {
-        key: string;
-        label: string;
-        color: string;
-        lat: number;
-        lng: number;
-    }[] = [];
+    const householdName = r.household?.name || 'Household';
+    const guardName = r.reporter?.name || 'Guard';
+    const pts: MapPoint[] = [];
 
     if (a?.trigger_lat && a?.trigger_lng) {
         pts.push({
             key: 'trigger',
             label: 'Alert Triggered',
+            role: 'household',
+            person: householdName,
             color: '#dc2626',
             lat: Number(a.trigger_lat),
             lng: Number(a.trigger_lng),
@@ -230,6 +251,8 @@ const mapPoints = computed(() => {
         pts.push({
             key: 'last',
             label: 'Last Known Location',
+            role: 'household',
+            person: householdName,
             color: '#f97316',
             lat: Number(a.last_lat),
             lng: Number(a.last_lng),
@@ -239,6 +262,8 @@ const mapPoints = computed(() => {
         pts.push({
             key: 'start',
             label: 'Guard Start',
+            role: 'guard',
+            person: guardName,
             color: '#2563eb',
             lat: Number(res.start_latitude),
             lng: Number(res.start_longitude),
@@ -248,6 +273,8 @@ const mapPoints = computed(() => {
         pts.push({
             key: 'arrival',
             label: 'Guard Arrival',
+            role: 'guard',
+            person: guardName,
             color: '#059669',
             lat: Number(res.arrival_latitude),
             lng: Number(res.arrival_longitude),
@@ -256,25 +283,17 @@ const mapPoints = computed(() => {
     return pts;
 });
 
-function loadLeaflet(): Promise<any> {
-    if ((window as any).L) return Promise.resolve((window as any).L);
-    if (leafletPromise) return leafletPromise;
-    leafletPromise = new Promise((resolve, reject) => {
-        if (!document.querySelector('link[data-leaflet]')) {
-            const link = document.createElement('link');
-            link.rel = 'stylesheet';
-            link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-            link.setAttribute('data-leaflet', 'true');
-            document.head.appendChild(link);
-        }
-        const script = document.createElement('script');
-        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-        script.onload = () => resolve((window as any).L);
-        script.onerror = reject;
-        document.head.appendChild(script);
-    });
-    return leafletPromise;
-}
+// The route drawn on the map: prefer the guard's actual start → arrival
+// journey; fall back to guard start → household's last known location if
+// no arrival fix was recorded.
+const routeEndpoints = computed(() => {
+    const start = mapPoints.value.find((p) => p.key === 'start');
+    const arrival = mapPoints.value.find((p) => p.key === 'arrival');
+    if (start && arrival) return { from: start, to: arrival };
+    const household = mapPoints.value.find((p) => p.role === 'household');
+    if (start && household) return { from: start, to: household };
+    return null;
+});
 
 const geocodeCache = new Map<string, string | null>();
 
@@ -312,11 +331,95 @@ async function reverseGeocode(
     }
 }
 
+// OSRM's public demo routing server — free, shared, rate-limited; fine for
+// low-volume internal admin use. Self-host or use a paid router at scale.
+async function fetchRoute(
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number,
+): Promise<[number, number][] | null> {
+    try {
+        const url = `https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const data = await res.json();
+        const coords = data?.routes?.[0]?.geometry?.coordinates;
+        if (!coords) return null;
+        return coords.map(([lng, lat]: [number, number]) => [lat, lng]);
+    } catch {
+        return null;
+    }
+}
+
+function buildMap(container: HTMLElement) {
+    const map = L.map(container, {
+        zoomControl: true,
+        attributionControl: false,
+    });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors',
+    }).addTo(map);
+    return map;
+}
+
+function drawPoints(map: any) {
+    const layer = L.layerGroup().addTo(map);
+    const bounds: [number, number][] = [];
+
+    for (const p of mapPoints.value) {
+        const icon = L.divIcon({
+            className: 'map-pin',
+            html: `<span class="map-pin__dot" style="background:${p.color}"></span>`,
+            iconSize: [16, 16],
+            iconAnchor: [8, 8],
+        });
+        L.marker([p.lat, p.lng], { icon })
+            .bindTooltip(
+                `<strong>${p.label}</strong><br>${p.role === 'guard' ? 'Guard' : 'Household'} — ${p.person}`,
+                {
+                    permanent: true,
+                    direction: 'top',
+                    offset: [0, -10],
+                    className: `ir-leaflet-label ir-leaflet-label--${p.role}`,
+                },
+            )
+            .addTo(layer);
+        bounds.push([p.lat, p.lng]);
+
+        reverseGeocode(p.lat, p.lng).then((addr) => {
+            geocoded.value[p.key] = addr;
+        });
+    }
+
+    if (routeCoords.value?.length) {
+        L.polyline(routeCoords.value, {
+            color: '#2563eb',
+            weight: 4,
+            opacity: 0.75,
+        }).addTo(layer);
+    }
+
+    return bounds;
+}
+
+function fitToPoints(map: any) {
+    const bounds = mapPoints.value.map((p) => [p.lat, p.lng]) as [
+        number,
+        number,
+    ][];
+    if (bounds.length === 1) map.setView(bounds[0], 16);
+    else if (bounds.length > 1) map.fitBounds(bounds, { padding: [30, 30] });
+}
+
+function recenterMap() {
+    if (mapInstance) fitToPoints(mapInstance);
+}
+
 async function initMap() {
-    const points = mapPoints.value;
-    if (points.length === 0) return;
+    if (mapPoints.value.length === 0) return;
     mapLoading.value = true;
-    const L = await loadLeaflet();
     await nextTick();
     if (!mapEl.value) {
         mapLoading.value = false;
@@ -326,39 +429,15 @@ async function initMap() {
         mapInstance.remove();
         mapInstance = null;
     }
-    mapInstance = L.map(mapEl.value, {
-        zoomControl: true,
-        attributionControl: false,
-    });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-    }).addTo(mapInstance);
+    mapInstance = buildMap(mapEl.value);
 
-    const bounds: [number, number][] = [];
-    for (const p of points) {
-        const icon = L.divIcon({
-            className: 'map-pin',
-            html: `<span class="map-pin__dot" style="background:${p.color}"></span>`,
-            iconSize: [16, 16],
-            iconAnchor: [8, 8],
-        });
-        const marker = L.marker([p.lat, p.lng], { icon }).addTo(mapInstance);
-        marker.bindPopup(`<strong>${p.label}</strong>`);
-        bounds.push([p.lat, p.lng]);
+    const ep = routeEndpoints.value;
+    routeCoords.value = ep
+        ? await fetchRoute(ep.from.lat, ep.from.lng, ep.to.lat, ep.to.lng)
+        : null;
 
-        reverseGeocode(p.lat, p.lng).then((addr) => {
-            geocoded.value[p.key] = addr;
-            if (addr)
-                marker.setPopupContent(
-                    `<strong>${p.label}</strong><br>${addr}`,
-                );
-        });
-    }
-    if (bounds.length === 1) {
-        mapInstance.setView(bounds[0], 16);
-    } else {
-        mapInstance.fitBounds(bounds, { padding: [30, 30] });
-    }
+    drawPoints(mapInstance);
+    fitToPoints(mapInstance);
     mapLoading.value = false;
 }
 
@@ -368,9 +447,56 @@ function destroyMap() {
         mapInstance = null;
     }
     geocoded.value = {};
+    routeCoords.value = null;
 }
 
 onUnmounted(() => destroyMap());
+
+// ══════════ Response timeline ══════════
+
+const timelineSteps = computed(() => {
+    const r = selectedReport.value;
+    if (!r) return [];
+    const a = r.alert;
+    const res = r.resolution;
+    return [
+        {
+            key: 'triggered',
+            label: 'Alert Triggered',
+            time: a?.created_at,
+            icon: Siren,
+            done: !!a?.created_at,
+        },
+        {
+            key: 'ack',
+            label: 'First Acknowledged',
+            time: a?.first_ack_at,
+            icon: BellRing,
+            done: !!a?.first_ack_at,
+        },
+        {
+            key: 'accepted',
+            label: 'Guard Accepted',
+            time: res?.accepted_at,
+            icon: UserCheck,
+            done: !!res?.accepted_at,
+        },
+        {
+            key: 'arrived',
+            label: 'Guard Arrived',
+            time: res?.arrival_time,
+            icon: MapPin,
+            done: !!res?.arrival_time,
+        },
+        {
+            key: 'resolved',
+            label: 'Resolved',
+            time: res?.resolution_time,
+            icon: CheckCircle2,
+            done: !!res?.resolution_time,
+        },
+    ];
+});
 
 const statusOptions = [
     { value: '', label: 'All' },
@@ -682,20 +808,7 @@ onMounted(() => loadReports());
                                 </div>
                             </div>
                             <button class="close-btn" @click="closeDetail">
-                                <svg
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    class="h-4 w-4"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                    stroke-width="2"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        d="M6 18L18 6M6 6l12 12"
-                                    />
-                                </svg>
+                                <X :size="16" />
                             </button>
                         </div>
 
@@ -849,76 +962,60 @@ onMounted(() => loadReports());
                                     <div class="field__label">
                                         Response Timeline
                                     </div>
-                                    <div class="detail-grid">
-                                        <div>
-                                            <div class="field__label">
-                                                Alert Sent
+                                    <div class="ir-timeline">
+                                        <div
+                                            v-for="(step, i) in timelineSteps"
+                                            :key="step.key"
+                                            class="ir-timeline__step"
+                                        >
+                                            <div class="ir-timeline__rail">
+                                                <span
+                                                    class="ir-timeline__dot"
+                                                    :class="{
+                                                        'ir-timeline__dot--done':
+                                                            step.done,
+                                                    }"
+                                                >
+                                                    <component
+                                                        :is="step.icon"
+                                                        :size="12"
+                                                    />
+                                                </span>
+                                                <span
+                                                    v-if="
+                                                        i <
+                                                        timelineSteps.length - 1
+                                                    "
+                                                    class="ir-timeline__line"
+                                                    :class="{
+                                                        'ir-timeline__line--done':
+                                                            step.done,
+                                                    }"
+                                                ></span>
                                             </div>
-                                            <div>
-                                                <div class="field__label">
-                                                    First Acknowledged
+                                            <div class="ir-timeline__body">
+                                                <div class="ir-timeline__label">
+                                                    {{ step.label }}
                                                 </div>
-                                                <div class="detail-grid__value">
+                                                <div
+                                                    class="ir-timeline__time"
+                                                    :class="{
+                                                        'ir-timeline__time--pending':
+                                                            !step.done,
+                                                    }"
+                                                >
                                                     {{
-                                                        fmtDateTime(
-                                                            selectedReport
-                                                                ?.alert
-                                                                ?.first_ack_at,
-                                                        )
+                                                        step.done
+                                                            ? fmtDateTime(
+                                                                  step.time,
+                                                              )
+                                                            : 'Pending'
                                                     }}
                                                 </div>
                                             </div>
-                                            <div class="detail-grid__value">
-                                                {{
-                                                    fmtDateTime(
-                                                        selectedReport?.alert
-                                                            ?.created_at,
-                                                    )
-                                                }}
-                                            </div>
                                         </div>
-                                        <div>
-                                            <div class="field__label">
-                                                Guard Accepted
-                                            </div>
-                                            <div class="detail-grid__value">
-                                                {{
-                                                    fmtDateTime(
-                                                        selectedReport
-                                                            ?.resolution
-                                                            ?.accepted_at,
-                                                    )
-                                                }}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div class="field__label">
-                                                System Arrival
-                                            </div>
-                                            <div class="detail-grid__value">
-                                                {{
-                                                    fmtDateTime(
-                                                        selectedReport
-                                                            ?.resolution
-                                                            ?.arrival_time,
-                                                    )
-                                                }}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div class="field__label">
-                                                System Resolved
-                                            </div>
-                                            <div class="detail-grid__value">
-                                                {{
-                                                    fmtDateTime(
-                                                        selectedReport
-                                                            ?.resolution
-                                                            ?.resolution_time,
-                                                    )
-                                                }}
-                                            </div>
-                                        </div>
+                                    </div>
+                                    <div class="detail-grid detail-grid--pad">
                                         <div>
                                             <div class="field__label">
                                                 Response Duration
@@ -951,38 +1048,64 @@ onMounted(() => loadReports());
                                 </div>
 
                                 <div class="review-info-panel">
-                                    <div class="field__label">Location</div>
-                                    <div class="detail-grid">
-                                        <div>
-                                            <div class="field__label">
-                                                Trigger Location
-                                            </div>
-                                            <div class="detail-grid__value">
-                                                {{
-                                                    selectedReport?.alert
-                                                        ?.trigger_lat &&
-                                                    selectedReport?.alert
-                                                        ?.trigger_lng
-                                                        ? `${selectedReport.alert.trigger_lat}, ${selectedReport.alert.trigger_lng}`
-                                                        : '—'
-                                                }}
+                                    <div class="field__label">Locations</div>
+                                    <div class="ir-location-list">
+                                        <div
+                                            v-for="p in mapPoints"
+                                            :key="p.key"
+                                            class="ir-location-row"
+                                        >
+                                            <span
+                                                class="ir-location-row__dot"
+                                                :style="{
+                                                    background: p.color,
+                                                }"
+                                            ></span>
+                                            <div class="ir-location-row__body">
+                                                <div
+                                                    class="ir-location-row__top"
+                                                >
+                                                    <span
+                                                        class="ir-location-row__label"
+                                                        >{{ p.label }}</span
+                                                    >
+                                                    <span
+                                                        class="ir-location-row__role"
+                                                        :class="`ir-location-row__role--${p.role}`"
+                                                    >
+                                                        {{
+                                                            p.role === 'guard'
+                                                                ? 'Guard'
+                                                                : 'Household'
+                                                        }}
+                                                        — {{ p.person }}
+                                                    </span>
+                                                </div>
+                                                <div
+                                                    class="ir-location-row__addr"
+                                                >
+                                                    {{
+                                                        geocoded[p.key] ??
+                                                        'Locating…'
+                                                    }}
+                                                </div>
+                                                <div
+                                                    class="ir-location-row__coords"
+                                                >
+                                                    {{ p.lat.toFixed(5) }},
+                                                    {{ p.lng.toFixed(5) }}
+                                                </div>
                                             </div>
                                         </div>
-                                        <div>
-                                            <div class="field__label">
-                                                Last Known Location
-                                            </div>
-                                            <div class="detail-grid__value">
-                                                {{
-                                                    selectedReport?.alert
-                                                        ?.last_lat &&
-                                                    selectedReport?.alert
-                                                        ?.last_lng
-                                                        ? `${selectedReport.alert.last_lat}, ${selectedReport.alert.last_lng}`
-                                                        : '—'
-                                                }}
-                                            </div>
-                                        </div>
+                                        <p
+                                            v-if="mapPoints.length === 0"
+                                            class="ir-location-empty"
+                                        >
+                                            No location data available for this
+                                            report
+                                        </p>
+                                    </div>
+                                    <div class="detail-grid detail-grid--pad">
                                         <div>
                                             <div class="field__label">
                                                 GPS Accuracy
@@ -1006,36 +1129,6 @@ onMounted(() => loadReports());
                                                         selectedReport?.alert
                                                             ?.location_updated_at,
                                                     )
-                                                }}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div class="field__label">
-                                                Responder Start
-                                            </div>
-                                            <div class="detail-grid__value">
-                                                {{
-                                                    selectedReport?.resolution
-                                                        ?.start_latitude &&
-                                                    selectedReport?.resolution
-                                                        ?.start_longitude
-                                                        ? `${selectedReport.resolution.start_latitude}, ${selectedReport.resolution.start_longitude}`
-                                                        : '—'
-                                                }}
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <div class="field__label">
-                                                Responder Arrival
-                                            </div>
-                                            <div class="detail-grid__value">
-                                                {{
-                                                    selectedReport?.resolution
-                                                        ?.arrival_latitude &&
-                                                    selectedReport?.resolution
-                                                        ?.arrival_longitude
-                                                        ? `${selectedReport.resolution.arrival_latitude}, ${selectedReport.resolution.arrival_longitude}`
-                                                        : '—'
                                                 }}
                                             </div>
                                         </div>
@@ -1215,9 +1308,7 @@ onMounted(() => loadReports());
                                     <div class="field__label">Admin Action</div>
                                     <p class="review-info-panel__name">
                                         By
-                                        {{
-                                            selectedReport.actioned_by?.name
-                                        }}
+                                        {{ selectedReport.actioned_by?.name }}
                                         on
                                         {{
                                             fmtDateTime(
@@ -1235,9 +1326,23 @@ onMounted(() => loadReports());
                             </div>
 
                             <div class="modal-sheet__map-panel">
-                                <div ref="mapEl" class="modal-sheet__map"></div>
-                                <div v-if="mapLoading" class="map-loading">
-                                    Loading map…
+                                <div class="modal-sheet__map-wrap">
+                                    <div
+                                        ref="mapEl"
+                                        class="modal-sheet__map"
+                                    ></div>
+                                    <button
+                                        v-if="mapPoints.length"
+                                        type="button"
+                                        class="ir-recenter-btn"
+                                        @click="recenterMap"
+                                    >
+                                        <Crosshair :size="14" />
+                                        Recenter
+                                    </button>
+                                    <div v-if="mapLoading" class="map-loading">
+                                        Loading map…
+                                    </div>
                                 </div>
                                 <div class="map-legend">
                                     <div
@@ -1252,12 +1357,24 @@ onMounted(() => loadReports());
                                         <div>
                                             <div class="map-legend__label">
                                                 {{ p.label }}
+                                                <span class="map-legend__role"
+                                                    >({{
+                                                        p.role === 'guard'
+                                                            ? 'Guard'
+                                                            : 'Household'
+                                                    }}
+                                                    — {{ p.person }})</span
+                                                >
                                             </div>
                                             <div class="map-legend__addr">
                                                 {{
                                                     geocoded[p.key] ??
                                                     'Locating…'
                                                 }}
+                                            </div>
+                                            <div class="map-legend__coords">
+                                                {{ p.lat.toFixed(5) }},
+                                                {{ p.lng.toFixed(5) }}
                                             </div>
                                         </div>
                                     </div>
@@ -1682,8 +1799,12 @@ onMounted(() => loadReports());
     border: 1px solid #e4e8ef;
 }
 .modal-sheet--wide {
-    max-width: 1040px;
-    overflow-y: hidden;
+    max-width: 1180px;
+    height: 86vh;
+    max-height: 86vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
 }
 .modal-sheet__header {
     display: flex;
@@ -1696,6 +1817,7 @@ onMounted(() => loadReports());
     background: #fff !important;
     z-index: 2;
     justify-content: space-between;
+    flex-shrink: 0;
 }
 .modal-sheet__title {
     font-size: 15px;
@@ -1724,10 +1846,11 @@ onMounted(() => loadReports());
 }
 .modal-sheet__layout {
     display: flex;
-    max-height: calc(90vh - 79px);
+    flex: 1;
+    min-height: 0;
 }
 .modal-sheet__body {
-    flex: 1 1 58%;
+    flex: 1 1 44%;
     min-width: 0;
     overflow-y: auto;
     padding: 24px;
@@ -1736,19 +1859,22 @@ onMounted(() => loadReports());
     gap: 18px;
 }
 .modal-sheet__map-panel {
-    flex: 1 1 42%;
-    max-width: 380px;
-    min-width: 280px;
+    flex: 1 1 56%;
+    min-width: 360px;
     border-left: 1px solid #e4e8ef;
     display: flex;
     flex-direction: column;
     background: #f8fafc;
+    min-height: 0;
+}
+.modal-sheet__map-wrap {
     position: relative;
+    flex: 1 1 auto;
+    min-height: 240px;
 }
 .modal-sheet__map {
-    height: 260px;
+    height: 100%;
     width: 100%;
-    flex-shrink: 0;
 }
 .map-loading {
     position: absolute;
@@ -1763,12 +1889,37 @@ onMounted(() => loadReports());
     color: #64748b;
     box-shadow: var(--shadow-sm);
 }
+.ir-recenter-btn {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    z-index: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    background: #fff;
+    border: none;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    color: #1a2332;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.ir-recenter-btn:hover {
+    background: #f1f5f9;
+}
 .map-legend {
+    flex: 0 0 auto;
+    max-height: 34%;
     padding: 14px 16px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 12px;
+    border-top: 1px solid #e4e8ef;
 }
 .map-legend__row {
     display: flex;
@@ -1789,10 +1940,22 @@ onMounted(() => loadReports());
     font-weight: 700;
     color: #1a2332;
 }
+.map-legend__role {
+    font-weight: 600;
+    color: #94a3b8;
+    font-size: 11px;
+    margin-left: 3px;
+}
 .map-legend__addr {
     font-size: 12px;
     color: #64748b;
     margin-top: 1px;
+}
+.map-legend__coords {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 1px;
+    font-variant-numeric: tabular-nums;
 }
 .map-legend__empty {
     font-size: 12px;
@@ -1834,6 +1997,11 @@ onMounted(() => loadReports());
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
 }
+.detail-grid--pad {
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px dashed #e4e8ef;
+}
 .detail-grid__value {
     margin-top: 2px;
     font-size: 13px;
@@ -1860,6 +2028,137 @@ onMounted(() => loadReports());
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
+}
+
+/* ── Response timeline ── */
+.ir-timeline {
+    display: flex;
+    flex-direction: column;
+}
+.ir-timeline__step {
+    display: flex;
+    gap: 12px;
+}
+.ir-timeline__rail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 22px;
+    flex-shrink: 0;
+}
+.ir-timeline__dot {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #f1f5f9;
+    color: #94a3b8;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 2px #e4e8ef;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.ir-timeline__dot--done {
+    background: #ea580c;
+    color: #fff;
+    box-shadow: 0 0 0 2px #fed7aa;
+}
+.ir-timeline__line {
+    flex: 1;
+    width: 2px;
+    min-height: 20px;
+    background: #e4e8ef;
+    margin: 2px 0;
+}
+.ir-timeline__line--done {
+    background: #fdba74;
+}
+.ir-timeline__body {
+    flex: 1;
+    padding-bottom: 16px;
+}
+.ir-timeline__step:last-child .ir-timeline__body {
+    padding-bottom: 0;
+}
+.ir-timeline__label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1a2332;
+}
+.ir-timeline__time {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 1px;
+}
+.ir-timeline__time--pending {
+    color: #94a3b8;
+    font-style: italic;
+}
+
+/* ── Named location rows (replaces raw coordinate display) ── */
+.ir-location-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.ir-location-row {
+    display: flex;
+    gap: 10px;
+}
+.ir-location-row__dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    margin-top: 4px;
+    flex-shrink: 0;
+    border: 1.5px solid #fff;
+    box-shadow: 0 0 0 1px #e4e8ef;
+}
+.ir-location-row__body {
+    flex: 1;
+    min-width: 0;
+}
+.ir-location-row__top {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.ir-location-row__label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1a2332;
+}
+.ir-location-row__role {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 8px;
+    border-radius: 10px;
+}
+.ir-location-row__role--household {
+    background: #fef2f2;
+    color: #dc2626;
+}
+.ir-location-row__role--guard {
+    background: #eff6ff;
+    color: #2563eb;
+}
+.ir-location-row__addr {
+    font-size: 12.5px;
+    color: #475569;
+    margin-top: 2px;
+}
+.ir-location-row__coords {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 1px;
+    font-variant-numeric: tabular-nums;
+}
+.ir-location-empty {
+    font-size: 12px;
+    color: #94a3b8;
+    margin: 0;
 }
 
 .toast {
@@ -1903,16 +2202,20 @@ onMounted(() => loadReports());
 @media (max-width: 900px) {
     .modal-sheet--wide {
         max-width: 640px;
+        height: auto;
+        max-height: 92vh;
     }
     .modal-sheet__layout {
         flex-direction: column;
-        max-height: none;
         overflow-y: auto;
     }
     .modal-sheet__map-panel {
-        max-width: none;
+        min-width: 0;
         border-left: none;
         border-top: 1px solid #e4e8ef;
+    }
+    .modal-sheet__map-wrap {
+        min-height: 260px;
     }
 }
 
@@ -1960,5 +2263,27 @@ onMounted(() => loadReports());
 .leaflet-popup-content {
     font-family: 'DM Sans', system-ui, sans-serif;
     font-size: 12px;
+}
+.ir-leaflet-label {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: none;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    color: #fff;
+}
+.ir-leaflet-label--household {
+    background: #dc2626;
+}
+.ir-leaflet-label--household::before {
+    border-top-color: #dc2626 !important;
+}
+.ir-leaflet-label--guard {
+    background: #2563eb;
+}
+.ir-leaflet-label--guard::before {
+    border-top-color: #2563eb !important;
 }
 </style>
