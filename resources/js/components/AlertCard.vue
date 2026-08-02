@@ -131,6 +131,74 @@ const hasRealLocation = computed(() => {
     return !!(lat || lng);
 });
 
+/* ---------------- GPS reverse geocode (address label for GPS-sourced alerts) ---------------- */
+
+const gpsAddressLabel = ref(null);
+const gpsAddressLoading = ref(false);
+const gpsAddressFailed = ref(false); // reverse geocode attempted but returned nothing
+
+const isGpsSource = computed(() => props.alert.alert_location_source === 'gps');
+
+async function reverseGeocode(lat, lng) {
+    try {
+        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
+        const res = await fetch(url, {
+            headers: { Accept: 'application/json' },
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data?.display_name || null;
+    } catch {
+        return null;
+    }
+}
+
+const gpsCoordsKey = computed(() =>
+    hasRealLocation.value
+        ? `${props.alert.last_lat},${props.alert.last_lng}`
+        : '',
+);
+
+watch(
+    gpsCoordsKey,
+    async (key) => {
+        gpsAddressLabel.value = null;
+        gpsAddressFailed.value = false;
+        if (!key || !isGpsSource.value) return;
+        gpsAddressLoading.value = true;
+        const result = await reverseGeocode(
+            Number(props.alert.last_lat),
+            Number(props.alert.last_lng),
+        );
+        gpsAddressLoading.value = false;
+        if (result) {
+            gpsAddressLabel.value = result;
+        } else {
+            // Nominatim returned nothing or the request failed — flag it so
+            // the UI can mark the home_address fallback as approximate
+            // rather than presenting it as equivalent to a live GPS fix.
+            gpsAddressFailed.value = true;
+            console.warn(
+                `[AlertCard] Reverse geocode failed for alert ${props.alert.id} — falling back to registered home_address`,
+            );
+        }
+    },
+    { immediate: true },
+);
+
+const gpsAddressDisplay = computed(() => {
+    if (!isGpsSource.value) return null;
+    if (hasRealLocation.value) return gpsAddressLabel.value;
+    return props.alert.home_address || null;
+});
+
+// True only when we have a real GPS fix, tried to reverse-geocode it, and
+// failed — meaning whatever address text is showing (home_address) is a
+// stale fallback, not derived from the actual coordinates.
+const isStaleFallbackAddress = computed(
+    () => isGpsSource.value && hasRealLocation.value && gpsAddressFailed.value,
+);
+
 const coordsLabel = computed(() => {
     if (!hasRealLocation.value) return null;
     const lat = Number(props.alert.last_lat);
@@ -591,6 +659,20 @@ function onResolveChange(e) {
                 <p v-else-if="isRegisteredAddress" class="ac-card__address">
                     {{ registeredAddressDisplay }}
                 </p>
+                <p v-else-if="gpsAddressDisplay" class="ac-card__address">
+                    {{ gpsAddressDisplay }}
+                    <span
+                        v-if="isStaleFallbackAddress"
+                        class="ac-address-approx"
+                        >(approximate)</span
+                    >
+                </p>
+                <p
+                    v-else-if="isGpsSource && gpsAddressLoading"
+                    class="ac-card__address ac-card__address--pending"
+                >
+                    Resolving address…
+                </p>
                 <p v-else-if="alert.home_address" class="ac-card__address">
                     {{ alert.home_address }}
                 </p>
@@ -851,6 +933,29 @@ function onResolveChange(e) {
                                         <span class="ac-detail-row--muted">
                                             · {{ locationSourceLabel }}</span
                                         >
+                                    </p>
+                                    <p
+                                        v-else-if="gpsAddressDisplay"
+                                        class="ac-detail-row"
+                                    >
+                                        {{ gpsAddressDisplay }}
+                                        <span class="ac-detail-row--muted">
+                                            · {{ locationSourceLabel }}</span
+                                        >
+                                        <span
+                                            v-if="isStaleFallbackAddress"
+                                            class="ac-address-approx"
+                                        >
+                                            (approximate)</span
+                                        >
+                                    </p>
+                                    <p
+                                        v-else-if="
+                                            isGpsSource && gpsAddressLoading
+                                        "
+                                        class="ac-detail-row ac-detail-row--muted"
+                                    >
+                                        Resolving address…
                                     </p>
                                     <p
                                         v-else-if="alert.home_address"
@@ -1912,5 +2017,15 @@ function onResolveChange(e) {
 .ac-unit-callout--modal {
     font-size: 16px;
     padding: 6px 14px;
+}
+
+.ac-card__address--pending {
+    font-style: italic;
+    color: var(--c-faint);
+}
+.ac-address-approx {
+    font-style: italic;
+    color: #d97706;
+    font-weight: 600;
 }
 </style>
