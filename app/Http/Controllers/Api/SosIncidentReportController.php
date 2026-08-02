@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Mail\ConductBlockMail;
+use App\Models\EmergencyAlert;
 use App\Models\SosIncidentReport;
 use App\Models\Subscription;
 use App\Models\User;
@@ -17,6 +18,7 @@ class SosIncidentReportController extends Controller
 {
     // ── POST /api/incident-reports ────────────────────────────────────────────
     // Patroller submits a report after responding to an alert
+   
     public function store(Request $request)
     {
         $request->validate([
@@ -32,6 +34,11 @@ class SosIncidentReportController extends Controller
             'additional_notes'   => 'nullable|string',
         ]);
 
+        $channelId = null;
+        if ($request->emergency_alert_id) {
+            $channelId = EmergencyAlert::find($request->emergency_alert_id)?->channel_id;
+        }
+
         $report = SosIncidentReport::create([
             ...$request->only([
                 'emergency_alert_id', 'household_user_id', 'outcome',
@@ -39,6 +46,7 @@ class SosIncidentReportController extends Controller
                 'injuries_reported', 'property_damage', 'additional_notes',
             ]),
             'reporter_user_id' => Auth::id(),
+            'channel_id'       => $channelId,
             'status'           => 'pending',
         ]);
 
