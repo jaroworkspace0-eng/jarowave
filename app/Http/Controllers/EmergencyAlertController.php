@@ -95,7 +95,8 @@ class EmergencyAlertController extends Controller
             'alert_type' => $request->alert_type ?? 'sos',
         ]);
 
-        $alert->load(['user:id,name,phone,address_line_1,complex_name,suburb,unit_number', 'channel:id,name']);
+        // $alert->load(['user:id,name,phone,address_line_1,complex_name,suburb', 'channel:id,name']);
+        $alert->load(['user:id,name,phone,address_line_1,complex_name,suburb,unit_number,alert_location_source,is_estate', 'channel:id,name']);
 
         $channelGuards = \App\Models\Employee::whereHas('channels', fn ($q) =>
                 $q->where('channels.id', $alert->channel_id))
@@ -121,12 +122,12 @@ class EmergencyAlertController extends Controller
                     'type' => $alert->alert_type,
                     'household_name' => $alert->user->name,
                     'household_phone' => $alert->user->phone,
-                    'alert_location_source' => $alert->alert_location_source,
-                    'is_estate' => $alert->is_estate,
+                    'alert_location_source' => $alert->user->alert_location_source,
+                    'is_estate' => $alert->user->is_estate,
+                    'unit_number' => $alert->user->unit_number,
                     'address_line_1' => $alert->user->address_line_1,
                     'complex_name' => $alert->user->complex_name,
                     'suburb' => $alert->user->suburb,
-                    'unit_number' => $alert->user->unit_number,
                     'home_address' => collect([
                         $alert->user->complex_name,
                         $alert->user->address_line_1,
