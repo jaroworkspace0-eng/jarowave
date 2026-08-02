@@ -154,6 +154,12 @@ class AlertEventService
                     'type' => $alert->alert_type,
                     'household_name' => $alert->user->name,
                     'household_phone' => $alert->user->phone,
+                    'alert_location_source' => $alert->alert_location_source,
+                    'is_estate' => $alert->is_estate,
+                    'address_line_1' => $alert->user->address_line_1,
+                    'complex_name' => $alert->user->complex_name,
+                    'suburb' => $alert->user->suburb,
+                    'unit_number' => $alert->user->unit_number,
                     'home_address' => collect([
                             $alert->user->address_line_1,
                             $alert->user->complex_name,
