@@ -1,22 +1,22 @@
 <script setup>
 import AppLayout from '@/layouts/AppLayout.vue';
-import { type BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
-BellRing,
-CheckCircle2,
-Crosshair,
-MapPin,
-Siren,
-UserCheck,
-X,
+    BellRing,
+    CheckCircle2,
+    Crosshair,
+    MapPin,
+    Siren,
+    UserCheck,
+    X,
 } from 'lucide-vue-next';
-import { computed,nextTick,onMounted,onUnmounted,ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 
-const breadcrumbs: BreadcrumbItem[] = [];
+// const breadcrumbs: BreadcrumbItem[] = [];
+const breadcrumbs = [];
 
 const reports = ref({ data: [], total: 0, from: 0, to: 0, links: [] });
 const reportList = ref([]);
