@@ -185,6 +185,7 @@ function handleSeen(alertId) {
                     v-for="alert in filteredList"
                     :key="alert.id"
                     :alert="alert"
+                    :is-estate-admin="true"
                     @mute="toggleMute"
                     @call-log="logCallAttempt"
                     @resolve="handleResolve"

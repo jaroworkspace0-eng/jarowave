@@ -22,7 +22,11 @@ import {
 
 const props = defineProps({
     alert: { type: Object, required: true },
+    // True for estate admin dashboards (dispatch + single-source address view).
+    // False (default) for Echo Link admin (no dispatch, dual address view).
+    isEstateAdmin: { type: Boolean, default: false },
 });
+
 const emit = defineEmits([
     'mute',
     'call-log',
@@ -32,9 +36,7 @@ const emit = defineEmits([
     'dispatch',
 ]);
 
-console.log('Data:', props.alert);
-
-/* ---------------- Dispatch ---------------- */
+/* ---------------- Dispatch (estate admin only) ---------------- */
 
 const selectedDispatchGuardId = ref('');
 const dispatching = ref(false);
@@ -131,7 +133,27 @@ const hasRealLocation = computed(() => {
     return !!(lat || lng);
 });
 
-/* ---------------- GPS reverse geocode (address label for GPS-sourced alerts) ---------------- */
+/* ---------------- Registered address (always available, source-independent) ---------------- */
+
+const registeredAddressAlways = computed(() => {
+    if (props.alert.is_estate) {
+        return props.alert.unit_number
+            ? `Unit ${props.alert.unit_number}`
+            : null;
+    }
+    return (
+        [
+            props.alert.address_line_1,
+            props.alert.complex_name,
+            props.alert.suburb,
+            props.alert.unit_number ? `Unit ${props.alert.unit_number}` : null,
+        ]
+            .filter(Boolean)
+            .join(', ') || null
+    );
+});
+
+/* ---------------- GPS reverse geocode (address label from live coordinates) ---------------- */
 
 const gpsAddressLabel = ref(null);
 const gpsAddressLoading = ref(false);
@@ -139,6 +161,9 @@ const gpsAddressFailed = ref(false); // reverse geocode attempted but returned n
 
 const isGpsSource = computed(() => props.alert.alert_location_source === 'gps');
 
+// Nominatim's public endpoint — shared demo instance, rate-limited (max ~1
+// req/sec), not for production volume. Fine for now; self-host Nominatim or
+// use a paid geocoder if this scales.
 async function reverseGeocode(lat, lng) {
     try {
         const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
@@ -164,6 +189,10 @@ async function reverseGeocode(lat, lng) {
     }
 }
 
+// Keyed on lat/lng so it only re-fetches when the GPS fix actually moves,
+// not on every unrelated alert prop change. Runs whenever a real fix exists,
+// regardless of alert_location_source — Echo Link admin needs it even when
+// the household's chosen source was "registered_address".
 const gpsCoordsKey = computed(() =>
     hasRealLocation.value
         ? `${props.alert.last_lat},${props.alert.last_lng}`
@@ -175,7 +204,7 @@ watch(
     async (key) => {
         gpsAddressLabel.value = null;
         gpsAddressFailed.value = false;
-        if (!key || !isGpsSource.value) return;
+        if (!key) return;
         gpsAddressLoading.value = true;
         const result = await reverseGeocode(
             Number(props.alert.last_lat),
@@ -197,6 +226,9 @@ watch(
     { immediate: true },
 );
 
+// Estate-admin single-source display: what to show under "GPS" branch when
+// alert_location_source === 'gps'. Falls back to stored home_address only
+// when there's no real coordinate fix at all.
 const gpsAddressDisplay = computed(() => {
     if (!isGpsSource.value) return null;
     if (hasRealLocation.value) return gpsAddressLabel.value;
@@ -225,7 +257,7 @@ const accuracyLabel = computed(() => {
     return `±${Math.round(acc)}m`;
 });
 
-/* ---------------- Location source (GPS vs registered address) ---------------- */
+/* ---------------- Location source (GPS vs registered address) — estate admin view ---------------- */
 
 const isRegisteredAddress = computed(
     () => props.alert.alert_location_source === 'registered_address',
@@ -542,6 +574,26 @@ const notifyTargetCount = computed(() => {
     return selectedGuardIds.value.length;
 });
 
+// Plain-language recipient line shown above the message box, so the admin
+// always knows exactly who a broadcast is about to reach before sending it.
+const notifyRecipientSummary = computed(() => {
+    if (notifyTarget.value === 'all') {
+        const n = channelGuards.value.length;
+        return n
+            ? `${n} guard${n === 1 ? '' : 's'} in this channel`
+            : 'No guards in this channel';
+    }
+    if (notifyTarget.value === 'responder') {
+        return props.alert.currentResponder
+            ? props.alert.currentResponder.username
+            : 'No guard currently responding';
+    }
+    const n = selectedGuardIds.value.length;
+    return n
+        ? `${n} guard${n === 1 ? '' : 's'} selected`
+        : 'No guards selected yet';
+});
+
 const quickMessages = [
     {
         label: 'No response yet',
@@ -661,9 +713,7 @@ function onResolveChange(e) {
                     {{ alert.household_phone }}
                 </p>
                 <p class="ac-card__meta">{{ alert.channel_name }}</p>
-                <!-- <p v-if="isRegisteredAddress" class="ac-card__address">
-                    {{ registeredAddressDisplay }}
-                </p> -->
+
                 <p v-if="isEstateUnitOnly" class="ac-unit-callout">
                     <strong>Unit {{ alert.unit_number }}</strong>
                 </p>
@@ -779,9 +829,6 @@ function onResolveChange(e) {
             >
                 {{ isPanicLike ? 'Verify by phone' : 'Call household' }}
             </button>
-            <span v-else class="ac-dv-note"
-                >Silent alert — guardians/guards notified only</span
-            >
 
             <button
                 class="ac-toggle-btn"
@@ -918,62 +965,103 @@ function onResolveChange(e) {
                                     >
                                         {{ alert.household_phone }}
                                     </p>
-                                    <!-- <p
-                                        v-if="isRegisteredAddress"
-                                        class="ac-detail-row"
-                                    >
-                                        {{ registeredAddressDisplay }}
-                                        <span class="ac-detail-row--muted">
-                                            · {{ locationSourceLabel }}</span
+
+                                    <!-- Estate admin: single-source view, unchanged behavior -->
+                                    <template v-if="isEstateAdmin">
+                                        <p
+                                            v-if="isEstateUnitOnly"
+                                            class="ac-unit-callout ac-unit-callout--modal"
                                         >
-                                    </p> -->
-                                    <p
-                                        v-if="isEstateUnitOnly"
-                                        class="ac-unit-callout ac-unit-callout--modal"
-                                    >
-                                        <strong
-                                            >Unit
-                                            {{ alert.unit_number }}</strong
+                                            <strong
+                                                >Unit
+                                                {{ alert.unit_number }}</strong
+                                            >
+                                        </p>
+                                        <p
+                                            v-else-if="isRegisteredAddress"
+                                            class="ac-detail-row"
                                         >
-                                    </p>
-                                    <p
-                                        v-else-if="isRegisteredAddress"
-                                        class="ac-detail-row"
-                                    >
-                                        {{ registeredAddressDisplay }}
-                                        <span class="ac-detail-row--muted">
-                                            · {{ locationSourceLabel }}</span
+                                            {{ registeredAddressDisplay }}
+                                            <span class="ac-detail-row--muted">
+                                                ·
+                                                {{ locationSourceLabel }}</span
+                                            >
+                                        </p>
+                                        <p
+                                            v-else-if="gpsAddressDisplay"
+                                            class="ac-detail-row"
                                         >
-                                    </p>
-                                    <p
-                                        v-else-if="gpsAddressDisplay"
-                                        class="ac-detail-row"
-                                    >
-                                        {{ gpsAddressDisplay }}
-                                        <span class="ac-detail-row--muted">
-                                            · {{ locationSourceLabel }}</span
+                                            {{ gpsAddressDisplay }}
+                                            <span class="ac-detail-row--muted">
+                                                ·
+                                                {{ locationSourceLabel }}</span
+                                            >
+                                            <span
+                                                v-if="isStaleFallbackAddress"
+                                                class="ac-address-approx"
+                                            >
+                                                (approximate)</span
+                                            >
+                                        </p>
+                                        <p
+                                            v-else-if="
+                                                isGpsSource && gpsAddressLoading
+                                            "
+                                            class="ac-detail-row ac-detail-row--muted"
                                         >
-                                        <span
-                                            v-if="isStaleFallbackAddress"
-                                            class="ac-address-approx"
+                                            Resolving address…
+                                        </p>
+                                        <p
+                                            v-else-if="alert.home_address"
+                                            class="ac-detail-row"
                                         >
-                                            (approximate)</span
+                                            {{ alert.home_address }}
+                                        </p>
+                                    </template>
+
+                                    <!-- Echo Link admin: always show both registered info and live GPS -->
+                                    <template v-else>
+                                        <p
+                                            v-if="registeredAddressAlways"
+                                            class="ac-detail-row"
                                         >
-                                    </p>
-                                    <p
-                                        v-else-if="
-                                            isGpsSource && gpsAddressLoading
-                                        "
-                                        class="ac-detail-row ac-detail-row--muted"
-                                    >
-                                        Resolving address…
-                                    </p>
-                                    <p
-                                        v-else-if="alert.home_address"
-                                        class="ac-detail-row"
-                                    >
-                                        {{ alert.home_address }}
-                                    </p>
+                                            {{ registeredAddressAlways }}
+                                            <span class="ac-detail-row--muted">
+                                                · Registered address</span
+                                            >
+                                        </p>
+                                        <p
+                                            v-if="
+                                                hasRealLocation &&
+                                                gpsAddressLabel
+                                            "
+                                            class="ac-detail-row"
+                                        >
+                                            {{ gpsAddressLabel }}
+                                            <span class="ac-detail-row--muted">
+                                                · Live GPS</span
+                                            >
+                                        </p>
+                                        <p
+                                            v-else-if="
+                                                hasRealLocation &&
+                                                gpsAddressLoading
+                                            "
+                                            class="ac-detail-row ac-detail-row--muted"
+                                        >
+                                            Resolving GPS address…
+                                        </p>
+                                        <p
+                                            v-else-if="
+                                                hasRealLocation &&
+                                                gpsAddressFailed
+                                            "
+                                            class="ac-detail-row ac-detail-row--muted"
+                                        >
+                                            GPS coordinates only (address lookup
+                                            failed)
+                                        </p>
+                                    </template>
 
                                     <p
                                         v-if="coordsLabel"
@@ -1025,8 +1113,11 @@ function onResolveChange(e) {
                                     </p>
                                 </div>
 
-                                <!-- Dispatch guard — clearly separated, high-contrast button -->
-                                <div class="ac-detail-group ac-dispatch-group">
+                                <!-- Dispatch guard — estate admin only -->
+                                <div
+                                    v-if="isEstateAdmin"
+                                    class="ac-detail-group ac-dispatch-group"
+                                >
                                     <p class="ac-detail-group__label">
                                         <UserPlus :size="12" />
                                         Dispatch guard
@@ -1114,117 +1205,152 @@ function onResolveChange(e) {
                                     </p>
                                 </div>
 
+                                <!-- Notify guards — redesigned: "Send to" and "Message" are
+                                     visually separate steps, with a plain-language recipient
+                                     summary so it's always clear who a broadcast will reach. -->
                                 <div class="ac-detail-group ac-notify-group">
                                     <p class="ac-detail-group__label">
                                         <Megaphone :size="12" />
                                         Notify guards
                                     </p>
 
-                                    <div class="ac-notify-target">
-                                        <button
-                                            type="button"
-                                            class="ac-notify-target__btn"
-                                            :class="{
-                                                'ac-notify-target__btn--active':
-                                                    notifyTarget === 'all',
-                                            }"
-                                            @click="notifyTarget = 'all'"
+                                    <div class="ac-notify-step">
+                                        <p class="ac-notify-step__label">
+                                            1. Send to
+                                        </p>
+                                        <div class="ac-notify-target">
+                                            <button
+                                                type="button"
+                                                class="ac-notify-target__btn"
+                                                :class="{
+                                                    'ac-notify-target__btn--active':
+                                                        notifyTarget === 'all',
+                                                }"
+                                                @click="notifyTarget = 'all'"
+                                            >
+                                                All in channel ({{
+                                                    channelGuards.length
+                                                }})
+                                            </button>
+                                            <button
+                                                v-if="alert.currentResponder"
+                                                type="button"
+                                                class="ac-notify-target__btn"
+                                                :class="{
+                                                    'ac-notify-target__btn--active':
+                                                        notifyTarget ===
+                                                        'responder',
+                                                }"
+                                                @click="
+                                                    notifyTarget = 'responder'
+                                                "
+                                            >
+                                                Responding guard
+                                            </button>
+                                            <button
+                                                type="button"
+                                                class="ac-notify-target__btn"
+                                                :class="{
+                                                    'ac-notify-target__btn--active':
+                                                        notifyTarget ===
+                                                        'selected',
+                                                }"
+                                                @click="
+                                                    notifyTarget = 'selected'
+                                                "
+                                            >
+                                                Choose specific
+                                            </button>
+                                        </div>
+
+                                        <select
+                                            v-if="notifyTarget === 'selected'"
+                                            v-model="selectedGuardIds"
+                                            multiple
+                                            class="ac-notify-select"
                                         >
-                                            All in channel ({{
-                                                channelGuards.length
-                                            }})
-                                        </button>
-                                        <button
-                                            v-if="alert.currentResponder"
-                                            type="button"
-                                            class="ac-notify-target__btn"
-                                            :class="{
-                                                'ac-notify-target__btn--active':
-                                                    notifyTarget ===
-                                                    'responder',
-                                            }"
-                                            @click="notifyTarget = 'responder'"
-                                        >
-                                            Responding guard
-                                        </button>
-                                        <button
-                                            type="button"
-                                            class="ac-notify-target__btn"
-                                            :class="{
-                                                'ac-notify-target__btn--active':
-                                                    notifyTarget === 'selected',
-                                            }"
-                                            @click="notifyTarget = 'selected'"
-                                        >
-                                            Choose specific
-                                        </button>
+                                            <option
+                                                v-for="g in channelGuards"
+                                                :key="g.id"
+                                                :value="g.id"
+                                            >
+                                                {{ g.username
+                                                }}{{
+                                                    g.phone
+                                                        ? ' · ' + g.phone
+                                                        : ''
+                                                }}
+                                            </option>
+                                        </select>
+
+                                        <p class="ac-notify-recipient">
+                                            Sending to:
+                                            <strong>{{
+                                                notifyRecipientSummary
+                                            }}</strong>
+                                        </p>
                                     </div>
 
-                                    <select
-                                        v-if="notifyTarget === 'selected'"
-                                        v-model="selectedGuardIds"
-                                        multiple
-                                        class="ac-notify-select"
-                                    >
-                                        <option
-                                            v-for="g in channelGuards"
-                                            :key="g.id"
-                                            :value="g.id"
-                                        >
-                                            {{ g.username
-                                            }}{{
-                                                g.phone ? ' · ' + g.phone : ''
-                                            }}
-                                        </option>
-                                    </select>
+                                    <div class="ac-notify-step">
+                                        <p class="ac-notify-step__label">
+                                            2. Message
+                                        </p>
 
-                                    <div class="ac-notify-chips">
-                                        <button
-                                            v-for="q in quickMessages"
-                                            :key="q.label"
-                                            type="button"
-                                            class="ac-notify-chip"
-                                            @click="applyQuickMessage(q.text)"
-                                        >
-                                            {{ q.label }}
-                                        </button>
+                                        <div class="ac-notify-templates">
+                                            <span
+                                                class="ac-notify-templates__label"
+                                                >Quick fill:</span
+                                            >
+                                            <button
+                                                v-for="q in quickMessages"
+                                                :key="q.label"
+                                                type="button"
+                                                class="ac-notify-chip"
+                                                @click="
+                                                    applyQuickMessage(q.text)
+                                                "
+                                            >
+                                                {{ q.label }}
+                                            </button>
+                                        </div>
+
+                                        <textarea
+                                            v-model="notifyMessage"
+                                            class="ac-notify-textarea"
+                                            rows="3"
+                                            maxlength="240"
+                                            placeholder="Message to broadcast as a push notification…"
+                                        ></textarea>
+
+                                        <div class="ac-notify-footer">
+                                            <span class="ac-notify-count"
+                                                >{{
+                                                    notifyMessage.length
+                                                }}/240</span
+                                            >
+                                            <button
+                                                type="button"
+                                                class="ac-notify-send"
+                                                :class="{
+                                                    'ac-notify-send--sent':
+                                                        notifySent,
+                                                }"
+                                                :disabled="
+                                                    !notifyMessage.trim() ||
+                                                    !notifyTargetCount
+                                                "
+                                                @click="sendNotification"
+                                            >
+                                                <Send :size="13" />
+                                                {{
+                                                    notifySent
+                                                        ? 'Sent ✓'
+                                                        : 'Broadcast'
+                                                }}
+                                            </button>
+                                        </div>
                                     </div>
 
-                                    <textarea
-                                        v-model="notifyMessage"
-                                        class="ac-notify-textarea"
-                                        rows="3"
-                                        maxlength="240"
-                                        placeholder="Message to broadcast as a push notification…"
-                                    ></textarea>
-
-                                    <div class="ac-notify-footer">
-                                        <span class="ac-notify-count"
-                                            >{{
-                                                notifyMessage.length
-                                            }}/240</span
-                                        >
-                                        <button
-                                            type="button"
-                                            class="ac-notify-send"
-                                            :class="{
-                                                'ac-notify-send--sent':
-                                                    notifySent,
-                                            }"
-                                            :disabled="
-                                                !notifyMessage.trim() ||
-                                                !notifyTargetCount
-                                            "
-                                            @click="sendNotification"
-                                        >
-                                            <Send :size="13" />
-                                            {{
-                                                notifySent
-                                                    ? 'Sent ✓'
-                                                    : 'Broadcast'
-                                            }}
-                                        </button>
-                                    </div>
                                     <p class="ac-notify-hint">
                                         One-way push announcement — guards can't
                                         reply here.
@@ -1552,12 +1678,6 @@ function onResolveChange(e) {
     cursor: not-allowed;
 }
 
-.ac-dv-note {
-    font-size: 12px;
-    color: #dc2626;
-    font-style: italic;
-}
-
 .ac-resolve-wrapper {
     margin-left: auto;
 }
@@ -1861,11 +1981,28 @@ function onResolveChange(e) {
     color: #dc2626;
 }
 
-/* Guard broadcast panel */
+/* Guard broadcast panel — restructured into two clear numbered steps
+   (recipient, then message) instead of one undifferentiated cluster of pills. */
 .ac-notify-group {
     padding-top: 16px;
     border-top: 1px dashed var(--c-border);
 }
+.ac-notify-step {
+    margin-bottom: 14px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--c-border);
+}
+.ac-notify-step:last-of-type {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+.ac-notify-step__label {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--c-text);
+    margin: 0 0 8px;
+}
+
 .ac-notify-target {
     display: flex;
     flex-wrap: wrap;
@@ -1880,7 +2017,7 @@ function onResolveChange(e) {
     color: var(--c-muted);
     background: #fff;
     border: 1.5px solid var(--c-border);
-    border-radius: 20px;
+    border-radius: 8px;
     cursor: pointer;
     transition: all 0.15s;
 }
@@ -1888,9 +2025,9 @@ function onResolveChange(e) {
     border-color: #cbd5e1;
 }
 .ac-notify-target__btn--active {
-    border-color: var(--c-primary);
-    background: #fff7ed;
-    color: var(--c-primary);
+    border-color: #2563eb;
+    background: #eff6ff;
+    color: #2563eb;
 }
 .ac-notify-select {
     width: 100%;
@@ -1904,26 +2041,44 @@ function onResolveChange(e) {
     border-radius: 8px;
     padding: 6px;
 }
-.ac-notify-chips {
+.ac-notify-recipient {
+    font-size: 11.5px;
+    color: var(--c-muted);
+    margin: 4px 0 0;
+}
+.ac-notify-recipient strong {
+    color: var(--c-text);
+}
+
+.ac-notify-templates {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 6px;
     margin-bottom: 8px;
+}
+.ac-notify-templates__label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--c-faint);
+    margin-right: 2px;
 }
 .ac-notify-chip {
     padding: 5px 10px;
     font-family: inherit;
     font-size: 11px;
     font-weight: 600;
-    color: #dc2626;
-    background: #f5f3ff;
-    border: none;
+    color: var(--c-muted);
+    background: #f8fafc;
+    border: 1px solid var(--c-border);
     border-radius: 20px;
     cursor: pointer;
-    transition: background 0.15s;
+    transition: all 0.15s;
 }
 .ac-notify-chip:hover {
-    background: #ede9fe;
+    border-color: var(--c-primary);
+    color: var(--c-primary);
+    background: #fff7ed;
 }
 .ac-notify-textarea {
     width: 100%;
@@ -1979,7 +2134,7 @@ function onResolveChange(e) {
     background: #16a34a;
 }
 .ac-notify-hint {
-    margin: 6px 0 0;
+    margin: 10px 0 0;
     font-size: 10px;
     color: var(--c-faint);
     font-style: italic;
