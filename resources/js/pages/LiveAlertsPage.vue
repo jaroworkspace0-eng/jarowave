@@ -7,10 +7,8 @@ import { usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
 const page = usePage();
-const isEstateAdmin = computed(
-    () => page.props.auth.user.role === 'estate_admin',
-);
 
+const isGateGuard = computed(() => !!page.props.auth?.user?.is_gate_guard);
 const auth = useAuthStore();
 
 const showChannelLabel = computed(() => auth.user?.role !== 'admin');
@@ -191,7 +189,7 @@ function handleSeen(alertId) {
                     v-for="alert in filteredList"
                     :key="alert.id"
                     :alert="alert"
-                    :is-estate-admin="isEstateAdmin"
+                    :is-estate-admin="isGateGuard"
                     @mute="toggleMute"
                     @call-log="logCallAttempt"
                     @resolve="handleResolve"

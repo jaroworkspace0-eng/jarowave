@@ -137,6 +137,12 @@ Route::post('/login', function (Request $request) {
     $user->tokens()->where('name', $tokenName)->delete();
     $token = $user->createToken($tokenName)->plainTextToken;
 
+
+    if ($request->source === 'web') {
+        Auth::guard('web')->login($user);
+        $request->session()->regenerate();
+    }
+
     $channels = $user->employee?->channels->map(function ($channel) {
         return [
             'id'   => $channel->id,
