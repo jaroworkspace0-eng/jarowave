@@ -147,7 +147,18 @@ async function reverseGeocode(lat, lng) {
         });
         if (!res.ok) return null;
         const data = await res.json();
-        return data?.display_name || null;
+        if (!data?.address) return data?.display_name || null;
+
+        const a = data.address;
+        // Keep it to street-level + suburb/area — drop city/province/country/
+        // postcode, which is what makes Nominatim's raw display_name so long.
+        const parts = [
+            [a.house_number, a.road].filter(Boolean).join(' '),
+            a.suburb || a.neighbourhood || a.residential,
+            a.city || a.town || a.village,
+        ].filter(Boolean);
+
+        return parts.length ? parts.join(', ') : data.display_name || null;
     } catch {
         return null;
     }
