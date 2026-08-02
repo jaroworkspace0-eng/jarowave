@@ -3,7 +3,13 @@ import AlertCard from '@/components/AlertCard.vue';
 import { useAdminAlerts } from '@/composables/useAdminAlerts';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useAuthStore } from '@/stores/auth';
+import { usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
+
+const page = usePage();
+const isEstateAdmin = computed(
+    () => page.props.auth.user.role === 'estate_admin',
+);
 
 const auth = useAuthStore();
 
@@ -185,7 +191,7 @@ function handleSeen(alertId) {
                     v-for="alert in filteredList"
                     :key="alert.id"
                     :alert="alert"
-                    :is-estate-admin="true"
+                    :is-estate-admin="isEstateAdmin"
                     @mute="toggleMute"
                     @call-log="logCallAttempt"
                     @resolve="handleResolve"

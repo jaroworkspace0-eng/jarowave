@@ -36,6 +36,81 @@ const emit = defineEmits([
     'dispatch',
 ]);
 
+/* ---------------- Searchable dropdown state (dispatch + notify) ---------------- */
+
+const dispatchWrapEl = ref(null);
+const dispatchOpen = ref(false);
+const dispatchQuery = ref('');
+
+const selectedDispatchGuard = computed(
+    () =>
+        channelGuards.value.find(
+            (g) => g.id === selectedDispatchGuardId.value,
+        ) || null,
+);
+
+const filteredDispatchGuards = computed(() => {
+    const q = dispatchQuery.value.trim().toLowerCase();
+    if (!q) return channelGuards.value;
+    return channelGuards.value.filter(
+        (g) =>
+            g.username?.toLowerCase().includes(q) ||
+            g.phone?.toLowerCase().includes(q),
+    );
+});
+
+function selectDispatchGuard(g) {
+    selectedDispatchGuardId.value = g.id;
+    dispatchQuery.value = '';
+    dispatchOpen.value = false;
+}
+
+const notifyWrapEl = ref(null);
+const notifyOpen = ref(false);
+const notifyQuery = ref('');
+
+const filteredNotifyGuards = computed(() => {
+    const q = notifyQuery.value.trim().toLowerCase();
+    if (!q) return channelGuards.value;
+    return channelGuards.value.filter(
+        (g) =>
+            g.username?.toLowerCase().includes(q) ||
+            g.phone?.toLowerCase().includes(q),
+    );
+});
+
+const selectedNotifyGuards = computed(() =>
+    channelGuards.value.filter((g) => selectedGuardIds.value.includes(g.id)),
+);
+
+function toggleNotifyGuard(g) {
+    const i = selectedGuardIds.value.indexOf(g.id);
+    if (i === -1) selectedGuardIds.value.push(g.id);
+    else selectedGuardIds.value.splice(i, 1);
+}
+
+function handleOutsideClick(e) {
+    if (
+        dispatchOpen.value &&
+        dispatchWrapEl.value &&
+        !dispatchWrapEl.value.contains(e.target)
+    ) {
+        dispatchOpen.value = false;
+    }
+    if (
+        notifyOpen.value &&
+        notifyWrapEl.value &&
+        !notifyWrapEl.value.contains(e.target)
+    ) {
+        notifyOpen.value = false;
+    }
+}
+
+onMounted(() => document.addEventListener('mousedown', handleOutsideClick));
+onBeforeUnmount(() =>
+    document.removeEventListener('mousedown', handleOutsideClick),
+);
+
 /* ---------------- Dispatch (estate admin only) ---------------- */
 
 const selectedDispatchGuardId = ref('');
@@ -1122,24 +1197,88 @@ function onResolveChange(e) {
                                         <UserPlus :size="12" />
                                         Dispatch guard
                                     </p>
-                                    <select
-                                        v-model="selectedDispatchGuardId"
-                                        class="ac-dispatch-select"
+                                    <div
+                                        ref="dispatchWrapEl"
+                                        class="ac-searchselect"
                                     >
-                                        <option value="" disabled>
-                                            Select a guard…
-                                        </option>
-                                        <option
-                                            v-for="g in channelGuards"
-                                            :key="g.id"
-                                            :value="g.id"
+                                        <button
+                                            type="button"
+                                            class="ac-searchselect__trigger"
+                                            @click="
+                                                dispatchOpen = !dispatchOpen
+                                            "
                                         >
-                                            {{ g.username
-                                            }}{{
-                                                g.phone ? ' · ' + g.phone : ''
-                                            }}
-                                        </option>
-                                    </select>
+                                            <span
+                                                v-if="selectedDispatchGuard"
+                                                class="ac-searchselect__value"
+                                            >
+                                                {{
+                                                    selectedDispatchGuard.username
+                                                }}{{
+                                                    selectedDispatchGuard.phone
+                                                        ? ' · ' +
+                                                          selectedDispatchGuard.phone
+                                                        : ''
+                                                }}
+                                            </span>
+                                            <span
+                                                v-else
+                                                class="ac-searchselect__placeholder"
+                                                >Select a guard…</span
+                                            >
+                                            <ChevronDown :size="14" />
+                                        </button>
+
+                                        <div
+                                            v-if="dispatchOpen"
+                                            class="ac-searchselect__panel"
+                                        >
+                                            <input
+                                                v-model="dispatchQuery"
+                                                type="text"
+                                                class="ac-searchselect__search"
+                                                placeholder="Search guards…"
+                                                @click.stop
+                                            />
+                                            <ul class="ac-searchselect__list">
+                                                <li
+                                                    v-for="g in filteredDispatchGuards"
+                                                    :key="g.id"
+                                                    class="ac-searchselect__option"
+                                                    :class="{
+                                                        'ac-searchselect__option--active':
+                                                            g.id ===
+                                                            selectedDispatchGuardId,
+                                                    }"
+                                                    @click="
+                                                        selectDispatchGuard(g)
+                                                    "
+                                                >
+                                                    {{ g.username
+                                                    }}{{
+                                                        g.phone
+                                                            ? ' · ' + g.phone
+                                                            : ''
+                                                    }}
+                                                    <Check
+                                                        v-if="
+                                                            g.id ===
+                                                            selectedDispatchGuardId
+                                                        "
+                                                        :size="14"
+                                                    />
+                                                </li>
+                                                <li
+                                                    v-if="
+                                                        !filteredDispatchGuards.length
+                                                    "
+                                                    class="ac-searchselect__empty"
+                                                >
+                                                    No guards match
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
                                     <p
                                         v-if="channelGuards.length === 0"
                                         class="ac-dispatch-empty"
@@ -1263,25 +1402,122 @@ function onResolveChange(e) {
                                             </button>
                                         </div>
 
-                                        <select
+                                        <div
                                             v-if="notifyTarget === 'selected'"
-                                            v-model="selectedGuardIds"
-                                            multiple
-                                            class="ac-notify-select"
+                                            ref="notifyWrapEl"
+                                            class="ac-searchselect"
                                         >
-                                            <option
-                                                v-for="g in channelGuards"
-                                                :key="g.id"
-                                                :value="g.id"
+                                            <button
+                                                type="button"
+                                                class="ac-searchselect__trigger"
+                                                @click="
+                                                    notifyOpen = !notifyOpen
+                                                "
                                             >
-                                                {{ g.username
-                                                }}{{
-                                                    g.phone
-                                                        ? ' · ' + g.phone
-                                                        : ''
-                                                }}
-                                            </option>
-                                        </select>
+                                                <span
+                                                    v-if="
+                                                        selectedNotifyGuards.length
+                                                    "
+                                                    class="ac-searchselect__value"
+                                                >
+                                                    {{
+                                                        selectedNotifyGuards.length
+                                                    }}
+                                                    guard{{
+                                                        selectedNotifyGuards.length ===
+                                                        1
+                                                            ? ''
+                                                            : 's'
+                                                    }}
+                                                    selected
+                                                </span>
+                                                <span
+                                                    v-else
+                                                    class="ac-searchselect__placeholder"
+                                                    >Select guards…</span
+                                                >
+                                                <ChevronDown :size="14" />
+                                            </button>
+
+                                            <div
+                                                v-if="notifyOpen"
+                                                class="ac-searchselect__panel"
+                                            >
+                                                <input
+                                                    v-model="notifyQuery"
+                                                    type="text"
+                                                    class="ac-searchselect__search"
+                                                    placeholder="Search guards…"
+                                                    @click.stop
+                                                />
+                                                <ul
+                                                    class="ac-searchselect__list"
+                                                >
+                                                    <li
+                                                        v-for="g in filteredNotifyGuards"
+                                                        :key="g.id"
+                                                        class="ac-searchselect__option"
+                                                        :class="{
+                                                            'ac-searchselect__option--active':
+                                                                selectedGuardIds.includes(
+                                                                    g.id,
+                                                                ),
+                                                        }"
+                                                        @click="
+                                                            toggleNotifyGuard(g)
+                                                        "
+                                                    >
+                                                        {{ g.username
+                                                        }}{{
+                                                            g.phone
+                                                                ? ' · ' +
+                                                                  g.phone
+                                                                : ''
+                                                        }}
+                                                        <Check
+                                                            v-if="
+                                                                selectedGuardIds.includes(
+                                                                    g.id,
+                                                                )
+                                                            "
+                                                            :size="14"
+                                                        />
+                                                    </li>
+                                                    <li
+                                                        v-if="
+                                                            !filteredNotifyGuards.length
+                                                        "
+                                                        class="ac-searchselect__empty"
+                                                    >
+                                                        No guards match
+                                                    </li>
+                                                </ul>
+                                            </div>
+
+                                            <div
+                                                v-if="
+                                                    selectedNotifyGuards.length
+                                                "
+                                                class="ac-searchselect__chips"
+                                            >
+                                                <span
+                                                    v-for="g in selectedNotifyGuards"
+                                                    :key="g.id"
+                                                    class="ac-searchselect__chip"
+                                                >
+                                                    {{ g.username }}
+                                                    <button
+                                                        type="button"
+                                                        @click="
+                                                            toggleNotifyGuard(g)
+                                                        "
+                                                        aria-label="Remove"
+                                                    >
+                                                        <X :size="10" />
+                                                    </button>
+                                                </span>
+                                            </div>
+                                        </div>
 
                                         <p class="ac-notify-recipient">
                                             Sending to:
@@ -2193,5 +2429,113 @@ function onResolveChange(e) {
     font-style: italic;
     color: #d97706;
     font-weight: 600;
+}
+.ac-searchselect {
+    position: relative;
+}
+.ac-searchselect__trigger {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--c-text);
+    background: #fff;
+    border: 1.5px solid var(--c-border);
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+}
+.ac-searchselect__trigger:hover {
+    border-color: #cbd5e1;
+}
+.ac-searchselect__placeholder {
+    color: var(--c-faint);
+    font-weight: 500;
+}
+.ac-searchselect__panel {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 20;
+    background: #fff;
+    border: 1.5px solid var(--c-border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    overflow: hidden;
+}
+.ac-searchselect__search {
+    width: 100%;
+    padding: 8px 10px;
+    font-family: inherit;
+    font-size: 12px;
+    border: none;
+    border-bottom: 1px solid var(--c-border);
+    outline: none;
+}
+.ac-searchselect__list {
+    list-style: none;
+    margin: 0;
+    padding: 4px 0;
+    max-height: 180px;
+    overflow-y: auto;
+}
+.ac-searchselect__option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    font-size: 12.5px;
+    color: var(--c-text);
+    cursor: pointer;
+}
+.ac-searchselect__option:hover {
+    background: #f8fafc;
+}
+.ac-searchselect__option--active {
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-weight: 600;
+}
+.ac-searchselect__empty {
+    padding: 10px;
+    font-size: 12px;
+    color: var(--c-faint);
+    font-style: italic;
+}
+.ac-searchselect__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+.ac-searchselect__chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 6px 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--c-text);
+    background: #f1f5f9;
+    border-radius: 20px;
+}
+.ac-searchselect__chip button {
+    display: flex;
+    align-items: center;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--c-faint);
+    padding: 2px;
+}
+.ac-searchselect__chip button:hover {
+    color: #dc2626;
 }
 </style>
