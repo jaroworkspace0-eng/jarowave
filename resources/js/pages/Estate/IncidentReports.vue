@@ -502,6 +502,56 @@ onMounted(() => loadReports());
                                 </span>
                             </div>
 
+                            <div
+                                v-if="
+                                    selectedReport?.alert?.cancel_pin_used ===
+                                    'duress'
+                                "
+                                class="duress-banner"
+                            >
+                                ⚠ Duress PIN was used to cancel this alert
+                            </div>
+
+                            <div class="toggle-row">
+                                <span
+                                    class="type-badge bg-slate-100 text-slate-600"
+                                >
+                                    {{
+                                        selectedReport?.alert?.alert_type ??
+                                        'sos'
+                                    }}
+                                </span>
+                                <span
+                                    v-if="selectedReport?.alert?.muted"
+                                    class="type-badge bg-slate-100 text-slate-600"
+                                >
+                                    Muted
+                                </span>
+                                <span
+                                    v-if="
+                                        selectedReport?.alert
+                                            ?.cancel_pin_used &&
+                                        selectedReport.alert.cancel_pin_used !==
+                                            'none'
+                                    "
+                                    class="type-badge"
+                                    :class="
+                                        selectedReport.alert.cancel_pin_used ===
+                                        'duress'
+                                            ? 'bg-red-50 text-red-600'
+                                            : 'bg-slate-100 text-slate-600'
+                                    "
+                                >
+                                    Cancel PIN:
+                                    {{
+                                        selectedReport.alert.cancel_pin_used ===
+                                        'duress'
+                                            ? 'Duress'
+                                            : 'Safe Cancel'
+                                    }}
+                                </span>
+                            </div>
+
                             <div class="toggle-row">
                                 <div class="review-info-panel">
                                     <div class="field__label">Household</div>
@@ -549,6 +599,19 @@ onMounted(() => loadReports());
                                     <div>
                                         <div class="field__label">
                                             Alert Sent
+                                        </div>
+                                        <div>
+                                            <div class="field__label">
+                                                First Acknowledged
+                                            </div>
+                                            <div class="detail-grid__value">
+                                                {{
+                                                    fmtDateTime(
+                                                        selectedReport?.alert
+                                                            ?.first_ack_at,
+                                                    )
+                                                }}
+                                            </div>
                                         </div>
                                         <div class="detail-grid__value">
                                             {{
@@ -617,6 +680,95 @@ onMounted(() => loadReports());
                                             {{
                                                 selectedReport?.resolution
                                                     ?.distance_traveled ?? '—'
+                                            }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="review-info-panel">
+                                <div class="field__label">Location</div>
+                                <div class="detail-grid">
+                                    <div>
+                                        <div class="field__label">
+                                            Trigger Location
+                                        </div>
+                                        <div class="detail-grid__value">
+                                            {{
+                                                selectedReport?.alert
+                                                    ?.trigger_lat &&
+                                                selectedReport?.alert
+                                                    ?.trigger_lng
+                                                    ? `${selectedReport.alert.trigger_lat}, ${selectedReport.alert.trigger_lng}`
+                                                    : '—'
+                                            }}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="field__label">
+                                            Last Known Location
+                                        </div>
+                                        <div class="detail-grid__value">
+                                            {{
+                                                selectedReport?.alert
+                                                    ?.last_lat &&
+                                                selectedReport?.alert?.last_lng
+                                                    ? `${selectedReport.alert.last_lat}, ${selectedReport.alert.last_lng}`
+                                                    : '—'
+                                            }}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="field__label">
+                                            GPS Accuracy
+                                        </div>
+                                        <div class="detail-grid__value">
+                                            {{
+                                                selectedReport?.alert
+                                                    ?.accuracy ?? '—'
+                                            }}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="field__label">
+                                            Location Updated
+                                        </div>
+                                        <div class="detail-grid__value">
+                                            {{
+                                                fmtDateTime(
+                                                    selectedReport?.alert
+                                                        ?.location_updated_at,
+                                                )
+                                            }}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="field__label">
+                                            Responder Start
+                                        </div>
+                                        <div class="detail-grid__value">
+                                            {{
+                                                selectedReport?.resolution
+                                                    ?.start_latitude &&
+                                                selectedReport?.resolution
+                                                    ?.start_longitude
+                                                    ? `${selectedReport.resolution.start_latitude}, ${selectedReport.resolution.start_longitude}`
+                                                    : '—'
+                                            }}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="field__label">
+                                            Responder Arrival
+                                        </div>
+                                        <div class="detail-grid__value">
+                                            {{
+                                                selectedReport?.resolution
+                                                    ?.arrival_latitude &&
+                                                selectedReport?.resolution
+                                                    ?.arrival_longitude
+                                                    ? `${selectedReport.resolution.arrival_latitude}, ${selectedReport.resolution.arrival_longitude}`
+                                                    : '—'
                                             }}
                                         </div>
                                     </div>
@@ -693,6 +845,77 @@ onMounted(() => loadReports());
                                 <p class="review-description">
                                     {{ selectedReport?.narrative }}
                                 </p>
+                            </div>
+
+                            <div
+                                v-if="selectedReport?.alert?.audio_path"
+                                class="field"
+                            >
+                                <label class="field__label">Alert Audio</label>
+                                <audio
+                                    controls
+                                    :src="selectedReport.alert.audio_path"
+                                    class="audio-player"
+                                ></audio>
+                            </div>
+
+                            <div
+                                v-if="
+                                    selectedReport?.resolution?.victim_response
+                                "
+                                class="field"
+                            >
+                                <label class="field__label"
+                                    >Victim Response</label
+                                >
+                                <p class="review-description">
+                                    {{
+                                        selectedReport.resolution
+                                            .victim_response
+                                    }}
+                                </p>
+                            </div>
+
+                            <div class="review-info-panel">
+                                <div class="field__label">Confirmation</div>
+                                <div class="detail-grid">
+                                    <div>
+                                        <div class="field__label">Status</div>
+                                        <div
+                                            class="detail-grid__value"
+                                            style="text-transform: capitalize"
+                                        >
+                                            {{
+                                                selectedReport?.resolution
+                                                    ?.confirmation_status ?? '—'
+                                            }}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="field__label">
+                                            Confirmed By
+                                        </div>
+                                        <div class="detail-grid__value">
+                                            {{
+                                                selectedReport?.resolution
+                                                    ?.confirmed_by ?? '—'
+                                            }}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="field__label">
+                                            Confirmed At
+                                        </div>
+                                        <div class="detail-grid__value">
+                                            {{
+                                                fmtDateTime(
+                                                    selectedReport?.resolution
+                                                        ?.confirmed_at,
+                                                )
+                                            }}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             <div
@@ -1294,5 +1517,19 @@ onMounted(() => loadReports());
     .search-input-row--standalone {
         max-width: none;
     }
+}
+.duress-banner {
+    background: #fef2f2;
+    border: 1.5px solid #fecaca;
+    color: #dc2626;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 10px 14px;
+    border-radius: 10px;
+    text-align: center;
+}
+.audio-player {
+    width: 100%;
+    height: 36px;
 }
 </style>

@@ -16,36 +16,37 @@ class GuardIncidentReportController extends Controller
         return $request->user()->employee->channels()->pluck('channels.id')->toArray();
     }
 
+
     public function index(Request $request)
-    {
-        $channelIds = $this->channelIds($request);
+{
+    $channelIds = $this->channelIds($request);
 
-        $query = SosIncidentReport::with(['household', 'reporter', 'alert'])
-            ->whereIn('channel_id', $channelIds);
+    $query = SosIncidentReport::with(['household', 'reporter', 'alert'])
+        ->whereIn('channel_id', $channelIds);
 
-        if ($request->search) {
-            $query->whereHas('household', fn($q) => $q->where('name', 'like', "%{$request->search}%"));
-        }
-        if ($request->status) $query->where('status', $request->status);
-        if ($request->outcome) $query->where('outcome', $request->outcome);
-        if ($request->date_from) $query->whereDate('created_at', '>=', $request->date_from);
-        if ($request->date_to) $query->whereDate('created_at', '<=', $request->date_to);
-
-        $reports = $query->latest()->paginate(15);
-
-        $alertIds = $reports->getCollection()->pluck('emergency_alert_id')->filter()->values();
-        $resolutions = EmergencyResolution::whereIn('emergency_alert_id', $alertIds)->get();
-
-        $reports->getCollection()->transform(function ($report) use ($resolutions) {
-            $report->resolution = $resolutions->first(fn($r) =>
-                $r->emergency_alert_id === $report->emergency_alert_id
-                && $r->responder_user_id === $report->reporter_user_id
-            );
-            return $report;
-        });
-
-        return $reports;
+    if ($request->search) {
+        $query->whereHas('household', fn($q) => $q->where('name', 'like', "%{$request->search}%"));
     }
+    if ($request->status) $query->where('status', $request->status);
+    if ($request->outcome) $query->where('outcome', $request->outcome);
+    if ($request->date_from) $query->whereDate('created_at', '>=', $request->date_from);
+    if ($request->date_to) $query->whereDate('created_at', '<=', $request->date_to);
+
+    $reports = $query->latest()->paginate(15);
+
+    $alertIds = $reports->getCollection()->pluck('emergency_alert_id')->filter()->values();
+    $resolutions = EmergencyResolution::whereIn('emergency_alert_id', $alertIds)->get();
+
+    $reports->getCollection()->transform(function ($report) use ($resolutions) {
+        $report->resolution = $resolutions->first(fn($r) =>
+            $r->emergency_alert_id === $report->emergency_alert_id
+            && $r->responder_user_id === $report->reporter_user_id
+        );
+        return $report;
+    });
+
+    return $reports;
+}
 
     public function guardsInChannel(Request $request)
     {
