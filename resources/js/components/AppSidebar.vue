@@ -171,12 +171,6 @@ const clientGroups: NavGroup[] = [
 ];
 
 const estateBillingGroups: NavGroup[] = [
-    {
-        label: 'Overview',
-        items: [
-            { title: 'Dashboard', href: '/estate/dashboard', icon: HomeIcon },
-        ],
-    },
     // {
     //     label: 'Live Monitoring',
     //     items: [
@@ -184,9 +178,26 @@ const estateBillingGroups: NavGroup[] = [
     //     ],
     // },
     {
+        label: 'Overview',
+        items: [
+            { title: 'Dashboard', href: '/estate/dashboard', icon: HomeIcon },
+        ],
+    },
+
+    {
         label: 'Finance',
         items: [
             { title: 'Invoices', href: '/estate/invoices', icon: FileText },
+        ],
+    },
+    {
+        label: 'Safety',
+        items: [
+            {
+                title: 'Incident Reports',
+                href: '/estate/incident-reports',
+                icon: Newspaper,
+            },
         ],
     },
     {
@@ -214,6 +225,16 @@ const gateGuardGroups: NavGroup[] = [
         label: 'Live Monitoring',
         items: [
             { title: 'Live Alerts', href: '/live-alerts', icon: AlertTriangle },
+        ],
+    },
+    {
+        label: 'Safety',
+        items: [
+            {
+                title: 'Incident Reports',
+                href: '/guard/incident-reports',
+                icon: Newspaper,
+            },
         ],
     },
 ];

@@ -47,4 +47,7 @@ class EmergencyResolution extends Model
     {
         return $this->belongsTo(User::class, 'responder_user_id');
     }
+
+    public function alert() { return $this->belongsTo(EmergencyAlert::class, 'emergency_alert_id'); }
+
 }

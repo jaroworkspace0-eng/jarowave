@@ -82,6 +82,9 @@ Route::get('/live-alerts', function() {
 
 // ── Guardian Reports (admin) ──────────────────────────────
 
+Route::get('/guard/incident-reports', fn() => inertia('Guard/IncidentReports'));
+Route::get('/estate/incident-reports', fn() => inertia('Estate/IncidentReports'));
+
 Route::get('/guardian-reports', function() {
     return inertia('Guardian/Reports');
 });

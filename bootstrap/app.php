@@ -24,6 +24,10 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
         ]);
+
+        $middleware->alias([
+            'gate.guard.dashboard' => \App\Http\Middleware\EnsureGateGuardDashboardAccess::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

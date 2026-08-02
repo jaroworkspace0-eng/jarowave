@@ -11,6 +11,7 @@ class SosIncidentReport extends Model
         'emergency_alert_id',
         'household_user_id',
         'reporter_user_id',
+        'channel_id',
         'outcome',
         'misuse_category',
         'narrative',
@@ -67,5 +68,12 @@ class SosIncidentReport extends Model
     public function scopeMisuse($query)
     {
         return $query->where('outcome', 'misuse');
+    }
+
+    public function channel() { return $this->belongsTo(Channel::class); }
+
+    public function alert()
+    {
+        return $this->belongsTo(EmergencyAlert::class, 'emergency_alert_id');
     }
 }

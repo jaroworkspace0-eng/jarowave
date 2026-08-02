@@ -34,7 +34,9 @@ use App\Http\Controllers\CheckpointController;
 use App\Http\Controllers\DvRecordingController;
 use App\Http\Controllers\GuardBankDetailController;
 use App\Http\Controllers\Api\HouseholdBillingController;
+use App\Http\Controllers\Api\EstateIncidentReportController;
 use App\Http\Controllers\EstateTenantController;
+use App\Http\Controllers\Api\GuardIncidentReportController;
 use App\Http\Controllers\HouseholdSettingController;
 use App\Http\Controllers\Internal\InternalDashboardUserController;
 use App\Http\Controllers\InviteController;
@@ -326,6 +328,16 @@ Route::middleware('auth:sanctum')->prefix('guard')->group(function () {
     Route::post('/visitor-codes/verify', [VisitorCodeController::class, 'verify']);
     Route::post('/patrol/scan', [PatrolController::class, 'scan']);
     Route::get('/patrol/history', [PatrolController::class, 'history']);
+
+    
+});
+
+
+Route::middleware(['auth:sanctum', 'gate.guard.dashboard'])->group(function () {
+    Route::get('/guard/incident-reports', [GuardIncidentReportController::class, 'index']);
+    Route::get('/guard/incident-reports/guards', [GuardIncidentReportController::class, 'guardsInChannel']);
+    Route::get('/guard/incident-reports/pending/{guardUserId}', [GuardIncidentReportController::class, 'pendingIncidents']);
+    Route::post('/guard/incident-reports', [GuardIncidentReportController::class, 'store']);
 });
 
 // Earnings
@@ -348,6 +360,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/estate/guards', [EstateTenantController::class, 'guards']);
     Route::delete('/estate/guards/{employee}', [EstateTenantController::class, 'destroyGuard']);
     Route::patch('/estate/guards/{employee}/dashboard-access', [EstateTenantController::class, 'toggleDashboardAccess']);
+
+    Route::get('/estate/incident-reports', [EstateIncidentReportController::class, 'index']);
+    Route::get('/estate/incident-reports/{report}', [EstateIncidentReportController::class, 'show']);
 });
 
 

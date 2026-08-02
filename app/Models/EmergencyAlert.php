@@ -77,4 +77,8 @@ class EmergencyAlert extends Model
     {
         return $this->hasMany(AlertGuardianNotification::class);
     }
+
+    public function incidentReport() { return $this->hasOne(SosIncidentReport::class, 'emergency_alert_id'); }
+    public function resolutions() { return $this->hasMany(EmergencyResolution::class); }
+
 }
