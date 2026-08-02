@@ -178,6 +178,10 @@ const locationSourceLabel = computed(() => {
     return null;
 });
 
+const isEstateUnitOnly = computed(
+    () => isRegisteredAddress.value && props.alert.is_estate,
+);
+
 /* -------------------------------------------------------------------------- */
 
 function guardianStatusLabel(g) {
@@ -581,6 +585,12 @@ function onResolveChange(e) {
                 <p v-if="isRegisteredAddress" class="ac-card__address">
                     {{ registeredAddressDisplay }}
                 </p>
+                <p v-if="isEstateUnitOnly" class="ac-unit-callout">
+                    <strong>Unit {{ alert.unit_number }}</strong>
+                </p>
+                <p v-else-if="isRegisteredAddress" class="ac-card__address">
+                    {{ registeredAddressDisplay }}
+                </p>
                 <p v-else-if="alert.home_address" class="ac-card__address">
                     {{ alert.home_address }}
                 </p>
@@ -825,11 +835,30 @@ function onResolveChange(e) {
                                         >
                                     </p>
                                     <p
+                                        v-if="isEstateUnitOnly"
+                                        class="ac-unit-callout ac-unit-callout--modal"
+                                    >
+                                        <strong
+                                            >Unit
+                                            {{ alert.unit_number }}</strong
+                                        >
+                                    </p>
+                                    <p
+                                        v-else-if="isRegisteredAddress"
+                                        class="ac-detail-row"
+                                    >
+                                        {{ registeredAddressDisplay }}
+                                        <span class="ac-detail-row--muted">
+                                            · {{ locationSourceLabel }}</span
+                                        >
+                                    </p>
+                                    <p
                                         v-else-if="alert.home_address"
                                         class="ac-detail-row"
                                     >
                                         {{ alert.home_address }}
                                     </p>
+
                                     <p
                                         v-if="coordsLabel"
                                         class="ac-detail-row ac-detail-row--mono"
@@ -1865,5 +1894,23 @@ function onResolveChange(e) {
 }
 .ac-leaflet-label--guard::before {
     border-top-color: #2563eb !important;
+}
+
+.ac-unit-callout {
+    display: inline-flex;
+    align-items: center;
+    margin: 6px 0 0;
+    padding: 4px 12px;
+    background: #fef2f2;
+    border: 1.5px solid #fca5a5;
+    border-radius: 8px;
+    font-size: 15px;
+    font-weight: 800;
+    color: #dc2626;
+    letter-spacing: 0.3px;
+}
+.ac-unit-callout--modal {
+    font-size: 16px;
+    padding: 6px 14px;
 }
 </style>
