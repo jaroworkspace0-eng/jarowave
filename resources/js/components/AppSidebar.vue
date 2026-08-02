@@ -196,17 +196,17 @@ const estateBillingGroups: NavGroup[] = [
             { title: 'Guards', href: '/estate/guards', icon: Shield },
         ],
     },
-    {
-        label: 'Support',
-        items: [
-            { title: 'Tickets', href: '/estate/tickets', icon: TicketIcon },
-            {
-                title: 'Account Links',
-                href: '/estate/account-links',
-                icon: Link2,
-            },
-        ],
-    },
+    // {
+    //     label: 'Support',
+    //     items: [
+    //         { title: 'Tickets', href: '/estate/tickets', icon: TicketIcon },
+    //         {
+    //             title: 'Account Links',
+    //             href: '/estate/account-links',
+    //             icon: Link2,
+    //         },
+    //     ],
+    // },
 ];
 
 const gateGuardGroups: NavGroup[] = [
