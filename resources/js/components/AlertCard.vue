@@ -1203,7 +1203,7 @@ function onResolveChange(e) {
                                     >
                                         <button
                                             type="button"
-                                            class="ac-searchselect__trigger"
+                                            class="ac-searchselect__trigger mt-2"
                                             @click="
                                                 dispatchOpen = !dispatchOpen
                                             "
@@ -2014,6 +2014,12 @@ function onResolveChange(e) {
 }
 
 .ac-modal-backdrop {
+    --c-primary: #ea580c;
+    --c-primary-h: #c2410c;
+    --c-text: #1a2332;
+    --c-muted: #64748b;
+    --c-faint: #94a3b8;
+    --c-border: #e4e8ef;
     position: fixed;
     inset: 0;
     background: rgba(10, 18, 30, 0.55);
