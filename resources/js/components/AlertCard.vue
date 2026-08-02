@@ -40,9 +40,6 @@ async function dispatchSelectedGuard() {
             Number(selectedDispatchGuardId.value),
         );
     } finally {
-        // The parent (LiveAlertsPage) owns the actual API call and error
-        // surfacing today. We keep a local timeout so the button doesn't
-        // stay stuck "Dispatching…" forever if the parent silently fails.
         setTimeout(() => (dispatching.value = false), 1500);
     }
 }
@@ -76,9 +73,6 @@ const escalated = computed(
     () => secondsSinceAck.value !== null && secondsSinceAck.value > 90,
 );
 
-// Stays "new" (distinct highlight colors) only until the guard explicitly
-// dismisses it or the page is reloaded. Escalation state is independent and
-// must not clear the "new" styling on its own.
 const isNew = computed(() => !!props.alert.justArrived);
 
 const typeMeta = computed(
@@ -111,9 +105,6 @@ const formattedAckTime = computed(() => {
     return new Date(props.alert.first_ack_at).toLocaleTimeString();
 });
 
-// Treat (0, 0) as "no location" regardless of whether it arrives as a
-// number or a string — avoids the false "0.00000, 0.00000" display when
-// a device sends default/placeholder coordinates before a real GPS fix.
 const hasRealLocation = computed(() => {
     const lat = Number(props.alert.last_lat);
     const lng = Number(props.alert.last_lng);
@@ -145,13 +136,11 @@ const registeredAddressDisplay = computed(() => {
     if (!isRegisteredAddress.value) return null;
 
     if (props.alert.is_estate) {
-        // Estate alerts always land at the gate — guards only need the unit.
         return props.alert.unit_number
             ? `Unit ${props.alert.unit_number}`
             : null;
     }
 
-    // Standalone (non-estate): full address, ordered, skipping empty parts.
     return [
         props.alert.address_line_1,
         props.alert.complex_name,
@@ -169,14 +158,14 @@ const locationSourceLabel = computed(() => {
     return null;
 });
 
+/* -------------------------------------------------------------------------- */
+
 function guardianStatusLabel(g) {
     if (!g.responded_at) return 'no response yet';
     const type = (g.response_type || 'responded').replace(/_/g, ' ');
     return `${type} · ${new Date(g.responded_at).toLocaleTimeString()}`;
 }
 
-// Straight-line distance — kept as the always-available fallback figure
-// (shown in the card body) even when a routed line is also drawn on the map.
 function haversineKm(lat1, lng1, lat2, lng2) {
     const R = 6371;
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -206,8 +195,6 @@ const responderDistanceLabel = computed(() => {
         : `${responderDistanceKm.value.toFixed(1)}km`;
 });
 
-// Rough straight-line ETA — the routed line on the map is for visual
-// context; this figure stays the simple, dependency-free estimate.
 const etaMinutes = computed(() => {
     if (responderDistanceKm.value === null) return null;
     return Math.max(1, Math.round((responderDistanceKm.value / 40) * 60));
@@ -222,11 +209,8 @@ let modalMap = null;
 let thumbLayer = null;
 let modalLayer = null;
 
-const routeCoords = ref(null); // [[lat,lng], ...] or null
+const routeCoords = ref(null);
 
-// OSRM's public demo routing server — free, but it's a shared demo instance:
-// no SLA, rate-limited, not meant for production traffic. Fine to prove this
-// out now; for real deployment self-host OSRM or use a paid routing API.
 async function fetchRoute(lat1, lng1, lat2, lng2) {
     try {
         const url = `https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=full&geometries=geojson`;
@@ -251,10 +235,6 @@ function buildMap(container, interactive) {
         keyboard: interactive,
         attributionControl: interactive,
     });
-    // OSM's raw tile servers have a usage policy (no heavy/commercial hammering
-    // without permission). Fine for internal admin use at low volume; if this
-    // dashboard scales up, switch to a provider with a free tier built for
-    // apps (MapTiler, Stadia Maps, Thunderforest) instead of hitting tile.openstreetmap.org directly.
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution: '&copy; OpenStreetMap contributors',
@@ -262,8 +242,6 @@ function buildMap(container, interactive) {
     return map;
 }
 
-// Centralised so the "recenter" control and the initial draw always agree
-// on where the map should be looking.
 function getAlertPoints() {
     const points = [];
     if (hasRealLocation.value) {
@@ -397,8 +375,6 @@ watch(mapFullscreen, (open) => {
     if (open) ensureModalMap();
 });
 
-// Single key covering both points — refetches the route and redraws both
-// maps whenever either location changes.
 const mapStateKey = computed(() => {
     const h = hasRealLocation.value
         ? `${props.alert.last_lat},${props.alert.last_lng}`
@@ -432,11 +408,9 @@ onBeforeUnmount(() => {
 
 /* ---------------- Guard broadcast (one-way push, not a chat) ---------------- */
 
-// Expects alert.channelGuards = [{ id, username, phone }] — the roster of
-// guards assigned to this channel.
 const channelGuards = computed(() => props.alert.channelGuards || []);
 
-const notifyTarget = ref('all'); // 'all' | 'responder' | 'selected'
+const notifyTarget = ref('all');
 const selectedGuardIds = ref([]);
 const notifyMessage = ref('');
 const notifySent = ref(false);
