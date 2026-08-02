@@ -3,7 +3,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 
 const breadcrumbs: BreadcrumbItem[] = [];
 
@@ -109,24 +109,44 @@ async function openDetail(report: any) {
         showFlash('Failed to load report detail.', 'error');
     } finally {
         detailLoading.value = false;
+        await nextTick();
+        initMap();
     }
 }
 function closeDetail() {
     showDetail.value = false;
     selectedReport.value = null;
+    destroyMap();
+}
+
+// ══════════ Date/number formatting ══════════
+
+function toDate(d: string | null | undefined): Date | null {
+    if (!d) return null;
+    let s = String(d).trim();
+    // Already has an explicit UTC/offset marker — parse as-is.
+    if (/Z$|[+-]\d{2}:?\d{2}$/.test(s)) return new Date(s);
+    // Bare "YYYY-MM-DD HH:mm:ss" (raw MySQL/Carbon output, no timezone) is
+    // parsed as LOCAL time by the browser, but the backend stores/serves
+    // these as UTC — normalize so it matches fields that already carry an
+    // offset (e.g. location_updated_at), fixing the "wrong time" bug.
+    s = s.replace(' ', 'T');
+    return new Date(/T\d{2}:\d{2}/.test(s) ? s + 'Z' : s);
 }
 
 function fmtDate(d: string) {
-    if (!d) return '—';
-    return new Date(d).toLocaleDateString('en-ZA', {
+    const date = toDate(d);
+    if (!date) return '—';
+    return date.toLocaleDateString('en-ZA', {
         day: 'numeric',
         month: 'short',
         year: 'numeric',
     });
 }
 function fmtDateTime(d: string) {
-    if (!d) return '—';
-    return new Date(d).toLocaleString('en-ZA', {
+    const date = toDate(d);
+    if (!date) return '—';
+    return date.toLocaleString('en-ZA', {
         day: 'numeric',
         month: 'short',
         year: 'numeric',
@@ -134,6 +154,223 @@ function fmtDateTime(d: string) {
         minute: '2-digit',
     });
 }
+
+function fmtUnit(u: string | number | null | undefined) {
+    if (!u) return '';
+    const s = String(u).trim();
+    return /unit/i.test(s) ? s : `Unit ${s}`;
+}
+
+function fmtDistance(v: number | string | null | undefined) {
+    if (v === null || v === undefined || v === '') return '—';
+    const n = Number(v);
+    if (isNaN(n)) return '—';
+    // Assumes backend sends meters — adjust if it's already km.
+    return n >= 1000 ? `${(n / 1000).toFixed(2)} km` : `${Math.round(n)} m`;
+}
+
+function fmtAccuracy(v: number | string | null | undefined) {
+    if (v === null || v === undefined || v === '') return '—';
+    const n = Number(v);
+    if (isNaN(n)) return '—';
+    return `${Math.round(n)} m`;
+}
+
+function fmtDuration(v: number | string | null | undefined) {
+    if (v === null || v === undefined || v === '') return '—';
+    const n = Number(v);
+    if (isNaN(n)) return '—';
+    // Assumes backend sends seconds — adjust if it's already minutes.
+    if (n < 60) return `${Math.round(n)} sec`;
+    if (n < 3600) {
+        const mins = Math.floor(n / 60);
+        const secs = Math.round(n % 60);
+        return secs > 0 ? `${mins} min ${secs} sec` : `${mins} min`;
+    }
+    const hrs = Math.floor(n / 3600);
+    const mins = Math.round((n % 3600) / 60);
+    return mins > 0 ? `${hrs} hr ${mins} min` : `${hrs} hr`;
+}
+
+// ══════════ Map (Leaflet via CDN) + reverse geocoding ══════════
+
+const mapEl = ref<HTMLElement | null>(null);
+const mapLoading = ref(false);
+const geocoded = ref<Record<string, string | null>>({});
+let mapInstance: any = null;
+let leafletPromise: Promise<any> | null = null;
+
+const mapPoints = computed(() => {
+    const r = selectedReport.value;
+    if (!r) return [];
+    const a = r.alert;
+    const res = r.resolution;
+    const pts: {
+        key: string;
+        label: string;
+        color: string;
+        lat: number;
+        lng: number;
+    }[] = [];
+
+    if (a?.trigger_lat && a?.trigger_lng) {
+        pts.push({
+            key: 'trigger',
+            label: 'Alert Triggered',
+            color: '#dc2626',
+            lat: Number(a.trigger_lat),
+            lng: Number(a.trigger_lng),
+        });
+    }
+    if (
+        a?.last_lat &&
+        a?.last_lng &&
+        (a.last_lat !== a.trigger_lat || a.last_lng !== a.trigger_lng)
+    ) {
+        pts.push({
+            key: 'last',
+            label: 'Last Known Location',
+            color: '#f97316',
+            lat: Number(a.last_lat),
+            lng: Number(a.last_lng),
+        });
+    }
+    if (res?.start_latitude && res?.start_longitude) {
+        pts.push({
+            key: 'start',
+            label: 'Guard Start',
+            color: '#2563eb',
+            lat: Number(res.start_latitude),
+            lng: Number(res.start_longitude),
+        });
+    }
+    if (res?.arrival_latitude && res?.arrival_longitude) {
+        pts.push({
+            key: 'arrival',
+            label: 'Guard Arrival',
+            color: '#059669',
+            lat: Number(res.arrival_latitude),
+            lng: Number(res.arrival_longitude),
+        });
+    }
+    return pts;
+});
+
+function loadLeaflet(): Promise<any> {
+    if ((window as any).L) return Promise.resolve((window as any).L);
+    if (leafletPromise) return leafletPromise;
+    leafletPromise = new Promise((resolve, reject) => {
+        if (!document.querySelector('link[data-leaflet]')) {
+            const link = document.createElement('link');
+            link.rel = 'stylesheet';
+            link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+            link.setAttribute('data-leaflet', 'true');
+            document.head.appendChild(link);
+        }
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+        script.onload = () => resolve((window as any).L);
+        script.onerror = reject;
+        document.head.appendChild(script);
+    });
+    return leafletPromise;
+}
+
+const geocodeCache = new Map<string, string | null>();
+
+async function reverseGeocode(
+    lat: number,
+    lng: number,
+): Promise<string | null> {
+    const key = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+    if (geocodeCache.has(key)) return geocodeCache.get(key) ?? null;
+    try {
+        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
+        const res = await fetch(url, {
+            headers: { Accept: 'application/json' },
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        let result: string | null = null;
+        if (!data?.address) {
+            result = data?.display_name || null;
+        } else {
+            const a = data.address;
+            const parts = [
+                [a.house_number, a.road].filter(Boolean).join(' '),
+                a.suburb || a.neighbourhood || a.residential,
+                a.city || a.town || a.village,
+            ].filter(Boolean);
+            result = parts.length
+                ? parts.join(', ')
+                : data.display_name || null;
+        }
+        geocodeCache.set(key, result);
+        return result;
+    } catch {
+        return null;
+    }
+}
+
+async function initMap() {
+    const points = mapPoints.value;
+    if (points.length === 0) return;
+    mapLoading.value = true;
+    const L = await loadLeaflet();
+    await nextTick();
+    if (!mapEl.value) {
+        mapLoading.value = false;
+        return;
+    }
+    if (mapInstance) {
+        mapInstance.remove();
+        mapInstance = null;
+    }
+    mapInstance = L.map(mapEl.value, {
+        zoomControl: true,
+        attributionControl: false,
+    });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+    }).addTo(mapInstance);
+
+    const bounds: [number, number][] = [];
+    for (const p of points) {
+        const icon = L.divIcon({
+            className: 'map-pin',
+            html: `<span class="map-pin__dot" style="background:${p.color}"></span>`,
+            iconSize: [16, 16],
+            iconAnchor: [8, 8],
+        });
+        const marker = L.marker([p.lat, p.lng], { icon }).addTo(mapInstance);
+        marker.bindPopup(`<strong>${p.label}</strong>`);
+        bounds.push([p.lat, p.lng]);
+
+        reverseGeocode(p.lat, p.lng).then((addr) => {
+            geocoded.value[p.key] = addr;
+            if (addr)
+                marker.setPopupContent(
+                    `<strong>${p.label}</strong><br>${addr}`,
+                );
+        });
+    }
+    if (bounds.length === 1) {
+        mapInstance.setView(bounds[0], 16);
+    } else {
+        mapInstance.fitBounds(bounds, { padding: [30, 30] });
+    }
+    mapLoading.value = false;
+}
+
+function destroyMap() {
+    if (mapInstance) {
+        mapInstance.remove();
+        mapInstance = null;
+    }
+    geocoded.value = {};
+}
+
+onUnmounted(() => destroyMap());
 
 const statusOptions = [
     { value: '', label: 'All' },
@@ -381,7 +618,7 @@ onMounted(() => loadReports());
                                 </span>
                             </td>
                             <td class="td-time">
-                                {{ fmtDate(report.created_at) }}
+                                {{ fmtDateTime(report.created_at) }}
                             </td>
                             <td>
                                 <button
@@ -432,7 +669,7 @@ onMounted(() => loadReports());
                     class="modal-backdrop"
                     @click.self="closeDetail"
                 >
-                    <div class="modal-sheet">
+                    <div class="modal-sheet modal-sheet--wide">
                         <div class="modal-sheet__header">
                             <div>
                                 <div class="modal-sheet__title">
@@ -466,487 +703,572 @@ onMounted(() => loadReports());
                             <span class="text-sm text-slate-400">Loading…</span>
                         </div>
 
-                        <div v-else class="modal-sheet__body">
-                            <div class="toggle-row">
-                                <span
-                                    class="type-badge"
-                                    :class="
-                                        outcomeConfig[selectedReport?.outcome]
-                                            ?.cls
-                                    "
-                                    >{{
-                                        outcomeConfig[selectedReport?.outcome]
-                                            ?.label
-                                    }}</span
-                                >
-                                <span
-                                    class="type-badge"
-                                    :class="
-                                        statusConfig[selectedReport?.status]
-                                            ?.cls
-                                    "
-                                    >{{
-                                        statusConfig[selectedReport?.status]
-                                            ?.label
-                                    }}</span
-                                >
-                                <span
-                                    v-if="selectedReport?.misuse_category"
-                                    class="type-badge bg-slate-100 text-slate-600"
-                                >
-                                    {{
-                                        misuseCategoryLabel[
-                                            selectedReport.misuse_category
-                                        ]
-                                    }}
-                                </span>
-                            </div>
+                        <div v-else class="modal-sheet__layout">
+                            <div class="modal-sheet__body">
+                                <div class="toggle-row">
+                                    <span
+                                        class="type-badge"
+                                        :class="
+                                            outcomeConfig[
+                                                selectedReport?.outcome
+                                            ]?.cls
+                                        "
+                                        >{{
+                                            outcomeConfig[
+                                                selectedReport?.outcome
+                                            ]?.label
+                                        }}</span
+                                    >
+                                    <span
+                                        class="type-badge"
+                                        :class="
+                                            statusConfig[selectedReport?.status]
+                                                ?.cls
+                                        "
+                                        >{{
+                                            statusConfig[selectedReport?.status]
+                                                ?.label
+                                        }}</span
+                                    >
+                                    <span
+                                        v-if="selectedReport?.misuse_category"
+                                        class="type-badge bg-slate-100 text-slate-600"
+                                    >
+                                        {{
+                                            misuseCategoryLabel[
+                                                selectedReport.misuse_category
+                                            ]
+                                        }}
+                                    </span>
+                                </div>
 
-                            <div
-                                v-if="
-                                    selectedReport?.alert?.cancel_pin_used ===
-                                    'duress'
-                                "
-                                class="duress-banner"
-                            >
-                                ⚠ Duress PIN was used to cancel this alert
-                            </div>
-
-                            <div class="toggle-row">
-                                <span
-                                    class="type-badge bg-slate-100 text-slate-600"
-                                >
-                                    {{
-                                        selectedReport?.alert?.alert_type ??
-                                        'sos'
-                                    }}
-                                </span>
-                                <span
-                                    v-if="selectedReport?.alert?.muted"
-                                    class="type-badge bg-slate-100 text-slate-600"
-                                >
-                                    Muted
-                                </span>
-                                <span
+                                <div
                                     v-if="
                                         selectedReport?.alert
-                                            ?.cancel_pin_used &&
-                                        selectedReport.alert.cancel_pin_used !==
-                                            'none'
+                                            ?.cancel_pin_used === 'duress'
                                     "
-                                    class="type-badge"
-                                    :class="
-                                        selectedReport.alert.cancel_pin_used ===
-                                        'duress'
-                                            ? 'bg-red-50 text-red-600'
-                                            : 'bg-slate-100 text-slate-600'
-                                    "
+                                    class="duress-banner"
                                 >
-                                    Cancel PIN:
-                                    {{
-                                        selectedReport.alert.cancel_pin_used ===
-                                        'duress'
-                                            ? 'Duress'
-                                            : 'Safe Cancel'
-                                    }}
-                                </span>
-                            </div>
+                                    ⚠ Duress PIN was used to cancel this alert
+                                </div>
 
-                            <div class="toggle-row">
-                                <div class="review-info-panel">
-                                    <div class="field__label">Household</div>
-                                    <div class="review-info-panel__name">
-                                        {{ selectedReport?.household?.name }}
-                                    </div>
-                                    <div
-                                        class="review-info-panel__sub"
+                                <div class="toggle-row">
+                                    <span
+                                        class="type-badge bg-slate-100 text-slate-600"
+                                    >
+                                        {{
+                                            selectedReport?.alert?.alert_type ??
+                                            'sos'
+                                        }}
+                                    </span>
+                                    <span
+                                        v-if="selectedReport?.alert?.muted"
+                                        class="type-badge bg-slate-100 text-slate-600"
+                                    >
+                                        Muted
+                                    </span>
+                                    <span
                                         v-if="
-                                            selectedReport?.household
-                                                ?.unit_number
+                                            selectedReport?.alert
+                                                ?.cancel_pin_used &&
+                                            selectedReport.alert
+                                                .cancel_pin_used !== 'none'
+                                        "
+                                        class="type-badge"
+                                        :class="
+                                            selectedReport.alert
+                                                .cancel_pin_used === 'duress'
+                                                ? 'bg-red-50 text-red-600'
+                                                : 'bg-slate-100 text-slate-600'
                                         "
                                     >
-                                        Unit
+                                        Cancel PIN:
                                         {{
-                                            selectedReport.household.unit_number
+                                            selectedReport.alert
+                                                .cancel_pin_used === 'duress'
+                                                ? 'Duress'
+                                                : 'Safe Cancel'
                                         }}
-                                    </div>
-                                    <div class="review-info-panel__sub">
-                                        {{ selectedReport?.household?.email }}
-                                    </div>
-                                    <div class="review-info-panel__sub">
-                                        {{ selectedReport?.household?.phone }}
-                                    </div>
+                                    </span>
                                 </div>
-                                <div class="review-info-panel">
-                                    <div class="field__label">Guard</div>
-                                    <div class="review-info-panel__name">
-                                        {{ selectedReport?.reporter?.name }}
-                                    </div>
-                                    <div class="review-info-panel__sub">
-                                        {{ selectedReport?.reporter?.email }}
-                                    </div>
-                                    <div class="review-info-panel__sub">
-                                        {{ selectedReport?.reporter?.phone }}
-                                    </div>
-                                </div>
-                            </div>
 
-                            <div class="review-info-panel">
-                                <div class="field__label">
-                                    Response Timeline
-                                </div>
-                                <div class="detail-grid">
-                                    <div>
+                                <div class="toggle-row">
+                                    <div class="review-info-panel">
                                         <div class="field__label">
-                                            Alert Sent
+                                            Household
                                         </div>
+                                        <div class="review-info-panel__name">
+                                            {{
+                                                selectedReport?.household?.name
+                                            }}
+                                        </div>
+                                        <div
+                                            class="review-info-panel__sub"
+                                            v-if="
+                                                selectedReport?.household
+                                                    ?.unit_number
+                                            "
+                                        >
+                                            {{
+                                                fmtUnit(
+                                                    selectedReport.household
+                                                        .unit_number,
+                                                )
+                                            }}
+                                        </div>
+                                        <div class="review-info-panel__sub">
+                                            {{
+                                                selectedReport?.household?.email
+                                            }}
+                                        </div>
+                                        <div class="review-info-panel__sub">
+                                            {{
+                                                selectedReport?.household?.phone
+                                            }}
+                                        </div>
+                                    </div>
+                                    <div class="review-info-panel">
+                                        <div class="field__label">Guard</div>
+                                        <div class="review-info-panel__name">
+                                            {{ selectedReport?.reporter?.name }}
+                                        </div>
+                                        <div class="review-info-panel__sub">
+                                            {{
+                                                selectedReport?.reporter?.email
+                                            }}
+                                        </div>
+                                        <div class="review-info-panel__sub">
+                                            {{
+                                                selectedReport?.reporter?.phone
+                                            }}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="review-info-panel">
+                                    <div class="field__label">
+                                        Response Timeline
+                                    </div>
+                                    <div class="detail-grid">
                                         <div>
                                             <div class="field__label">
-                                                First Acknowledged
+                                                Alert Sent
+                                            </div>
+                                            <div>
+                                                <div class="field__label">
+                                                    First Acknowledged
+                                                </div>
+                                                <div class="detail-grid__value">
+                                                    {{
+                                                        fmtDateTime(
+                                                            selectedReport
+                                                                ?.alert
+                                                                ?.first_ack_at,
+                                                        )
+                                                    }}
+                                                </div>
                                             </div>
                                             <div class="detail-grid__value">
                                                 {{
                                                     fmtDateTime(
                                                         selectedReport?.alert
-                                                            ?.first_ack_at,
+                                                            ?.created_at,
                                                     )
                                                 }}
                                             </div>
                                         </div>
-                                        <div class="detail-grid__value">
-                                            {{
-                                                fmtDateTime(
+                                        <div>
+                                            <div class="field__label">
+                                                Guard Accepted
+                                            </div>
+                                            <div class="detail-grid__value">
+                                                {{
+                                                    fmtDateTime(
+                                                        selectedReport
+                                                            ?.resolution
+                                                            ?.accepted_at,
+                                                    )
+                                                }}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div class="field__label">
+                                                System Arrival
+                                            </div>
+                                            <div class="detail-grid__value">
+                                                {{
+                                                    fmtDateTime(
+                                                        selectedReport
+                                                            ?.resolution
+                                                            ?.arrival_time,
+                                                    )
+                                                }}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div class="field__label">
+                                                System Resolved
+                                            </div>
+                                            <div class="detail-grid__value">
+                                                {{
+                                                    fmtDateTime(
+                                                        selectedReport
+                                                            ?.resolution
+                                                            ?.resolution_time,
+                                                    )
+                                                }}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div class="field__label">
+                                                Response Duration
+                                            </div>
+                                            <div class="detail-grid__value">
+                                                {{
+                                                    fmtDuration(
+                                                        selectedReport
+                                                            ?.resolution
+                                                            ?.response_duration,
+                                                    )
+                                                }}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div class="field__label">
+                                                Distance Traveled
+                                            </div>
+                                            <div class="detail-grid__value">
+                                                {{
+                                                    fmtDistance(
+                                                        selectedReport
+                                                            ?.resolution
+                                                            ?.distance_traveled,
+                                                    )
+                                                }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="review-info-panel">
+                                    <div class="field__label">Location</div>
+                                    <div class="detail-grid">
+                                        <div>
+                                            <div class="field__label">
+                                                Trigger Location
+                                            </div>
+                                            <div class="detail-grid__value">
+                                                {{
                                                     selectedReport?.alert
-                                                        ?.created_at,
-                                                )
-                                            }}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div class="field__label">
-                                            Guard Accepted
-                                        </div>
-                                        <div class="detail-grid__value">
-                                            {{
-                                                fmtDateTime(
-                                                    selectedReport?.resolution
-                                                        ?.accepted_at,
-                                                )
-                                            }}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div class="field__label">
-                                            System Arrival
-                                        </div>
-                                        <div class="detail-grid__value">
-                                            {{
-                                                fmtDateTime(
-                                                    selectedReport?.resolution
-                                                        ?.arrival_time,
-                                                )
-                                            }}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div class="field__label">
-                                            System Resolved
-                                        </div>
-                                        <div class="detail-grid__value">
-                                            {{
-                                                fmtDateTime(
-                                                    selectedReport?.resolution
-                                                        ?.resolution_time,
-                                                )
-                                            }}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div class="field__label">
-                                            Response Duration
-                                        </div>
-                                        <div class="detail-grid__value">
-                                            {{
-                                                selectedReport?.resolution
-                                                    ?.response_duration ?? '—'
-                                            }}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div class="field__label">
-                                            Distance Traveled
-                                        </div>
-                                        <div class="detail-grid__value">
-                                            {{
-                                                selectedReport?.resolution
-                                                    ?.distance_traveled ?? '—'
-                                            }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="review-info-panel">
-                                <div class="field__label">Location</div>
-                                <div class="detail-grid">
-                                    <div>
-                                        <div class="field__label">
-                                            Trigger Location
-                                        </div>
-                                        <div class="detail-grid__value">
-                                            {{
-                                                selectedReport?.alert
-                                                    ?.trigger_lat &&
-                                                selectedReport?.alert
-                                                    ?.trigger_lng
-                                                    ? `${selectedReport.alert.trigger_lat}, ${selectedReport.alert.trigger_lng}`
-                                                    : '—'
-                                            }}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div class="field__label">
-                                            Last Known Location
-                                        </div>
-                                        <div class="detail-grid__value">
-                                            {{
-                                                selectedReport?.alert
-                                                    ?.last_lat &&
-                                                selectedReport?.alert?.last_lng
-                                                    ? `${selectedReport.alert.last_lat}, ${selectedReport.alert.last_lng}`
-                                                    : '—'
-                                            }}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div class="field__label">
-                                            GPS Accuracy
-                                        </div>
-                                        <div class="detail-grid__value">
-                                            {{
-                                                selectedReport?.alert
-                                                    ?.accuracy ?? '—'
-                                            }}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div class="field__label">
-                                            Location Updated
-                                        </div>
-                                        <div class="detail-grid__value">
-                                            {{
-                                                fmtDateTime(
+                                                        ?.trigger_lat &&
                                                     selectedReport?.alert
-                                                        ?.location_updated_at,
-                                                )
-                                            }}
+                                                        ?.trigger_lng
+                                                        ? `${selectedReport.alert.trigger_lat}, ${selectedReport.alert.trigger_lng}`
+                                                        : '—'
+                                                }}
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div>
-                                        <div class="field__label">
-                                            Responder Start
+                                        <div>
+                                            <div class="field__label">
+                                                Last Known Location
+                                            </div>
+                                            <div class="detail-grid__value">
+                                                {{
+                                                    selectedReport?.alert
+                                                        ?.last_lat &&
+                                                    selectedReport?.alert
+                                                        ?.last_lng
+                                                        ? `${selectedReport.alert.last_lat}, ${selectedReport.alert.last_lng}`
+                                                        : '—'
+                                                }}
+                                            </div>
                                         </div>
-                                        <div class="detail-grid__value">
-                                            {{
-                                                selectedReport?.resolution
-                                                    ?.start_latitude &&
-                                                selectedReport?.resolution
-                                                    ?.start_longitude
-                                                    ? `${selectedReport.resolution.start_latitude}, ${selectedReport.resolution.start_longitude}`
-                                                    : '—'
-                                            }}
+                                        <div>
+                                            <div class="field__label">
+                                                GPS Accuracy
+                                            </div>
+                                            <div class="detail-grid__value">
+                                                {{
+                                                    fmtAccuracy(
+                                                        selectedReport?.alert
+                                                            ?.accuracy,
+                                                    )
+                                                }}
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div>
-                                        <div class="field__label">
-                                            Responder Arrival
+                                        <div>
+                                            <div class="field__label">
+                                                Location Updated
+                                            </div>
+                                            <div class="detail-grid__value">
+                                                {{
+                                                    fmtDateTime(
+                                                        selectedReport?.alert
+                                                            ?.location_updated_at,
+                                                    )
+                                                }}
+                                            </div>
                                         </div>
-                                        <div class="detail-grid__value">
-                                            {{
-                                                selectedReport?.resolution
-                                                    ?.arrival_latitude &&
-                                                selectedReport?.resolution
-                                                    ?.arrival_longitude
-                                                    ? `${selectedReport.resolution.arrival_latitude}, ${selectedReport.resolution.arrival_longitude}`
-                                                    : '—'
-                                            }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="review-info-panel">
-                                <div class="detail-grid">
-                                    <div>
-                                        <div class="field__label">
-                                            Guard-Reported Arrival
-                                        </div>
-                                        <div class="detail-grid__value">
-                                            {{
-                                                fmtDateTime(
-                                                    selectedReport?.arrived_at,
-                                                )
-                                            }}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div class="field__label">
-                                            Guard-Reported Departure
-                                        </div>
-                                        <div class="detail-grid__value">
-                                            {{
-                                                fmtDateTime(
-                                                    selectedReport?.departed_at,
-                                                )
-                                            }}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div class="field__label">Injuries</div>
-                                        <div
-                                            class="detail-grid__value"
-                                            :class="{
-                                                'detail-grid__value--danger':
-                                                    selectedReport?.injuries_reported,
-                                            }"
-                                        >
-                                            {{
-                                                selectedReport?.injuries_reported
-                                                    ? 'Yes'
-                                                    : 'No'
-                                            }}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div class="field__label">
-                                            Property Damage
-                                        </div>
-                                        <div
-                                            class="detail-grid__value"
-                                            :class="{
-                                                'detail-grid__value--danger':
-                                                    selectedReport?.property_damage,
-                                            }"
-                                        >
-                                            {{
-                                                selectedReport?.property_damage
-                                                    ? 'Yes'
-                                                    : 'No'
-                                            }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="field">
-                                <label class="field__label"
-                                    >Guard's Account</label
-                                >
-                                <p class="review-description">
-                                    {{ selectedReport?.narrative }}
-                                </p>
-                            </div>
-
-                            <div
-                                v-if="selectedReport?.alert?.audio_path"
-                                class="field"
-                            >
-                                <label class="field__label">Alert Audio</label>
-                                <audio
-                                    controls
-                                    :src="selectedReport.alert.audio_path"
-                                    class="audio-player"
-                                ></audio>
-                            </div>
-
-                            <div
-                                v-if="
-                                    selectedReport?.resolution?.victim_response
-                                "
-                                class="field"
-                            >
-                                <label class="field__label"
-                                    >Victim Response</label
-                                >
-                                <p class="review-description">
-                                    {{
-                                        selectedReport.resolution
-                                            .victim_response
-                                    }}
-                                </p>
-                            </div>
-
-                            <div class="review-info-panel">
-                                <div class="field__label">Confirmation</div>
-                                <div class="detail-grid">
-                                    <div>
-                                        <div class="field__label">Status</div>
-                                        <div
-                                            class="detail-grid__value"
-                                            style="text-transform: capitalize"
-                                        >
-                                            {{
-                                                selectedReport?.resolution
-                                                    ?.confirmation_status ?? '—'
-                                            }}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div class="field__label">
-                                            Confirmed By
-                                        </div>
-                                        <div class="detail-grid__value">
-                                            {{
-                                                selectedReport?.resolution
-                                                    ?.confirmed_by ?? '—'
-                                            }}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div class="field__label">
-                                            Confirmed At
-                                        </div>
-                                        <div class="detail-grid__value">
-                                            {{
-                                                fmtDateTime(
+                                        <div>
+                                            <div class="field__label">
+                                                Responder Start
+                                            </div>
+                                            <div class="detail-grid__value">
+                                                {{
                                                     selectedReport?.resolution
-                                                        ?.confirmed_at,
-                                                )
-                                            }}
+                                                        ?.start_latitude &&
+                                                    selectedReport?.resolution
+                                                        ?.start_longitude
+                                                        ? `${selectedReport.resolution.start_latitude}, ${selectedReport.resolution.start_longitude}`
+                                                        : '—'
+                                                }}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div class="field__label">
+                                                Responder Arrival
+                                            </div>
+                                            <div class="detail-grid__value">
+                                                {{
+                                                    selectedReport?.resolution
+                                                        ?.arrival_latitude &&
+                                                    selectedReport?.resolution
+                                                        ?.arrival_longitude
+                                                        ? `${selectedReport.resolution.arrival_latitude}, ${selectedReport.resolution.arrival_longitude}`
+                                                        : '—'
+                                                }}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
+
+                                <div class="review-info-panel">
+                                    <div class="detail-grid">
+                                        <div>
+                                            <div class="field__label">
+                                                Guard-Reported Arrival
+                                            </div>
+                                            <div class="detail-grid__value">
+                                                {{
+                                                    fmtDateTime(
+                                                        selectedReport?.arrived_at,
+                                                    )
+                                                }}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div class="field__label">
+                                                Guard-Reported Departure
+                                            </div>
+                                            <div class="detail-grid__value">
+                                                {{
+                                                    fmtDateTime(
+                                                        selectedReport?.departed_at,
+                                                    )
+                                                }}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div class="field__label">
+                                                Injuries
+                                            </div>
+                                            <div
+                                                class="detail-grid__value"
+                                                :class="{
+                                                    'detail-grid__value--danger':
+                                                        selectedReport?.injuries_reported,
+                                                }"
+                                            >
+                                                {{
+                                                    selectedReport?.injuries_reported
+                                                        ? 'Yes'
+                                                        : 'No'
+                                                }}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div class="field__label">
+                                                Property Damage
+                                            </div>
+                                            <div
+                                                class="detail-grid__value"
+                                                :class="{
+                                                    'detail-grid__value--danger':
+                                                        selectedReport?.property_damage,
+                                                }"
+                                            >
+                                                {{
+                                                    selectedReport?.property_damage
+                                                        ? 'Yes'
+                                                        : 'No'
+                                                }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="field">
+                                    <label class="field__label"
+                                        >Guard's Account</label
+                                    >
+                                    <p class="review-description">
+                                        {{ selectedReport?.narrative }}
+                                    </p>
+                                </div>
+
+                                <div
+                                    v-if="selectedReport?.alert?.audio_path"
+                                    class="field"
+                                >
+                                    <label class="field__label"
+                                        >Alert Audio</label
+                                    >
+                                    <audio
+                                        controls
+                                        :src="selectedReport.alert.audio_path"
+                                        class="audio-player"
+                                    ></audio>
+                                </div>
+
+                                <div
+                                    v-if="
+                                        selectedReport?.resolution
+                                            ?.victim_response
+                                    "
+                                    class="field"
+                                >
+                                    <label class="field__label"
+                                        >Victim Response</label
+                                    >
+                                    <p class="review-description">
+                                        {{
+                                            selectedReport.resolution
+                                                .victim_response
+                                        }}
+                                    </p>
+                                </div>
+
+                                <div class="review-info-panel">
+                                    <div class="field__label">Confirmation</div>
+                                    <div class="detail-grid">
+                                        <div>
+                                            <div class="field__label">
+                                                Status
+                                            </div>
+                                            <div
+                                                class="detail-grid__value"
+                                                style="
+                                                    text-transform: capitalize;
+                                                "
+                                            >
+                                                {{
+                                                    selectedReport?.resolution
+                                                        ?.confirmation_status ??
+                                                    '—'
+                                                }}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div class="field__label">
+                                                Confirmed By
+                                            </div>
+                                            <div class="detail-grid__value">
+                                                {{
+                                                    selectedReport?.resolution
+                                                        ?.confirmed_by ?? '—'
+                                                }}
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <div class="field__label">
+                                                Confirmed At
+                                            </div>
+                                            <div class="detail-grid__value">
+                                                {{
+                                                    fmtDateTime(
+                                                        selectedReport
+                                                            ?.resolution
+                                                            ?.confirmed_at,
+                                                    )
+                                                }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div
+                                    v-if="selectedReport?.additional_notes"
+                                    class="field"
+                                >
+                                    <label class="field__label"
+                                        >Additional Notes</label
+                                    >
+                                    <p class="review-description">
+                                        {{ selectedReport.additional_notes }}
+                                    </p>
+                                </div>
+
+                                <div
+                                    v-if="selectedReport?.actioned_by"
+                                    class="review-info-panel"
+                                >
+                                    <div class="field__label">Admin Action</div>
+                                    <p class="review-info-panel__name">
+                                        By
+                                        {{
+                                            selectedReport.actioned_by?.name
+                                        }}
+                                        on
+                                        {{
+                                            fmtDateTime(
+                                                selectedReport.actioned_at,
+                                            )
+                                        }}
+                                    </p>
+                                    <p
+                                        v-if="selectedReport.admin_notes"
+                                        class="review-info-panel__sub"
+                                    >
+                                        {{ selectedReport.admin_notes }}
+                                    </p>
+                                </div>
                             </div>
 
-                            <div
-                                v-if="selectedReport?.additional_notes"
-                                class="field"
-                            >
-                                <label class="field__label"
-                                    >Additional Notes</label
-                                >
-                                <p class="review-description">
-                                    {{ selectedReport.additional_notes }}
-                                </p>
-                            </div>
-
-                            <div
-                                v-if="selectedReport?.actioned_by"
-                                class="review-info-panel"
-                            >
-                                <div class="field__label">Admin Action</div>
-                                <p class="review-info-panel__name">
-                                    By {{ selectedReport.actioned_by?.name }} on
-                                    {{
-                                        fmtDateTime(selectedReport.actioned_at)
-                                    }}
-                                </p>
-                                <p
-                                    v-if="selectedReport.admin_notes"
-                                    class="review-info-panel__sub"
-                                >
-                                    {{ selectedReport.admin_notes }}
-                                </p>
+                            <div class="modal-sheet__map-panel">
+                                <div ref="mapEl" class="modal-sheet__map"></div>
+                                <div v-if="mapLoading" class="map-loading">
+                                    Loading map…
+                                </div>
+                                <div class="map-legend">
+                                    <div
+                                        v-for="p in mapPoints"
+                                        :key="p.key"
+                                        class="map-legend__row"
+                                    >
+                                        <span
+                                            class="map-legend__dot"
+                                            :style="{ background: p.color }"
+                                        ></span>
+                                        <div>
+                                            <div class="map-legend__label">
+                                                {{ p.label }}
+                                            </div>
+                                            <div class="map-legend__addr">
+                                                {{
+                                                    geocoded[p.key] ??
+                                                    'Locating…'
+                                                }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div
+                                        v-if="mapPoints.length === 0"
+                                        class="map-legend__empty"
+                                    >
+                                        No location data available for this
+                                        report
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1359,6 +1681,10 @@ onMounted(() => loadReports());
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
     border: 1px solid #e4e8ef;
 }
+.modal-sheet--wide {
+    max-width: 1040px;
+    overflow-y: hidden;
+}
 .modal-sheet__header {
     display: flex;
     align-items: center;
@@ -1396,11 +1722,81 @@ onMounted(() => loadReports());
 .close-btn:hover {
     background: #e2e8f0;
 }
+.modal-sheet__layout {
+    display: flex;
+    max-height: calc(90vh - 79px);
+}
 .modal-sheet__body {
+    flex: 1 1 58%;
+    min-width: 0;
+    overflow-y: auto;
     padding: 24px;
     display: flex;
     flex-direction: column;
     gap: 18px;
+}
+.modal-sheet__map-panel {
+    flex: 1 1 42%;
+    max-width: 380px;
+    min-width: 280px;
+    border-left: 1px solid #e4e8ef;
+    display: flex;
+    flex-direction: column;
+    background: #f8fafc;
+    position: relative;
+}
+.modal-sheet__map {
+    height: 260px;
+    width: 100%;
+    flex-shrink: 0;
+}
+.map-loading {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    background: #fff;
+    border: 1px solid #e4e8ef;
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    box-shadow: var(--shadow-sm);
+}
+.map-legend {
+    padding: 14px 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.map-legend__row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+}
+.map-legend__dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-top: 4px;
+    flex-shrink: 0;
+    border: 1.5px solid #fff;
+    box-shadow: 0 0 0 1px #e4e8ef;
+}
+.map-legend__label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1a2332;
+}
+.map-legend__addr {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 1px;
+}
+.map-legend__empty {
+    font-size: 12px;
+    color: #94a3b8;
 }
 
 .review-info-panel {
@@ -1504,6 +1900,22 @@ onMounted(() => loadReports());
     transform: scale(0.97) translateY(12px);
 }
 
+@media (max-width: 900px) {
+    .modal-sheet--wide {
+        max-width: 640px;
+    }
+    .modal-sheet__layout {
+        flex-direction: column;
+        max-height: none;
+        overflow-y: auto;
+    }
+    .modal-sheet__map-panel {
+        max-width: none;
+        border-left: none;
+        border-top: 1px solid #e4e8ef;
+    }
+}
+
 @media (max-width: 640px) {
     .page-root {
         padding: 16px;
@@ -1531,5 +1943,22 @@ onMounted(() => loadReports());
 .audio-player {
     width: 100%;
     height: 36px;
+}
+</style>
+
+<style>
+/* Global (unscoped) — Leaflet renders these outside Vue's template, so
+   scoped attributes never reach them. */
+.map-pin__dot {
+    display: block;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+.leaflet-popup-content {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 12px;
 }
 </style>
