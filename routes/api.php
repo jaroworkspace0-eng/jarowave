@@ -58,12 +58,14 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\VisitorCodeController;
 use App\Models\Channel;
 use App\Models\ChannelBillingContact;
+use App\Models\EmergencyAlert;
 use App\Models\Invoice;
 use App\Models\User;
 // use Illuminate\Container\Attributes\Auth;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
@@ -371,7 +373,43 @@ Route::get('/export',    [PayoutController::class, 'export']);
             ->get();
     });
 
-        Route::post('/alerts/{alert}/notify-guards', AlertGuardNotifyController::class);
+        // Route::post('/alerts/{alert}/notify-guards', AlertGuardNotifyController::class);
+
+
+        Route::post('/alerts/{alert}/notify-guards', function (Request $request, EmergencyAlert $alert) {
+            $validated = $request->validate([
+                'target'    => 'required|in:all,responder,selected',
+                'guardIds'  => 'required|array|min:1',
+                'guardIds.*'=> 'integer',
+                'message'   => 'required|string|max:240',
+            ]);
+
+            $sender = $request->user();
+
+            $payload = [
+                'title'      => 'Respond to ' . $alert->household_name . '\' emergency alert',
+                'message'    => $validated['message'],
+                'type'       => 'general',
+                'from'       => $sender->name,
+                'department' => 'Administrator',
+                'targetUserIds' => $validated['guardIds'],
+            ];
+
+            try {
+                $response = Http::timeout(10)
+                    ->withHeaders(['Authorization' => 'Bearer ' . env('ASSIGN_SECRET')])
+                    ->post(env('PTT_SERVER_URL') . '/send-announcement', $payload);
+
+                return response()->json([
+                    'success'         => true,
+                    'socketDelivered' => $response->json('socketDelivered', 0),
+                    'fcmSent'         => $response->json('fcmSent', 0),
+                ]);
+            } catch (\Exception $e) {
+                Log::warning('Alert guard notification push failed: ' . $e->getMessage());
+                return response()->json(['success' => false], 500);
+            }
+        });
 
         // mobile app — household tickets
         Route::get('/tickets', [TicketController::class, 'index']);

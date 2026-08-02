@@ -78,6 +78,18 @@ function handleEnableSound() {
 function handleSeen(alertId) {
     markAlertSeen(alertId);
 }
+
+async function handleNotifyGuards(alertId, { target, guardIds, message }) {
+    try {
+        await axios.post(`/api/alerts/${alertId}/notify-guards`, {
+            target,
+            guardIds,
+            message,
+        });
+    } catch (e) {
+        console.error('Failed to notify guards:', e);
+    }
+}
 </script>
 <template>
     <Head title="Live Alerts" />
@@ -188,6 +200,7 @@ function handleSeen(alertId) {
                     :key="alert.id"
                     :alert="alert"
                     :is-estate-admin="isGateGuard"
+                    @notify-guards="handleNotifyGuards"
                     @mute="toggleMute"
                     @call-log="logCallAttempt"
                     @resolve="handleResolve"
