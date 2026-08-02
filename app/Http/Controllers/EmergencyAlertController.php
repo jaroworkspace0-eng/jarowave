@@ -509,7 +509,8 @@ class EmergencyAlertController extends Controller
 
         $resolution->update([
             'confirmation_status' => $request->confirmed_by === 'victim' ? 'confirmed' : 'auto_confirmed',
-            'confirmed_at'        => Carbon::parse($request->confirmed_at), // Ensure it's a Carbon object
+            // 'confirmed_at'        => Carbon::parse($request->confirmed_at), // Ensure it's a Carbon object
+            'confirmed_at'        => Carbon::parse($request->confirmed_at, config('app.timezone')),
             'confirmed_by'        => $request->confirmed_by,
             'victim_response'     => $request->victim_response ?? null,
         ]);

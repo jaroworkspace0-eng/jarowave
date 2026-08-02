@@ -8,6 +8,7 @@ use App\Models\EmergencyAlert;
 use App\Models\SosIncidentReport;
 use App\Models\Subscription;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
@@ -19,45 +20,51 @@ class SosIncidentReportController extends Controller
     // ── POST /api/incident-reports ────────────────────────────────────────────
     // Patroller submits a report after responding to an alert
    
+   
     public function store(Request $request)
-    {
-        $request->validate([
-            'emergency_alert_id' => 'nullable|exists:emergency_alerts,id',
-            'household_user_id'  => 'required|exists:users,id',
-            'outcome'            => 'required|in:legitimate,misuse',
-            'misuse_category'    => 'required_if:outcome,misuse|nullable|in:accidental,prank,domestic_dispute,unfounded_fear,repeated_false_alarm,other',
-            'narrative'          => 'required|string|min:20',
-            'arrived_at'         => 'nullable|date',
-            'departed_at'        => 'nullable|date|after_or_equal:arrived_at',
-            'injuries_reported'  => 'boolean',
-            'property_damage'    => 'boolean',
-            'additional_notes'   => 'nullable|string',
-        ]);
+{
+    $validated = $request->validate([
+        'emergency_alert_id' => 'nullable|exists:emergency_alerts,id',
+        'household_user_id'  => 'required|exists:users,id',
+        'outcome'            => 'required|in:legitimate,misuse',
+        'misuse_category'    => 'required_if:outcome,misuse|nullable|in:accidental,prank,domestic_dispute,unfounded_fear,repeated_false_alarm,other',
+        'narrative'          => 'required|string|min:20',
+        'arrived_at'         => 'nullable|date',
+        'departed_at'        => 'nullable|date|after_or_equal:arrived_at',
+        'injuries_reported'  => 'boolean',
+        'property_damage'    => 'boolean',
+        'additional_notes'   => 'nullable|string',
+    ]);
 
-        $channelId = null;
-        if ($request->emergency_alert_id) {
-            $channelId = EmergencyAlert::find($request->emergency_alert_id)?->channel_id;
-        }
-
-        $report = SosIncidentReport::create([
-            ...$request->only([
-                'emergency_alert_id', 'household_user_id', 'outcome',
-                'misuse_category', 'narrative', 'arrived_at', 'departed_at',
-                'injuries_reported', 'property_damage', 'additional_notes',
-            ]),
-            'reporter_user_id' => Auth::id(),
-            'channel_id'       => $channelId,
-            'status'           => 'pending',
-        ]);
-
-        $report->load(['household:id,name,email', 'reporter:id,name']);
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Incident report submitted successfully.',
-            'report'  => $report,
-        ], 201);
+    // Explicitly parse and convert timezones to local app timezone if set
+    if (!empty($validated['arrived_at'])) {
+        $validated['arrived_at'] = Carbon::parse($validated['arrived_at'])->setTimezone(config('app.timezone'));
     }
+
+    if (!empty($validated['departed_at'])) {
+        $validated['departed_at'] = Carbon::parse($validated['departed_at'])->setTimezone(config('app.timezone'));
+    }
+
+    $channelId = null;
+    if ($request->emergency_alert_id) {
+        $channelId = EmergencyAlert::find($request->emergency_alert_id)?->channel_id;
+    }
+
+    $report = SosIncidentReport::create([
+        ...$validated,
+        'reporter_user_id' => Auth::id(),
+        'channel_id'       => $channelId,
+        'status'           => 'pending',
+    ]);
+
+    $report->load(['household:id,name,email', 'reporter:id,name']);
+
+    return response()->json([
+        'success' => true,
+        'message' => 'Incident report submitted successfully.',
+        'report'  => $report,
+    ], 201);
+}
 
     // ── GET /api/incident-reports ─────────────────────────────────────────────
     // Patroller views their own submitted reports
