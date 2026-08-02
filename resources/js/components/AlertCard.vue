@@ -582,9 +582,9 @@ function onResolveChange(e) {
                     {{ alert.household_phone }}
                 </p>
                 <p class="ac-card__meta">{{ alert.channel_name }}</p>
-                <p v-if="isRegisteredAddress" class="ac-card__address">
+                <!-- <p v-if="isRegisteredAddress" class="ac-card__address">
                     {{ registeredAddressDisplay }}
-                </p>
+                </p> -->
                 <p v-if="isEstateUnitOnly" class="ac-unit-callout">
                     <strong>Unit {{ alert.unit_number }}</strong>
                 </p>
@@ -825,7 +825,7 @@ function onResolveChange(e) {
                                     >
                                         {{ alert.household_phone }}
                                     </p>
-                                    <p
+                                    <!-- <p
                                         v-if="isRegisteredAddress"
                                         class="ac-detail-row"
                                     >
@@ -833,7 +833,7 @@ function onResolveChange(e) {
                                         <span class="ac-detail-row--muted">
                                             · {{ locationSourceLabel }}</span
                                         >
-                                    </p>
+                                    </p> -->
                                     <p
                                         v-if="isEstateUnitOnly"
                                         class="ac-unit-callout ac-unit-callout--modal"
