@@ -1,12 +1,10 @@
 <script setup>
 import AppLayout from '@/layouts/AppLayout.vue';
-import { BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
-    BellRing,
     CheckCircle2,
     Crosshair,
     MapPin,
@@ -16,7 +14,7 @@ import {
 } from 'lucide-vue-next';
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 
-const BreadcrumbItem[] = [];
+const breadcrumbs = [];
 
 const reports = ref({ data: [], total: 0, from: 0, to: 0, links: [] });
 const reportList = ref([]);
@@ -206,7 +204,9 @@ let mapInstance = null;
 // not be where the alert happened. alert_location_source lives on the
 // household's user record (not the alert), per Karabo.
 const isRegisteredAddressSource = computed(
-    () => selectedReport.value?.household?.alert_location_source === 'registered_address',
+    () =>
+        selectedReport.value?.household?.alert_location_source ===
+        'registered_address',
 );
 
 const mapPoints = computed(() => {
