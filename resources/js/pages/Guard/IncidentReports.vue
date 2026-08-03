@@ -1,6 +1,5 @@
 <script setup>
 import AppLayout from '@/layouts/AppLayout.vue';
-import { BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import L from 'leaflet';
@@ -206,7 +205,9 @@ let mapInstance = null;
 // not be where the alert happened. alert_location_source lives on the
 // household's user record (not the alert), per Karabo.
 const isRegisteredAddressSource = computed(
-    () => selectedReport.value?.household?.alert_location_source === 'registered_address',
+    () =>
+        selectedReport.value?.household?.alert_location_source ===
+        'registered_address',
 );
 
 const mapPoints = computed(() => {
@@ -1076,9 +1077,7 @@ onMounted(() => loadReports());
                                     </div>
                                     <div class="ir-timeline">
                                         <div
-                                            v-for="(
-                                                step, i
-                                            ) in timelineSteps"
+                                            v-for="(step, i) in timelineSteps"
                                             :key="step.key"
                                             class="ir-timeline__step"
                                         >
@@ -1098,8 +1097,7 @@ onMounted(() => loadReports());
                                                 <span
                                                     v-if="
                                                         i <
-                                                        timelineSteps.length -
-                                                            1
+                                                        timelineSteps.length - 1
                                                     "
                                                     class="ir-timeline__line"
                                                     :class="{
@@ -1109,9 +1107,7 @@ onMounted(() => loadReports());
                                                 ></span>
                                             </div>
                                             <div class="ir-timeline__body">
-                                                <div
-                                                    class="ir-timeline__label"
-                                                >
+                                                <div class="ir-timeline__label">
                                                     {{ step.label }}
                                                 </div>
                                                 <div
@@ -1178,9 +1174,7 @@ onMounted(() => loadReports());
                                                     background: p.color,
                                                 }"
                                             ></span>
-                                            <div
-                                                class="ir-location-row__body"
-                                            >
+                                            <div class="ir-location-row__body">
                                                 <div
                                                     class="ir-location-row__top"
                                                 >
@@ -1220,8 +1214,8 @@ onMounted(() => loadReports());
                                             v-if="mapPoints.length === 0"
                                             class="ir-location-empty"
                                         >
-                                            No location data available for
-                                            this report
+                                            No location data available for this
+                                            report
                                         </p>
                                     </div>
                                     <div class="detail-grid detail-grid--pad">
@@ -1463,8 +1457,7 @@ onMounted(() => loadReports());
                                         <div>
                                             <div class="map-legend__label">
                                                 {{ p.label }}
-                                                <span
-                                                    class="map-legend__role"
+                                                <span class="map-legend__role"
                                                     >({{
                                                         p.role === 'guard'
                                                             ? 'Guard'
