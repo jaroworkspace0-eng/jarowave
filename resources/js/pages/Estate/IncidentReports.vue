@@ -228,7 +228,9 @@ type MapPoint = {
 // not be where the alert happened. alert_location_source lives on the
 // household's user record (not the alert), per Karabo.
 const isRegisteredAddressSource = computed(
-    () => selectedReport.value?.household?.alert_location_source === 'registered_address',
+    () =>
+        selectedReport.value?.household?.alert_location_source ===
+        'registered_address',
 );
 
 const mapPoints = computed<MapPoint[]>(() => {
@@ -475,13 +477,13 @@ const timelineSteps = computed(() => {
             icon: Siren,
             done: !!a?.created_at,
         },
-        // {
-        //     key: 'ack',
-        //     label: 'First Acknowledged',
-        //     time: a?.first_ack_at,
-        //     icon: BellRing,
-        //     done: !!a?.first_ack_at,
-        // },
+        {
+            key: 'ack',
+            label: 'First Acknowledged',
+            time: a?.first_ack_at,
+            icon: BellRing,
+            done: !!a?.first_ack_at,
+        },
         {
             key: 'accepted',
             label: 'Guard Accepted',
@@ -581,7 +583,7 @@ onMounted(() => loadReports());
                             @input="handleSearch"
                             type="text"
                             class="search-input"
-                            placeholder="Search by household name…"
+                            placeholder="Search by household name or unit number…"
                         />
                         <span
                             v-if="searchQuery"
@@ -706,8 +708,27 @@ onMounted(() => loadReports());
                                         }}
                                     </div>
                                     <div>
-                                        <div class="reporter-cell__name">
-                                            {{ report.household?.name ?? '—' }}
+                                        <div class="reporter-cell__name-row">
+                                            <span class="reporter-cell__name">
+                                                {{
+                                                    report.household?.name ??
+                                                    '—'
+                                                }}
+                                            </span>
+                                            <span
+                                                v-if="
+                                                    report.household
+                                                        ?.unit_number
+                                                "
+                                                class="ir-unit-badge ir-unit-badge--table"
+                                            >
+                                                {{
+                                                    fmtUnit(
+                                                        report.household
+                                                            .unit_number,
+                                                    )
+                                                }}
+                                            </span>
                                         </div>
                                         <div class="reporter-cell__sub">
                                             {{ report.household?.email }}
@@ -924,7 +945,7 @@ onMounted(() => loadReports());
                                             }}
                                         </div>
                                         <div
-                                            class="review-info-panel__sub"
+                                            class="ir-unit-badge ir-unit-badge--modal"
                                             v-if="
                                                 isRegisteredAddressSource &&
                                                 selectedReport?.household
@@ -973,9 +994,7 @@ onMounted(() => loadReports());
                                     </div>
                                     <div class="ir-timeline">
                                         <div
-                                            v-for="(
-                                                step, i
-                                            ) in timelineSteps"
+                                            v-for="(step, i) in timelineSteps"
                                             :key="step.key"
                                             class="ir-timeline__step"
                                         >
@@ -995,8 +1014,7 @@ onMounted(() => loadReports());
                                                 <span
                                                     v-if="
                                                         i <
-                                                        timelineSteps.length -
-                                                            1
+                                                        timelineSteps.length - 1
                                                     "
                                                     class="ir-timeline__line"
                                                     :class="{
@@ -1006,9 +1024,7 @@ onMounted(() => loadReports());
                                                 ></span>
                                             </div>
                                             <div class="ir-timeline__body">
-                                                <div
-                                                    class="ir-timeline__label"
-                                                >
+                                                <div class="ir-timeline__label">
                                                     {{ step.label }}
                                                 </div>
                                                 <div
@@ -1075,9 +1091,7 @@ onMounted(() => loadReports());
                                                     background: p.color,
                                                 }"
                                             ></span>
-                                            <div
-                                                class="ir-location-row__body"
-                                            >
+                                            <div class="ir-location-row__body">
                                                 <div
                                                     class="ir-location-row__top"
                                                 >
@@ -1117,8 +1131,8 @@ onMounted(() => loadReports());
                                             v-if="mapPoints.length === 0"
                                             class="ir-location-empty"
                                         >
-                                            No location data available for
-                                            this report
+                                            No location data available for this
+                                            report
                                         </p>
                                     </div>
                                     <div class="detail-grid detail-grid--pad">
@@ -1324,9 +1338,7 @@ onMounted(() => loadReports());
                                     <div class="field__label">Admin Action</div>
                                     <p class="review-info-panel__name">
                                         By
-                                        {{
-                                            selectedReport.actioned_by?.name
-                                        }}
+                                        {{ selectedReport.actioned_by?.name }}
                                         on
                                         {{
                                             fmtDateTime(
@@ -1375,8 +1387,7 @@ onMounted(() => loadReports());
                                         <div>
                                             <div class="map-legend__label">
                                                 {{ p.label }}
-                                                <span
-                                                    class="map-legend__role"
+                                                <span class="map-legend__role"
                                                     >({{
                                                         p.role === 'guard'
                                                             ? 'Guard'
@@ -1723,10 +1734,39 @@ onMounted(() => loadReports());
     font-weight: 700;
     color: #1a2332;
 }
+.reporter-cell__name-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
 .reporter-cell__sub {
     font-size: 11px;
     color: #94a3b8;
     margin-top: 1px;
+}
+
+/* ── Unit number — deliberately loud, registered-address households only ── */
+.ir-unit-badge {
+    display: inline-flex;
+    align-items: center;
+    background: #fef2f2;
+    border: 1.5px solid #fca5a5;
+    border-radius: 8px;
+    font-weight: 800;
+    color: #dc2626;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+.ir-unit-badge--table {
+    padding: 2px 9px;
+    font-size: 11px;
+}
+.ir-unit-badge--modal {
+    align-self: flex-start;
+    margin: 4px 0 2px;
+    padding: 5px 14px;
+    font-size: 16px;
 }
 .td-time {
     color: #64748b;

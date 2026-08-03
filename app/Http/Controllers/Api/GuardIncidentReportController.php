@@ -25,8 +25,12 @@ class GuardIncidentReportController extends Controller
         ->whereIn('channel_id', $channelIds);
 
     if ($request->search) {
-        $query->whereHas('household', fn($q) => $q->where('name', 'like', "%{$request->search}%"));
+        $query->whereHas('household', function ($q) use ($request) {
+            $q->where('name', 'like', "%{$request->search}%")
+            ->orWhere('unit_number', 'like', "%{$request->search}%");
+        });
     }
+
     if ($request->status) $query->where('status', $request->status);
     if ($request->outcome) $query->where('outcome', $request->outcome);
     if ($request->date_from) $query->whereDate('created_at', '>=', $request->date_from);
