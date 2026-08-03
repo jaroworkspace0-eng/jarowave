@@ -169,8 +169,10 @@ class EstateTenantController extends Controller
 
         $userId = $employee->user_id;
 
-        User::where('id', $userId)->delete();
-        $employee->delete();
+        DB::transaction(function () use ($userId, $employee) {
+            User::where('id', $userId)->delete();   // now soft-deletes
+            $employee->delete();                     // now soft-deletes
+        });
 
         $this->notifyPttServer('/force-disconnect', [
             'userId' => $userId,

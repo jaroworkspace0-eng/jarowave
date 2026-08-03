@@ -103,6 +103,13 @@ Route::post('/login', function (Request $request) {
         ]);
     }
 
+    if($user->deleted_at !== null) {
+        return response()->json([
+            'status'  => 'error',
+            'message' => 'Account deleted. Please contact support for assistance.'
+        ], 403);
+    }
+
     // Role restrictions
     if ($user->role === 'admin' && $request->source !== 'web') {
         return response()->json([
