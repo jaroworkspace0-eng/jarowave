@@ -31,6 +31,7 @@ class EmergencyResolution extends Model
         'confirmed_at' => 'datetime',
         'resolution_time' => 'datetime',
         'accepted_at'     => 'datetime',
+        'arrival_time'    => 'datetime',
     ];
 
     public function emergencyAlert()
