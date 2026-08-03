@@ -1,8 +1,16 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useAuthStore } from '@/stores/auth';
-import { router } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
+import {
+    CheckCircle2,
+    RefreshCw,
+    Search,
+    ShieldAlert,
+    Trash2,
+    X,
+} from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
 
 const auth = useAuthStore();
@@ -65,6 +73,14 @@ async function load(url?: string) {
         loading.value = false;
     }
 }
+
+const filterOptions = [
+    { value: 'all', label: 'All' },
+    { value: 'pending', label: 'Pending' },
+    { value: 'processing', label: 'Processing' },
+    { value: 'deleted', label: 'Deleted' },
+    { value: 'cancelled', label: 'Cancelled' },
+] as const;
 
 const filteredRequests = computed(() => {
     return requests.value
@@ -156,142 +172,104 @@ function daysUntil(ts: string) {
     return diff;
 }
 
-const statusConfig: Record<string, { label: string; classes: string }> = {
-    pending: {
-        label: 'Pending',
-        classes: 'bg-amber-50 text-amber-700 border border-amber-200',
-    },
-    processing: {
-        label: 'Processing',
-        classes: 'bg-blue-50 text-blue-700 border border-blue-200',
-    },
-    deleted: {
-        label: 'Deleted',
-        classes: 'bg-red-50 text-red-700 border border-red-200',
-    },
-    cancelled: {
-        label: 'Cancelled',
-        classes: 'bg-green-50 text-green-700 border border-green-200',
-    },
+const statusConfig: Record<string, { label: string; cls: string }> = {
+    pending: { label: 'Pending', cls: 'bg-orange-50 text-orange-700' },
+    processing: { label: 'Processing', cls: 'bg-blue-50 text-blue-700' },
+    deleted: { label: 'Deleted', cls: 'bg-red-50 text-red-600' },
+    cancelled: { label: 'Cancelled', cls: 'bg-emerald-50 text-emerald-700' },
 };
 </script>
 
 <template>
     <Head title="Deletion Requests" />
+
     <AppLayout>
-        <div class="flex h-full flex-col">
-            <!-- Header -->
-            <div class="border-b border-gray-100 bg-white px-6 py-4">
-                <div class="flex items-center justify-between">
-                    <div>
-                        <h1 class="text-lg font-bold text-gray-900">
-                            Account Deletion Requests
-                        </h1>
-                        <p class="text-sm text-gray-500">
-                            Manage user data deletion requests — POPIA compliant
-                        </p>
-                    </div>
-                    <button
-                        @click="load()"
-                        class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-50"
-                    >
-                        ↻ Refresh
+        <div class="page-root">
+            <!-- PAGE HEADER -->
+            <div class="page-header">
+                <div class="page-header__left">
+                    <div class="page-header__eyebrow">Compliance</div>
+                    <h1 class="page-header__title">
+                        Account Deletion Requests
+                    </h1>
+                    <p class="page-header__sub">
+                        Manage user data deletion requests - POPIA compliant
+                    </p>
+                </div>
+                <div class="page-header__right">
+                    <button class="btn-secondary" @click="load()">
+                        <RefreshCw :size="14" stroke-width="2" />
+                        Refresh
                     </button>
                 </div>
+            </div>
 
-                <!-- Stats -->
-                <div class="mt-4 grid grid-cols-4 gap-4">
-                    <div class="rounded-xl bg-gray-50 p-4">
-                        <div class="text-2xl font-bold text-gray-900">
-                            {{ stats.total }}
-                        </div>
-                        <div
-                            class="text-xs font-semibold text-gray-400 uppercase"
-                        >
-                            Total
-                        </div>
+            <!-- STAT CARDS -->
+            <div class="stat-row">
+                <div class="stat-card">
+                    <div class="stat-card__label">Total</div>
+                    <div class="stat-card__value">{{ stats.total }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card__label">Pending</div>
+                    <div class="stat-card__value stat-card__value--orange">
+                        {{ stats.pending }}
                     </div>
-                    <div class="rounded-xl bg-amber-50 p-4">
-                        <div class="text-2xl font-bold text-amber-600">
-                            {{ stats.pending }}
-                        </div>
-                        <div
-                            class="text-xs font-semibold text-amber-400 uppercase"
-                        >
-                            Pending
-                        </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card__label">Deleted</div>
+                    <div class="stat-card__value stat-card__value--red">
+                        {{ stats.deleted }}
                     </div>
-                    <div class="rounded-xl bg-red-50 p-4">
-                        <div class="text-2xl font-bold text-red-600">
-                            {{ stats.deleted }}
-                        </div>
-                        <div
-                            class="text-xs font-semibold text-red-400 uppercase"
-                        >
-                            Deleted
-                        </div>
-                    </div>
-                    <div class="rounded-xl bg-green-50 p-4">
-                        <div class="text-2xl font-bold text-green-600">
-                            {{ stats.cancelled }}
-                        </div>
-                        <div
-                            class="text-xs font-semibold text-green-400 uppercase"
-                        >
-                            Cancelled
-                        </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card__label">Cancelled</div>
+                    <div class="stat-card__value stat-card__value--green">
+                        {{ stats.cancelled }}
                     </div>
                 </div>
             </div>
 
-            <!-- Filters -->
-            <div
-                class="flex items-center gap-3 border-b border-gray-100 bg-white px-6 py-3"
-            >
-                <div class="flex gap-2">
-                    <button
-                        v-for="f in [
-                            'all',
-                            'pending',
-                            'processing',
-                            'deleted',
-                            'cancelled',
-                        ]"
-                        :key="f"
-                        @click="filter = f as any"
-                        :class="[
-                            'rounded-full px-4 py-1.5 text-xs font-bold uppercase transition-all',
-                            filter === f
-                                ? 'bg-gray-900 text-white'
-                                : 'bg-gray-100 text-gray-500 hover:bg-gray-200',
-                        ]"
-                    >
-                        {{ f }}
-                    </button>
+            <!-- FILTER BAR -->
+            <div class="filter-card">
+                <div class="filter-groups">
+                    <div class="filter-group">
+                        <span class="filter-group__label">Status</span>
+                        <div class="filter-bar__chips">
+                            <button
+                                v-for="f in filterOptions"
+                                :key="f.value"
+                                class="chip"
+                                :class="{ 'chip--active': filter === f.value }"
+                                @click="filter = f.value"
+                            >
+                                {{ f.label }}
+                            </button>
+                        </div>
+                    </div>
+                    <div class="search-group">
+                        <Search
+                            :size="14"
+                            stroke-width="2"
+                            class="search-group__icon"
+                        />
+                        <input
+                            v-model="search"
+                            type="text"
+                            placeholder="Search by name, email, phone…"
+                            class="search-group__input"
+                        />
+                    </div>
                 </div>
-                <input
-                    v-model="search"
-                    type="text"
-                    placeholder="Search by name, email, phone..."
-                    class="ml-auto w-64 rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-gray-400"
-                />
             </div>
 
-            <!-- Main content -->
-            <div class="flex flex-1 overflow-hidden">
-                <!-- Table -->
-                <div
-                    :class="[
-                        'flex flex-col overflow-auto transition-all',
-                        showPanel ? 'w-1/2' : 'w-full',
-                    ]"
-                >
-                    <div
-                        v-if="loading"
-                        class="flex items-center justify-center gap-2 py-20 text-gray-400"
-                    >
+            <!-- MAIN CONTENT -->
+            <div class="dr-body">
+                <div class="table-card dr-table-col">
+                    <div v-if="loading" class="empty-state">
                         <svg
-                            class="h-5 w-5 animate-spin"
+                            class="spin h-6 w-6 text-slate-400"
+                            xmlns="http://www.w3.org/2000/svg"
                             fill="none"
                             viewBox="0 0 24 24"
                         >
@@ -309,114 +287,80 @@ const statusConfig: Record<string, { label: string; classes: string }> = {
                                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                             />
                         </svg>
-                        <span class="text-sm">Loading requests...</span>
+                        <span class="mt-2 text-sm text-slate-400"
+                            >Loading requests…</span
+                        >
                     </div>
 
                     <div
                         v-else-if="filteredRequests.length === 0"
-                        class="flex flex-col items-center justify-center py-20 text-center"
+                        class="empty-state"
                     >
-                        <span class="text-5xl">🗑️</span>
-                        <p class="mt-3 font-bold text-gray-900">
-                            No requests found
-                        </p>
-                        <p class="text-sm text-gray-500">
+                        <div class="empty-state__icon">
+                            <Trash2 :size="26" stroke-width="1.4" />
+                        </div>
+                        <p class="empty-state__title">No requests found</p>
+                        <p class="empty-state__sub">
                             No deletion requests match your current filter
                         </p>
                     </div>
 
-                    <table v-else class="w-full table-auto text-left">
+                    <table v-else class="data-table">
                         <thead>
-                            <tr class="bg-gray-50">
-                                <th
-                                    class="border-y border-gray-100 p-4 text-xs font-semibold text-gray-500 uppercase"
-                                >
-                                    User
-                                </th>
-                                <th
-                                    class="border-y border-gray-100 p-4 text-xs font-semibold text-gray-500 uppercase"
-                                >
-                                    Contact
-                                </th>
-                                <th
-                                    class="border-y border-gray-100 p-4 text-xs font-semibold text-gray-500 uppercase"
-                                >
-                                    Reason
-                                </th>
-                                <th
-                                    class="border-y border-gray-100 p-4 text-xs font-semibold text-gray-500 uppercase"
-                                >
-                                    Status
-                                </th>
-                                <th
-                                    class="border-y border-gray-100 p-4 text-xs font-semibold text-gray-500 uppercase"
-                                >
-                                    Scheduled
-                                </th>
-                                <th
-                                    class="border-y border-gray-100 p-4 text-xs font-semibold text-gray-500 uppercase"
-                                >
-                                    Processed by
-                                </th>
-                                <th
-                                    class="border-y border-gray-100 p-2 text-xs font-semibold text-gray-500 uppercase"
-                                >
-                                    Actions
-                                </th>
+                            <tr>
+                                <th>User</th>
+                                <th>Contact</th>
+                                <th>Reason</th>
+                                <th>Status</th>
+                                <th>Scheduled</th>
+                                <th>Processed by</th>
+                                <th></th>
                             </tr>
                         </thead>
                         <tbody>
                             <tr
                                 v-for="req in filteredRequests"
                                 :key="req.id"
+                                class="clickable-row"
+                                :class="{
+                                    'clickable-row--active':
+                                        selectedRequest?.id === req.id,
+                                }"
                                 @click="
                                     selectedRequest = req;
                                     showPanel = true;
                                 "
-                                :class="[
-                                    'cursor-pointer border-b border-gray-50 transition-colors hover:bg-gray-50/50',
-                                    selectedRequest?.id === req.id
-                                        ? 'bg-blue-50/30'
-                                        : '',
-                                ]"
                             >
-                                <td class="p-4">
-                                    <div
-                                        class="text-sm font-semibold text-gray-900"
-                                    >
-                                        {{ req.name }}
-                                    </div>
-                                    <div class="text-xs text-gray-400">
-                                        {{ formatDate(req.requested_at) }}
+                                <td>
+                                    <div class="ticket-cell">
+                                        <span class="ticket-cell__subject">{{
+                                            req.name
+                                        }}</span>
+                                        <span class="ticket-cell__number">{{
+                                            formatDate(req.requested_at)
+                                        }}</span>
                                     </div>
                                 </td>
-                                <td class="p-4">
-                                    <div class="text-sm text-gray-600">
-                                        {{ req.email }}
-                                    </div>
-                                    <div class="text-xs text-gray-400">
+                                <td class="td-time">
+                                    <div>{{ req.email }}</div>
+                                    <div class="td-subtext">
                                         {{ req.phone ?? '—' }}
                                     </div>
                                 </td>
-                                <td
-                                    class="max-w-[160px] truncate p-4 text-sm text-gray-500"
-                                >
+                                <td class="td-time dr-reason">
                                     {{ req.reason?.replace(/_/g, ' ') ?? '—' }}
                                 </td>
-                                <td class="p-4">
+                                <td>
                                     <span
-                                        :class="[
-                                            'rounded-full px-2.5 py-1 text-xs font-bold uppercase',
-                                            statusConfig[req.status]?.classes,
-                                        ]"
+                                        class="type-badge"
+                                        :class="statusConfig[req.status]?.cls"
+                                        >{{
+                                            statusConfig[req.status]?.label
+                                        }}</span
                                     >
-                                        {{ statusConfig[req.status]?.label }}
-                                    </span>
                                 </td>
-                                <td class="p-4">
-                                    <div
-                                        class="text-sm whitespace-nowrap text-gray-600"
-                                    >
+                                <td class="td-time">
+                                    <div>
                                         {{
                                             formatDate(
                                                 req.scheduled_deletion_at,
@@ -430,14 +374,13 @@ const statusConfig: Record<string, { label: string; classes: string }> = {
                                                 req.scheduled_deletion_at,
                                             ) !== null
                                         "
-                                        :class="[
-                                            'text-xs font-semibold',
-                                            daysUntil(
-                                                req.scheduled_deletion_at,
-                                            )! <= 5
-                                                ? 'text-red-500'
-                                                : 'text-gray-400',
-                                        ]"
+                                        class="td-subtext"
+                                        :class="{
+                                            'dr-days--urgent':
+                                                daysUntil(
+                                                    req.scheduled_deletion_at,
+                                                )! <= 5,
+                                        }"
                                     >
                                         {{
                                             daysUntil(req.scheduled_deletion_at)
@@ -445,82 +388,56 @@ const statusConfig: Record<string, { label: string; classes: string }> = {
                                         days left
                                     </div>
                                 </td>
-                                <td class="p-4 text-sm text-gray-500">
+                                <td class="td-time">
                                     <span
                                         v-if="
                                             req.processed_by_type === 'system'
                                         "
-                                        class="flex items-center gap-1 text-xs text-gray-400"
+                                        >System</span
                                     >
-                                        🤖 System
-                                    </span>
                                     <span
                                         v-else-if="
                                             req.processed_by_type === 'admin'
                                         "
-                                        class="flex items-center gap-1 text-xs text-gray-400"
+                                        >{{
+                                            req.processor?.name ?? 'Admin'
+                                        }}</span
                                     >
-                                        👤 {{ req.processor?.name ?? 'Admin' }}
-                                    </span>
-                                    <span v-else class="text-xs text-gray-300"
-                                        >—</span
-                                    >
+                                    <span v-else>—</span>
                                 </td>
-                                <td class="p-2" @click.stop>
-                                    <div class="flex items-center gap-1">
-                                        <!-- Cancel (only for pending) -->
+                                <td @click.stop>
+                                    <div class="dr-row-actions">
                                         <button
                                             v-if="req.status === 'pending'"
+                                            class="icon-btn icon-btn--green"
+                                            title="Cancel request & reactivate account"
                                             @click="
                                                 confirmAction = {
                                                     type: 'cancel',
                                                     request: req,
                                                 }
                                             "
-                                            class="rounded-lg p-2 text-green-600 transition-colors hover:bg-green-50"
-                                            title="Cancel request & reactivate account"
                                         >
-                                            <svg
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                class="h-4 w-4"
-                                                fill="none"
-                                                viewBox="0 0 24 24"
-                                                stroke="currentColor"
+                                            <CheckCircle2
+                                                :size="15"
                                                 stroke-width="2"
-                                            >
-                                                <path
-                                                    stroke-linecap="round"
-                                                    stroke-linejoin="round"
-                                                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                                                />
-                                            </svg>
+                                            />
                                         </button>
-                                        <!-- Manual delete (only for pending) -->
                                         <button
                                             v-if="req.status === 'pending'"
+                                            class="icon-btn icon-btn--red"
+                                            title="Delete account now"
                                             @click="
                                                 confirmAction = {
                                                     type: 'delete',
                                                     request: req,
                                                 }
                                             "
-                                            class="rounded-lg p-2 text-red-600 transition-colors hover:bg-red-50"
-                                            title="Delete account now"
                                         >
-                                            <svg
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                class="h-4 w-4"
-                                                fill="none"
-                                                viewBox="0 0 24 24"
-                                                stroke="currentColor"
+                                            <Trash2
+                                                :size="15"
                                                 stroke-width="2"
-                                            >
-                                                <path
-                                                    stroke-linecap="round"
-                                                    stroke-linejoin="round"
-                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                                />
-                                            </svg>
+                                            />
                                         </button>
                                     </div>
                                 </td>
@@ -528,76 +445,69 @@ const statusConfig: Record<string, { label: string; classes: string }> = {
                         </tbody>
                     </table>
 
-                    <!-- Pagination -->
+                    <!-- PAGINATION -->
                     <div
-                        class="flex items-center justify-between border-t border-gray-100 p-4"
+                        v-if="!loading && filteredRequests.length"
+                        class="dr-pagination"
                     >
-                        <span class="text-sm text-gray-500"
+                        <span class="dr-pagination__label"
                             >Showing {{ pagination.from }} to
                             {{ pagination.to }} of {{ pagination.total }}</span
                         >
-                        <div class="flex gap-1">
+                        <div class="dr-pagination__links">
                             <template
                                 v-for="(link, i) in pagination.links"
                                 :key="i"
                             >
                                 <button
                                     v-if="link.url"
-                                    @click="load(link.url)"
+                                    class="chip"
+                                    :class="{ 'chip--active': link.active }"
                                     v-html="link.label"
-                                    :class="[
-                                        'min-w-[36px] rounded border px-2 py-1 text-xs transition-colors',
-                                        link.active
-                                            ? 'border-gray-900 bg-gray-900 text-white'
-                                            : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50',
-                                    ]"
+                                    @click="load(link.url)"
                                 />
                                 <span
                                     v-else
+                                    class="chip dr-pagination__disabled"
                                     v-html="link.label"
-                                    class="min-w-[36px] cursor-not-allowed rounded border border-gray-200 bg-gray-100 px-2 py-1 text-center text-xs text-gray-400"
                                 />
                             </template>
                         </div>
                     </div>
                 </div>
 
-                <!-- Detail Panel -->
+                <!-- DETAIL PANEL -->
                 <transition name="panel">
                     <div
                         v-if="showPanel && selectedRequest"
-                        class="w-1/2 overflow-auto border-l border-gray-100 bg-white"
+                        class="table-card dr-detail-col"
                     >
-                        <div
-                            class="sticky top-0 z-10 flex items-center justify-between border-b border-gray-100 bg-white px-6 py-4"
-                        >
-                            <h2 class="font-bold text-gray-900">
+                        <div class="dr-detail__header">
+                            <h2 class="dr-detail__title">
                                 Request #{{ selectedRequest.id }}
                             </h2>
                             <button
+                                class="close-btn"
                                 @click="showPanel = false"
-                                class="rounded-lg p-2 text-gray-400 hover:bg-gray-100"
                             >
-                                ✕
+                                <X :size="16" stroke-width="2" />
                             </button>
                         </div>
 
-                        <div class="space-y-5 p-6">
-                            <!-- Status -->
-                            <div class="flex items-center gap-3">
+                        <div class="dr-detail__body">
+                            <div class="dr-detail__status-row">
                                 <span
-                                    :class="[
-                                        'rounded-full px-3 py-1.5 text-sm font-bold',
+                                    class="type-badge"
+                                    :class="
                                         statusConfig[selectedRequest.status]
-                                            ?.classes,
-                                    ]"
-                                >
-                                    {{
+                                            ?.cls
+                                    "
+                                    >{{
                                         statusConfig[selectedRequest.status]
                                             ?.label
-                                    }}
-                                </span>
-                                <span class="text-sm text-gray-400"
+                                    }}</span
+                                >
+                                <span class="td-subtext"
                                     >Submitted
                                     {{
                                         formatDate(selectedRequest.requested_at)
@@ -605,43 +515,34 @@ const statusConfig: Record<string, { label: string; classes: string }> = {
                                 >
                             </div>
 
-                            <!-- User info -->
-                            <div class="space-y-1 rounded-xl bg-gray-50 p-4">
-                                <p
-                                    class="mb-2 text-xs font-bold text-gray-400 uppercase"
-                                >
-                                    Requestor
-                                </p>
-                                <p class="font-semibold text-gray-900">
+                            <div class="review-info-panel">
+                                <div class="field__label">Requestor</div>
+                                <div class="review-info-panel__name">
                                     {{ selectedRequest.name }}
-                                </p>
-                                <p class="text-sm text-gray-500">
+                                </div>
+                                <div class="review-info-panel__sub">
                                     {{ selectedRequest.email }}
-                                </p>
-                                <p class="text-sm text-gray-500">
+                                </div>
+                                <div class="review-info-panel__sub">
                                     {{ selectedRequest.phone ?? '—' }}
-                                </p>
-                                <p
+                                </div>
+                                <div
                                     v-if="selectedRequest.user_id"
-                                    class="mt-1 text-xs text-gray-400"
+                                    class="dr-linked-id"
                                 >
                                     Linked account ID: #{{
                                         selectedRequest.user_id
                                     }}
-                                </p>
-                                <p v-else class="mt-1 text-xs text-amber-500">
-                                    ⚠ No matching user account found
-                                </p>
+                                </div>
+                                <div v-else class="dr-no-account">
+                                    <ShieldAlert :size="12" stroke-width="2" />
+                                    No matching user account found
+                                </div>
                             </div>
 
-                            <!-- Reason & notes -->
-                            <div class="rounded-xl bg-gray-50 p-4">
-                                <p
-                                    class="mb-2 text-xs font-bold text-gray-400 uppercase"
-                                >
-                                    Reason
-                                </p>
-                                <p class="text-sm text-gray-700 capitalize">
+                            <div class="review-info-panel">
+                                <div class="field__label">Reason</div>
+                                <p class="dr-reason-text">
                                     {{
                                         selectedRequest.reason?.replace(
                                             /_/g,
@@ -651,175 +552,135 @@ const statusConfig: Record<string, { label: string; classes: string }> = {
                                 </p>
                                 <p
                                     v-if="selectedRequest.notes"
-                                    class="mt-2 border-t border-gray-200 pt-2 text-sm text-gray-500 italic"
+                                    class="dr-quote"
                                 >
                                     "{{ selectedRequest.notes }}"
                                 </p>
                             </div>
 
-                            <!-- Deletion schedule -->
-                            <div class="rounded-xl bg-gray-50 p-4">
-                                <p
-                                    class="mb-2 text-xs font-bold text-gray-400 uppercase"
-                                >
+                            <div class="review-info-panel">
+                                <div class="field__label">
                                     Deletion Schedule
-                                </p>
-                                <div class="space-y-2 text-sm">
-                                    <div class="flex justify-between">
-                                        <span class="text-gray-500"
-                                            >Requested</span
-                                        >
-                                        <span
-                                            class="font-medium text-gray-700"
-                                            >{{
-                                                formatDate(
-                                                    selectedRequest.requested_at,
-                                                )
-                                            }}</span
-                                        >
-                                    </div>
-                                    <div class="flex justify-between">
-                                        <span class="text-gray-500"
-                                            >Scheduled deletion</span
-                                        >
-                                        <span
-                                            :class="[
-                                                'font-medium',
+                                </div>
+                                <div class="dr-schedule-row">
+                                    <span class="td-subtext">Requested</span>
+                                    <span>{{
+                                        formatDate(selectedRequest.requested_at)
+                                    }}</span>
+                                </div>
+                                <div class="dr-schedule-row">
+                                    <span class="td-subtext"
+                                        >Scheduled deletion</span
+                                    >
+                                    <span
+                                        :class="{
+                                            'dr-days--urgent':
                                                 daysUntil(
                                                     selectedRequest.scheduled_deletion_at,
                                                 )! <= 5 &&
                                                 selectedRequest.status ===
-                                                    'pending'
-                                                    ? 'text-red-600'
-                                                    : 'text-gray-700',
-                                            ]"
-                                        >
-                                            {{
-                                                formatDate(
-                                                    selectedRequest.scheduled_deletion_at,
-                                                )
-                                            }}
-                                        </span>
-                                    </div>
-                                    <div
-                                        v-if="
-                                            selectedRequest.status === 'pending'
-                                        "
-                                        class="flex justify-between"
+                                                    'pending',
+                                        }"
+                                        >{{
+                                            formatDate(
+                                                selectedRequest.scheduled_deletion_at,
+                                            )
+                                        }}</span
                                     >
-                                        <span class="text-gray-500"
-                                            >Days remaining</span
-                                        >
-                                        <span
-                                            :class="[
-                                                'font-bold',
+                                </div>
+                                <div
+                                    v-if="selectedRequest.status === 'pending'"
+                                    class="dr-schedule-row"
+                                >
+                                    <span class="td-subtext"
+                                        >Days remaining</span
+                                    >
+                                    <strong
+                                        :class="{
+                                            'dr-days--urgent':
                                                 daysUntil(
                                                     selectedRequest.scheduled_deletion_at,
-                                                )! <= 5
-                                                    ? 'text-red-600'
-                                                    : 'text-gray-700',
-                                            ]"
-                                        >
-                                            {{
-                                                daysUntil(
-                                                    selectedRequest.scheduled_deletion_at,
-                                                )
-                                            }}
-                                            days
-                                        </span>
-                                    </div>
-                                    <div
-                                        v-if="selectedRequest.processed_at"
-                                        class="flex justify-between"
+                                                )! <= 5,
+                                        }"
+                                        >{{
+                                            daysUntil(
+                                                selectedRequest.scheduled_deletion_at,
+                                            )
+                                        }}
+                                        days</strong
                                     >
-                                        <span class="text-gray-500"
-                                            >Processed at</span
-                                        >
-                                        <span
-                                            class="font-medium text-gray-700"
-                                            >{{
-                                                formatDate(
-                                                    selectedRequest.processed_at,
-                                                )
-                                            }}</span
-                                        >
-                                    </div>
+                                </div>
+                                <div
+                                    v-if="selectedRequest.processed_at"
+                                    class="dr-schedule-row"
+                                >
+                                    <span class="td-subtext">Processed at</span>
+                                    <span>{{
+                                        formatDate(selectedRequest.processed_at)
+                                    }}</span>
                                 </div>
                             </div>
 
-                            <!-- Processed by -->
-                            <div class="rounded-xl bg-gray-50 p-4">
-                                <p
-                                    class="mb-2 text-xs font-bold text-gray-400 uppercase"
-                                >
-                                    Processed By
-                                </p>
+                            <div class="review-info-panel">
+                                <div class="field__label">Processed By</div>
                                 <p
                                     v-if="
                                         selectedRequest.processed_by_type ===
                                         'system'
                                     "
-                                    class="text-sm text-gray-600"
+                                    class="td-time"
                                 >
-                                    🤖 Automated system (cronjob)
+                                    Automated system (cronjob)
                                 </p>
                                 <p
                                     v-else-if="
                                         selectedRequest.processed_by_type ===
                                         'admin'
                                     "
-                                    class="text-sm text-gray-600"
+                                    class="td-time"
                                 >
-                                    👤
                                     {{
                                         selectedRequest.processor?.name ??
                                         'Admin'
                                     }}
                                 </p>
-                                <p v-else class="text-sm text-gray-400">
+                                <p v-else class="td-subtext">
                                     Not yet processed
                                 </p>
                             </div>
 
-                            <!-- Admin notes -->
                             <div
                                 v-if="selectedRequest.admin_notes"
-                                class="rounded-xl border border-amber-100 bg-amber-50 p-4"
+                                class="dr-admin-notes"
                             >
-                                <p
-                                    class="mb-2 text-xs font-bold text-amber-500 uppercase"
-                                >
-                                    Admin Notes
-                                </p>
-                                <p class="text-sm text-amber-700">
-                                    {{ selectedRequest.admin_notes }}
-                                </p>
+                                <div class="field__label">Admin Notes</div>
+                                <p>{{ selectedRequest.admin_notes }}</p>
                             </div>
 
-                            <!-- Actions -->
                             <div
                                 v-if="selectedRequest.status === 'pending'"
-                                class="flex gap-3 pt-2"
+                                class="dr-detail__actions"
                             >
                                 <button
+                                    class="btn-primary btn-primary--green"
                                     @click="
                                         confirmAction = {
                                             type: 'cancel',
                                             request: selectedRequest,
                                         }
                                     "
-                                    class="flex-1 rounded-xl bg-green-600 py-3 text-sm font-bold text-white transition-colors hover:bg-green-700"
                                 >
-                                    ✓ Cancel & Reactivate
+                                    <CheckCircle2 :size="14" stroke-width="2" />
+                                    Cancel &amp; Reactivate
                                 </button>
                                 <button
+                                    class="btn-outline-danger"
                                     @click="
                                         confirmAction = {
                                             type: 'delete',
                                             request: selectedRequest,
                                         }
                                     "
-                                    class="rounded-xl border border-red-200 px-5 py-3 text-sm font-bold text-red-600 transition-colors hover:bg-red-50"
                                 >
                                     Delete Now
                                 </button>
@@ -830,167 +691,936 @@ const statusConfig: Record<string, { label: string; classes: string }> = {
             </div>
         </div>
 
-        <!-- Cancel confirmation modal -->
-        <div
-            v-if="confirmAction?.type === 'cancel'"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-        >
-            <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-                <div class="mb-4 flex items-center gap-3">
-                    <div
-                        class="flex h-10 w-10 items-center justify-center rounded-full bg-green-100"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            class="h-5 w-5 text-green-600"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            stroke-width="2"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                            />
-                        </svg>
-                    </div>
-                    <div>
-                        <h3 class="font-semibold text-gray-900">
-                            Cancel Deletion Request
-                        </h3>
-                        <p class="text-sm text-gray-500">
-                            {{ confirmAction.request.name }} ·
-                            {{ confirmAction.request.email }}
-                        </p>
-                    </div>
-                </div>
-                <div
-                    class="mb-5 rounded-lg border border-green-100 bg-green-50 p-4 text-sm text-green-800"
-                >
-                    The deletion request will be cancelled and the account will
-                    be reactivated. The user will be able to log in again.
-                </div>
-                <div class="flex justify-end gap-3">
-                    <button
-                        @click="confirmAction = null"
-                        class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                        Keep Request
-                    </button>
-                    <button
-                        @click="proceedCancel"
-                        :disabled="isProcessing"
-                        class="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
-                    >
-                        {{
-                            isProcessing
-                                ? 'Processing...'
-                                : 'Yes, Cancel Request'
-                        }}
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Delete confirmation modal -->
-        <div
-            v-if="confirmAction?.type === 'delete'"
-            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-        >
-            <div class="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-                <div class="mb-4 flex items-center gap-3">
-                    <div
-                        class="flex h-10 w-10 items-center justify-center rounded-full bg-red-100"
-                    >
-                        <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            class="h-5 w-5 text-red-600"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            stroke-width="2"
-                        >
-                            <path
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                            />
-                        </svg>
-                    </div>
-                    <div>
-                        <h3 class="font-semibold text-gray-900">
-                            Delete Account Now
-                        </h3>
-                        <p class="text-sm text-gray-500">
-                            {{ confirmAction.request.name }} ·
-                            {{ confirmAction.request.email }}
-                        </p>
-                    </div>
-                </div>
-                <div
-                    class="mb-5 rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-800"
-                >
-                    <p class="mb-1 font-semibold">This will immediately:</p>
-                    <ul class="list-inside list-disc space-y-1">
-                        <li>Permanently delete all personal data</li>
-                        <li>Revoke all active sessions and tokens</li>
-                        <li>Remove the employee record</li>
-                        <li>This cannot be undone</li>
-                    </ul>
-                </div>
-                <div class="flex justify-end gap-3">
-                    <button
-                        @click="confirmAction = null"
-                        class="rounded-lg border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                        Cancel
-                    </button>
-                    <button
-                        @click="proceedDelete"
-                        :disabled="isProcessing"
-                        class="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-                    >
-                        {{ isProcessing ? 'Deleting...' : 'Yes, Delete Now' }}
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Flash toast -->
-        <transition name="flash">
+        <!-- CANCEL CONFIRMATION MODAL -->
+        <Teleport to="body">
             <div
-                v-if="flashMsg"
-                :class="[
-                    'fixed right-8 bottom-8 z-50 rounded-xl border-l-4 px-5 py-3 text-sm font-semibold text-white shadow-xl',
-                    flashType === 'success'
-                        ? 'border-green-400 bg-gray-900'
-                        : 'border-red-400 bg-gray-900',
-                ]"
+                v-if="confirmAction?.type === 'cancel'"
+                class="modal-backdrop"
+                @click.self="confirmAction = null"
             >
-                {{ flashMsg }}
+                <div class="confirm-modal">
+                    <div class="confirm-modal__head">
+                        <div
+                            class="confirm-modal__icon confirm-modal__icon--green"
+                        >
+                            <CheckCircle2 :size="18" stroke-width="2" />
+                        </div>
+                        <div>
+                            <h3 class="confirm-modal__title">
+                                Cancel Deletion Request
+                            </h3>
+                            <p class="confirm-modal__sub">
+                                {{ confirmAction.request.name }} ·
+                                {{ confirmAction.request.email }}
+                            </p>
+                        </div>
+                    </div>
+                    <div
+                        class="confirm-modal__notice confirm-modal__notice--green"
+                    >
+                        The deletion request will be cancelled and the account
+                        will be reactivated. The user will be able to log in
+                        again.
+                    </div>
+                    <div class="confirm-modal__actions">
+                        <button
+                            class="btn-secondary"
+                            @click="confirmAction = null"
+                        >
+                            Keep Request
+                        </button>
+                        <button
+                            class="btn-primary btn-primary--green"
+                            :disabled="isProcessing"
+                            @click="proceedCancel"
+                        >
+                            {{
+                                isProcessing
+                                    ? 'Processing…'
+                                    : 'Yes, Cancel Request'
+                            }}
+                        </button>
+                    </div>
+                </div>
             </div>
-        </transition>
+        </Teleport>
+
+        <!-- DELETE CONFIRMATION MODAL -->
+        <Teleport to="body">
+            <div
+                v-if="confirmAction?.type === 'delete'"
+                class="modal-backdrop"
+                @click.self="confirmAction = null"
+            >
+                <div class="confirm-modal">
+                    <div class="confirm-modal__head">
+                        <div
+                            class="confirm-modal__icon confirm-modal__icon--red"
+                        >
+                            <Trash2 :size="18" stroke-width="2" />
+                        </div>
+                        <div>
+                            <h3 class="confirm-modal__title">
+                                Delete Account Now
+                            </h3>
+                            <p class="confirm-modal__sub">
+                                {{ confirmAction.request.name }} ·
+                                {{ confirmAction.request.email }}
+                            </p>
+                        </div>
+                    </div>
+                    <div
+                        class="confirm-modal__notice confirm-modal__notice--red"
+                    >
+                        <p class="confirm-modal__notice-title">
+                            This will immediately:
+                        </p>
+                        <ul>
+                            <li>Permanently delete all personal data</li>
+                            <li>Revoke all active sessions and tokens</li>
+                            <li>Remove the employee record</li>
+                            <li>This cannot be undone</li>
+                        </ul>
+                    </div>
+                    <div class="confirm-modal__actions">
+                        <button
+                            class="btn-secondary"
+                            @click="confirmAction = null"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            class="btn-danger"
+                            :disabled="isProcessing"
+                            @click="proceedDelete"
+                        >
+                            {{ isProcessing ? 'Deleting…' : 'Yes, Delete Now' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </Teleport>
+
+        <!-- FLASH TOAST -->
+        <Teleport to="body">
+            <transition name="modal">
+                <div
+                    v-if="flashMsg"
+                    class="toast"
+                    :class="
+                        flashType === 'success'
+                            ? 'toast--success'
+                            : 'toast--error'
+                    "
+                >
+                    {{ flashMsg }}
+                </div>
+            </transition>
+        </Teleport>
     </AppLayout>
 </template>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
+
+.page-root,
+.modal-backdrop,
+.toast {
+    --c-bg: #f4f6f9;
+    --c-surface: #ffffff;
+    --c-border: #e4e8ef;
+    --c-text: #1a2332;
+    --c-muted: #64748b;
+    --c-faint: #94a3b8;
+    --c-primary: #ea580c;
+    --c-primary-h: #c2410c;
+    --c-danger: #dc2626;
+    --c-danger-h: #b91c1c;
+    --radius-sm: 8px;
+    --radius-md: 12px;
+    --radius-lg: 16px;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.14);
+    font-family: 'DM Sans', system-ui, sans-serif;
+}
+
+/* PAGE ROOT */
+.page-root {
+    padding: 28px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-height: 100%;
+    background: #f4f6f9;
+}
+
+/* PAGE HEADER */
+.page-header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.page-header__eyebrow {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #ea580c;
+    margin-bottom: 4px;
+}
+.page-header__title {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1a2332;
+    margin: 0;
+    letter-spacing: -0.3px;
+}
+.page-header__sub {
+    font-size: 13px;
+    color: #64748b;
+    margin: 4px 0 0;
+}
+
+.btn-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: #ffffff;
+    color: #1a2332;
+    border: 1.5px solid #e4e8ef;
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.18s;
+    white-space: nowrap;
+    font-family: 'DM Sans', system-ui, sans-serif;
+}
+.btn-secondary:hover:not(:disabled) {
+    border-color: #ea580c;
+    color: #ea580c;
+    background: #fff7ed;
+}
+
+/* STAT ROW */
+.stat-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+}
+.stat-card {
+    background: #ffffff;
+    border: 1px solid #e4e8ef;
+    border-radius: 16px;
+    padding: 20px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    box-shadow: var(--shadow-sm);
+    transition:
+        box-shadow 0.2s,
+        transform 0.2s;
+}
+.stat-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+}
+.stat-card__label {
+    font-size: 11px;
+    font-weight: 600;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+}
+.stat-card__value {
+    font-size: 30px;
+    font-weight: 800;
+    color: #1a2332;
+    line-height: 1;
+    letter-spacing: -1px;
+}
+.stat-card__value--orange {
+    color: #ea580c;
+}
+.stat-card__value--green {
+    color: #059669;
+}
+.stat-card__value--red {
+    color: #dc2626;
+}
+
+/* FILTER CARD */
+.filter-card {
+    background: #ffffff;
+    border: 1px solid #e4e8ef;
+    border-radius: 16px;
+    box-shadow: var(--shadow-sm);
+    padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.filter-groups {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+}
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.filter-group__label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+}
+.filter-bar__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    border-radius: 20px;
+    border: 1px solid #e4e8ef;
+    background: #ffffff;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+}
+.chip:hover {
+    border-color: #cbd5e1;
+    background: #f8fafc;
+}
+.chip--active {
+    background: #ea580c;
+    color: #fff;
+    border-color: #ea580c;
+}
+
+.search-group {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-width: 260px;
+}
+.search-group__icon {
+    position: absolute;
+    left: 12px;
+    color: #94a3b8;
+    pointer-events: none;
+}
+.search-group__input {
+    width: 100%;
+    box-sizing: border-box;
+    background: #f8fafc;
+    border: 1.5px solid #e4e8ef;
+    border-radius: 8px;
+    padding: 9px 12px 9px 34px;
+    font-size: 13px;
+    font-family: inherit;
+    color: #1a2332;
+    outline: none;
+    transition:
+        border-color 0.15s,
+        background 0.15s;
+}
+.search-group__input:focus {
+    border-color: #ea580c;
+    background: #fff;
+}
+
+/* BODY LAYOUT */
+.dr-body {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+}
+.dr-table-col {
+    flex: 1;
+    min-width: 0;
+}
+.dr-detail-col {
+    width: 400px;
+    flex-shrink: 0;
+    max-height: calc(100vh - 260px);
+    overflow-y: auto;
+}
+
+/* TABLE CARD (shared) */
+.table-card {
+    background: #ffffff;
+    border: 1px solid #e4e8ef;
+    border-radius: 16px;
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+}
+.empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 64px 24px;
+    gap: 8px;
+}
+.empty-state__icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+    background: #f1f5f9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #94a3b8;
+    margin-bottom: 6px;
+}
+.empty-state__title {
+    font-size: 15px;
+    font-weight: 700;
+    color: #1a2332;
+}
+.empty-state__sub {
+    font-size: 13px;
+    color: #64748b;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.data-table thead tr {
+    background: #f8fafc;
+    border-bottom: 1px solid #e4e8ef;
+}
+.data-table th {
+    padding: 11px 16px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #94a3b8;
+    text-align: left;
+    white-space: nowrap;
+}
+.data-table tbody tr {
+    border-bottom: 1px solid #e4e8ef;
+    transition: background 0.12s;
+}
+.data-table tbody tr:last-child {
+    border-bottom: none;
+}
+.data-table td {
+    padding: 13px 16px;
+    vertical-align: middle;
+}
+.clickable-row {
+    cursor: pointer;
+}
+.clickable-row:hover {
+    background: #fafbfc;
+}
+.clickable-row--active {
+    background: #fff7ed;
+}
+
+.ticket-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.ticket-cell__number {
+    font-size: 11px;
+    font-weight: 600;
+    color: #94a3b8;
+}
+.ticket-cell__subject {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1a2332;
+}
+
+.type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
+    text-transform: capitalize;
+}
+
+.td-time {
+    color: #64748b;
+    white-space: nowrap;
+    font-size: 12px;
+}
+.td-subtext {
+    color: #94a3b8;
+    font-size: 11px;
+    margin-top: 2px;
+}
+.dr-reason {
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-transform: capitalize;
+}
+.dr-days--urgent {
+    color: #dc2626;
+    font-weight: 700;
+}
+
+.dr-row-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.icon-btn {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.icon-btn--green {
+    color: #059669;
+    background: transparent;
+}
+.icon-btn--green:hover {
+    background: #ecfdf5;
+}
+.icon-btn--red {
+    color: #dc2626;
+    background: transparent;
+}
+.icon-btn--red:hover {
+    background: #fef2f2;
+}
+
+/* PAGINATION */
+.dr-pagination {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    border-top: 1px solid #e4e8ef;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.dr-pagination__label {
+    font-size: 12px;
+    color: #64748b;
+}
+.dr-pagination__links {
+    display: flex;
+    gap: 6px;
+}
+.dr-pagination__disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* DETAIL PANEL */
+.dr-detail__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 20px;
+    border-bottom: 1px solid #e4e8ef;
+}
+.dr-detail__title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1a2332;
+}
+.close-btn {
+    flex-shrink: 0;
+    width: 30px;
+    height: 30px;
+    background: #f1f5f9;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+}
+.close-btn:hover {
+    background: #e2e8f0;
+}
+.dr-detail__body {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+.dr-detail__status-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.review-info-panel {
+    background: #f8fafc;
+    border: 1.5px solid #e4e8ef;
+    border-radius: 10px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.field__label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 4px;
+}
+.review-info-panel__name {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1a2332;
+}
+.review-info-panel__sub {
+    font-size: 12px;
+    color: #64748b;
+}
+.dr-linked-id {
+    margin-top: 6px;
+    font-size: 11px;
+    color: #94a3b8;
+}
+.dr-no-account {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 6px;
+    font-size: 11px;
+    color: #d97706;
+}
+.dr-reason-text {
+    font-size: 13px;
+    color: #1a2332;
+    text-transform: capitalize;
+    margin: 0;
+}
+.dr-quote {
+    margin: 8px 0 0;
+    padding-top: 8px;
+    border-top: 1px solid #e4e8ef;
+    font-size: 13px;
+    color: #64748b;
+    font-style: italic;
+}
+.dr-schedule-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-size: 13px;
+    color: #1a2332;
+    padding: 3px 0;
+}
+.dr-admin-notes {
+    background: #fff7ed;
+    border: 1.5px solid #fed7aa;
+    border-radius: 10px;
+    padding: 14px 16px;
+}
+.dr-admin-notes p {
+    margin: 0;
+    font-size: 13px;
+    color: #9a3412;
+}
+.dr-detail__actions {
+    display: flex;
+    gap: 10px;
+    padding-top: 4px;
+}
+.dr-detail__actions .btn-primary--green {
+    flex: 1;
+    justify-content: center;
+}
+
+/* BUTTONS */
+.btn-primary {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    background: #ea580c;
+    color: #ffffff;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.18s;
+    box-shadow: 0 2px 8px rgba(234, 88, 12, 0.3);
+    white-space: nowrap;
+    font-family: 'DM Sans', system-ui, sans-serif;
+}
+.btn-primary:hover:not(:disabled) {
+    background: #c2410c;
+    transform: translateY(-1px);
+}
+.btn-primary:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+.btn-primary--green {
+    background: #059669;
+    box-shadow: 0 2px 8px rgba(5, 150, 105, 0.3);
+}
+.btn-primary--green:hover:not(:disabled) {
+    background: #047857;
+}
+
+.btn-outline-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    background: #ffffff;
+    color: #dc2626;
+    border: 1.5px solid #fecaca;
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.18s;
+    white-space: nowrap;
+    font-family: 'DM Sans', system-ui, sans-serif;
+}
+.btn-outline-danger:hover {
+    background: #fef2f2;
+}
+
+.btn-danger {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: #dc2626;
+    color: #ffffff;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.18s;
+    white-space: nowrap;
+    font-family: 'DM Sans', system-ui, sans-serif;
+}
+.btn-danger:hover:not(:disabled) {
+    background: #b91c1c;
+}
+.btn-danger:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* MODAL */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(10, 18, 30, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    padding: 24px;
+}
+.confirm-modal {
+    background: #ffffff;
+    border-radius: 20px;
+    width: 100%;
+    max-width: 440px;
+    padding: 24px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+    border: 1px solid #e4e8ef;
+    font-family: 'DM Sans', system-ui, sans-serif;
+}
+.confirm-modal__head {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.confirm-modal__icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+.confirm-modal__icon--green {
+    background: #ecfdf5;
+    color: #059669;
+}
+.confirm-modal__icon--red {
+    background: #fef2f2;
+    color: #dc2626;
+}
+.confirm-modal__title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1a2332;
+    margin: 0;
+}
+.confirm-modal__sub {
+    font-size: 12px;
+    color: #64748b;
+    margin: 3px 0 0;
+}
+.confirm-modal__notice {
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 13px;
+    margin-bottom: 18px;
+}
+.confirm-modal__notice--green {
+    background: #ecfdf5;
+    border: 1px solid #a7f3d0;
+    color: #047857;
+}
+.confirm-modal__notice--red {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #b91c1c;
+}
+.confirm-modal__notice-title {
+    font-weight: 700;
+    margin: 0 0 4px;
+}
+.confirm-modal__notice ul {
+    margin: 0;
+    padding-left: 18px;
+}
+.confirm-modal__notice li {
+    margin-top: 2px;
+}
+.confirm-modal__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+/* TOAST */
+.toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 10000;
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 700;
+    box-shadow: var(--shadow-lg);
+    color: #fff;
+}
+.toast--success {
+    background: #059669;
+}
+.toast--error {
+    background: #dc2626;
+}
+
+/* TRANSITIONS */
+.modal-enter-active,
+.modal-leave-active {
+    transition: opacity 0.22s ease;
+}
+.modal-enter-from,
+.modal-leave-to {
+    opacity: 0;
+}
 .panel-enter-active,
 .panel-leave-active {
-    transition: all 0.25s ease;
+    transition: all 0.22s ease;
 }
 .panel-enter-from,
 .panel-leave-to {
     opacity: 0;
-    transform: translateX(20px);
+    transform: translateX(16px);
 }
-.flash-enter-active,
-.flash-leave-active {
-    transition: all 0.3s ease;
+
+.spin {
+    animation: spin 0.65s linear infinite;
 }
-.flash-enter-from,
-.flash-leave-to {
-    opacity: 0;
-    transform: translateY(8px);
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* RESPONSIVE */
+@media (max-width: 1100px) {
+    .dr-body {
+        flex-direction: column;
+    }
+    .dr-detail-col {
+        width: 100%;
+        max-height: none;
+    }
+}
+@media (max-width: 768px) {
+    .stat-row {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+    }
+}
+@media (max-width: 640px) {
+    .page-root {
+        padding: 16px;
+    }
+    .stat-card {
+        padding: 14px;
+    }
+    .stat-card__value {
+        font-size: 22px;
+    }
+    .data-table {
+        min-width: 760px;
+    }
+    .table-card {
+        overflow-x: auto;
+    }
+    .search-group {
+        min-width: 0;
+        width: 100%;
+    }
 }
 </style>

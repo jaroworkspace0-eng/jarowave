@@ -20,10 +20,8 @@ import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/vue3';
 import {
     AlertTriangle,
-    ArrowsUpFromLineIcon,
     Briefcase,
     Building,
-    Building2,
     ClipboardList,
     DollarSign,
     FileText,
@@ -68,26 +66,26 @@ const adminGroups: NavGroup[] = [
             { title: 'Personnels', href: '/employees', icon: Briefcase },
         ],
     },
-    {
-        label: 'Finance',
-        items: [
-            {
-                title: 'Process Payouts',
-                href: '/admin/process-payouts',
-                icon: ArrowsUpFromLineIcon,
-            },
-            {
-                title: 'Gate Guard Payouts',
-                href: '/admin/gate-guard-payouts',
-                icon: Shield,
-            },
-            {
-                title: 'Estate Payments',
-                href: '/admin/estate-payments',
-                icon: Building2,
-            },
-        ],
-    },
+    // {
+    //     label: 'Finance',
+    //     items: [
+    //         {
+    //             title: 'Process Payouts',
+    //             href: '/admin/process-payouts',
+    //             icon: ArrowsUpFromLineIcon,
+    //         },
+    //         {
+    //             title: 'Gate Guard Payouts',
+    //             href: '/admin/gate-guard-payouts',
+    //             icon: Shield,
+    //         },
+    //         {
+    //             title: 'Estate Payments',
+    //             href: '/admin/estate-payments',
+    //             icon: Building2,
+    //         },
+    //     ],
+    // },
     {
         label: 'Reports',
         items: [
