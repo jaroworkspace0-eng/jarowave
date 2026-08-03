@@ -16,7 +16,7 @@ import {
 } from 'lucide-vue-next';
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 
-const BreadcrumbItem = [];
+const breadcrumbs = [];
 
 const reports = ref({ data: [], total: 0, from: 0, to: 0, links: [] });
 const reportList = ref([]);
