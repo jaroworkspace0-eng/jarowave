@@ -38,14 +38,18 @@ const filterStatus = ref('');
 const filterOutcome = ref('');
 let searchTimeout: any = null;
 
-const today = new Date().toISOString().split('T')[0];
-const firstOfMonth = new Date(
-    new Date().getFullYear(),
-    new Date().getMonth(),
-    1,
-)
-    .toISOString()
-    .split('T')[0];
+function toLocalYMD(d: Date): string {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+const today = toLocalYMD(new Date());
+const firstOfMonth = toLocalYMD(
+    new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+);
+
 const dateFrom = ref(firstOfMonth);
 const dateTo = ref(today);
 const dateError = ref('');
