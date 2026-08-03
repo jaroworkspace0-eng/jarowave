@@ -6,6 +6,7 @@ import axios from 'axios';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
+    BellRing,
     CheckCircle2,
     Crosshair,
     MapPin,
@@ -221,6 +222,14 @@ type MapPoint = {
     lat: number;
     lng: number;
 };
+
+// Unit number only means something when the household's location source is
+// their registered address — for a GPS-sourced alert, the unit on file may
+// not be where the alert happened. alert_location_source lives on the
+// household's user record (not the alert), per Karabo.
+const isRegisteredAddressSource = computed(
+    () => selectedReport.value?.household?.alert_location_source === 'registered_address',
+);
 
 const mapPoints = computed<MapPoint[]>(() => {
     const r = selectedReport.value;
@@ -917,6 +926,7 @@ onMounted(() => loadReports());
                                         <div
                                             class="review-info-panel__sub"
                                             v-if="
+                                                isRegisteredAddressSource &&
                                                 selectedReport?.household
                                                     ?.unit_number
                                             "
@@ -963,7 +973,9 @@ onMounted(() => loadReports());
                                     </div>
                                     <div class="ir-timeline">
                                         <div
-                                            v-for="(step, i) in timelineSteps"
+                                            v-for="(
+                                                step, i
+                                            ) in timelineSteps"
                                             :key="step.key"
                                             class="ir-timeline__step"
                                         >
@@ -983,7 +995,8 @@ onMounted(() => loadReports());
                                                 <span
                                                     v-if="
                                                         i <
-                                                        timelineSteps.length - 1
+                                                        timelineSteps.length -
+                                                            1
                                                     "
                                                     class="ir-timeline__line"
                                                     :class="{
@@ -993,7 +1006,9 @@ onMounted(() => loadReports());
                                                 ></span>
                                             </div>
                                             <div class="ir-timeline__body">
-                                                <div class="ir-timeline__label">
+                                                <div
+                                                    class="ir-timeline__label"
+                                                >
                                                     {{ step.label }}
                                                 </div>
                                                 <div
@@ -1060,7 +1075,9 @@ onMounted(() => loadReports());
                                                     background: p.color,
                                                 }"
                                             ></span>
-                                            <div class="ir-location-row__body">
+                                            <div
+                                                class="ir-location-row__body"
+                                            >
                                                 <div
                                                     class="ir-location-row__top"
                                                 >
@@ -1100,8 +1117,8 @@ onMounted(() => loadReports());
                                             v-if="mapPoints.length === 0"
                                             class="ir-location-empty"
                                         >
-                                            No location data available for this
-                                            report
+                                            No location data available for
+                                            this report
                                         </p>
                                     </div>
                                     <div class="detail-grid detail-grid--pad">
@@ -1307,7 +1324,9 @@ onMounted(() => loadReports());
                                     <div class="field__label">Admin Action</div>
                                     <p class="review-info-panel__name">
                                         By
-                                        {{ selectedReport.actioned_by?.name }}
+                                        {{
+                                            selectedReport.actioned_by?.name
+                                        }}
                                         on
                                         {{
                                             fmtDateTime(
@@ -1356,7 +1375,8 @@ onMounted(() => loadReports());
                                         <div>
                                             <div class="map-legend__label">
                                                 {{ p.label }}
-                                                <span class="map-legend__role"
+                                                <span
+                                                    class="map-legend__role"
                                                     >({{
                                                         p.role === 'guard'
                                                             ? 'Guard'
