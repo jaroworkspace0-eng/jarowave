@@ -25,9 +25,15 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 onMounted(() => {
-    if (auth.user?.role !== 'admin') {
-        router.visit('/dashboard'); // redirect non-admins away
+    const stored = localStorage.getItem('user');
+    const user = stored ? JSON.parse(stored) : null;
+
+    if (user?.role !== 'admin') {
+        router.visit('/dashboard');
+        return;
     }
+
+    loadReports();
 });
 
 const reports = ref<any>({ data: [], total: 0, from: 0, to: 0, links: [] });
