@@ -82,6 +82,7 @@ class SosIncidentReportController extends Controller
     }
 
     // ── GET /api/admin/incident-reports ───────────────────────────────────────
+    // ── GET /api/admin/incident-reports ───────────────────────────────────────
     public function adminIndex(Request $request)
     {
         $query = SosIncidentReport::with([
@@ -91,7 +92,13 @@ class SosIncidentReportController extends Controller
             'actionedBy:id,name',
         ])->latest();
 
-        // ...unchanged status/outcome filters...
+        if ($request->status) {
+            $query->where('status', $request->status);
+        }
+
+        if ($request->outcome) {
+            $query->where('outcome', $request->outcome);
+        }
 
         if ($request->search) {
             $search = $request->search;
@@ -102,7 +109,15 @@ class SosIncidentReportController extends Controller
             );
         }
 
-        // ...unchanged date filter, paginate...
+        if ($request->date_from) {
+            $query->whereDate('created_at', '>=', $request->date_from);
+        }
+
+        if ($request->date_to) {
+            $query->whereDate('created_at', '<=', $request->date_to);
+        }
+
+        return response()->json($query->paginate(20));
     }
 
     public function show(SosIncidentReport $report)
