@@ -125,8 +125,14 @@ async function loadReports(url?: string) {
                 ...getHeaders(),
             },
         );
-        reports.value = data;
-        reportList.value = data.data;
+        reports.value = {
+            data: data.data ?? [],
+            total: data.total ?? 0,
+            from: data.from ?? 0,
+            to: data.to ?? 0,
+            links: data.links ?? [],
+        };
+        reportList.value = reports.value.data;
     } catch {
         showFlash('Failed to load reports.', 'error');
     } finally {
@@ -1112,7 +1118,10 @@ onMounted(() => loadReports());
                         reports
                     </span>
                     <div class="pagination-bar__pages">
-                        <template v-for="(link, i) in reports.links" :key="i">
+                        <template
+                            v-for="(link, i) in reports.links ?? []"
+                            :key="i"
+                        >
                             <button
                                 v-if="link.url"
                                 @click="loadReports(link.url)"
