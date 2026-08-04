@@ -10,6 +10,7 @@ use App\Models\Subscription;
 use App\Models\User;
 use App\Services\BillingService;
 use App\Services\ChannelBillingService;
+use App\Services\SubscriptionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -453,9 +454,32 @@ class EmployeeController extends Controller
     public function destroy(Employee $employee)
     {
         $userId = $employee->user_id;
+        $user = User::find($userId);
 
-        User::where('id', $userId)->delete();
-        $employee->delete();
+        DB::transaction(function () use ($user, $employee) {
+            app(SubscriptionService::class)->cancelForUser($user->id);
+
+            if ($user) {
+                $user->tokens()->delete();
+                $user->update([
+                    'name'             => 'Deleted User',
+                    'email'            => 'deleted_' . $user->id . '@deleted.com',
+                    'phone'            => null,
+                    'password'         => bcrypt(str()->random(32)),
+                    'is_active'        => 0,
+                    'address_line_1'   => null,
+                    'suburb'           => null,
+                    'longitude'        => null,
+                    'latitude'         => null,
+                    'complex_name'     => null,
+                    'unit_number'      => null,
+                    'safe_cancel_pin'  => null,
+                    'duress_pin'       => null,
+                ]);
+            }
+
+            $employee->delete();
+        });
 
         $this->notifyPttServer('/force-disconnect', [
             'userId' => $userId,
@@ -464,7 +488,7 @@ class EmployeeController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Employee deleted successfully!',
+            'message' => 'Household deleted successfully!',
         ]);
     }
 

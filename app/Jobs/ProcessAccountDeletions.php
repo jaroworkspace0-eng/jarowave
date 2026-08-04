@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\AccountDeletionRequest;
 use App\Models\User;
+use App\Services\SubscriptionService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -40,6 +41,10 @@ class ProcessAccountDeletions implements ShouldQueue
                 $user = User::find($deletion->user_id);
 
                 if ($user) {
+
+                    app(SubscriptionService::class)->cancelForUser($user->id);
+
+                    
                     // Revoke tokens
                     $user->tokens()->delete();
 

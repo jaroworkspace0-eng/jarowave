@@ -6,8 +6,10 @@ use App\Mail\HouseholdWelcomeMail;
 use App\Models\Channel;
 use App\Models\ChannelBillingContact;
 use App\Models\Employee;
+use App\Models\Subscription;
 use App\Models\User;
 use App\Services\ChannelBillingService;
+use App\Traits\NotifiesNode;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -23,6 +25,8 @@ class EstateTenantController extends Controller
         protected EmployeeController $employeeController,
         protected ChannelBillingService $billingService,
     ) {}
+
+    use NotifiesNode;
 
     // Only channels this billing contact is actively responsible for —
     // never trust a channel_id the client sends.
@@ -170,9 +174,11 @@ class EstateTenantController extends Controller
         $userId = $employee->user_id;
 
         DB::transaction(function () use ($userId, $employee) {
-            User::where('id', $userId)->delete();   // now soft-deletes
-            $employee->delete();                     // now soft-deletes
+            User::where('id', $userId)->delete();
+            $employee->delete();
         });
+
+        app(\App\Services\SubscriptionService::class)->cancelForUser($userId);
 
         $this->notifyPttServer('/force-disconnect', [
             'userId' => $userId,
@@ -291,4 +297,6 @@ class EstateTenantController extends Controller
 
         return response()->json(['message' => 'Guard removed successfully.']);
     }
+
+
 }

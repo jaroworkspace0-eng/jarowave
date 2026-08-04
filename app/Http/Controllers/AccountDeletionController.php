@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AccountDeletionRequest;
 use App\Models\User;
+use App\Services\SubscriptionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -73,7 +74,7 @@ class AccountDeletionController extends Controller
                 "Hi {$request->name},\n\nYour account deletion request has been received.\n\nYour account has been suspended and all data will be permanently deleted on: " . now()->addDays(30)->format('d M Y') . "\n\nIf this was a mistake, contact us at privacy@jaroworkspace.com.\n\nEcho Link · Management",
                 function ($message) use ($request) {
                     $message->to($request->email)
-                            ->subject('Account Deletion Request Received — Echo Link');
+                            ->subject('Account Deletion Request Received - Echo Link');
                 }
             );
         } catch (\Exception $e) {
@@ -95,6 +96,8 @@ class AccountDeletionController extends Controller
         return response()->json($requests);
     }
 
+
+    // Cancel a pending deletion request
     public function cancel($id)
     {
         $deletion = AccountDeletionRequest::findOrFail($id);
@@ -113,6 +116,8 @@ class AccountDeletionController extends Controller
         return response()->json(['message' => 'Deletion request cancelled.']);
     }
 
+
+    // Permanently delete the account immediately (admin action)
     public function destroy($id)
     {
         $deletion = AccountDeletionRequest::findOrFail($id);
@@ -120,7 +125,10 @@ class AccountDeletionController extends Controller
         $user = User::find($deletion->user_id);
 
         if ($user) {
-        $user->tokens()->delete();
+
+            app(SubscriptionService::class)->cancelForUser($user->id);
+
+            $user->tokens()->delete();
             $user->update([
                 'name'             => 'Deleted User',
                 'email'            => 'deleted_' . $user->id . '@deleted.com',
@@ -145,6 +153,19 @@ class AccountDeletionController extends Controller
             'processed_by'      => auth()->id(),
             'processed_by_type' => 'admin',
         ]);
+
+        try {
+            Mail::raw(
+                "Hi {$deletion->name},\n\nYour Echo Link account and all associated data has been permanently deleted.\n\nThank you for using Echo Link.\n\nManagement",
+                function ($message) use ($deletion) {
+                    $message->to($deletion->email)
+                            ->subject('Account Deleted - Echo Link');
+                }
+            );
+        } catch (\Exception $e) {
+            Log::warning('Deletion confirmation email failed: ' . $e->getMessage());
+        }
+
 
         return response()->json(['message' => 'Account deleted successfully.']);
     }
