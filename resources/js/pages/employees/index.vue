@@ -17,6 +17,8 @@ onMounted(() => {
     }
 });
 
+const showInviteModal = ref(false);
+
 // ─── helpers ──────────────────────────────────────────────────────────────────
 const generatePin = () => String(Math.floor(100000 + Math.random() * 900000));
 const isHouseholdRole = (role: string) =>
@@ -92,6 +94,35 @@ const conductBlockReason = ref('');
 
 const searchQuery = ref('');
 let searchTimeout: any = null;
+
+const confirmDeleteInvite = ref<any>(null);
+const isDeletingInvite = ref(false);
+
+const promptDeleteInvite = (invite: any) => {
+    confirmDeleteInvite.value = invite;
+};
+
+const proceedDeleteInvite = async () => {
+    if (!confirmDeleteInvite.value) return;
+    try {
+        isDeletingInvite.value = true;
+        await axios.delete(
+            `${import.meta.env.VITE_APP_URL}/api/invite/${confirmDeleteInvite.value.id}`,
+            getHeaders(),
+        );
+        invites.value = invites.value.filter(
+            (i) => i.id !== confirmDeleteInvite.value.id,
+        );
+        showInviteFlash(
+            `Invite link for ${confirmDeleteInvite.value.channel_name} deleted.`,
+        );
+    } catch {
+        showInviteFlash('Failed to delete invite link.', 'error');
+    } finally {
+        isDeletingInvite.value = false;
+        confirmDeleteInvite.value = null;
+    }
+};
 
 const handleSearch = () => {
     clearTimeout(searchTimeout);
@@ -670,19 +701,6 @@ const proceedRegenerate = async () => {
     }
 };
 
-const deleteInvite = async (invite: any) => {
-    try {
-        await axios.delete(
-            `${import.meta.env.VITE_APP_URL}/api/invite/${invite.id}`,
-            getHeaders(),
-        );
-        invites.value = invites.value.filter((i) => i.id !== invite.id);
-        showInviteFlash(`Invite link for ${invite.channel_name} deleted.`);
-    } catch {
-        showInviteFlash('Failed to delete invite link.', 'error');
-    }
-};
-
 const showInviteFlash = (
     msg: string,
     type: 'success' | 'error' = 'success',
@@ -930,6 +948,13 @@ const proceedNoCoverage = async () => {
                     </h1>
                 </div>
                 <div class="page-header__right">
+                    <button
+                        v-if="activeTab === 'households'"
+                        class="btn-ghost"
+                        @click="showInviteModal = true"
+                    >
+                        Invite Links
+                    </button>
                     <button
                         v-if="activeTab === 'personnel'"
                         class="btn-primary"
@@ -1221,314 +1246,6 @@ const proceedNoCoverage = async () => {
             <!-- HOUSEHOLDS TAB                             -->
             <!-- ══════════════════════════════════════════ -->
             <div v-if="activeTab === 'households'">
-                <!-- INVITE LINKS CARD -->
-                <div class="invite-card">
-                    <div class="invite-card__header">
-                        <div>
-                            <div class="invite-card__title">
-                                Invitation Links
-                            </div>
-                            <div class="invite-card__sub">
-                                One permanent link per channel — share with
-                                households to join your neighbourhood watch on
-                                Echo Link.
-                            </div>
-                        </div>
-                    </div>
-
-                    <div
-                        v-if="inviteFlash"
-                        class="invite-flash"
-                        :class="
-                            inviteFlash.type === 'success'
-                                ? 'invite-flash--success'
-                                : 'invite-flash--error'
-                        "
-                    >
-                        {{ inviteFlash.type === 'success' ? '✓' : '⚠' }}
-                        {{ inviteFlash.msg }}
-                    </div>
-
-                    <div v-if="inviteLoading" class="invite-loading">
-                        <svg
-                            class="spin h-4 w-4 text-slate-400"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                        >
-                            <circle
-                                class="opacity-25"
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                stroke-width="4"
-                            />
-                            <path
-                                class="opacity-75"
-                                fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                            />
-                        </svg>
-                        Loading…
-                    </div>
-
-                    <template v-else>
-                        <!-- EXISTING INVITE LINKS TABLE -->
-                        <div
-                            v-if="invites.length > 0"
-                            class="invite-table-wrap"
-                        >
-                            <table class="data-table">
-                                <thead>
-                                    <tr>
-                                        <th>Channel</th>
-                                        <th>Invite Link</th>
-                                        <th style="text-align: center">Uses</th>
-                                        <th style="text-align: right">
-                                            Actions
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr
-                                        v-for="invite in invites"
-                                        :key="invite.id"
-                                    >
-                                        <td>
-                                            <span
-                                                class="type-badge bg-orange-50 text-orange-700"
-                                            >
-                                                {{ invite.channel_name }}
-                                            </span>
-                                        </td>
-                                        <td style="max-width: 220px">
-                                            <span
-                                                class="token-text"
-                                                style="
-                                                    display: block;
-                                                    overflow: hidden;
-                                                    text-overflow: ellipsis;
-                                                    white-space: nowrap;
-                                                "
-                                                >{{ invite.invite_url }}</span
-                                            >
-                                        </td>
-                                        <td
-                                            class="td-muted"
-                                            style="text-align: center"
-                                        >
-                                            {{ invite.uses }}
-                                        </td>
-                                        <td>
-                                            <div
-                                                style="
-                                                    display: flex;
-                                                    align-items: center;
-                                                    justify-content: flex-end;
-                                                    gap: 6px;
-                                                "
-                                            >
-                                                <button
-                                                    @click="
-                                                        copyInviteLink(invite)
-                                                    "
-                                                    class="invite-action-btn"
-                                                    :class="{
-                                                        'invite-action-btn--copied':
-                                                            copiedId ===
-                                                            invite.id,
-                                                    }"
-                                                    title="Copy Invite Link"
-                                                >
-                                                    {{
-                                                        copiedId === invite.id
-                                                            ? '✓'
-                                                            : '📋'
-                                                    }}
-                                                </button>
-
-                                                <a
-                                                    :href="`https://wa.me/?text=${encodeURIComponent('Join our ' + invite.channel_name + ' neighbourhood watch on Echo Link! Register for R80/month: ' + invite.invite_url)}`"
-                                                    target="_blank"
-                                                    class="icon-btn"
-                                                    title="Share on WhatsApp"
-                                                    >💬</a
-                                                >
-                                                <button
-                                                    @click="
-                                                        confirmRegenerate(
-                                                            invite,
-                                                        )
-                                                    "
-                                                    class="icon-btn"
-                                                    title="Regenerate link"
-                                                >
-                                                    ↻
-                                                </button>
-                                                <button
-                                                    @click="
-                                                        deleteInvite(invite)
-                                                    "
-                                                    class="icon-btn icon-btn--danger"
-                                                    title="Delete invite link"
-                                                >
-                                                    ✕
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-
-                        <!-- EMPTY STATE -->
-                        <div v-else class="invite-empty">
-                            <div style="font-size: 22px">🔗</div>
-                            <div class="invite-empty__title">
-                                No invite links yet
-                            </div>
-                            <div class="invite-empty__sub">
-                                Generate a link below to start onboarding
-                                households per channel
-                            </div>
-                        </div>
-
-                        <!-- ADMIN: choose which client this invite link is for -->
-                        <div
-                            v-if="auth.user?.role === 'admin'"
-                            class="field"
-                            style="margin-top: 16px"
-                        >
-                            <label class="field__label"
-                                >Acting on behalf of client</label
-                            >
-                            <div class="select-wrapper">
-                                <select
-                                    v-model="selectedAdminClientId"
-                                    class="field__select"
-                                >
-                                    <option value="">
-                                        -- Select a client --
-                                    </option>
-                                    <option
-                                        v-for="client in clients"
-                                        :key="client.id"
-                                        :value="client.id"
-                                    >
-                                        {{ client.user?.name }}
-                                    </option>
-                                </select>
-                                <svg
-                                    class="select-caret"
-                                    xmlns="http://www.w3.org/2000/svg"
-                                    fill="none"
-                                    viewBox="0 0 24 24"
-                                    stroke="currentColor"
-                                    stroke-width="2"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        d="M19 9l-7 7-7-7"
-                                    />
-                                </svg>
-                            </div>
-                        </div>
-
-                        <!-- GENERATE NEW LINK -->
-                        <div
-                            v-if="channelsWithoutInvite.length > 0"
-                            class="field"
-                            style="margin-top: 16px"
-                        >
-                            <label class="field__label"
-                                >Generate link for a channel</label
-                            >
-                            <div style="display: flex; gap: 8px">
-                                <div class="select-wrapper" style="flex: 1">
-                                    <select
-                                        v-model="selectedChannelId"
-                                        class="field__select"
-                                    >
-                                        <option value="">
-                                            Select a channel...
-                                        </option>
-                                        <option
-                                            v-for="ch in channelsWithoutInvite"
-                                            :key="ch.id"
-                                            :value="ch.id"
-                                        >
-                                            {{ ch.name }}
-                                        </option>
-                                    </select>
-                                    <svg
-                                        class="select-caret"
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                        stroke-width="2"
-                                    >
-                                        <path
-                                            stroke-linecap="round"
-                                            stroke-linejoin="round"
-                                            d="M19 9l-7 7-7-7"
-                                        />
-                                    </svg>
-                                </div>
-                                <button
-                                    @click="generateInviteLink"
-                                    :disabled="
-                                        isGenerating || !selectedChannelId
-                                    "
-                                    class="btn-primary"
-                                    style="white-space: nowrap"
-                                >
-                                    <svg
-                                        v-if="isGenerating"
-                                        class="spin h-4 w-4"
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                    >
-                                        <circle
-                                            class="opacity-25"
-                                            cx="12"
-                                            cy="12"
-                                            r="10"
-                                            stroke="currentColor"
-                                            stroke-width="4"
-                                        />
-                                        <path
-                                            class="opacity-75"
-                                            fill="currentColor"
-                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                                        />
-                                    </svg>
-                                    {{
-                                        isGenerating
-                                            ? 'Generating…'
-                                            : 'Generate →'
-                                    }}
-                                </button>
-                            </div>
-                        </div>
-                        <div
-                            v-else-if="
-                                invites.length > 0 && clientChannels.length > 0
-                            "
-                            style="
-                                margin-top: 8px;
-                                font-size: 12px;
-                                color: #94a3b8;
-                            "
-                        >
-                            ✓ All your channels have invite links.
-                        </div>
-                    </template>
-                </div>
-
                 <!-- HOUSEHOLDS TABLE -->
                 <div class="table-card" style="margin-top: 20px">
                     <div v-if="householdList.length === 0" class="empty-state">
@@ -2267,6 +1984,480 @@ const proceedNoCoverage = async () => {
             </div>
         </div>
 
+        <!-- INVITE LINKS MODAL -->
+        <transition name="modal">
+            <div
+                v-if="showInviteModal"
+                class="modal-backdrop"
+                @click.self="showInviteModal = false"
+            >
+                <div class="modal-sheet" style="max-width: 920px">
+                    <div class="modal-sheet__header">
+                        <div class="modal-sheet__header-left">
+                            <div>
+                                <div class="modal-sheet__title">
+                                    Invitation Links
+                                </div>
+                                <div class="modal-sheet__sub">
+                                    One permanent link per channel - share with
+                                    households to join your neighbourhood watch
+                                    on Echo Link.
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            class="close-btn"
+                            @click="showInviteModal = false"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M6 18L18 6M6 6l12 12"
+                                />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="modal-sheet__body">
+                        <div
+                            v-if="inviteFlash"
+                            class="invite-flash"
+                            :class="
+                                inviteFlash.type === 'success'
+                                    ? 'invite-flash--success'
+                                    : 'invite-flash--error'
+                            "
+                        >
+                            {{ inviteFlash.type === 'success' ? '✓' : '⚠' }}
+                            {{ inviteFlash.msg }}
+                        </div>
+
+                        <div v-if="inviteLoading" class="invite-loading">
+                            <svg
+                                class="spin h-4 w-4 text-slate-400"
+                                xmlns="http://www.w3.org/2000/svg"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                            >
+                                <circle
+                                    class="opacity-25"
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    stroke="currentColor"
+                                    stroke-width="4"
+                                />
+                                <path
+                                    class="opacity-75"
+                                    fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                />
+                            </svg>
+                            Loading…
+                        </div>
+
+                        <template v-else>
+                            <div
+                                v-if="invites.length > 0"
+                                class="invite-table-wrap"
+                            >
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Channel</th>
+                                            <th>Invite Link</th>
+                                            <th style="text-align: center">
+                                                Uses
+                                            </th>
+                                            <th style="text-align: right">
+                                                Actions
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr
+                                            v-for="invite in invites"
+                                            :key="invite.id"
+                                        >
+                                            <td>
+                                                <span
+                                                    class="type-badge bg-orange-50 text-orange-700"
+                                                >
+                                                    {{ invite.channel_name }}
+                                                </span>
+                                            </td>
+                                            <td style="max-width: 400px">
+                                                <span
+                                                    class="token-text"
+                                                    style="
+                                                        display: block;
+                                                        overflow: hidden;
+                                                        text-overflow: ellipsis;
+                                                        white-space: nowrap;
+                                                    "
+                                                    >{{
+                                                        invite.invite_url
+                                                    }}</span
+                                                >
+                                            </td>
+                                            <td
+                                                class="td-muted"
+                                                style="text-align: center"
+                                            >
+                                                {{ invite.uses }}
+                                            </td>
+                                            <td>
+                                                <div
+                                                    style="
+                                                        display: flex;
+                                                        align-items: center;
+                                                        justify-content: flex-end;
+                                                        gap: 6px;
+                                                    "
+                                                >
+                                                    <button
+                                                        @click="
+                                                            copyInviteLink(
+                                                                invite,
+                                                            )
+                                                        "
+                                                        class="icon-btn"
+                                                        :class="{
+                                                            'icon-btn--edit':
+                                                                copiedId ===
+                                                                invite.id,
+                                                        }"
+                                                        title="Copy Invite Link"
+                                                    >
+                                                        <svg
+                                                            v-if="
+                                                                copiedId ===
+                                                                invite.id
+                                                            "
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                            class="h-4 w-4"
+                                                            fill="none"
+                                                            viewBox="0 0 24 24"
+                                                            stroke="currentColor"
+                                                            stroke-width="2"
+                                                        >
+                                                            <path
+                                                                stroke-linecap="round"
+                                                                stroke-linejoin="round"
+                                                                d="M5 13l4 4L19 7"
+                                                            />
+                                                        </svg>
+                                                        <svg
+                                                            v-else
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                            class="h-4 w-4"
+                                                            fill="none"
+                                                            viewBox="0 0 24 24"
+                                                            stroke="currentColor"
+                                                            stroke-width="2"
+                                                        >
+                                                            <path
+                                                                stroke-linecap="round"
+                                                                stroke-linejoin="round"
+                                                                d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                                                            />
+                                                        </svg>
+                                                    </button>
+
+                                                    <a
+                                                        :href="`https://wa.me/?text=${encodeURIComponent('Join our ' + invite.channel_name + ' neighbourhood watch on Echo Link! Register for R80/month: ' + invite.invite_url)}`"
+                                                        target="_blank"
+                                                        class="icon-btn"
+                                                        title="Share on WhatsApp"
+                                                    >
+                                                        <svg
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                            class="h-4 w-4"
+                                                            fill="none"
+                                                            viewBox="0 0 24 24"
+                                                            stroke="currentColor"
+                                                            stroke-width="2"
+                                                        >
+                                                            <path
+                                                                stroke-linecap="round"
+                                                                stroke-linejoin="round"
+                                                                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                                                            />
+                                                        </svg>
+                                                    </a>
+                                                    <button
+                                                        @click="
+                                                            confirmRegenerate(
+                                                                invite,
+                                                            )
+                                                        "
+                                                        class="icon-btn"
+                                                        title="Regenerate link"
+                                                    >
+                                                        <svg
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                            class="h-4 w-4"
+                                                            fill="none"
+                                                            viewBox="0 0 24 24"
+                                                            stroke="currentColor"
+                                                            stroke-width="2"
+                                                        >
+                                                            <path
+                                                                stroke-linecap="round"
+                                                                stroke-linejoin="round"
+                                                                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                                                            />
+                                                        </svg>
+                                                    </button>
+                                                    <button
+                                                        @click="
+                                                            promptDeleteInvite(
+                                                                invite,
+                                                            )
+                                                        "
+                                                        class="icon-btn icon-btn--danger"
+                                                        title="Delete invite link"
+                                                    >
+                                                        <svg
+                                                            xmlns="http://www.w3.org/2000/svg"
+                                                            class="h-4 w-4"
+                                                            fill="none"
+                                                            viewBox="0 0 24 24"
+                                                            stroke="currentColor"
+                                                            stroke-width="2"
+                                                        >
+                                                            <path
+                                                                stroke-linecap="round"
+                                                                stroke-linejoin="round"
+                                                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                                            />
+                                                        </svg>
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div v-else class="invite-empty">
+                                <div style="font-size: 22px">🔗</div>
+                                <div class="invite-empty__title">
+                                    No invite links yet
+                                </div>
+                                <div class="invite-empty__sub">
+                                    Generate a link below to start onboarding
+                                    households per channel
+                                </div>
+                            </div>
+
+                            <!-- ADMIN ONLY: choose which client this invite link is for -->
+                            <div
+                                v-if="auth.user?.role === 'admin'"
+                                class="field"
+                                style="margin-top: 16px"
+                            >
+                                <label class="field__label"
+                                    >Acting on behalf of client</label
+                                >
+                                <div class="select-wrapper">
+                                    <select
+                                        v-model="selectedAdminClientId"
+                                        class="field__select"
+                                    >
+                                        <option value="">
+                                            -- Select a client --
+                                        </option>
+                                        <option
+                                            v-for="client in clients"
+                                            :key="client.id"
+                                            :value="client.id"
+                                        >
+                                            {{ client.user?.name }}
+                                        </option>
+                                    </select>
+                                    <svg
+                                        class="select-caret"
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                        stroke-width="2"
+                                    >
+                                        <path
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            d="M19 9l-7 7-7-7"
+                                        />
+                                    </svg>
+                                </div>
+                            </div>
+
+                            <div
+                                v-if="channelsWithoutInvite.length > 0"
+                                class="field"
+                                style="margin-top: 16px"
+                            >
+                                <label class="field__label"
+                                    >Generate link for a channel</label
+                                >
+                                <div style="display: flex; gap: 8px">
+                                    <div class="select-wrapper" style="flex: 1">
+                                        <select
+                                            v-model="selectedChannelId"
+                                            class="field__select"
+                                        >
+                                            <option value="">
+                                                Select a channel...
+                                            </option>
+                                            <option
+                                                v-for="ch in channelsWithoutInvite"
+                                                :key="ch.id"
+                                                :value="ch.id"
+                                            >
+                                                {{ ch.name }}
+                                            </option>
+                                        </select>
+                                        <svg
+                                            class="select-caret"
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <path
+                                                stroke-linecap="round"
+                                                stroke-linejoin="round"
+                                                d="M19 9l-7 7-7-7"
+                                            />
+                                        </svg>
+                                    </div>
+                                    <button
+                                        @click="generateInviteLink"
+                                        :disabled="
+                                            isGenerating || !selectedChannelId
+                                        "
+                                        class="btn-primary"
+                                        style="white-space: nowrap"
+                                    >
+                                        <svg
+                                            v-if="isGenerating"
+                                            class="spin h-4 w-4"
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                        >
+                                            <circle
+                                                class="opacity-25"
+                                                cx="12"
+                                                cy="12"
+                                                r="10"
+                                                stroke="currentColor"
+                                                stroke-width="4"
+                                            />
+                                            <path
+                                                class="opacity-75"
+                                                fill="currentColor"
+                                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                                            />
+                                        </svg>
+                                        {{
+                                            isGenerating
+                                                ? 'Generating…'
+                                                : 'Generate →'
+                                        }}
+                                    </button>
+                                </div>
+                            </div>
+                            <div
+                                v-else-if="
+                                    invites.length > 0 &&
+                                    clientChannels.length > 0
+                                "
+                                style="
+                                    margin-top: 8px;
+                                    font-size: 12px;
+                                    color: #94a3b8;
+                                "
+                            >
+                                ✓ All your channels have invite links.
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
+        <!-- Delete invite confirmation modal -->
+        <transition name="modal">
+            <div
+                v-if="confirmDeleteInvite"
+                class="modal-backdrop"
+                @click.self="confirmDeleteInvite = null"
+            >
+                <div class="confirm-modal">
+                    <div class="confirm-modal__icon">
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-7 w-7 text-red-500"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
+                        </svg>
+                    </div>
+                    <h2 class="confirm-modal__title">Delete Invite Link?</h2>
+                    <p class="confirm-modal__body" style="margin-bottom: 2px">
+                        {{ confirmDeleteInvite.channel_name }}
+                    </p>
+                    <div
+                        class="toggle-warning toggle-warning--danger"
+                        style="text-align: left"
+                    >
+                        <p style="font-weight: 700; margin-bottom: 4px">
+                            This link will stop working immediately.
+                        </p>
+                        <p>
+                            Anyone who hasn't registered using this link yet
+                            won't be able to. This action cannot be undone -
+                            you'd need to generate a new link afterward.
+                        </p>
+                    </div>
+                    <div class="confirm-modal__actions">
+                        <button
+                            @click="confirmDeleteInvite = null"
+                            class="btn-ghost"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            @click="proceedDeleteInvite"
+                            :disabled="isDeletingInvite"
+                            class="btn-danger"
+                            style="flex: 1.4; justify-content: center"
+                        >
+                            {{ isDeletingInvite ? 'Deleting…' : 'Yes, Delete' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </transition>
+
         <!-- ══════════════════════════════════════════ -->
         <!-- ADD / EDIT MODAL                           -->
         <!-- ══════════════════════════════════════════ -->
@@ -2967,7 +3158,7 @@ const proceedNoCoverage = async () => {
                         "
                     >
                         <p style="font-weight: 700; margin-bottom: 4px">
-                            ⚠ This will invalidate the current link.
+                            This will invalidate the current link.
                         </p>
                         <p>
                             Anyone who has not yet registered using the old link
@@ -3916,7 +4107,7 @@ const proceedNoCoverage = async () => {
     gap: 4px;
     padding: 3px 10px;
     border-radius: 20px;
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 700;
     white-space: nowrap;
 }
@@ -3928,7 +4119,7 @@ const proceedNoCoverage = async () => {
 }
 .token-text {
     font-family: ui-monospace, monospace;
-    font-size: 11px;
+    font-size: 13px;
     color: #94a3b8;
 }
 
@@ -4094,7 +4285,7 @@ const proceedNoCoverage = async () => {
     margin-top: 4px;
 }
 .invite-empty__sub {
-    font-size: 12px;
+    font-size: 13px;
     color: #94a3b8;
     margin-top: 2px;
 }
@@ -4127,7 +4318,7 @@ const proceedNoCoverage = async () => {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
     color: #64748b;
     letter-spacing: 0.3px;
@@ -4601,7 +4792,7 @@ const proceedNoCoverage = async () => {
     color: #1a2332;
 }
 .modal-sheet__sub {
-    font-size: 12px;
+    font-size: 13px;
     color: #94a3b8;
 }
 .close-btn {
@@ -4735,7 +4926,7 @@ const proceedNoCoverage = async () => {
     text-align: left;
     border-radius: 10px;
     padding: 12px 14px;
-    font-size: 12.5px;
+    font-size: 14.5px;
     line-height: 1.6;
     margin-bottom: 4px;
 }

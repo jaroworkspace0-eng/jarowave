@@ -12,31 +12,34 @@ class InviteController extends Controller
     {
         return 'https://account.jaroworkspace.com/register.html?token=' . $token;
     }
+
+
+    private function myChannelIds(Request $request): array
+    {
+        return \App\Models\ChannelBillingContact::where('user_id', $request->user()->id)
+            ->where('is_active', true)
+            ->pluck('channel_id')
+            ->toArray();
+    }
+
+    private function userCanManageChannel(Request $request, int $channelId): bool
+    {
+        $user = $request->user();
+
+        if ($user->role === 'admin') {
+            return true;
+        }
+
+        if ($user->role === 'estate_billing') {
+            return in_array($channelId, $this->myChannelIds($request), true);
+        }
+
+        return $user->employee?->ch()->where('channels.id', $channelId)->exists() ?? false;
+    }
+
+
     // GET /api/invite
-    // public function show(Request $request)
-    // {
-    //     $client = $request->user()->client;
-
-    //     if (!$client) {
-    //         return response()->json(['invites' => []]);
-    //     }
-
-    //     $invites = HouseholdInvite::where('client_id', $client->id)
-    //         ->with('channel')
-    //         ->get()
-    //         ->map(fn($i) => [
-    //             'id'           => $i->id,
-    //             'channel_id'   => $i->channel_id,
-    //             'channel_name' => $i->channel?->name ?? 'Unknown Channel',
-    //             'invite_url'   => $this->buildUrl($i->token),
-    //             'uses'         => $i->uses,
-    //             'token'        => $i->token,
-    //         ]);
-
-    //     return response()->json(['invites' => $invites]);
-    // }
-
-
+    // GET /api/invite
     public function show(Request $request)
     {
         $clientId = $this->resolveClientId($request);
@@ -45,47 +48,28 @@ class InviteController extends Controller
             return response()->json(['invites' => []]);
         }
 
-        $invites = HouseholdInvite::where('client_id', $clientId)
-            ->with('channel')
-            ->get()
-            ->map(fn($i) => [
-                'id'           => $i->id,
-                'channel_id'   => $i->channel_id,
-                'channel_name' => $i->channel?->name ?? 'Unknown Channel',
-                'invite_url'   => $this->buildUrl($i->token),
-                'uses'         => $i->uses,
-                'token'        => $i->token,
-            ]);
+        $query = HouseholdInvite::whereHas('channel', fn($q) => $q->where('client_id', $clientId))
+            ->with('channel');
+
+        $user = $request->user();
+        if ($user->role === 'estate_billing') {
+            $query->whereIn('channel_id', $this->myChannelIds($request));
+        } elseif ($user->role !== 'admin') {
+            $channelIds = $user->employee?->ch()->pluck('channels.id') ?? collect();
+            $query->whereIn('channel_id', $channelIds);
+        }
+
+        $invites = $query->get()->map(fn($i) => [
+            'id'           => $i->id,
+            'channel_id'   => $i->channel_id,
+            'channel_name' => $i->channel?->name ?? 'Unknown Channel',
+            'invite_url'   => $this->buildUrl($i->token),
+            'uses'         => $i->uses,
+            'token'        => $i->token,
+        ]);
 
         return response()->json(['invites' => $invites]);
     }
-
-    // POST /api/invite/generate
-    // public function generate(Request $request)
-    // {
-    //     $request->validate([
-    //         'channel_id' => 'required|exists:channels,id',
-    //     ]);
-
-    //     $client = $request->user()->client;
-
-    //     // One link per channel — create if doesn't exist, never rotate automatically
-    //     $invite = HouseholdInvite::firstOrCreate(
-    //         ['client_id' => $client->id, 'channel_id' => $request->channel_id],
-    //         ['token' => bin2hex(random_bytes(32))]
-    //     );
-
-    //     return response()->json([
-    //         'id'           => $invite->id,
-    //         'channel_id'   => $invite->channel_id,
-    //         'channel_name' => $invite->channel?->name,
-    //         'invite_url' => $this->buildUrl($invite->token),
-    //         'token'      => $invite->token,
-    //         'uses'         => $invite->uses ?? 0,
-    //     ]);
-    // }
-
-
     
     // POST /api/invite/generate
     public function generate(Request $request)
@@ -98,6 +82,10 @@ class InviteController extends Controller
 
         if (!$clientId) {
             return response()->json(['message' => 'Please select a client first.'], 422);
+        }
+
+        if (!$this->userCanManageChannel($request, (int) $request->channel_id)) {
+            return response()->json(['message' => 'You do not manage this channel.'], 403);
         }
 
         // One link per channel — create if doesn't exist, never rotate automatically
@@ -118,11 +106,18 @@ class InviteController extends Controller
 
     public function regenerate(Request $request, $id)
     {
-        $clientId = $this->resolveClientId($request);
+        $user = $request->user();
+        $query = HouseholdInvite::where('id', $id);
 
-        $invite = HouseholdInvite::where('id', $id)
-            ->where('client_id', $clientId)
-            ->firstOrFail();
+        if ($user->role !== 'admin') {
+            $query->where('client_id', $this->resolveClientId($request));
+        }
+
+        $invite = $query->firstOrFail();
+
+        if (!$this->userCanManageChannel($request, $invite->channel_id)) {
+            abort(403, 'You do not manage this channel.');
+        }
 
         $invite->update(['token' => bin2hex(random_bytes(32))]);
 
@@ -138,16 +133,25 @@ class InviteController extends Controller
 
     public function destroy(Request $request, $id)
     {
-        $clientId = $this->resolveClientId($request);
+        $user = $request->user();
+        $query = HouseholdInvite::where('id', $id);
 
-        $invite = HouseholdInvite::where('id', $id)
-            ->where('client_id', $clientId)
-            ->firstOrFail();
+        if ($user->role !== 'admin') {
+            $query->where('client_id', $this->resolveClientId($request));
+        }
+
+        $invite = $query->firstOrFail();
+
+        if (!$this->userCanManageChannel($request, $invite->channel_id)) {
+            abort(403, 'You do not manage this channel.');
+        }
 
         $invite->delete();
 
         return response()->json(['message' => 'Invite link deleted.']);
     }
+
+   
 
     // GET /api/household/invite/{token}
     public function validate($token)
@@ -176,14 +180,15 @@ class InviteController extends Controller
         ]);
     }
 
-    private function resolveClientId(Request $request): ?int
-    {
-        $user = $request->user();
+   private function resolveClientId(Request $request): ?int
+{
+    $user = $request->user();
 
-        if ($user->role === 'admin') {
-            return $request->query('client_id') ?? $request->input('client_id');
-        }
-
-        return $user->client?->id;
+    if ($user->role === 'admin') {
+        return $request->query('client_id') ?? $request->input('client_id');
     }
+
+    return $user->client?->id ?? $user->employee?->client_id;
+}
+
 }
