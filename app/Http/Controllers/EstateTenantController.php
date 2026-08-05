@@ -180,6 +180,9 @@ class EstateTenantController extends Controller
             ->first();
 
         DB::transaction(function () use ($employee) {
+            User::where('id', $employee->user_id)
+                ->update(['is_active' => false]);
+                
             User::where('id', $employee->user_id)->delete();
             $employee->delete();
         });
