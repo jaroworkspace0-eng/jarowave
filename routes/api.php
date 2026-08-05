@@ -97,17 +97,18 @@ Route::post('/login', function (Request $request) {
         ]);
     }
 
-    if (! $user || ! Hash::check($request->password, $user->password)) {
-        throw ValidationException::withMessages([
-            'email' => ['The provided credentials are incorrect.'],
-        ]);
-    }
 
     if($user->deleted_at !== null) {
         return response()->json([
             'status'  => 'error',
             'message' => 'Account deleted. Please contact support for assistance.'
         ], 403);
+    }
+
+    if (! $user || ! Hash::check($request->password, $user->password)) {
+        throw ValidationException::withMessages([
+            'email' => ['The provided credentials are incorrect.'],
+        ]);
     }
 
     // Role restrictions

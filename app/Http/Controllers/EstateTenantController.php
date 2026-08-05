@@ -175,13 +175,24 @@ class EstateTenantController extends Controller
 
         $userId = $employee->user_id;
 
+        $subscription = Subscription::where('user_id', $userId)
+            ->latest()
+            ->first();
+
         DB::transaction(function () use ($employee) {
             User::where('id', $employee->user_id)->delete();
             $employee->delete();
         });
 
-        // Dispatched after commit — only fires if the transaction actually succeeded,
-        // and each job retries independently on failure instead of being lost.
+        if ($subscription) {
+            $subscription->update([
+                'status' => 'cancelled',
+                'ends_at' => now(),
+                'channel_subscription_id' => null,
+                'cancellation_reason' => 'no_coverage_relocation',
+            ]);
+        }
+
         CancelUserSubscriptionJob::dispatch($userId);
 
         NotifyPttServerJob::dispatch('/force-disconnect', [
