@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\CancelUserSubscriptionJob;
+use App\Jobs\NotifyPttServerJob;
 use App\Mail\HouseholdWelcomeMail;
 use App\Models\Channel;
 use App\Models\ChannelBillingContact;
@@ -111,27 +113,27 @@ class EstateTenantController extends Controller
                 'duress_pin'      => $validated['duress_pin'],
             ]);
 
-    $employee = Employee::create([
-        'user_id'   => $user->id,
-        'client_id' => $channel->client_id,
-    ]);
+            $employee = Employee::create([
+                'user_id'   => $user->id,
+                'client_id' => $channel->client_id,
+            ]);
 
-    $employee->channels()->attach($channel->id);
+            $employee->channels()->attach($channel->id);
 
-    // Create the individual subscription first (same as any household),
-    // then immediately opt in — optInHousehold() finds this subscription
-    // and cancels it with cancellation_reason: 'estate_optin' and
-    // channel_subscription_id set, leaving a real audit trail instead
-    // of skipping subscription creation altogether.
-    $this->employeeController->createHouseholdSubscription($user, $channel->client_id, false);
-    $this->billingService->optInHousehold($user, $channel);
+            // Create the individual subscription first (same as any household),
+            // then immediately opt in — optInHousehold() finds this subscription
+            // and cancels it with cancellation_reason: 'estate_optin' and
+            // channel_subscription_id set, leaving a real audit trail instead
+            // of skipping subscription creation altogether.
+            $this->employeeController->createHouseholdSubscription($user, $channel->client_id, false);
+            $this->billingService->optInHousehold($user, $channel);
 
-    $this->employeeController->sendHouseholdWelcomeMail(
-        $user, $channel->client_id, $plainPassword, $channel, estateBilled: true,
-    );
+            $this->employeeController->sendHouseholdWelcomeMail(
+                $user, $channel->client_id, $plainPassword, $channel, estateBilled: true,
+            );
 
-    return response()->json(['message' => 'Tenant added successfully. Welcome email sent.']);
-});
+            return response()->json(['message' => 'Tenant added successfully. Welcome email sent.']);
+        });
     }
 
     public function update(Request $request, Employee $employee)
@@ -173,14 +175,16 @@ class EstateTenantController extends Controller
 
         $userId = $employee->user_id;
 
-        DB::transaction(function () use ($userId, $employee) {
-            User::where('id', $userId)->delete();
+        DB::transaction(function () use ($employee) {
+            User::where('id', $employee->user_id)->delete();
             $employee->delete();
         });
 
-        app(\App\Services\SubscriptionService::class)->cancelForUser($userId);
+        // Dispatched after commit — only fires if the transaction actually succeeded,
+        // and each job retries independently on failure instead of being lost.
+        CancelUserSubscriptionJob::dispatch($userId);
 
-        $this->notifyPttServer('/force-disconnect', [
+        NotifyPttServerJob::dispatch('/force-disconnect', [
             'userId' => $userId,
             'reason' => 'user_inactive',
         ]);

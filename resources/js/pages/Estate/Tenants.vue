@@ -1223,10 +1223,12 @@ import { computed } from 'vue';
                             />
                         </svg>
                     </div>
-                    <h2 class="confirm-modal__title">Confirm Deletion</h2>
+                    <h2 class="confirm-modal__title">Confirm Removal</h2>
                     <p class="confirm-modal__body">
-                        Are you sure you want to delete this tenant? This will
-                        remove their access to Echo Link.
+                        This action should only be used when a tenant is moving
+                        out. Once removed, they will no longer have access to
+                        Echo Link on this estate. Are you sure you want to
+                        remove this tenant?
                     </p>
                     <div class="confirm-modal__actions">
                         <button
@@ -1240,7 +1242,7 @@ import { computed } from 'vue';
                             :disabled="deleting"
                             class="btn-danger"
                         >
-                            {{ deleting ? 'Deleting…' : 'Yes, Delete' }}
+                            {{ deleting ? 'Removing…' : 'Yes, Remove' }}
                         </button>
                     </div>
                 </div>

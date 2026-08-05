@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Jobs\NotifyPttServerJob;
+use App\Models\AccountLink;
 use App\Models\Subscription;
 use App\Traits\NotifiesNode;
 use Illuminate\Support\Facades\Log;
@@ -17,32 +19,58 @@ class SubscriptionService
             ->latest()
             ->first();
 
-        if (!$subscription) {
-            return;
-        }
-
-        if ($subscription->payfast_token) {
-            try {
-                app(\App\Services\PayFastService::class)
-                    ->cancelSubscription($subscription->payfast_token);
-            } catch (\Exception $e) {
-                Log::warning('PayFast cancellation failed: ' . $e->getMessage());
+        if ($subscription) {
+            if ($subscription->payfast_token) {
+                try {
+                    app(\App\Services\PayFastService::class)
+                        ->cancelSubscription($subscription->payfast_token);
+                } catch (\Exception $e) {
+                    Log::warning('PayFast cancellation failed: ' . $e->getMessage());
+                }
             }
+
+            $accessEnd = $subscription->current_period_end
+                ?? $subscription->trial_ends_at
+                ?? now();
+
+            $subscription->update([
+                'status'       => 'cancelled',
+                'cancelled_at' => now(),
+                'ends_at'      => $accessEnd,
+            ]);
+
+            $this->notifyNode('POST', '/subscription-cancelled', [
+                'userId'    => $subscription->user_id,
+                'accessEnd' => $accessEnd->toIso8601String(),
+            ]);
         }
 
-        $accessEnd = $subscription->current_period_end
-            ?? $subscription->trial_ends_at
-            ?? now();
+        // If this user is a primary with active linked accounts, cut them off too
+        $activeLinks = AccountLink::where('primary_account_id', $userId)
+            ->where('status', 'active')
+            ->with('linkedAccount.subscription')
+            ->get();
 
-        $subscription->update([
-            'status'       => 'cancelled',
-            'cancelled_at' => now(),
-            'ends_at'      => $accessEnd,
-        ]);
+        foreach ($activeLinks as $link) {
+            $linkedUser = $link->linkedAccount;
 
-        $this->notifyNode('POST', '/subscription-cancelled', [
-            'userId'    => $subscription->user_id,
-            'accessEnd' => $accessEnd->toIso8601String(),
-        ]);
+            if ($linkedSub = $linkedUser->subscription) {
+                $linkedSub->update([
+                    'channel_subscription_id' => null,
+                    'cancellation_reason'     => null,
+                    'status'                  => 'cancelled',
+                    'ends_at'                 => now(),
+                ]);
+            }
+            $linkedUser->update(['subscription_status' => 'cancelled']);
+
+            NotifyPttServerJob::dispatch('/payment-failed', [
+                'userId'       => $linkedUser->id,
+                'forceSuspend' => true,
+                'reason'       => 'account_unlinked',
+            ]);
+
+            $link->update(['status' => 'cancelled']);
+        }
     }
 }
