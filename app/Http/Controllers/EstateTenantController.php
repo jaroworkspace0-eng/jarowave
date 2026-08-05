@@ -181,8 +181,11 @@ class EstateTenantController extends Controller
 
         DB::transaction(function () use ($employee) {
             User::where('id', $employee->user_id)
-                ->update(['is_active' => false]);
-                
+                ->update([
+                    'is_active' => false,
+                    'subscription_status' => 'cancelled',
+                    ]);
+
             User::where('id', $employee->user_id)->delete();
             $employee->delete();
         });
