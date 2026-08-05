@@ -26,9 +26,8 @@ class NotifyPttServerJob implements ShouldQueue
 
     public function handle(): void
     {
-        // Adjust base URL / auth to match however notifyPttServer() currently calls it
         $response = Http::timeout(5)
-            ->post(config('services.ptt.base_url') . $this->endpoint, $this->payload);
+            ->post(env('PTT_SERVER_URL') . $this->endpoint, $this->payload);
 
         if (! $response->successful()) {
             throw new \RuntimeException(
