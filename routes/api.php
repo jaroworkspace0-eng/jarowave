@@ -98,7 +98,7 @@ Route::post('/login', function (Request $request) {
     }
 
 
-    if($user->deleted_at !== null) {
+    if($user?->deleted_at !== null) {
         return response()->json([
             'status'  => 'error',
             'message' => 'Account deleted. Please contact support for assistance.'
