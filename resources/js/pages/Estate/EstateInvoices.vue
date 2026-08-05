@@ -67,7 +67,7 @@ const showFlash = (msg: string, type: 'success' | 'error' = 'success') => {
 const fmt = (val: number | null | undefined) => {
     if (val == null) return '—';
     // total is stored in cents
-    return `R${(Number(val) / 100).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `R${Number(val).toLocaleString('en-ZA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 };
 
 const formatDate = (d: string | null) =>
