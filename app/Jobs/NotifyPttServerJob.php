@@ -27,6 +27,7 @@ class NotifyPttServerJob implements ShouldQueue
     public function handle(): void
     {
         $response = Http::timeout(5)
+            ->withHeaders(['Authorization' => 'Bearer ' . env('ASSIGN_SECRET')])
             ->post(env('PTT_SERVER_URL') . $this->endpoint, $this->payload);
 
         if (! $response->successful()) {
