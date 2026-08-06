@@ -26,7 +26,7 @@ class AdminAlertController extends Controller
                 $q->whereIn('channel_id', $user->accessibleChannelIds());
             })
             ->with([
-                'user:id,name,phone,address_line_1,complex_name,suburb,unit_number,alert_location_source',
+                'user:id,name,phone,address_line_1,complex_name,suburb,unit_number,alert_location_source,is_estate',
                 'channel:id,name',
                 'events' => fn ($q) => $q->orderBy('created_at'),
                 'guardianNotifications.guardian:id,name',
