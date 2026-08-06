@@ -212,22 +212,19 @@ const hasRealLocation = computed(() => {
 
 const registeredAddressAlways = computed(() => {
     if (props.alert.is_estate) {
-        return props.alert.unit_number
-            ? `Unit ${props.alert.unit_number}`
-            : null;
+        return fmtUnit(props.alert.unit_number);
     }
     return (
         [
             props.alert.address_line_1,
             props.alert.complex_name,
             props.alert.suburb,
-            props.alert.unit_number ? `Unit ${props.alert.unit_number}` : null,
+            fmtUnit(props.alert.unit_number),
         ]
             .filter(Boolean)
             .join(', ') || null
     );
 });
-
 /* ---------------- GPS reverse geocode (address label from live coordinates) ---------------- */
 
 const gpsAddressLabel = ref(null);
@@ -369,6 +366,17 @@ const isEstateUnitOnly = computed(
 );
 
 /* -------------------------------------------------------------------------- */
+
+// Some upstream unit_number values already include the word "Unit" —
+// avoid "Unit Unit 4B" duplication, but always normalize casing.
+function fmtUnit(value) {
+    if (!value) return null;
+    const str = String(value).trim();
+    if (/unit/i.test(str)) {
+        return str.replace(/unit/i, 'Unit');
+    }
+    return `Unit ${str}`;
+}
 
 function guardianStatusLabel(g) {
     if (!g.responded_at) return 'no response yet';
@@ -790,7 +798,7 @@ function onResolveChange(e) {
                 <p class="ac-card__meta">{{ alert.channel_name }}</p>
 
                 <p v-if="isEstateUnitOnly" class="ac-unit-callout">
-                    <strong>Unit {{ alert.unit_number }}</strong>
+                    <strong>{{ fmtUnit(alert.unit_number) }}</strong>
                 </p>
                 <p v-else-if="isRegisteredAddress" class="ac-card__address">
                     {{ registeredAddressDisplay }}
@@ -1047,10 +1055,9 @@ function onResolveChange(e) {
                                             v-if="isEstateUnitOnly"
                                             class="ac-unit-callout ac-unit-callout--modal"
                                         >
-                                            <strong
-                                                >Unit
-                                                {{ alert.unit_number }}</strong
-                                            >
+                                            <strong>{{
+                                                fmtUnit(alert.unit_number)
+                                            }}</strong>
                                         </p>
                                         <p
                                             v-else-if="isRegisteredAddress"
