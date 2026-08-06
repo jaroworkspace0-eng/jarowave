@@ -41,6 +41,13 @@ Route::get('/deletion-requests', fn() => inertia('DeletionRequests/Index'));
 Route::get('/emergencies', fn() => inertia('Emergencies/Index'));
 
 
+Route::get('/estate/emergencies', fn () => Inertia::render('Estate/Emergencies'))
+    ->name('estate.emergencies');
+
+Route::get('/guard/emergencies', fn () => Inertia::render('Guard/Emergencies'))
+    ->name('guard.emergencies');
+
+
 Route::get('/payment/thank-you', function () {
     return inertia('Payment/ThankYou');
 });

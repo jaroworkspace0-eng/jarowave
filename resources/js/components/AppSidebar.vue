@@ -22,6 +22,7 @@ import {
     AlertTriangle,
     Briefcase,
     Building,
+    Building2,
     ClipboardList,
     DollarSign,
     FileText,
@@ -66,29 +67,30 @@ const adminGroups: NavGroup[] = [
             { title: 'Personnels', href: '/employees', icon: Briefcase },
         ],
     },
-    // {
-    //     label: 'Finance',
-    //     items: [
-    //         {
-    //             title: 'Process Payouts',
-    //             href: '/admin/process-payouts',
-    //             icon: ArrowsUpFromLineIcon,
-    //         },
-    //         {
-    //             title: 'Gate Guard Payouts',
-    //             href: '/admin/gate-guard-payouts',
-    //             icon: Shield,
-    //         },
-    //         {
-    //             title: 'Estate Payments',
-    //             href: '/admin/estate-payments',
-    //             icon: Building2,
-    //         },
-    //     ],
-    // },
+    {
+        label: 'Finance',
+        items: [
+            //         {
+            //             title: 'Process Payouts',
+            //             href: '/admin/process-payouts',
+            //             icon: ArrowsUpFromLineIcon,
+            //         },
+            //         {
+            //             title: 'Gate Guard Payouts',
+            //             href: '/admin/gate-guard-payouts',
+            //             icon: Shield,
+            //         },
+            {
+                title: 'Estate Payments',
+                href: '/admin/estate-payments',
+                icon: Building2,
+            },
+        ],
+    },
     {
         label: 'Reports',
         items: [
+            { title: 'Emergencies', href: '/emergencies', icon: AlertTriangle },
             {
                 title: 'Incident Reports',
                 href: '/admin/incident-reports',
@@ -192,6 +194,11 @@ const estateBillingGroups: NavGroup[] = [
         label: 'Safety',
         items: [
             {
+                title: 'Emergencies',
+                href: '/estate/emergencies',
+                icon: AlertTriangle,
+            },
+            {
                 title: 'Incident Reports',
                 href: '/estate/incident-reports',
                 icon: Newspaper,
@@ -228,6 +235,11 @@ const gateGuardGroups: NavGroup[] = [
     {
         label: 'Safety',
         items: [
+            {
+                title: 'Emergencies',
+                href: '/guard/emergencies',
+                icon: AlertTriangle,
+            },
             {
                 title: 'Incident Reports',
                 href: '/guard/incident-reports',
