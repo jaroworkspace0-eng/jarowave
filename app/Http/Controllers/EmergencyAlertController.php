@@ -448,39 +448,42 @@ class EmergencyAlertController extends Controller
 
 
    public function list(Request $request)
-    {
-        $user = auth()->user();
-        $isAdmin = $user->role === 'admin';
+{
+    $user = auth()->user();
+    $isAdmin = $user->role === 'admin';
 
-        $clientId = null;
-        $channelIds = null;
+    $clientId = null;
+    $channelIds = null;
 
-        if ($isAdmin) {
-            // no scope
-        } elseif ($user->role === 'client') {
-            $clientId = \App\Models\Client::where('user_id', $user->id)->value('id');
-        } elseif ($user->role === 'estate_billing') {
-            // Scope to the specific channel(s) this estate admin manages,
-            // not the whole client — a client can own multiple estates/channels
-            $channelIds = $user->employee?->ch()->pluck('channels.id') ?? collect();
-        } else {
-            $clientId = $user->employee?->client_id;
-        }
-
-        $alerts = EmergencyAlert::with([
-                'user',
-                'channel',
-                'client.user',
-                'resolver',
-                'resolution.responder',
-            ])
-            ->when($clientId !== null, fn ($q) => $q->where('client_id', $clientId))
-            ->when($channelIds !== null, fn ($q) => $q->whereIn('channel_id', $channelIds))
-            ->latest()
-            ->paginate(20);
-
-        return response()->json($alerts);
+    if ($isAdmin) {
+        // no scope
+    } elseif ($user->role === 'client') {
+        $clientId = \App\Models\Client::where('user_id', $user->id)->value('id');
+    } elseif ($user->role === 'estate_billing') {
+        // Scoped via channel_billing_contacts (user_id keyed), not employee ch() —
+        // a client can own multiple channels/estates, each with its own billing contact
+        $channelIds = DB::table('channel_billing_contacts')
+            ->where('user_id', $user->id)
+            ->where('is_active', true)
+            ->pluck('channel_id');
+    } else {
+        $clientId = $user->employee?->client_id;
     }
+
+    $alerts = EmergencyAlert::with([
+            'user',
+            'channel',
+            'client.user',
+            'resolver',
+            'resolution.responder',
+        ])
+        ->when($clientId !== null, fn ($q) => $q->where('client_id', $clientId))
+        ->when($channelIds !== null, fn ($q) => $q->whereIn('channel_id', $channelIds))
+        ->latest()
+        ->paginate(20);
+
+    return response()->json($alerts);
+}
 
     public function resolve(Request $request, $id)
     {
