@@ -447,30 +447,35 @@ class EmergencyAlertController extends Controller
     }
 
 
-    public function list(Request $request)
+   public function list(Request $request)
     {
         $user = auth()->user();
         $isAdmin = $user->role === 'admin';
 
-        // admin → no scope
-        // client role → scope by their own client record
-        // employee/other → scope by their employee's client
+        $clientId = null;
+        $channelIds = null;
+
         if ($isAdmin) {
-            $clientId = null;
+            // no scope
         } elseif ($user->role === 'client') {
             $clientId = \App\Models\Client::where('user_id', $user->id)->value('id');
+        } elseif ($user->role === 'estate_billing') {
+            // Scope to the specific channel(s) this estate admin manages,
+            // not the whole client — a client can own multiple estates/channels
+            $channelIds = $user->employee?->ch()->pluck('channels.id') ?? collect();
         } else {
             $clientId = $user->employee?->client_id;
         }
 
         $alerts = EmergencyAlert::with([
-            'user', 
-            'channel', 
-            'client.user', 
-            'resolver', 
-            'resolution.responder'
+                'user',
+                'channel',
+                'client.user',
+                'resolver',
+                'resolution.responder',
             ])
-            ->when(!$isAdmin, fn($q) => $q->where('client_id', $clientId))
+            ->when($clientId !== null, fn ($q) => $q->where('client_id', $clientId))
+            ->when($channelIds !== null, fn ($q) => $q->whereIn('channel_id', $channelIds))
             ->latest()
             ->paginate(20);
 
