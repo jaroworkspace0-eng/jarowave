@@ -255,8 +255,13 @@ export function useAdminAlerts() {
         });
         const key = findAlertKey(alerts, alertId);
         const alert = key !== undefined ? alerts.get(key) : undefined;
-        if (alert && alert.type !== 'panic' && alert.type !== 'sos') {
+        if (alert) {
             alert.muted = muted;
+        }
+        if (muted) {
+            stopAlertSound(alertId);
+        } else {
+            playAlertSound(alertId);
         }
     }
 

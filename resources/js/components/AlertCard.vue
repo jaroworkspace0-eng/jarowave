@@ -785,7 +785,7 @@ function onResolveChange(e) {
             @click="$emit('seen', alert.id)"
         >
             <Siren :size="13" />
-            New Alert — tap to dismiss
+            New Alert - tap to dismiss
         </button>
 
         <!-- Header -->
@@ -916,7 +916,6 @@ function onResolveChange(e) {
             <button
                 class="ac-toggle-btn"
                 :class="{ 'ac-toggle-btn--on': alert.muted }"
-                :disabled="isPanicLike"
                 @click="$emit('mute', alert.id, !alert.muted)"
             >
                 {{ alert.muted ? 'Unmute' : 'Mute' }}
