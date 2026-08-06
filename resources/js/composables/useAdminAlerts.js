@@ -120,7 +120,11 @@ export function useAdminAlerts() {
             muted: false,
             justArrived: isLiveArrival,
         });
-        if (isLiveArrival && ['panic', 'sos'].includes(alert.type)) {
+        // if (isLiveArrival && ['panic', 'sos'].includes(alert.type)) {
+        //     playAlertSound(alert.id);
+        // }
+
+        if (isLiveArrival) {
             playAlertSound(alert.id);
         }
     });
