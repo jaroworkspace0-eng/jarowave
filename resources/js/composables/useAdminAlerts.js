@@ -23,7 +23,7 @@ function findAlertKey(alerts, id) {
     return [...alerts.keys()].find((k) => String(k) === String(id));
 }
 
-const SOUND_URL = '/sounds/sos-alert.mp3';
+const SOUND_URL = '/sounds/sos-alert-sound.mp3';
 
 const soundEnabled = ref(false);
 const activeSounds = new Map();
