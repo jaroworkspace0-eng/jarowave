@@ -18,9 +18,15 @@ async function fetchHandshakeCode() {
 }
 
 // -- helper --
+
 function findAlertKey(alerts, id) {
     if (alerts.has(id)) return id;
     return [...alerts.keys()].find((k) => String(k) === String(id));
+}
+
+function findSoundKey(id) {
+    if (activeSounds.has(id)) return id;
+    return [...activeSounds.keys()].find((k) => String(k) === String(id));
 }
 
 const SOUND_URL = '/sounds/sos-alert-sound.mp3';
@@ -44,7 +50,7 @@ function enableSound() {
 }
 
 function playAlertSound(alertId) {
-    if (activeSounds.has(alertId)) return;
+    if (findSoundKey(alertId) !== undefined) return;
     const audio = new Audio(SOUND_URL);
     audio.loop = true;
     audio.volume = 0.8;
@@ -57,12 +63,12 @@ function playAlertSound(alertId) {
 }
 
 function stopAlertSound(alertId) {
-    const audio = activeSounds.get(alertId);
-    if (audio) {
-        audio.pause();
-        audio.currentTime = 0;
-        activeSounds.delete(alertId);
-    }
+    const key = findSoundKey(alertId);
+    if (key === undefined) return;
+    const audio = activeSounds.get(key);
+    audio.pause();
+    audio.currentTime = 0;
+    activeSounds.delete(key);
 }
 
 export function useAdminAlerts() {
@@ -243,7 +249,8 @@ export function useAdminAlerts() {
             headers: authHeaders({ 'Content-Type': 'application/json' }),
             body: JSON.stringify({ muted }),
         });
-        const alert = alerts.get(alertId);
+        const key = findAlertKey(alerts, alertId);
+        const alert = key !== undefined ? alerts.get(key) : undefined;
         if (alert && alert.type !== 'panic' && alert.type !== 'sos') {
             alert.muted = muted;
         }
@@ -282,7 +289,8 @@ export function useAdminAlerts() {
             body: JSON.stringify({ resolution }),
         });
         stopAlertSound(alertId);
-        alerts.delete(alertId);
+        const key = findAlertKey(alerts, alertId);
+        if (key !== undefined) alerts.delete(key);
     }
 
     return {
