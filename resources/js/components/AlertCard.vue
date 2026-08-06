@@ -1287,9 +1287,9 @@ function onResolveChange(e) {
                                     </p>
                                     <button
                                         type="button"
-                                        class="ac-dispatch-btn"
+                                        class="ac-dispatch-btn mt-3"
                                         :class="{
-                                            'ac-dispatch-btn--ready':
+                                            'ac-dispatch-btn--ready mt-3':
                                                 !!selectedDispatchGuardId &&
                                                 !dispatching,
                                         }"
