@@ -396,6 +396,7 @@ const statusCounts = computed(() => {
                     <thead>
                         <tr>
                             <th>Ticket</th>
+                            <th>Subject</th>
                             <th>Resident</th>
                             <th>Category</th>
                             <th>Priority</th>
@@ -416,20 +417,19 @@ const statusCounts = computed(() => {
                                     <span class="ticket-cell__number">{{
                                         t.ticket_number
                                     }}</span>
+                                </div>
+                            </td>
+
+                            <td>
+                                <div class="ticket-cell">
                                     <span class="ticket-cell__subject">{{
                                         t.subject
                                     }}</span>
                                 </div>
                             </td>
+
                             <td>
                                 <div class="reporter-cell">
-                                    <div class="reporter-cell__avatar">
-                                        {{
-                                            (t.user.name || 'U')
-                                                .charAt(0)
-                                                .toUpperCase()
-                                        }}
-                                    </div>
                                     <div>
                                         <div class="reporter-cell__name">
                                             {{ t.user.name }}
