@@ -58,8 +58,15 @@ interface TicketDetail extends TicketRow {
     assignee: TicketUser | null;
 }
 
+const pagination = ref<{
+    current_page: number;
+    last_page: number;
+    total: number;
+} | null>(null);
+
 // ── State ─────────────────────────────────────────────────────────────────
 const tickets = ref<TicketRow[]>([]);
+
 const isLoading = ref(true);
 const flash = ref<{ msg: string; type: 'success' | 'error' } | null>(null);
 const statusFilter = ref<
@@ -150,7 +157,14 @@ const fetchTickets = async () => {
         const params =
             statusFilter.value !== 'all' ? { status: statusFilter.value } : {};
         const res = await axios.get(base, { ...getHeaders(), params });
-        tickets.value = res.data.tickets;
+        // tickets.value = res.data.tickets;
+        tickets.value = res.data.tickets.data;
+
+        pagination.value = {
+            current_page: res.data.tickets.current_page,
+            last_page: res.data.tickets.last_page,
+            total: res.data.tickets.total,
+        };
     } catch (err: any) {
         showFlash(
             err.response?.data?.message ?? 'Failed to load tickets.',
