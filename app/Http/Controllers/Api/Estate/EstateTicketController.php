@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Estate;
 
 use App\Http\Controllers\Controller;
+use App\Models\ChannelBillingContact;
 use App\Models\Ticket;
 use App\Models\TicketReply;
 use Illuminate\Http\Request;
@@ -14,16 +15,27 @@ class EstateTicketController extends Controller
         return $request->user()->employee?->client_id;
     }
 
+    private function estateChannelId(Request $request): ?int
+    {
+        return ChannelBillingContact::where('user_id', $request->user()->id)
+            ->where('is_active', true)
+            ->value('channel_id');
+    }
+
     public function index(Request $request)
     {
-        $clientId = $this->clientId($request);
+        $channelId = $this->estateChannelId($request);
 
-        if (!$clientId) {
+        if (!$channelId) {
             return response()->json(['tickets' => []]);
         }
 
+        $request->validate([
+            'status' => 'sometimes|string|in:open,in_progress,resolved,closed',
+        ]);
+
         $query = Ticket::where('type', 'estate')
-            ->where('client_id', $clientId)
+            ->where('channel_id', $channelId)
             ->with('user:id,name,email')
             ->latest();
 
@@ -31,7 +43,7 @@ class EstateTicketController extends Controller
             $query->where('status', $status);
         }
 
-        return response()->json(['tickets' => $query->get()]);
+        return response()->json($query->paginate($request->query('per_page', 20)));
     }
 
     public function show(Request $request, Ticket $ticket)
