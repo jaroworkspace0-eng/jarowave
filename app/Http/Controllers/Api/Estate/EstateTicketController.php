@@ -43,7 +43,7 @@ class EstateTicketController extends Controller
             $query->where('status', $status);
         }
 
-        return response()->json($query->paginate($request->query('per_page', 20)));
+        return response()->json(['tickets' => $query->paginate($request->query('per_page', 20))]);
     }
 
     public function show(Request $request, Ticket $ticket)
