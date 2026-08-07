@@ -10,11 +10,7 @@ use Illuminate\Http\Request;
 
 class EstateTicketController extends Controller
 {
-    private function clientId(Request $request): ?int
-    {
-        return $request->user()->employee?->client_id;
-    }
-
+ 
     private function estateChannelId(Request $request): ?int
     {
         return ChannelBillingContact::where('user_id', $request->user()->id)
@@ -48,7 +44,7 @@ class EstateTicketController extends Controller
 
     public function show(Request $request, Ticket $ticket)
     {
-        abort_if($ticket->client_id !== $this->clientId($request), 403);
+        abort_if($ticket->channel_id !== $this->estateChannelId($request), 403);
 
         $ticket->load(['replies.user:id,name,role', 'user:id,name,email', 'assignee:id,name']);
         return response()->json(['ticket' => $ticket]);
@@ -56,7 +52,7 @@ class EstateTicketController extends Controller
 
     public function reply(Request $request, Ticket $ticket)
     {
-        abort_if($ticket->client_id !== $this->clientId($request), 403);
+        abort_if($ticket->channel_id !== $this->estateChannelId($request), 403);
 
         $validated = $request->validate([
             'message' => 'required|string|max:5000',
@@ -79,7 +75,7 @@ class EstateTicketController extends Controller
 
     public function updateStatus(Request $request, Ticket $ticket)
     {
-        abort_if($ticket->client_id !== $this->clientId($request), 403);
+        abort_if($ticket->channel_id !== $this->estateChannelId($request), 403);
 
         $validated = $request->validate(['status' => 'required|in:open,in_progress,resolved,closed']);
 
