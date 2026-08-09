@@ -21,13 +21,14 @@ class GuardIncidentReportController extends Controller
 {
     $channelIds = $this->channelIds($request);
 
-    $query = SosIncidentReport::with(['household', 'reporter', 'alert'])
+    $query = SosIncidentReport::with(['household:id,name,email', 'reporter', 'alert'])
         ->whereIn('channel_id', $channelIds);
 
     if ($request->search) {
-        $query->whereHas('household', function ($q) use ($request) {
-            $q->where('name', 'like', "%{$request->search}%")
-            ->orWhere('unit_number', 'like', "%{$request->search}%");
+        $search = $request->search;
+        $query->whereHas('alert', function ($q) use ($search) {
+            $q->where('name', 'like', "%{$search}%")
+              ->orWhere('unit_number', 'like', "%{$search}%");
         });
     }
 

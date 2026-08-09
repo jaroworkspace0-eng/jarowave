@@ -381,15 +381,34 @@ function fmtDuration(v: number | string | null | undefined) {
     return mins > 0 ? `${hrs} hr ${mins} min` : `${hrs} hr`;
 }
 
-// Unit number only means something when the household's location source is
-// their registered address — for a GPS-sourced alert, the unit on file may
-// not be where the alert happened. alert_location_source lives on the
-// household's user record (not the alert), per Karabo.
+// Unit number, alert type, and location source are all snapshotted onto
+// the emergencyAlert relation at alert-creation time (not read live off
+// household/User), so this stays accurate even if the household is later
+// removed from the estate (soft-deleted) or re-registers elsewhere.
 const isRegisteredAddressSource = computed(
     () =>
-        selectedReport.value?.household?.alert_location_source ===
+        selectedReport.value?.emergencyAlert?.alert_location_source ===
         'registered_address',
 );
+
+const isEstateAlert = computed(
+    () => !!selectedReport.value?.emergencyAlert?.is_estate,
+);
+
+// Full address string — only meaningful for non-estate, registered-address
+// alerts (estate alerts just show unit number; guards land at the gate).
+const householdAddress = computed(() => {
+    const a = selectedReport.value?.emergencyAlert;
+    if (!a) return null;
+    return [a.complex_name, a.address_line_1, a.suburb]
+        .filter(Boolean)
+        .join(', ');
+});
+
+const locationSourceLabel: Record<string, string> = {
+    gps: 'GPS',
+    registered_address: 'Registered Address',
+};
 
 // ══════════ Map (Leaflet, npm package — matches LiveAlertsCard.vue) ══════════
 // Points, roles, reverse-geocoded names, an OSRM route between the
@@ -1013,11 +1032,14 @@ onMounted(() => loadReports());
                     <thead>
                         <tr>
                             <th>Household</th>
-                            <th>Reporter</th>
+                            <th>Unit</th>
+                            <th>Source Location</th>
+                            <th>Responder</th>
+                            <th>Type</th>
                             <th>Outcome</th>
                             <th>Category</th>
                             <th>Status</th>
-                            <th>Date</th>
+                            <th>Date &amp; Time</th>
                             <th></th>
                         </tr>
                     </thead>
@@ -1030,38 +1052,53 @@ onMounted(() => loadReports());
                         >
                             <td>
                                 <div class="reporter-cell">
-                                    <div class="reporter-cell__avatar">
-                                        {{
-                                            (report.household?.name || 'H')
-                                                .charAt(0)
-                                                .toUpperCase()
-                                        }}
-                                    </div>
                                     <div>
                                         <div class="reporter-cell__name-row">
                                             <span class="reporter-cell__name">
                                                 {{
-                                                    report.household?.name ??
-                                                    '—'
-                                                }}
-                                            </span>
-                                            <span
-                                                v-if="
-                                                    report.household
-                                                        ?.unit_number
-                                                "
-                                                class="ir-unit-badge ir-unit-badge--table"
-                                            >
-                                                {{
-                                                    fmtUnit(
-                                                        report.household
-                                                            .unit_number,
-                                                    )
+                                                    report.emergency_alert
+                                                        ?.name ?? '—'
                                                 }}
                                             </span>
                                         </div>
                                         <div class="reporter-cell__sub">
                                             {{ report.household?.email }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="reporter-cell">
+                                    <div>
+                                        <div class="reporter-cell__sub">
+                                            {{
+                                                fmtUnit(
+                                                    report.emergency_alert
+                                                        .unit_number,
+                                                )
+                                            }}
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="reporter-cell">
+                                    <div>
+                                        <div class="reporter-cell__sub">
+                                            <span
+                                                v-if="
+                                                    report.emergency_alert
+                                                        ?.alert_location_source
+                                                "
+                                                class="type-badge bg-slate-100 text-slate-600"
+                                            >
+                                                {{
+                                                    locationSourceLabel[
+                                                        report.emergency_alert
+                                                            .alert_location_source
+                                                    ]
+                                                }}
+                                            </span>
                                         </div>
                                     </div>
                                 </div>
@@ -1076,13 +1113,24 @@ onMounted(() => loadReports());
                             </td>
                             <td>
                                 <span
+                                    class="type-badge bg-slate-100 text-slate-600"
+                                >
+                                    {{
+                                        report.emergency_alert?.alert_type ??
+                                        '—'
+                                    }}
+                                </span>
+                            </td>
+                            <td>
+                                <span
                                     class="type-badge"
                                     :class="outcomeConfig[report.outcome]?.cls"
-                                    >{{
+                                >
+                                    {{
                                         outcomeConfig[report.outcome]?.label ??
                                         report.outcome
-                                    }}</span
-                                >
+                                    }}
+                                </span>
                             </td>
                             <td class="td-time">
                                 {{
@@ -1097,14 +1145,15 @@ onMounted(() => loadReports());
                                 <span
                                     class="type-badge"
                                     :class="statusConfig[report.status]?.cls"
-                                    >{{
+                                >
+                                    {{
                                         statusConfig[report.status]?.label ??
                                         report.status
-                                    }}</span
-                                >
+                                    }}
+                                </span>
                             </td>
                             <td class="td-time">
-                                {{ fmtDate(report.created_at) }}
+                                {{ fmtDateTime(report.created_at) }}
                             </td>
                             <td>
                                 <button
@@ -1264,7 +1313,7 @@ onMounted(() => loadReports());
                                         class="type-badge bg-slate-100 text-slate-600"
                                     >
                                         {{
-                                            selectedReport.emergencyAlert
+                                            selectedreport.emergency_alert
                                                 .alert_type
                                         }}
                                     </span>
@@ -1286,23 +1335,57 @@ onMounted(() => loadReports());
                                         </div>
                                         <div class="review-info-panel__name">
                                             {{
-                                                selectedReport?.household?.name
+                                                selectedReport?.emergencyAlert
+                                                    ?.name
                                             }}
                                         </div>
                                         <div
-                                            class="ir-unit-badge ir-unit-badge--modal"
+                                            class="toggle-row"
+                                            style="margin: 2px 0"
+                                        >
+                                            <div
+                                                class="ir-unit-badge ir-unit-badge--modal"
+                                                v-if="
+                                                    isRegisteredAddressSource &&
+                                                    selectedReport
+                                                        ?.emergencyAlert
+                                                        ?.unit_number
+                                                "
+                                            >
+                                                {{
+                                                    fmtUnit(
+                                                        selectedReport
+                                                            .emergencyAlert
+                                                            .unit_number,
+                                                    )
+                                                }}
+                                            </div>
+                                            <span
+                                                v-if="
+                                                    selectedReport
+                                                        ?.emergencyAlert
+                                                        ?.alert_location_source
+                                                "
+                                                class="type-badge bg-slate-100 text-slate-600"
+                                            >
+                                                {{
+                                                    locationSourceLabel[
+                                                        selectedReport
+                                                            .emergencyAlert
+                                                            .alert_location_source
+                                                    ]
+                                                }}
+                                            </span>
+                                        </div>
+                                        <div
                                             v-if="
                                                 isRegisteredAddressSource &&
-                                                selectedReport?.household
-                                                    ?.unit_number
+                                                !isEstateAlert &&
+                                                householdAddress
                                             "
+                                            class="review-info-panel__sub"
                                         >
-                                            {{
-                                                fmtUnit(
-                                                    selectedReport.household
-                                                        .unit_number,
-                                                )
-                                            }}
+                                            {{ householdAddress }}
                                         </div>
                                         <div class="review-info-panel__sub">
                                             {{
@@ -1311,7 +1394,8 @@ onMounted(() => loadReports());
                                         </div>
                                         <div class="review-info-panel__sub">
                                             {{
-                                                selectedReport?.household?.phone
+                                                selectedReport?.emergencyAlert
+                                                    ?.phone
                                             }}
                                         </div>
                                     </div>
@@ -1595,7 +1679,7 @@ onMounted(() => loadReports());
                                     <audio
                                         controls
                                         :src="
-                                            selectedReport.emergencyAlert
+                                            selectedreport.emergency_alert
                                                 .audio_path
                                         "
                                         class="audio-player"

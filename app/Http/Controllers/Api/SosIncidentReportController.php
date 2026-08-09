@@ -82,13 +82,13 @@ class SosIncidentReportController extends Controller
     }
 
     // ── GET /api/admin/incident-reports ───────────────────────────────────────
-    // ── GET /api/admin/incident-reports ───────────────────────────────────────
+    
     public function adminIndex(Request $request)
     {
         $query = SosIncidentReport::with([
-            'household:id,name,email,phone,unit_number,alert_location_source',
+            'household:id,name,email',
             'reporter:id,name,email',
-            'emergencyAlert:id,created_at,latitude,longitude',
+            'emergencyAlert:id,created_at,latitude,longitude,alert_type,name,phone,unit_number,alert_location_source,address_line_1,complex_name,suburb,is_estate',
             'actionedBy:id,name',
         ])->latest();
 
@@ -102,11 +102,14 @@ class SosIncidentReportController extends Controller
 
         if ($request->search) {
             $search = $request->search;
-            $query->whereHas('household', fn($q) =>
-                $q->where('name', 'like', "%$search%")
-                ->orWhere('email', 'like', "%$search%")
-                ->orWhere('unit_number', 'like', "%$search%")
-            );
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('household', fn($hq) =>
+                    $hq->where('email', 'like', "%$search%")
+                )->orWhereHas('emergencyAlert', fn($aq) =>
+                    $aq->where('name', 'like', "%$search%")
+                    ->orWhere('unit_number', 'like', "%$search%")
+                );
+            });
         }
 
         if ($request->date_from) {
@@ -123,7 +126,7 @@ class SosIncidentReportController extends Controller
     public function show(SosIncidentReport $report)
     {
         $report->load([
-            'household:id,name,email,phone,unit_number,alert_location_source',
+            'household:id,name,email',
             'reporter:id,name,email,phone',
             'emergencyAlert',
             'actionedBy:id,name',

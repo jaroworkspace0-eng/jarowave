@@ -13,14 +13,17 @@ class EstateIncidentReportController extends Controller
     {
         $channelIds = $request->user()->accessibleChannelIds();
 
-        $query = SosIncidentReport::with(['household', 'reporter', 'alert'])
-            ->whereIn('channel_id', $channelIds);
-
+        $query = SosIncidentReport::with([
+            'household:id,name,email',
+            'reporter',
+            'alert:id,created_at,latitude,longitude,name,phone,unit_number,alert_location_source,address_line_1,complex_name,suburb,is_estate',
+        ])->whereIn('channel_id', $channelIds);
 
         if ($request->search) {
-            $query->whereHas('household', function ($q) use ($request) {
-                $q->where('name', 'like', "%{$request->search}%")
-                ->orWhere('unit_number', 'like', "%{$request->search}%");
+            $search = $request->search;
+            $query->whereHas('alert', function ($q) use ($search) {
+                $q->where('name', 'like', "%{$search}%")
+                ->orWhere('unit_number', 'like', "%{$search}%");
             });
         }
 
