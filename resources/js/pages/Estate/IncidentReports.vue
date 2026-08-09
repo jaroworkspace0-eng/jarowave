@@ -693,133 +693,150 @@ onMounted(() => loadReports());
                         Try adjusting the date range or filters
                     </p>
                 </div>
-                <table v-else class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Household</th>
-                            <th>Type</th>
-                            <th>Source</th>
-                            <th>Guard</th>
-                            <th>Outcome</th>
-                            <th>Category</th>
-                            <th>Status</th>
-                            <th>Date &amp; Time</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr
-                            v-for="report in reportList"
-                            :key="report.id"
-                            class="clickable-row"
-                            @click="openDetail(report)"
-                        >
-                            <td>
-                                <div class="reporter-cell">
-                                    <div class="reporter-cell__avatar">
-                                        {{
-                                            (report.alert?.name || 'H')
-                                                .charAt(0)
-                                                .toUpperCase()
-                                        }}
-                                    </div>
-                                    <div>
-                                        <div class="reporter-cell__name-row">
-                                            <span class="reporter-cell__name">
-                                                {{ report.alert?.name ?? '—' }}
-                                            </span>
-                                            <span
-                                                v-if="
-                                                    report.alert
-                                                        ?.alert_location_source ===
-                                                        'registered_address' &&
-                                                    report.alert?.unit_number
-                                                "
-                                                class="ir-unit-badge ir-unit-badge--table"
+                <div v-else class="table-scroll">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Household</th>
+                                <th>Type</th>
+                                <th>Source</th>
+                                <th>Guard</th>
+                                <th>Outcome</th>
+                                <th>Category</th>
+                                <th>Status</th>
+                                <th>Date &amp; Time</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr
+                                v-for="report in reportList"
+                                :key="report.id"
+                                class="clickable-row"
+                                @click="openDetail(report)"
+                            >
+                                <td>
+                                    <div class="reporter-cell">
+                                        <div class="reporter-cell__avatar">
+                                            {{
+                                                (report.alert?.name || 'H')
+                                                    .charAt(0)
+                                                    .toUpperCase()
+                                            }}
+                                        </div>
+                                        <div>
+                                            <div
+                                                class="reporter-cell__name-row"
                                             >
-                                                {{
-                                                    fmtUnit(
+                                                <span
+                                                    class="reporter-cell__name"
+                                                >
+                                                    {{
+                                                        report.alert?.name ??
+                                                        '—'
+                                                    }}
+                                                </span>
+                                                <span
+                                                    v-if="
                                                         report.alert
-                                                            .unit_number,
-                                                    )
-                                                }}
-                                            </span>
-                                        </div>
-                                        <div class="reporter-cell__sub">
-                                            {{ report.alert?.email }}
+                                                            ?.alert_location_source ===
+                                                            'registered_address' &&
+                                                        report.alert
+                                                            ?.unit_number
+                                                    "
+                                                    class="ir-unit-badge ir-unit-badge--table"
+                                                >
+                                                    {{
+                                                        fmtUnit(
+                                                            report.alert
+                                                                .unit_number,
+                                                        )
+                                                    }}
+                                                </span>
+                                            </div>
+                                            <div class="reporter-cell__sub">
+                                                {{ report.alert?.email }}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            </td>
-                            <td>
-                                <span
-                                    class="type-badge bg-slate-100 text-slate-600"
-                                >
-                                    {{ report.alert?.alert_type ?? '—' }}
-                                </span>
-                            </td>
-                            <td>
-                                <span
-                                    v-if="report.alert?.alert_location_source"
-                                    class="type-badge bg-slate-100 text-slate-600"
-                                >
+                                </td>
+                                <td>
+                                    <span
+                                        class="type-badge bg-slate-100 text-slate-600"
+                                    >
+                                        {{ report.alert?.alert_type ?? '—' }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span
+                                        v-if="
+                                            report.alert?.alert_location_source
+                                        "
+                                        class="type-badge bg-slate-100 text-slate-600"
+                                    >
+                                        {{
+                                            locationSourceLabel[
+                                                report.alert
+                                                    .alert_location_source
+                                            ]
+                                        }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="reporter-cell__name">
+                                        {{ report.reporter?.name ?? '—' }}
+                                    </div>
+                                </td>
+                                <td>
+                                    <span
+                                        class="type-badge"
+                                        :class="
+                                            outcomeConfig[report.outcome]?.cls
+                                        "
+                                    >
+                                        {{
+                                            outcomeConfig[report.outcome]
+                                                ?.label ?? report.outcome
+                                        }}
+                                    </span>
+                                </td>
+                                <td class="td-time">
                                     {{
-                                        locationSourceLabel[
-                                            report.alert.alert_location_source
-                                        ]
+                                        report.misuse_category
+                                            ? misuseCategoryLabel[
+                                                  report.misuse_category
+                                              ]
+                                            : '—'
                                     }}
-                                </span>
-                            </td>
-                            <td>
-                                <div class="reporter-cell__name">
-                                    {{ report.reporter?.name ?? '—' }}
-                                </div>
-                            </td>
-                            <td>
-                                <span
-                                    class="type-badge"
-                                    :class="outcomeConfig[report.outcome]?.cls"
-                                >
-                                    {{
-                                        outcomeConfig[report.outcome]?.label ??
-                                        report.outcome
-                                    }}
-                                </span>
-                            </td>
-                            <td class="td-time">
-                                {{
-                                    report.misuse_category
-                                        ? misuseCategoryLabel[
-                                              report.misuse_category
-                                          ]
-                                        : '—'
-                                }}
-                            </td>
-                            <td>
-                                <span
-                                    class="type-badge"
-                                    :class="statusConfig[report.status]?.cls"
-                                >
-                                    {{
-                                        statusConfig[report.status]?.label ??
-                                        report.status
-                                    }}
-                                </span>
-                            </td>
-                            <td class="td-time">
-                                {{ fmtDateTime(report.created_at) }}
-                            </td>
-                            <td>
-                                <button
-                                    class="row-action-btn"
-                                    @click.stop="openDetail(report)"
-                                >
-                                    View
-                                </button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+                                </td>
+                                <td>
+                                    <span
+                                        class="type-badge"
+                                        :class="
+                                            statusConfig[report.status]?.cls
+                                        "
+                                    >
+                                        {{
+                                            statusConfig[report.status]
+                                                ?.label ?? report.status
+                                        }}
+                                    </span>
+                                </td>
+                                <td class="td-time">
+                                    {{ fmtDateTime(report.created_at) }}
+                                </td>
+                                <td>
+                                    <button
+                                        class="row-action-btn"
+                                        @click.stop="openDetail(report)"
+                                    >
+                                        View
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
                 <div
                     class="pagination-bar"
@@ -2313,6 +2330,13 @@ onMounted(() => loadReports());
 .modal-enter-from .modal-sheet,
 .modal-leave-to .modal-sheet {
     transform: scale(0.97) translateY(12px);
+}
+
+.table-scroll {
+    overflow-x: auto;
+}
+.data-table {
+    min-width: 1150px;
 }
 
 @media (max-width: 900px) {

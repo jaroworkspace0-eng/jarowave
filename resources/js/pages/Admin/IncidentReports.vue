@@ -1027,144 +1027,158 @@ onMounted(() => loadReports());
                     </p>
                 </div>
 
-                <table v-else class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Household</th>
-                            <th>Unit</th>
-                            <th>Source</th>
-                            <th>Responder</th>
-                            <th>Type</th>
-                            <th>Outcome</th>
-                            <th>Category</th>
-                            <th>Status</th>
-                            <th>Date &amp; Time</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr
-                            v-for="report in reportList"
-                            :key="report.id"
-                            class="clickable-row"
-                            @click="openDetail(report)"
-                        >
-                            <td>
-                                <div class="reporter-cell">
-                                    <div>
-                                        <div class="reporter-cell__name-row">
-                                            <span class="reporter-cell__name">
-                                                {{
-                                                    report.emergency_alert
-                                                        ?.name ?? '—'
-                                                }}
-                                            </span>
-                                        </div>
-                                        <div class="reporter-cell__sub">
-                                            {{ report.emergency_alert?.email }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td>
-                                <div class="reporter-cell">
-                                    <div>
-                                        <div class="reporter-cell__sub">
-                                            {{
-                                                fmtUnit(
-                                                    report.emergency_alert
-                                                        .unit_number,
-                                                )
-                                            }}
-                                        </div>
-                                    </div>
-                                </div>
-                            </td>
-                            <td>
-                                <div class="reporter-cell">
-                                    <div>
-                                        <div class="reporter-cell__sub">
-                                            <span
-                                                v-if="
-                                                    report.emergency_alert
-                                                        ?.alert_location_source
-                                                "
-                                                class="type-badge bg-slate-100 text-slate-600"
+                <div v-else class="table-scroll">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Household</th>
+                                <th>Unit</th>
+                                <th>Source</th>
+                                <th>Responder</th>
+                                <th>Type</th>
+                                <th>Outcome</th>
+                                <th>Category</th>
+                                <th>Status</th>
+                                <th>Date &amp; Time</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr
+                                v-for="report in reportList"
+                                :key="report.id"
+                                class="clickable-row"
+                                @click="openDetail(report)"
+                            >
+                                <td>
+                                    <div class="reporter-cell">
+                                        <div>
+                                            <div
+                                                class="reporter-cell__name-row"
                                             >
-                                                {{
-                                                    locationSourceLabel[
+                                                <span
+                                                    class="reporter-cell__name"
+                                                >
+                                                    {{
                                                         report.emergency_alert
-                                                            .alert_location_source
-                                                    ]
+                                                            ?.name ?? '—'
+                                                    }}
+                                                </span>
+                                            </div>
+                                            <div class="reporter-cell__sub">
+                                                {{
+                                                    report.emergency_alert
+                                                        ?.email
                                                 }}
-                                            </span>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            </td>
-                            <td>
-                                <div class="reporter-cell__name">
-                                    {{ report.reporter?.name ?? '—' }}
-                                </div>
-                                <div class="reporter-cell__sub">
-                                    {{ report.reporter?.email }}
-                                </div>
-                            </td>
-                            <td>
-                                <span
-                                    class="type-badge bg-slate-100 text-slate-600"
-                                >
+                                </td>
+                                <td>
+                                    <div class="reporter-cell">
+                                        <div>
+                                            <div class="reporter-cell__sub">
+                                                {{
+                                                    fmtUnit(
+                                                        report.emergency_alert
+                                                            .unit_number,
+                                                    )
+                                                }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="reporter-cell">
+                                        <div>
+                                            <div class="reporter-cell__sub">
+                                                <span
+                                                    v-if="
+                                                        report.emergency_alert
+                                                            ?.alert_location_source
+                                                    "
+                                                    class="type-badge bg-slate-100 text-slate-600"
+                                                >
+                                                    {{
+                                                        locationSourceLabel[
+                                                            report
+                                                                .emergency_alert
+                                                                .alert_location_source
+                                                        ]
+                                                    }}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="reporter-cell__name">
+                                        {{ report.reporter?.name ?? '—' }}
+                                    </div>
+                                    <div class="reporter-cell__sub">
+                                        {{ report.reporter?.email }}
+                                    </div>
+                                </td>
+                                <td>
+                                    <span
+                                        class="type-badge bg-slate-100 text-slate-600"
+                                    >
+                                        {{
+                                            report.emergency_alert
+                                                ?.alert_type ?? '—'
+                                        }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span
+                                        class="type-badge"
+                                        :class="
+                                            outcomeConfig[report.outcome]?.cls
+                                        "
+                                    >
+                                        {{
+                                            outcomeConfig[report.outcome]
+                                                ?.label ?? report.outcome
+                                        }}
+                                    </span>
+                                </td>
+                                <td class="td-time">
                                     {{
-                                        report.emergency_alert?.alert_type ??
-                                        '—'
+                                        report.misuse_category
+                                            ? misuseCategoryLabel[
+                                                  report.misuse_category
+                                              ]
+                                            : '—'
                                     }}
-                                </span>
-                            </td>
-                            <td>
-                                <span
-                                    class="type-badge"
-                                    :class="outcomeConfig[report.outcome]?.cls"
-                                >
-                                    {{
-                                        outcomeConfig[report.outcome]?.label ??
-                                        report.outcome
-                                    }}
-                                </span>
-                            </td>
-                            <td class="td-time">
-                                {{
-                                    report.misuse_category
-                                        ? misuseCategoryLabel[
-                                              report.misuse_category
-                                          ]
-                                        : '—'
-                                }}
-                            </td>
-                            <td>
-                                <span
-                                    class="type-badge"
-                                    :class="statusConfig[report.status]?.cls"
-                                >
-                                    {{
-                                        statusConfig[report.status]?.label ??
-                                        report.status
-                                    }}
-                                </span>
-                            </td>
-                            <td class="td-time">
-                                {{ fmtDateTime(report.created_at) }}
-                            </td>
-                            <td>
-                                <button
-                                    class="row-action-btn"
-                                    @click.stop="openDetail(report)"
-                                >
-                                    View
-                                </button>
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
+                                </td>
+                                <td>
+                                    <span
+                                        class="type-badge"
+                                        :class="
+                                            statusConfig[report.status]?.cls
+                                        "
+                                    >
+                                        {{
+                                            statusConfig[report.status]
+                                                ?.label ?? report.status
+                                        }}
+                                    </span>
+                                </td>
+                                <td class="td-time">
+                                    {{ fmtDateTime(report.created_at) }}
+                                </td>
+                                <td>
+                                    <button
+                                        class="row-action-btn"
+                                        @click.stop="openDetail(report)"
+                                    >
+                                        View
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
                 <div
                     class="pagination-bar"
@@ -3344,6 +3358,13 @@ onMounted(() => loadReports());
     }
 }
 
+.table-scroll {
+    overflow-x: auto;
+}
+.data-table {
+    min-width: 1150px;
+}
+
 /* RESPONSIVE */
 @media (max-width: 1024px) {
     .stat-row--six {
@@ -3392,8 +3413,11 @@ onMounted(() => loadReports());
     .stat-card__value {
         font-size: 22px;
     }
+    .table-scroll {
+        overflow-x: auto;
+    }
     .data-table {
-        min-width: 760px;
+        min-width: 900px; /* adjust to fit all columns comfortably */
     }
     .table-card {
         overflow-x: auto;
