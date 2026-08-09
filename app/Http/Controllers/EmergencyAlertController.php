@@ -99,6 +99,7 @@ class EmergencyAlertController extends Controller
             'alert_type' => $request->alert_type ?? 'sos',
             'name' => $user->name,
             'phone' => $user->phone,
+            'email' => $user->email,
             'alert_location_source' => $user->alert_location_source,
             'is_estate' => $user->is_estate,
             'address_line_1' => $user->address_line_1,

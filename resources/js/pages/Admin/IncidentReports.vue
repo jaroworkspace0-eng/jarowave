@@ -1061,7 +1061,7 @@ onMounted(() => loadReports());
                                             </span>
                                         </div>
                                         <div class="reporter-cell__sub">
-                                            {{ report.household?.email }}
+                                            {{ report.emergency_alert?.email }}
                                         </div>
                                     </div>
                                 </div>

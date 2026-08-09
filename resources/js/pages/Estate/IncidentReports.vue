@@ -746,7 +746,7 @@ onMounted(() => loadReports());
                                             </span>
                                         </div>
                                         <div class="reporter-cell__sub">
-                                            {{ report.household?.email }}
+                                            {{ report.alert?.email }}
                                         </div>
                                     </div>
                                 </div>
@@ -1021,9 +1021,7 @@ onMounted(() => loadReports());
                                             {{ householdAddress }}
                                         </div>
                                         <div class="review-info-panel__sub">
-                                            {{
-                                                selectedReport?.household?.email
-                                            }}
+                                            {{ selectedReport?.alert?.email }}
                                         </div>
                                         <div class="review-info-panel__sub">
                                             {{ selectedReport?.alert?.phone }}

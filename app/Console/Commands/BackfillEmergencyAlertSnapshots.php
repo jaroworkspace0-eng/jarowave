@@ -17,7 +17,7 @@ class BackfillEmergencyAlertSnapshots extends Command
         $skipped = 0;
 
         EmergencyAlert::withTrashed()
-            ->whereNull('name') // only rows not yet backfilled
+            ->whereNull('email') // only rows not yet backfilled
             ->with(['user' => fn ($q) => $q->withTrashed()])
             ->chunkById($chunkSize, function ($alerts) use (&$updated, &$skipped) {
                 foreach ($alerts as $alert) {
@@ -31,6 +31,7 @@ class BackfillEmergencyAlertSnapshots extends Command
                     $alert->update([
                         'name' => $user->name,
                         'phone' => $user->phone,
+                        'email' => $user->email,
                         'address_line_1' => $user->address_line_1,
                         'complex_name' => $user->complex_name,
                         'suburb' => $user->suburb,

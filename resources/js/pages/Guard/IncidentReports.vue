@@ -859,6 +859,9 @@ onMounted(() => loadReports());
                                         {{ fmtUnit(report.alert.unit_number) }}
                                     </span>
                                 </div>
+                                <!-- <div class="reporter-cell__sub">
+                                    {{ report.alert?.email }}
+                                </div> -->
                             </td>
                             <td>
                                 <span

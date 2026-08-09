@@ -23,6 +23,7 @@ class EmergencyAlert extends Model
         'unit_number',
         'name',
         'phone',
+        'email',
         'accuracy',
         'is_resolved',
         'resolved_at',

@@ -88,7 +88,7 @@ class SosIncidentReportController extends Controller
         $query = SosIncidentReport::with([
             'household:id,name,email',
             'reporter:id,name,email',
-            'emergencyAlert:id,created_at,latitude,longitude,alert_type,name,phone,unit_number,alert_location_source,address_line_1,complex_name,suburb,is_estate',
+            'emergencyAlert:id,created_at,latitude,longitude,alert_type,name,phone,email,unit_number,alert_location_source,address_line_1,complex_name,suburb,is_estate',
             'actionedBy:id,name',
         ])->latest();
 
