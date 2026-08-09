@@ -6,7 +6,6 @@ import axios from 'axios';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
-    BellRing,
     CheckCircle2,
     Crosshair,
     MapPin,
@@ -229,9 +228,24 @@ type MapPoint = {
 // household's user record (not the alert), per Karabo.
 const isRegisteredAddressSource = computed(
     () =>
-        selectedReport.value?.household?.alert_location_source ===
+        selectedReport.value?.alert?.alert_location_source ===
         'registered_address',
 );
+
+const isEstateAlert = computed(() => !!selectedReport.value?.alert?.is_estate);
+
+const householdAddress = computed(() => {
+    const a = selectedReport.value?.alert;
+    if (!a) return null;
+    return [a.complex_name, a.address_line_1, a.suburb]
+        .filter(Boolean)
+        .join(', ');
+});
+
+const locationSourceLabel: Record<string, string> = {
+    gps: 'GPS',
+    registered_address: 'Registered Address',
+};
 
 const mapPoints = computed<MapPoint[]>(() => {
     const r = selectedReport.value;
@@ -477,13 +491,13 @@ const timelineSteps = computed(() => {
             icon: Siren,
             done: !!a?.created_at,
         },
-        {
-            key: 'ack',
-            label: 'First Acknowledged',
-            time: a?.first_ack_at,
-            icon: BellRing,
-            done: !!a?.first_ack_at,
-        },
+        // {
+        //     key: 'ack',
+        //     label: 'First Acknowledged',
+        //     time: a?.first_ack_at,
+        //     icon: BellRing,
+        //     done: !!a?.first_ack_at,
+        // },
         {
             key: 'accepted',
             label: 'Guard Accepted',
@@ -683,11 +697,13 @@ onMounted(() => loadReports());
                     <thead>
                         <tr>
                             <th>Household</th>
+                            <th>Type</th>
+                            <th>Source</th>
                             <th>Guard</th>
                             <th>Outcome</th>
                             <th>Category</th>
                             <th>Status</th>
-                            <th>Date</th>
+                            <th>Date &amp; Time</th>
                             <th></th>
                         </tr>
                     </thead>
@@ -702,7 +718,7 @@ onMounted(() => loadReports());
                                 <div class="reporter-cell">
                                     <div class="reporter-cell__avatar">
                                         {{
-                                            (report.household?.name || 'H')
+                                            (report.alert?.name || 'H')
                                                 .charAt(0)
                                                 .toUpperCase()
                                         }}
@@ -710,21 +726,20 @@ onMounted(() => loadReports());
                                     <div>
                                         <div class="reporter-cell__name-row">
                                             <span class="reporter-cell__name">
-                                                {{
-                                                    report.household?.name ??
-                                                    '—'
-                                                }}
+                                                {{ report.alert?.name ?? '—' }}
                                             </span>
                                             <span
                                                 v-if="
-                                                    report.household
-                                                        ?.unit_number
+                                                    report.alert
+                                                        ?.alert_location_source ===
+                                                        'registered_address' &&
+                                                    report.alert?.unit_number
                                                 "
                                                 class="ir-unit-badge ir-unit-badge--table"
                                             >
                                                 {{
                                                     fmtUnit(
-                                                        report.household
+                                                        report.alert
                                                             .unit_number,
                                                     )
                                                 }}
@@ -735,6 +750,25 @@ onMounted(() => loadReports());
                                         </div>
                                     </div>
                                 </div>
+                            </td>
+                            <td>
+                                <span
+                                    class="type-badge bg-slate-100 text-slate-600"
+                                >
+                                    {{ report.alert?.alert_type ?? '—' }}
+                                </span>
+                            </td>
+                            <td>
+                                <span
+                                    v-if="report.alert?.alert_location_source"
+                                    class="type-badge bg-slate-100 text-slate-600"
+                                >
+                                    {{
+                                        locationSourceLabel[
+                                            report.alert.alert_location_source
+                                        ]
+                                    }}
+                                </span>
                             </td>
                             <td>
                                 <div class="reporter-cell__name">
@@ -940,24 +974,51 @@ onMounted(() => loadReports());
                                             Household
                                         </div>
                                         <div class="review-info-panel__name">
-                                            {{
-                                                selectedReport?.household?.name
-                                            }}
+                                            {{ selectedReport?.alert?.name }}
                                         </div>
                                         <div
-                                            class="ir-unit-badge ir-unit-badge--modal"
+                                            class="toggle-row"
+                                            style="margin: 2px 0"
+                                        >
+                                            <div
+                                                class="ir-unit-badge ir-unit-badge--modal"
+                                                v-if="
+                                                    isRegisteredAddressSource &&
+                                                    selectedReport?.alert
+                                                        ?.unit_number
+                                                "
+                                            >
+                                                {{
+                                                    fmtUnit(
+                                                        selectedReport.alert
+                                                            .unit_number,
+                                                    )
+                                                }}
+                                            </div>
+                                            <span
+                                                v-if="
+                                                    selectedReport?.alert
+                                                        ?.alert_location_source
+                                                "
+                                                class="type-badge bg-slate-100 text-slate-600"
+                                            >
+                                                {{
+                                                    locationSourceLabel[
+                                                        selectedReport.alert
+                                                            .alert_location_source
+                                                    ]
+                                                }}
+                                            </span>
+                                        </div>
+                                        <div
                                             v-if="
                                                 isRegisteredAddressSource &&
-                                                selectedReport?.household
-                                                    ?.unit_number
+                                                !isEstateAlert &&
+                                                householdAddress
                                             "
+                                            class="review-info-panel__sub"
                                         >
-                                            {{
-                                                fmtUnit(
-                                                    selectedReport.household
-                                                        .unit_number,
-                                                )
-                                            }}
+                                            {{ householdAddress }}
                                         </div>
                                         <div class="review-info-panel__sub">
                                             {{
@@ -965,9 +1026,7 @@ onMounted(() => loadReports());
                                             }}
                                         </div>
                                         <div class="review-info-panel__sub">
-                                            {{
-                                                selectedReport?.household?.phone
-                                            }}
+                                            {{ selectedReport?.alert?.phone }}
                                         </div>
                                     </div>
                                     <div class="review-info-panel">

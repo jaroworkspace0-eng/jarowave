@@ -5,7 +5,6 @@ import axios from 'axios';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
-    BellRing,
     CheckCircle2,
     Crosshair,
     MapPin,
@@ -206,9 +205,24 @@ let mapInstance = null;
 // household's user record (not the alert), per Karabo.
 const isRegisteredAddressSource = computed(
     () =>
-        selectedReport.value?.household?.alert_location_source ===
+        selectedReport.value?.alert?.alert_location_source ===
         'registered_address',
 );
+
+const isEstateAlert = computed(() => !!selectedReport.value?.alert?.is_estate);
+
+const householdAddress = computed(() => {
+    const a = selectedReport.value?.alert;
+    if (!a) return null;
+    return [a.complex_name, a.address_line_1, a.suburb]
+        .filter(Boolean)
+        .join(', ');
+});
+
+const locationSourceLabel = {
+    gps: 'GPS',
+    registered_address: 'Registered Address',
+};
 
 const mapPoints = computed(() => {
     const r = selectedReport.value;
@@ -443,13 +457,13 @@ const timelineSteps = computed(() => {
             icon: Siren,
             done: !!a?.created_at,
         },
-        {
-            key: 'ack',
-            label: 'First Acknowledged',
-            time: a?.first_ack_at,
-            icon: BellRing,
-            done: !!a?.first_ack_at,
-        },
+        // {
+        //     key: 'ack',
+        //     label: 'First Acknowledged',
+        //     time: a?.first_ack_at,
+        //     icon: BellRing,
+        //     done: !!a?.first_ack_at,
+        // },
         {
             key: 'accepted',
             label: 'Guard Accepted',
@@ -812,6 +826,8 @@ onMounted(() => loadReports());
                     <thead>
                         <tr>
                             <th>Household</th>
+                            <th>Type</th>
+                            <th>Source</th>
                             <th>Guard</th>
                             <th>Outcome</th>
                             <th>Status</th>
@@ -829,19 +845,39 @@ onMounted(() => loadReports());
                             <td>
                                 <div class="reporter-cell__name-row">
                                     <span class="reporter-cell__name">
-                                        {{ report.household?.name ?? '—' }}
+                                        {{ report.alert?.name ?? '—' }}
                                     </span>
                                     <span
-                                        v-if="report.household?.unit_number"
+                                        v-if="
+                                            report.alert
+                                                ?.alert_location_source ===
+                                                'registered_address' &&
+                                            report.alert?.unit_number
+                                        "
                                         class="ir-unit-badge ir-unit-badge--table"
                                     >
-                                        {{
-                                            fmtUnit(
-                                                report.household.unit_number,
-                                            )
-                                        }}
+                                        {{ fmtUnit(report.alert.unit_number) }}
                                     </span>
                                 </div>
+                            </td>
+                            <td>
+                                <span
+                                    class="type-badge bg-slate-100 text-slate-600"
+                                >
+                                    {{ report.alert?.alert_type ?? '—' }}
+                                </span>
+                            </td>
+                            <td>
+                                <span
+                                    v-if="report.alert?.alert_location_source"
+                                    class="type-badge bg-slate-100 text-slate-600"
+                                >
+                                    {{
+                                        locationSourceLabel[
+                                            report.alert.alert_location_source
+                                        ]
+                                    }}
+                                </span>
                             </td>
                             <td>
                                 <div class="reporter-cell__name">

@@ -7,7 +7,6 @@ import axios from 'axios';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
-    BellRing,
     CheckCircle2,
     Crosshair,
     MapPin,
@@ -680,13 +679,13 @@ const timelineSteps = computed(() => {
             icon: Siren,
             done: !!a?.created_at,
         },
-        {
-            key: 'ack',
-            label: 'First Acknowledged',
-            time: a?.first_ack_at,
-            icon: BellRing,
-            done: !!a?.first_ack_at,
-        },
+        // {
+        //     key: 'ack',
+        //     label: 'First Acknowledged',
+        //     time: a?.first_ack_at,
+        //     icon: BellRing,
+        //     done: !!a?.first_ack_at,
+        // },
         {
             key: 'accepted',
             label: 'Patroller Accepted',
@@ -1033,7 +1032,7 @@ onMounted(() => loadReports());
                         <tr>
                             <th>Household</th>
                             <th>Unit</th>
-                            <th>Source Location</th>
+                            <th>Source</th>
                             <th>Responder</th>
                             <th>Type</th>
                             <th>Outcome</th>
