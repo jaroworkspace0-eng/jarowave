@@ -83,6 +83,10 @@ class EmergencyAlertController extends Controller
 
         $channel = Channel::find($request->channel_id);
 
+        $channel = Channel::find($request->channel_id);
+
+        $user = auth()->user();
+
         $alert = EmergencyAlert::create([
             'user_id' => auth()->id(),
             'channel_id' => $request->channel_id,
@@ -93,10 +97,19 @@ class EmergencyAlertController extends Controller
             'last_lng' => $request->longitude,
             'accuracy' => $request->accuracy,
             'alert_type' => $request->alert_type ?? 'sos',
+            'name' => $user->name,
+            'phone' => $user->phone,
+            'alert_location_source' => $user->alert_location_source,
+            'is_estate' => $user->is_estate,
+            'address_line_1' => $user->address_line_1,
+            'complex_name' => $user->complex_name,
+            'suburb' => $user->suburb,
+            'unit_number' => $user->unit_number,
         ]);
 
-        // $alert->load(['user:id,name,phone,address_line_1,complex_name,suburb', 'channel:id,name']);
-        $alert->load(['user:id,name,phone,address_line_1,complex_name,suburb,unit_number,alert_location_source,is_estate', 'channel:id,name']);
+        $alert->load(['channel:id,name']);
+
+        // $alert->load(['user:id,name,phone,address_line_1,complex_name,suburb,unit_number,alert_location_source,is_estate', 'channel:id,name']);
 
         $channelGuards = \App\Models\Employee::whereHas('channels', fn ($q) =>
                 $q->where('channels.id', $alert->channel_id))
@@ -120,18 +133,18 @@ class EmergencyAlertController extends Controller
                 'data' => [
                     'id' => $alert->id,
                     'type' => $alert->alert_type,
-                    'household_name' => $alert->user->name,
-                    'household_phone' => $alert->user->phone,
-                    'alert_location_source' => $alert->user->alert_location_source,
-                    'is_estate' => $alert->user->is_estate,
-                    'unit_number' => $alert->user->unit_number,
-                    'address_line_1' => $alert->user->address_line_1,
-                    'complex_name' => $alert->user->complex_name,
-                    'suburb' => $alert->user->suburb,
+                    'household_name' => $alert->name,
+                    'household_phone' => $alert->phone,
+                    'alert_location_source' => $alert->alert_location_source,
+                    'is_estate' => $alert->is_estate,
+                    'unit_number' => $alert->unit_number,
+                    'address_line_1' => $alert->address_line_1,
+                    'complex_name' => $alert->complex_name,
+                    'suburb' => $alert->suburb,
                     'home_address' => collect([
-                        $alert->user->complex_name,
-                        $alert->user->address_line_1,
-                        $alert->user->suburb,
+                        $alert->complex_name,
+                        $alert->address_line_1,
+                        $alert->suburb,
                     ])->filter()->implode(', '),
                     'channel_name' => $alert->channel->name,
                     'created_at' => $alert->created_at,
@@ -388,40 +401,7 @@ class EmergencyAlertController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    // Change the signature from (Request $request, EmergencyAlert $alert) 
-    // TO (Request $request, $id)
-    // public function update(Request $request, $id)
-    // {
-    //     try {
-    //         $alert = EmergencyAlert::find($id);
-
-    //         if (!$alert) {
-    //             return response()->json([
-    //                 'status'  => 'error',
-    //                 'message' => 'Alert ID not found in DB'
-    //             ], 404);
-    //         }
-
-    //         $alert->latitude  = $request->latitude;
-    //         $alert->longitude = $request->longitude;
-    //         $alert->accuracy  = $request->accuracy;
-    //         $alert->cancel_pin_used = $request->cancel_pin_used ?? $alert->cancel_pin_used; // Only update if provided
-    //         $alert->save();
-
-    //         return response()->json([
-    //             'status'  => 'success',
-    //             'message' => 'GPS Synced'
-    //         ]);
-
-    //     } catch (\Exception $e) {
-    //         return response()->json([
-    //             'status'  => 'error',
-    //             'message' => $e->getMessage()
-    //         ], 500);
-    //     }
-    // }
-
-
+    
     public function update(Request $request, $id)
     {
         try {
