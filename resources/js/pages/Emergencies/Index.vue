@@ -54,8 +54,13 @@ function showFlash(msg: string, type: 'success' | 'error' = 'success') {
     setTimeout(() => (flash.value = null), 3500);
 }
 
-function shouldShowUnit(u) {
-    return u?.alert_location_source === 'registered_address' && u?.is_estate;
+// Unit number, name, phone, email, alert_location_source, and is_estate are
+// all snapshotted directly onto the EmergencyAlert row at creation time (not
+// read live off the related User), so this stays accurate even after the
+// household is removed from an estate (soft-deleted) or re-registers
+// elsewhere. Always read these off the alert itself, never off `alert.user`.
+function shouldShowUnit(a: any) {
+    return a?.alert_location_source === 'registered_address' && a?.is_estate;
 }
 
 async function load(url?: string) {
@@ -96,7 +101,7 @@ const filteredAlerts = computed(() => {
             if (!search.value) return true;
             const s = search.value.toLowerCase();
             return (
-                a.user?.name?.toLowerCase().includes(s) ||
+                a.name?.toLowerCase().includes(s) ||
                 a.channel?.name?.toLowerCase().includes(s) ||
                 a.client?.user?.name?.toLowerCase().includes(s)
             );
@@ -187,14 +192,14 @@ function fmtDateTime(ts: string | null | undefined) {
     });
 }
 
-function fmtUnit(u) {
+function fmtUnit(u: any) {
     if (!u) return '';
     const s = String(u).trim();
     return /unit/i.test(s) ? s : `Unit ${s}`;
 }
 
 const isRegisteredAddressSource = computed(() =>
-    shouldShowUnit(selectedAlert.value?.user),
+    shouldShowUnit(selectedAlert.value),
 );
 
 function timeAgo(ts: string) {
@@ -348,133 +353,138 @@ const timelineSteps = computed(() => {
                         No emergency alerts match your current filter
                     </p>
                 </div>
-                <table v-else class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Status</th>
-                            <th>Sender</th>
-                            <th>Channel</th>
-                            <th>Client</th>
-                            <th>Responder</th>
-                            <th>Time</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr
-                            v-for="alert in filteredAlerts"
-                            :key="alert.id"
-                            class="clickable-row"
-                            @click="openDetail(alert)"
-                        >
-                            <td>
-                                <span
-                                    class="type-badge"
-                                    :class="
-                                        alert.is_resolved
-                                            ? 'bg-emerald-50 text-emerald-700'
-                                            : 'badge--pulse bg-red-50 text-red-600'
-                                    "
-                                >
-                                    {{
-                                        alert.is_resolved
-                                            ? 'Resolved'
-                                            : 'Active'
-                                    }}
-                                </span>
-                            </td>
-                            <td>
-                                <div class="reporter-cell">
-                                    <div class="reporter-cell__avatar">
+                <div v-else class="table-scroll">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Status</th>
+                                <th>Sender</th>
+                                <th>Unit</th>
+                                <th>Channel</th>
+                                <th>Client</th>
+                                <th>Responder</th>
+                                <th>Time</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr
+                                v-for="alert in filteredAlerts"
+                                :key="alert.id"
+                                class="clickable-row"
+                                @click="openDetail(alert)"
+                            >
+                                <td>
+                                    <span
+                                        class="type-badge"
+                                        :class="
+                                            alert.is_resolved
+                                                ? 'bg-emerald-50 text-emerald-700'
+                                                : 'badge--pulse bg-red-50 text-red-600'
+                                        "
+                                    >
                                         {{
-                                            (alert.user?.name || 'A')
-                                                .charAt(0)
-                                                .toUpperCase()
+                                            alert.is_resolved
+                                                ? 'Resolved'
+                                                : 'Active'
                                         }}
-                                    </div>
-                                    <div>
-                                        <div class="reporter-cell__name-row">
-                                            <span class="reporter-cell__name">{{
-                                                alert.user?.name ?? '—'
-                                            }}</span>
-                                            <span
-                                                v-if="alert.user?.unit_number"
-                                                class="ir-unit-badge ir-unit-badge--table"
+                                    </span>
+                                </td>
+                                <td>
+                                    <div class="reporter-cell">
+                                        <div>
+                                            <div
+                                                class="reporter-cell__name-row"
                                             >
-                                                {{
-                                                    fmtUnit(
-                                                        alert.user.unit_number,
-                                                    )
-                                                }}
-                                            </span>
-                                        </div>
-                                        <div class="reporter-cell__sub">
-                                            {{ alert.user?.phone ?? '' }}
+                                                <span
+                                                    class="reporter-cell__name"
+                                                    >{{
+                                                        alert.name ?? '—'
+                                                    }}</span
+                                                >
+                                            </div>
+                                            <div class="reporter-cell__sub">
+                                                {{ alert.phone ?? '' }}
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
-                            </td>
-                            <td class="td-time">
-                                {{ alert.channel?.name ?? '—' }}
-                            </td>
-                            <td class="td-time">
-                                {{ alert.client?.user?.name ?? '—' }}
-                            </td>
-                            <td class="td-time">
-                                {{ alert.resolution?.responder?.name ?? '—' }}
-                            </td>
-                            <td class="td-time">
-                                {{ fmtDateTime(alert.created_at) }}
-                            </td>
-                            <td v-if="isAdmin" @click.stop>
-                                <div class="row-actions">
-                                    <button
-                                        v-if="!alert.is_resolved"
-                                        class="icon-btn icon-btn--success"
-                                        title="Mark Resolved"
-                                        @click="confirmResolveAlert = alert"
+                                </td>
+                                <td class="td-time">
+                                    <span
+                                        v-if="
+                                            shouldShowUnit(alert) &&
+                                            alert.unit_number
+                                        "
+                                        class="td-time"
                                     >
-                                        <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            class="h-4 w-4"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                            stroke-width="2"
+                                        {{ fmtUnit(alert.unit_number) }}
+                                    </span>
+                                </td>
+
+                                <td class="td-time">
+                                    {{ alert.channel?.name ?? '—' }}
+                                </td>
+                                <td class="td-time">
+                                    {{ alert.client?.user?.name ?? '—' }}
+                                </td>
+                                <td class="td-time">
+                                    {{
+                                        alert.resolution?.responder?.name ?? '—'
+                                    }}
+                                </td>
+                                <td class="td-time">
+                                    {{ fmtDateTime(alert.created_at) }}
+                                </td>
+                                <td v-if="isAdmin" @click.stop>
+                                    <div class="row-actions">
+                                        <button
+                                            v-if="!alert.is_resolved"
+                                            class="icon-btn icon-btn--success"
+                                            title="Mark Resolved"
+                                            @click="confirmResolveAlert = alert"
                                         >
-                                            <path
-                                                stroke-linecap="round"
-                                                stroke-linejoin="round"
-                                                d="M5 13l4 4L19 7"
-                                            />
-                                        </svg>
-                                    </button>
-                                    <button
-                                        class="icon-btn icon-btn--danger"
-                                        title="Delete"
-                                        @click="confirmDeleteId = alert.id"
-                                    >
-                                        <svg
-                                            xmlns="http://www.w3.org/2000/svg"
-                                            class="h-4 w-4"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                            stroke-width="2"
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                class="h-4 w-4"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <path
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    d="M5 13l4 4L19 7"
+                                                />
+                                            </svg>
+                                        </button>
+                                        <button
+                                            class="icon-btn icon-btn--danger"
+                                            title="Delete"
+                                            @click="confirmDeleteId = alert.id"
                                         >
-                                            <path
-                                                stroke-linecap="round"
-                                                stroke-linejoin="round"
-                                                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                            />
-                                        </svg>
-                                    </button>
-                                </div>
-                            </td>
-                            <td v-else></td>
-                        </tr>
-                    </tbody>
-                </table>
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                class="h-4 w-4"
+                                                fill="none"
+                                                viewBox="0 0 24 24"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <path
+                                                    stroke-linecap="round"
+                                                    stroke-linejoin="round"
+                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                                />
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </td>
+                                <td v-else></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
 
                 <div
                     class="pagination-bar"
@@ -552,20 +562,22 @@ const timelineSteps = computed(() => {
                                 <div class="review-info-panel">
                                     <div class="field__label">Sender</div>
                                     <div class="review-info-panel__name">
-                                        {{ selectedAlert?.user?.name ?? '—' }}
+                                        {{ selectedAlert?.name ?? '—' }}
                                     </div>
                                     <div
-                                        v-if="selectedAlert?.user?.unit_number"
+                                        v-if="
+                                            isRegisteredAddressSource &&
+                                            selectedAlert?.unit_number
+                                        "
                                         class="ir-unit-badge ir-unit-badge--modal"
                                     >
-                                        {{
-                                            fmtUnit(
-                                                selectedAlert.user.unit_number,
-                                            )
-                                        }}
+                                        {{ fmtUnit(selectedAlert.unit_number) }}
                                     </div>
                                     <div class="review-info-panel__sub">
-                                        {{ selectedAlert?.user?.phone ?? '' }}
+                                        {{ selectedAlert?.phone ?? '' }}
+                                    </div>
+                                    <div class="review-info-panel__sub">
+                                        {{ selectedAlert?.email ?? '' }}
                                     </div>
                                     <div class="review-info-panel__sub">
                                         Channel:
@@ -773,7 +785,7 @@ const timelineSteps = computed(() => {
                                 <h3 class="confirm-title">Mark as Resolved</h3>
                                 <p class="confirm-sub">
                                     Alert #{{ confirmResolveAlert.id }} ·
-                                    {{ confirmResolveAlert.user?.name }}
+                                    {{ confirmResolveAlert.name }}
                                 </p>
                             </div>
                         </div>
@@ -1616,6 +1628,13 @@ const timelineSteps = computed(() => {
 .modal-enter-from .modal-sheet,
 .modal-leave-to .modal-sheet {
     transform: scale(0.97) translateY(12px);
+}
+
+.table-scroll {
+    overflow-x: auto;
+}
+.data-table {
+    min-width: 1150px;
 }
 
 @media (max-width: 640px) {

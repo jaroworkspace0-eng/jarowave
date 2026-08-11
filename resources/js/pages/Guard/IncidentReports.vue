@@ -827,6 +827,7 @@ onMounted(() => loadReports());
                         <thead>
                             <tr>
                                 <th>Household</th>
+                                <th>Unit</th>
                                 <th>Type</th>
                                 <th>Source</th>
                                 <th>Guard</th>
@@ -848,21 +849,6 @@ onMounted(() => loadReports());
                                         <span class="reporter-cell__name">
                                             {{ report.alert?.name ?? '—' }}
                                         </span>
-                                        <span
-                                            v-if="
-                                                report.alert
-                                                    ?.alert_location_source ===
-                                                    'registered_address' &&
-                                                report.alert?.unit_number
-                                            "
-                                            class="ir-unit-badge ir-unit-badge--table"
-                                        >
-                                            {{
-                                                fmtUnit(
-                                                    report.alert.unit_number,
-                                                )
-                                            }}
-                                        </span>
                                     </div>
                                     <!-- <div class="reporter-cell__sub">
                                     {{ report.alert?.email }}
@@ -870,8 +856,18 @@ onMounted(() => loadReports());
                                 </td>
                                 <td>
                                     <span
-                                        class="type-badge bg-slate-100 text-slate-600"
+                                        v-if="
+                                            report.alert?.is_estate &&
+                                            report.alert?.unit_number
+                                        "
+                                        class="td-time"
                                     >
+                                        {{ fmtUnit(report.alert?.unit_number) }}
+                                    </span>
+                                    <span v-else class="td-time"> - </span>
+                                </td>
+                                <td>
+                                    <span class="td-time">
                                         {{ report.alert?.alert_type ?? '—' }}
                                     </span>
                                 </td>
@@ -880,7 +876,7 @@ onMounted(() => loadReports());
                                         v-if="
                                             report.alert?.alert_location_source
                                         "
-                                        class="type-badge bg-slate-100 text-slate-600"
+                                        class="td-time"
                                     >
                                         {{
                                             locationSourceLabel[
@@ -891,7 +887,7 @@ onMounted(() => loadReports());
                                     </span>
                                 </td>
                                 <td>
-                                    <div class="reporter-cell__name">
+                                    <div class="td-time">
                                         {{ report.reporter?.name ?? '—' }}
                                     </div>
                                 </td>
