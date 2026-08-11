@@ -387,18 +387,18 @@ function fmtDuration(v: number | string | null | undefined) {
 // removed from the estate (soft-deleted) or re-registers elsewhere.
 const isRegisteredAddressSource = computed(
     () =>
-        selectedReport.value?.emergencyAlert?.alert_location_source ===
+        selectedReport.value?.emergency_alert?.alert_location_source ===
         'registered_address',
 );
 
 const isEstateAlert = computed(
-    () => !!selectedReport.value?.emergencyAlert?.is_estate,
+    () => !!selectedReport.value?.emergency_alert?.is_estate,
 );
 
 // Full address string — only meaningful for non-estate, registered-address
 // alerts (estate alerts just show unit number; guards land at the gate).
 const householdAddress = computed(() => {
-    const a = selectedReport.value?.emergencyAlert;
+    const a = selectedReport.value?.emergency_alert;
     if (!a) return null;
     return [a.complex_name, a.address_line_1, a.suburb]
         .filter(Boolean)
@@ -1319,7 +1319,7 @@ onMounted(() => loadReports());
 
                                 <div
                                     v-if="
-                                        selectedReport?.emergencyAlert
+                                        selectedReport?.emergency_alert
                                             ?.cancel_pin_used === 'duress'
                                     "
                                     class="duress-banner"
@@ -1330,19 +1330,19 @@ onMounted(() => loadReports());
                                 <div class="toggle-row">
                                     <span
                                         v-if="
-                                            selectedReport?.emergencyAlert
+                                            selectedReport?.emergency_alert
                                                 ?.alert_type
                                         "
                                         class="type-badge bg-slate-100 text-slate-600"
                                     >
                                         {{
-                                            selectedReport.emergencyAlert
+                                            selectedReport.emergency_alert
                                                 .alert_type
                                         }}
                                     </span>
                                     <span
                                         v-if="
-                                            selectedReport?.emergencyAlert
+                                            selectedReport?.emergency_alert
                                                 ?.muted
                                         "
                                         class="type-badge bg-slate-100 text-slate-600"
@@ -1351,14 +1351,14 @@ onMounted(() => loadReports());
                                     </span>
                                     <span
                                         v-if="
-                                            selectedReport?.emergencyAlert
+                                            selectedReport?.emergency_alert
                                                 ?.cancel_pin_used &&
-                                            selectedReport.emergencyAlert
+                                            selectedReport.emergency_alert
                                                 .cancel_pin_used !== 'none'
                                         "
                                         class="type-badge"
                                         :class="
-                                            selectedReport.emergencyAlert
+                                            selectedReport.emergency_alert
                                                 .cancel_pin_used === 'duress'
                                                 ? 'bg-red-50 text-red-600'
                                                 : 'bg-slate-100 text-slate-600'
@@ -1366,7 +1366,7 @@ onMounted(() => loadReports());
                                     >
                                         Cancel PIN:
                                         {{
-                                            selectedReport.emergencyAlert
+                                            selectedReport.emergency_alert
                                                 .cancel_pin_used === 'duress'
                                                 ? 'Duress'
                                                 : 'Safe Cancel'
@@ -1381,7 +1381,7 @@ onMounted(() => loadReports());
                                         </div>
                                         <div class="review-info-panel__name">
                                             {{
-                                                selectedReport?.emergencyAlert
+                                                selectedReport?.emergency_alert
                                                     ?.name
                                             }}
                                         </div>
@@ -1397,7 +1397,7 @@ onMounted(() => loadReports());
                                             <span
                                                 v-if="
                                                     selectedReport
-                                                        ?.emergencyAlert
+                                                        ?.emergency_alert
                                                         ?.unit_number
                                                 "
                                                 class="unit-plain"
@@ -1405,7 +1405,7 @@ onMounted(() => loadReports());
                                                 {{
                                                     fmtUnit(
                                                         selectedReport
-                                                            .emergencyAlert
+                                                            .emergency_alert
                                                             .unit_number,
                                                     )
                                                 }}
@@ -1413,7 +1413,7 @@ onMounted(() => loadReports());
                                             <span
                                                 v-if="
                                                     selectedReport
-                                                        ?.emergencyAlert
+                                                        ?.emergency_alert
                                                         ?.alert_location_source
                                                 "
                                                 class="type-badge bg-slate-100 text-slate-600"
@@ -1421,7 +1421,7 @@ onMounted(() => loadReports());
                                                 {{
                                                     locationSourceLabel[
                                                         selectedReport
-                                                            .emergencyAlert
+                                                            .emergency_alert
                                                             .alert_location_source
                                                     ]
                                                 }}
@@ -1444,7 +1444,7 @@ onMounted(() => loadReports());
                                         </div>
                                         <div class="review-info-panel__sub">
                                             {{
-                                                selectedReport?.emergencyAlert
+                                                selectedReport?.emergency_alert
                                                     ?.phone
                                             }}
                                         </div>
@@ -1619,7 +1619,7 @@ onMounted(() => loadReports());
                                                 {{
                                                     fmtAccuracy(
                                                         selectedReport
-                                                            ?.emergencyAlert
+                                                            ?.emergency_alert
                                                             ?.accuracy,
                                                     )
                                                 }}
@@ -1633,7 +1633,7 @@ onMounted(() => loadReports());
                                                 {{
                                                     fmtDateTime(
                                                         selectedReport
-                                                            ?.emergencyAlert
+                                                            ?.emergency_alert
                                                             ?.location_updated_at,
                                                     )
                                                 }}
@@ -1718,7 +1718,7 @@ onMounted(() => loadReports());
 
                                 <div
                                     v-if="
-                                        selectedReport?.emergencyAlert
+                                        selectedReport?.emergency_alert
                                             ?.audio_path
                                     "
                                     class="field"
@@ -1729,7 +1729,7 @@ onMounted(() => loadReports());
                                     <audio
                                         controls
                                         :src="
-                                            selectedReport.emergencyAlert
+                                            selectedReport.emergency_alert
                                                 .audio_path
                                         "
                                         class="audio-player"
