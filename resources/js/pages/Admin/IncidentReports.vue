@@ -175,6 +175,7 @@ async function openDetail(report: any) {
             getHeaders(),
         );
         selectedReport.value = data;
+        // console.log('Loaded report detail:', data);
     } catch {
         showFlash('Failed to load report detail.', 'error');
     } finally {
@@ -669,12 +670,12 @@ onUnmounted(() => destroyMap());
 const timelineSteps = computed(() => {
     const r = selectedReport.value;
     if (!r) return [];
-    const a = r.emergencyAlert;
+    const a = r.emergency_alert;
     const res = r.resolution;
     return [
         {
             key: 'triggered',
-            label: 'Alert Triggered',
+            label: 'Alert Triggeredjj',
             time: a?.created_at,
             icon: Siren,
             done: !!a?.created_at,
