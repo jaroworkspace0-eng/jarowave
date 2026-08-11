@@ -622,6 +622,7 @@ const timelineSteps = computed(() => {
                     <table class="data-table">
                         <thead>
                             <tr>
+                                <th>Cancel Pin Used</th>
                                 <th>Status</th>
                                 <th>Household</th>
                                 <th>Unit</th>
@@ -639,6 +640,19 @@ const timelineSteps = computed(() => {
                                 class="clickable-row"
                                 @click="openDetail(alert)"
                             >
+                                <td>
+                                    <span class="td-time">
+                                        {{
+                                            alert.cancel_pin_used ===
+                                            'safe_cancel'
+                                                ? 'Safe Cancel'
+                                                : alert.cancel_pin_used ===
+                                                    'duress'
+                                                  ? 'Duress'
+                                                  : 'None'
+                                        }}
+                                    </span>
+                                </td>
                                 <td>
                                     <span
                                         class="type-badge"
