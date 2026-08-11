@@ -2315,7 +2315,10 @@ onMounted(() => loadReports());
     margin: 4px 0 0;
 }
 
-.page-header__left,
+.page-header__left {
+    display: flex;
+    flex-direction: column;
+}
 .page-header__right {
     display: flex;
     align-items: center;
