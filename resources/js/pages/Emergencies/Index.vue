@@ -2,14 +2,17 @@
 import AppLayout from '@/layouts/AppLayout.vue';
 import { router } from '@inertiajs/vue3';
 import axios from 'axios';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import {
     CheckCircle2,
+    Crosshair,
     MapPin as MapPinIcon,
     Siren,
     UserCheck,
     X,
 } from 'lucide-vue-next';
-import { computed, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 
 const stored = localStorage.getItem('user');
 const user = stored ? JSON.parse(stored) : null;
@@ -150,13 +153,16 @@ const filterOptions = [
     { value: 'resolved', label: 'Resolved' },
 ] as const;
 
-function openDetail(alert: any) {
+async function openDetail(alert: any) {
     selectedAlert.value = alert;
     showDetail.value = true;
+    await nextTick();
+    initMap();
 }
 function closeDetail() {
     showDetail.value = false;
     selectedAlert.value = null;
+    destroyMap();
 }
 
 async function proceedResolve() {
@@ -239,6 +245,240 @@ function fmtDuration(seconds: number) {
     if (seconds < 60) return `${seconds}s`;
     return `${Math.floor(seconds / 60)}m ${seconds % 60}s`;
 }
+
+// ══════════ Map (Leaflet — same pattern as Estate/Guard IncidentReports) ══════════
+// EmergencyAlert carries its own trigger latitude/longitude; the guard's
+// start/arrival fix (if recorded) lives on the resolution relation.
+
+const mapEl = ref<HTMLElement | null>(null);
+const mapLoading = ref(false);
+const geocoded = ref<Record<string, string | null>>({});
+const routeCoords = ref<[number, number][] | null>(null);
+let mapInstance: any = null;
+
+type MapPoint = {
+    key: string;
+    label: string;
+    role: 'household' | 'guard';
+    person: string;
+    color: string;
+    lat: number;
+    lng: number;
+};
+
+function roleLabel(role: 'household' | 'guard') {
+    return role === 'guard' ? 'Guard' : 'Household';
+}
+
+const mapPoints = computed<MapPoint[]>(() => {
+    const a = selectedAlert.value;
+    if (!a) return [];
+    const res = a.resolution;
+    const householdName = a.name || 'Household';
+    const guardName = res?.responder?.name || 'Guard';
+    const pts: MapPoint[] = [];
+
+    if (a.latitude && a.longitude) {
+        pts.push({
+            key: 'trigger',
+            label: 'Alert Location',
+            role: 'household',
+            person: householdName,
+            color: '#dc2626',
+            lat: Number(a.latitude),
+            lng: Number(a.longitude),
+        });
+    }
+    if (res?.start_latitude && res?.start_longitude) {
+        pts.push({
+            key: 'start',
+            label: 'Guard Start',
+            role: 'guard',
+            person: guardName,
+            color: '#dc2626',
+            lat: Number(res.start_latitude),
+            lng: Number(res.start_longitude),
+        });
+    }
+    if (res?.arrival_latitude && res?.arrival_longitude) {
+        pts.push({
+            key: 'arrival',
+            label: 'Guard Arrival',
+            role: 'guard',
+            person: guardName,
+            color: '#059669',
+            lat: Number(res.arrival_latitude),
+            lng: Number(res.arrival_longitude),
+        });
+    }
+    return pts;
+});
+
+const routeEndpoints = computed(() => {
+    const start = mapPoints.value.find((p) => p.key === 'start');
+    const arrival = mapPoints.value.find((p) => p.key === 'arrival');
+    if (start && arrival) return { from: start, to: arrival };
+    const household = mapPoints.value.find((p) => p.role === 'household');
+    if (start && household) return { from: start, to: household };
+    return null;
+});
+
+const geocodeCache = new Map<string, string | null>();
+
+async function reverseGeocode(
+    lat: number,
+    lng: number,
+): Promise<string | null> {
+    const key = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+    if (geocodeCache.has(key)) return geocodeCache.get(key) ?? null;
+    try {
+        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
+        const res = await fetch(url, {
+            headers: { Accept: 'application/json' },
+        });
+        if (!res.ok) return null;
+        const data = await res.json();
+        let result: string | null = null;
+        if (!data?.address) {
+            result = data?.display_name || null;
+        } else {
+            const a = data.address;
+            const parts = [
+                [a.house_number, a.road].filter(Boolean).join(' '),
+                a.suburb || a.neighbourhood || a.residential,
+                a.city || a.town || a.village,
+            ].filter(Boolean);
+            result = parts.length
+                ? parts.join(', ')
+                : data.display_name || null;
+        }
+        geocodeCache.set(key, result);
+        return result;
+    } catch {
+        return null;
+    }
+}
+
+// OSRM's public demo routing server — free, shared, rate-limited; fine for
+// low-volume internal admin use. Self-host or use a paid router at scale.
+async function fetchRoute(
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number,
+): Promise<[number, number][] | null> {
+    try {
+        const url = `https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        const data = await res.json();
+        const coords = data?.routes?.[0]?.geometry?.coordinates;
+        if (!coords) return null;
+        return coords.map(([lng, lat]: [number, number]) => [lat, lng]);
+    } catch {
+        return null;
+    }
+}
+
+function buildMap(container: HTMLElement) {
+    const map = L.map(container, {
+        zoomControl: true,
+        attributionControl: false,
+    });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors',
+    }).addTo(map);
+    return map;
+}
+
+function drawPoints(map: any) {
+    const layer = L.layerGroup().addTo(map);
+    const bounds: [number, number][] = [];
+
+    for (const p of mapPoints.value) {
+        const icon = L.divIcon({
+            className: 'map-pin',
+            html: `<span class="map-pin__dot" style="background:${p.color}"></span>`,
+            iconSize: [16, 16],
+            iconAnchor: [8, 8],
+        });
+        L.marker([p.lat, p.lng], { icon })
+            .bindTooltip(
+                `<strong>${p.label}</strong><br>${roleLabel(p.role)} - ${p.person}`,
+                {
+                    permanent: true,
+                    direction: 'top',
+                    offset: [0, -10],
+                    className: `ir-leaflet-label ir-leaflet-label--${p.role}`,
+                },
+            )
+            .addTo(layer);
+        bounds.push([p.lat, p.lng]);
+
+        reverseGeocode(p.lat, p.lng).then((addr) => {
+            geocoded.value[p.key] = addr;
+        });
+    }
+
+    if (routeCoords.value?.length) {
+        L.polyline(routeCoords.value, {
+            color: '#dc2626',
+            weight: 4,
+            opacity: 0.75,
+        }).addTo(layer);
+    }
+
+    return bounds;
+}
+
+function fitToPoints(map: any) {
+    const bounds = mapPoints.value.map((p) => [p.lat, p.lng]) as [
+        number,
+        number,
+    ][];
+    if (bounds.length === 1) map.setView(bounds[0], 16);
+    else if (bounds.length > 1) map.fitBounds(bounds, { padding: [30, 30] });
+}
+
+function recenterMap() {
+    if (mapInstance) fitToPoints(mapInstance);
+}
+
+async function initMap() {
+    if (mapPoints.value.length === 0) return;
+    mapLoading.value = true;
+    await nextTick();
+    if (!mapEl.value) {
+        mapLoading.value = false;
+        return;
+    }
+    if (mapInstance) {
+        mapInstance.remove();
+        mapInstance = null;
+    }
+    mapInstance = buildMap(mapEl.value);
+
+    const ep = routeEndpoints.value;
+    routeCoords.value = ep
+        ? await fetchRoute(ep.from.lat, ep.from.lng, ep.to.lat, ep.to.lng)
+        : null;
+
+    drawPoints(mapInstance);
+    fitToPoints(mapInstance);
+    mapLoading.value = false;
+}
+
+function destroyMap() {
+    if (mapInstance) {
+        mapInstance.remove();
+        mapInstance = null;
+    }
+    geocoded.value = {};
+    routeCoords.value = null;
+}
+
+onUnmounted(() => destroyMap());
 
 // ══════════ Response timeline (mirrors Estate/Guard IncidentReports pattern) ══════════
 const timelineSteps = computed(() => {
@@ -383,7 +623,7 @@ const timelineSteps = computed(() => {
                         <thead>
                             <tr>
                                 <th>Status</th>
-                                <th>Sender</th>
+                                <th>Household</th>
                                 <th>Unit</th>
                                 <th>Channel</th>
                                 <th>Client</th>
@@ -463,52 +703,63 @@ const timelineSteps = computed(() => {
                                 <td class="td-time">
                                     {{ fmtDateTime(alert.created_at) }}
                                 </td>
-                                <td v-if="isAdmin" @click.stop>
+                                <td @click.stop>
                                     <div class="row-actions">
                                         <button
-                                            v-if="!alert.is_resolved"
-                                            class="icon-btn icon-btn--success"
-                                            title="Mark Resolved"
-                                            @click="confirmResolveAlert = alert"
+                                            class="row-action-btn"
+                                            @click="openDetail(alert)"
                                         >
-                                            <svg
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                class="h-4 w-4"
-                                                fill="none"
-                                                viewBox="0 0 24 24"
-                                                stroke="currentColor"
-                                                stroke-width="2"
-                                            >
-                                                <path
-                                                    stroke-linecap="round"
-                                                    stroke-linejoin="round"
-                                                    d="M5 13l4 4L19 7"
-                                                />
-                                            </svg>
+                                            View
                                         </button>
-                                        <button
-                                            class="icon-btn icon-btn--danger"
-                                            title="Delete"
-                                            @click="confirmDeleteId = alert.id"
-                                        >
-                                            <svg
-                                                xmlns="http://www.w3.org/2000/svg"
-                                                class="h-4 w-4"
-                                                fill="none"
-                                                viewBox="0 0 24 24"
-                                                stroke="currentColor"
-                                                stroke-width="2"
+                                        <template v-if="isAdmin">
+                                            <button
+                                                v-if="!alert.is_resolved"
+                                                class="icon-btn icon-btn--success"
+                                                title="Mark Resolved"
+                                                @click="
+                                                    confirmResolveAlert = alert
+                                                "
                                             >
-                                                <path
-                                                    stroke-linecap="round"
-                                                    stroke-linejoin="round"
-                                                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                                                />
-                                            </svg>
-                                        </button>
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    class="h-4 w-4"
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
+                                                    stroke="currentColor"
+                                                    stroke-width="2"
+                                                >
+                                                    <path
+                                                        stroke-linecap="round"
+                                                        stroke-linejoin="round"
+                                                        d="M5 13l4 4L19 7"
+                                                    />
+                                                </svg>
+                                            </button>
+                                            <button
+                                                class="icon-btn icon-btn--danger"
+                                                title="Delete"
+                                                @click="
+                                                    confirmDeleteId = alert.id
+                                                "
+                                            >
+                                                <svg
+                                                    xmlns="http://www.w3.org/2000/svg"
+                                                    class="h-4 w-4"
+                                                    fill="none"
+                                                    viewBox="0 0 24 24"
+                                                    stroke="currentColor"
+                                                    stroke-width="2"
+                                                >
+                                                    <path
+                                                        stroke-linecap="round"
+                                                        stroke-linejoin="round"
+                                                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                                                    />
+                                                </svg>
+                                            </button>
+                                        </template>
                                     </div>
                                 </td>
-                                <td v-else></td>
                             </tr>
                         </tbody>
                     </table>
@@ -553,11 +804,11 @@ const timelineSteps = computed(() => {
                     class="modal-backdrop"
                     @click.self="closeDetail"
                 >
-                    <div class="modal-sheet">
+                    <div class="modal-sheet modal-sheet--wide">
                         <div class="modal-sheet__header">
                             <div>
                                 <div class="modal-sheet__title">
-                                    Alert #{{ selectedAlert?.id }}
+                                    Emergency Alert #{{ selectedAlert?.id }}
                                 </div>
                                 <div class="modal-sheet__sub">
                                     {{ fmtDateTime(selectedAlert?.created_at) }}
@@ -568,39 +819,39 @@ const timelineSteps = computed(() => {
                             </button>
                         </div>
 
-                        <div class="modal-sheet__body">
-                            <div class="toggle-row">
-                                <span
-                                    class="type-badge"
-                                    :class="
-                                        selectedAlert?.is_resolved
-                                            ? 'bg-emerald-50 text-emerald-700'
-                                            : 'bg-red-50 text-red-600'
-                                    "
-                                >
-                                    {{
-                                        selectedAlert?.is_resolved
-                                            ? '✓ Resolved'
-                                            : '🚨 Active'
-                                    }}
-                                </span>
-                            </div>
+                        <div class="modal-sheet__layout">
+                            <div class="modal-sheet__body">
+                                <div class="toggle-row">
+                                    <span
+                                        class="type-badge"
+                                        :class="
+                                            selectedAlert?.is_resolved
+                                                ? 'bg-emerald-50 text-emerald-700'
+                                                : 'bg-red-50 text-red-600'
+                                        "
+                                    >
+                                        {{
+                                            selectedAlert?.is_resolved
+                                                ? '✓ Resolved'
+                                                : '🚨 Active'
+                                        }}
+                                    </span>
+                                </div>
 
-                            <div class="toggle-row">
                                 <div class="review-info-panel">
-                                    <div class="field__label">Sender</div>
+                                    <div class="field__label">Household</div>
                                     <div class="review-info-panel__name">
                                         {{ selectedAlert?.name ?? '—' }}
                                     </div>
-                                    <div
+                                    <span
                                         v-if="
                                             isRegisteredAddressSource &&
                                             selectedAlert?.unit_number
                                         "
-                                        class="ir-unit-badge ir-unit-badge--modal"
+                                        class="unit-plain"
                                     >
                                         {{ fmtUnit(selectedAlert.unit_number) }}
-                                    </div>
+                                    </span>
                                     <div class="review-info-panel__sub">
                                         {{ selectedAlert?.phone ?? '' }}
                                     </div>
@@ -619,163 +870,253 @@ const timelineSteps = computed(() => {
                                         }}
                                     </div>
                                 </div>
+
                                 <div class="review-info-panel">
-                                    <div class="field__label">Location</div>
-                                    <template
-                                        v-if="
-                                            selectedAlert?.latitude &&
-                                            selectedAlert?.longitude
-                                        "
-                                    >
+                                    <div class="field__label">
+                                        Response Timeline
+                                    </div>
+                                    <div class="ir-timeline">
                                         <div
-                                            class="review-info-panel__name"
-                                            style="
-                                                font-family: monospace;
-                                                font-size: 12px;
-                                            "
+                                            v-for="(step, i) in timelineSteps"
+                                            :key="step.key"
+                                            class="ir-timeline__step"
                                         >
-                                            {{ selectedAlert.latitude }},
-                                            {{ selectedAlert.longitude }}
-                                        </div>
-
-                                        <a
-                                            :href="`https://maps.google.com/?q=${selectedAlert.latitude},${selectedAlert.longitude}`"
-                                            target="_blank"
-                                            class="map-link"
-                                        >
-                                            📍 Open in Google Maps
-                                        </a>
-                                    </template>
-                                    <p v-else class="review-info-panel__sub">
-                                        No location data
-                                    </p>
-                                </div>
-                            </div>
-
-                            <div class="review-info-panel">
-                                <div class="field__label">
-                                    Response Timeline
-                                </div>
-                                <div class="ir-timeline">
-                                    <div
-                                        v-for="(step, i) in timelineSteps"
-                                        :key="step.key"
-                                        class="ir-timeline__step"
-                                    >
-                                        <div class="ir-timeline__rail">
-                                            <span
-                                                class="ir-timeline__dot"
-                                                :class="{
-                                                    'ir-timeline__dot--done':
-                                                        step.done,
-                                                }"
-                                            >
-                                                <component
-                                                    :is="step.icon"
-                                                    :size="12"
-                                                />
-                                            </span>
-                                            <span
-                                                v-if="
-                                                    i < timelineSteps.length - 1
-                                                "
-                                                class="ir-timeline__line"
-                                                :class="{
-                                                    'ir-timeline__line--done':
-                                                        step.done,
-                                                }"
-                                            ></span>
-                                        </div>
-                                        <div class="ir-timeline__body">
-                                            <div class="ir-timeline__label">
-                                                {{ step.label }}
+                                            <div class="ir-timeline__rail">
+                                                <span
+                                                    class="ir-timeline__dot"
+                                                    :class="{
+                                                        'ir-timeline__dot--done':
+                                                            step.done,
+                                                    }"
+                                                >
+                                                    <component
+                                                        :is="step.icon"
+                                                        :size="12"
+                                                    />
+                                                </span>
+                                                <span
+                                                    v-if="
+                                                        timelineSteps.length - 1
+                                                    "
+                                                    class="ir-timeline__line"
+                                                    :class="{
+                                                        'ir-timeline__line--done':
+                                                            step.done,
+                                                    }"
+                                                ></span>
                                             </div>
-                                            <div
-                                                class="ir-timeline__time"
-                                                :class="{
-                                                    'ir-timeline__time--pending':
-                                                        !step.done,
-                                                }"
-                                            >
+                                            <div class="ir-timeline__body">
+                                                <div class="ir-timeline__label">
+                                                    {{ step.label }}
+                                                </div>
+                                                <div
+                                                    class="ir-timeline__time"
+                                                    :class="{
+                                                        'ir-timeline__time--pending':
+                                                            !step.done,
+                                                    }"
+                                                >
+                                                    {{
+                                                        step.done
+                                                            ? fmtDateTime(
+                                                                  step.time,
+                                                              )
+                                                            : 'Pending'
+                                                    }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div
+                                        v-if="selectedAlert?.resolution"
+                                        class="detail-grid detail-grid--pad"
+                                    >
+                                        <div>
+                                            <div class="field__label">
+                                                Responder
+                                            </div>
+                                            <div class="detail-grid__value">
                                                 {{
-                                                    step.done
-                                                        ? fmtDateTime(step.time)
-                                                        : 'Pending'
+                                                    selectedAlert.resolution
+                                                        .responder?.name ?? '—'
                                                 }}
                                             </div>
                                         </div>
+                                        <div>
+                                            <div class="field__label">
+                                                Response Time
+                                            </div>
+                                            <div class="detail-grid__value">
+                                                {{
+                                                    fmtDuration(
+                                                        selectedAlert.resolution
+                                                            .response_duration,
+                                                    )
+                                                }}
+                                            </div>
+                                        </div>
+                                        <div
+                                            v-if="
+                                                selectedAlert.resolution
+                                                    .distance_traveled
+                                            "
+                                        >
+                                            <div class="field__label">
+                                                Distance
+                                            </div>
+                                            <div class="detail-grid__value">
+                                                {{
+                                                    selectedAlert.resolution
+                                                        .distance_traveled
+                                                }}m
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="review-info-panel">
+                                    <div class="field__label">Locations</div>
+                                    <div class="ir-location-list">
+                                        <div
+                                            v-for="p in mapPoints"
+                                            :key="p.key"
+                                            class="ir-location-row"
+                                        >
+                                            <span
+                                                class="ir-location-row__dot"
+                                                :style="{ background: p.color }"
+                                            ></span>
+                                            <div class="ir-location-row__body">
+                                                <div
+                                                    class="ir-location-row__top"
+                                                >
+                                                    <span
+                                                        class="ir-location-row__label"
+                                                        >{{ p.label }}</span
+                                                    >
+                                                    <span
+                                                        class="ir-location-row__role"
+                                                        :class="`ir-location-row__role--${p.role}`"
+                                                    >
+                                                        {{ roleLabel(p.role) }}
+                                                        - {{ p.person }}
+                                                    </span>
+                                                </div>
+                                                <div
+                                                    class="ir-location-row__addr"
+                                                >
+                                                    {{
+                                                        geocoded[p.key] ??
+                                                        'Locating…'
+                                                    }}
+                                                </div>
+                                                <div
+                                                    class="ir-location-row__coords"
+                                                >
+                                                    {{ p.lat.toFixed(5) }},
+                                                    {{ p.lng.toFixed(5) }}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <p
+                                            v-if="mapPoints.length === 0"
+                                            class="ir-location-empty"
+                                        >
+                                            No location data available for this
+                                            alert
+                                        </p>
                                     </div>
                                 </div>
 
                                 <div
-                                    v-if="selectedAlert?.resolution"
-                                    class="detail-grid detail-grid--pad"
+                                    v-if="selectedAlert?.resolution?.notes"
+                                    class="field"
                                 >
-                                    <div>
-                                        <div class="field__label">
-                                            Responder
-                                        </div>
-                                        <div class="detail-grid__value">
-                                            {{
-                                                selectedAlert.resolution
-                                                    .responder?.name ?? '—'
-                                            }}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <div class="field__label">
-                                            Response Time
-                                        </div>
-                                        <div class="detail-grid__value">
-                                            {{
-                                                fmtDuration(
-                                                    selectedAlert.resolution
-                                                        .response_duration,
-                                                )
-                                            }}
-                                        </div>
-                                    </div>
-                                    <div
-                                        v-if="
-                                            selectedAlert.resolution
-                                                .distance_traveled
+                                    <label class="field__label">Notes</label>
+                                    <p class="review-description">
+                                        {{ selectedAlert.resolution.notes }}
+                                    </p>
+                                </div>
+
+                                <div v-if="isAdmin" class="modal-actions">
+                                    <button
+                                        v-if="!selectedAlert?.is_resolved"
+                                        class="btn-primary btn-primary--success"
+                                        @click="
+                                            confirmResolveAlert = selectedAlert
                                         "
                                     >
-                                        <div class="field__label">Distance</div>
-                                        <div class="detail-grid__value">
-                                            {{
-                                                selectedAlert.resolution
-                                                    .distance_traveled
-                                            }}m
-                                        </div>
-                                    </div>
+                                        ✓ Mark as Resolved
+                                    </button>
+                                    <button
+                                        class="btn-secondary btn-secondary--danger"
+                                        @click="
+                                            confirmDeleteId = selectedAlert?.id
+                                        "
+                                    >
+                                        Delete
+                                    </button>
                                 </div>
                             </div>
 
-                            <div
-                                v-if="selectedAlert?.resolution?.notes"
-                                class="field"
-                            >
-                                <label class="field__label">Notes</label>
-                                <p class="review-description">
-                                    {{ selectedAlert.resolution.notes }}
-                                </p>
-                            </div>
-
-                            <div v-if="isAdmin" class="modal-actions">
-                                <button
-                                    v-if="!selectedAlert?.is_resolved"
-                                    class="btn-primary btn-primary--success"
-                                    @click="confirmResolveAlert = selectedAlert"
-                                >
-                                    ✓ Mark as Resolved
-                                </button>
-                                <button
-                                    class="btn-secondary btn-secondary--danger"
-                                    @click="confirmDeleteId = selectedAlert?.id"
-                                >
-                                    Delete
-                                </button>
+                            <div class="modal-sheet__map-panel">
+                                <div class="modal-sheet__map-wrap">
+                                    <div
+                                        ref="mapEl"
+                                        class="modal-sheet__map"
+                                    ></div>
+                                    <button
+                                        v-if="mapPoints.length"
+                                        type="button"
+                                        class="ir-recenter-btn"
+                                        @click="recenterMap"
+                                    >
+                                        <Crosshair :size="14" />
+                                        Recenter
+                                    </button>
+                                    <div v-if="mapLoading" class="map-loading">
+                                        Loading map…
+                                    </div>
+                                </div>
+                                <div class="map-legend">
+                                    <div
+                                        v-for="p in mapPoints"
+                                        :key="p.key"
+                                        class="map-legend__row"
+                                    >
+                                        <span
+                                            class="map-legend__dot"
+                                            :style="{ background: p.color }"
+                                        ></span>
+                                        <div>
+                                            <div class="map-legend__label">
+                                                {{ p.label }}
+                                                <span class="map-legend__role"
+                                                    >({{ roleLabel(p.role) }} —
+                                                    {{ p.person }})</span
+                                                >
+                                            </div>
+                                            <div class="map-legend__addr">
+                                                {{
+                                                    geocoded[p.key] ??
+                                                    'Locating…'
+                                                }}
+                                            </div>
+                                            <div class="map-legend__coords">
+                                                {{ p.lat.toFixed(5) }},
+                                                {{ p.lng.toFixed(5) }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div
+                                        v-if="mapPoints.length === 0"
+                                        class="map-legend__empty"
+                                    >
+                                        No location data available for this
+                                        alert
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1273,7 +1614,25 @@ const timelineSteps = computed(() => {
 
 .row-actions {
     display: flex;
-    gap: 4px;
+    gap: 6px;
+    align-items: center;
+}
+.row-action-btn {
+    padding: 6px 12px;
+    border-radius: 8px;
+    border: 1.5px solid #e4e8ef;
+    background: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    cursor: pointer;
+    font-family: inherit;
+    white-space: nowrap;
+}
+.row-action-btn:hover {
+    border-color: #ea580c;
+    color: #ea580c;
+    background: #fff7ed;
 }
 .icon-btn {
     padding: 7px;
@@ -1361,6 +1720,14 @@ const timelineSteps = computed(() => {
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
     border: 1px solid #e4e8ef;
 }
+.modal-sheet--wide {
+    max-width: 1180px;
+    height: 86vh;
+    max-height: 86vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
 .modal-sheet--sm {
     max-width: 420px;
     padding: 24px;
@@ -1376,6 +1743,7 @@ const timelineSteps = computed(() => {
     background: #fff !important;
     z-index: 2;
     justify-content: space-between;
+    flex-shrink: 0;
 }
 .modal-sheet__title {
     font-size: 15px;
@@ -1402,11 +1770,122 @@ const timelineSteps = computed(() => {
 .close-btn:hover {
     background: #e2e8f0;
 }
+.modal-sheet__layout {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+}
 .modal-sheet__body {
+    flex: 1 1 44%;
+    min-width: 0;
+    overflow-y: auto;
     padding: 24px;
     display: flex;
     flex-direction: column;
     gap: 18px;
+}
+.modal-sheet__map-panel {
+    flex: 1 1 56%;
+    min-width: 360px;
+    border-left: 1px solid #e4e8ef;
+    display: flex;
+    flex-direction: column;
+    background: #f8fafc;
+    min-height: 0;
+}
+.modal-sheet__map-wrap {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 240px;
+}
+.modal-sheet__map {
+    height: 100%;
+    width: 100%;
+}
+.map-loading {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    background: #fff;
+    border: 1px solid #e4e8ef;
+    border-radius: 8px;
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #64748b;
+    box-shadow: var(--shadow-sm);
+}
+.ir-recenter-btn {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    z-index: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    background: #fff;
+    border: none;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    color: #1a2332;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+.ir-recenter-btn:hover {
+    background: #f1f5f9;
+}
+.map-legend {
+    flex: 0 0 auto;
+    max-height: 34%;
+    padding: 14px 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border-top: 1px solid #e4e8ef;
+}
+.map-legend__row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+}
+.map-legend__dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-top: 4px;
+    flex-shrink: 0;
+    border: 1.5px solid #fff;
+    box-shadow: 0 0 0 1px #e4e8ef;
+}
+.map-legend__label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #1a2332;
+}
+.map-legend__role {
+    font-weight: 600;
+    color: #94a3b8;
+    font-size: 11px;
+    margin-left: 3px;
+}
+.map-legend__addr {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 1px;
+}
+.map-legend__coords {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 1px;
+    font-variant-numeric: tabular-nums;
+}
+.map-legend__empty {
+    font-size: 12px;
+    color: #94a3b8;
 }
 
 .toggle-row {
@@ -1449,18 +1928,10 @@ const timelineSteps = computed(() => {
     font-style: italic;
 }
 
-.map-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    margin-top: 6px;
+.unit-plain {
     font-size: 12px;
     font-weight: 700;
-    color: #2563eb;
-    text-decoration: none;
-}
-.map-link:hover {
-    text-decoration: underline;
+    color: #64748b;
 }
 
 .field {
@@ -1556,6 +2027,71 @@ const timelineSteps = computed(() => {
 .ir-timeline__time--pending {
     color: #94a3b8;
     font-style: italic;
+}
+
+/* ── Named location rows ── */
+.ir-location-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.ir-location-row {
+    display: flex;
+    gap: 10px;
+}
+.ir-location-row__dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    margin-top: 4px;
+    flex-shrink: 0;
+    border: 1.5px solid #fff;
+    box-shadow: 0 0 0 1px #e4e8ef;
+}
+.ir-location-row__body {
+    flex: 1;
+    min-width: 0;
+}
+.ir-location-row__top {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+.ir-location-row__label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1a2332;
+}
+.ir-location-row__role {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 8px;
+    border-radius: 10px;
+}
+.ir-location-row__role--household {
+    background: #fef2f2;
+    color: #f97316;
+}
+.ir-location-row__role--guard {
+    background: #eff6ff;
+    color: #2563eb;
+}
+.ir-location-row__addr {
+    font-size: 12.5px;
+    color: #475569;
+    margin-top: 2px;
+}
+.ir-location-row__coords {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 1px;
+    font-variant-numeric: tabular-nums;
+}
+.ir-location-empty {
+    font-size: 12px;
+    color: #94a3b8;
+    margin: 0;
 }
 
 .modal-actions {
@@ -1665,6 +2201,26 @@ const timelineSteps = computed(() => {
     min-width: 1150px;
 }
 
+@media (max-width: 900px) {
+    .modal-sheet--wide {
+        max-width: 640px;
+        height: auto;
+        max-height: 92vh;
+    }
+    .modal-sheet__layout {
+        flex-direction: column;
+        overflow-y: auto;
+    }
+    .modal-sheet__map-panel {
+        min-width: 0;
+        border-left: none;
+        border-top: 1px solid #e4e8ef;
+    }
+    .modal-sheet__map-wrap {
+        min-height: 260px;
+    }
+}
+
 @media (max-width: 640px) {
     .page-root {
         padding: 16px;
@@ -1689,26 +2245,43 @@ const timelineSteps = computed(() => {
     gap: 6px;
     flex-wrap: wrap;
 }
+</style>
 
-.ir-unit-badge {
-    display: inline-flex;
-    align-items: center;
-    background: #fef2f2;
-    border: 1.5px solid #fca5a5;
-    border-radius: 8px;
-    font-weight: 800;
-    color: #dc2626;
-    letter-spacing: 0.3px;
-    white-space: nowrap;
+<style>
+/* Global (unscoped) — Leaflet renders these outside Vue's template, so
+   scoped attributes never reach them. */
+.map-pin__dot {
+    display: block;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
 }
-.ir-unit-badge--table {
-    padding: 2px 9px;
+.leaflet-popup-content {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-size: 12px;
+}
+.ir-leaflet-label {
+    font-family: 'DM Sans', system-ui, sans-serif;
     font-size: 11px;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: none;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+    color: #fff;
 }
-.ir-unit-badge--modal {
-    align-self: flex-start;
-    margin: 2px 0;
-    padding: 5px 14px;
-    font-size: 16px;
+.ir-leaflet-label--household {
+    background: #f97316;
+}
+.ir-leaflet-label--household::before {
+    border-top-color: #f97316 !important;
+}
+.ir-leaflet-label--guard {
+    background: #059669;
+}
+.ir-leaflet-label--guard::before {
+    border-top-color: #059669 !important;
 }
 </style>
