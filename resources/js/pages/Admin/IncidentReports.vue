@@ -439,7 +439,7 @@ function roleLabel(role: 'household' | 'guard') {
 const mapPoints = computed<MapPoint[]>(() => {
     const r = selectedReport.value;
     if (!r) return [];
-    const a = r.emergencyAlert;
+    const a = r.emergency_alert;
     const res = r.resolution;
     const householdName = r.household?.name || 'Household';
     const patrollerName = r.reporter?.name || 'Patroller';
@@ -1582,9 +1582,7 @@ onMounted(() => loadReports());
                                                         class="ir-location-row__role"
                                                         :class="`ir-location-row__role--${p.role}`"
                                                     >
-                                                        {{
-                                                            roleLabel(p.role)
-                                                        }}
+                                                        {{ roleLabel(p.role) }}
                                                         - {{ p.person }}
                                                     </span>
                                                 </div>
@@ -3315,7 +3313,7 @@ onMounted(() => loadReports());
 }
 .ir-location-row__role--guard {
     background: #eff6ff;
-    color: #dc2626;
+    color: #059669;
 }
 .ir-location-row__addr {
     font-size: 12.5px;
