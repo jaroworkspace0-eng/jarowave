@@ -2315,6 +2315,151 @@ onMounted(() => loadReports());
     margin: 4px 0 0;
 }
 
+.page-header__left,
+.page-header__right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.stat-row {
+    display: grid;
+    gap: 12px;
+}
+.stat-row--six {
+    grid-template-columns: repeat(6, 1fr);
+}
+.stat-card {
+    background: #fff;
+    border: 1px solid #e4e8ef;
+    border-radius: 14px;
+    box-shadow: var(--shadow-sm);
+    padding: 14px 16px;
+}
+.stat-card__label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+}
+.stat-card__value {
+    margin-top: 4px;
+    font-size: 24px;
+    font-weight: 800;
+    color: #1a2332;
+}
+.stat-card__value--orange {
+    color: #ea580c;
+}
+.stat-card__value--red {
+    color: #dc2626;
+}
+.stat-card__value--green {
+    color: #059669;
+}
+
+@media (max-width: 900px) {
+    .stat-row--six {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+@media (max-width: 560px) {
+    .stat-row--six {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+.unit-plain {
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
+}
+
+.flag-panel {
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 12px;
+    font-weight: 700;
+}
+.flag-panel--warn {
+    background: #fffbeb;
+    border: 1.5px solid #fde68a;
+    color: #b45309;
+}
+
+.btn-danger {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: #dc2626;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+}
+.btn-danger:hover:not(:disabled) {
+    background: #b91c1c;
+}
+.btn-danger:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-primary--compact {
+    padding: 8px 14px;
+    font-size: 12px;
+}
+
+.modal-sheet--sm {
+    max-width: 480px;
+}
+
+.email-add-row {
+    display: flex;
+    gap: 8px;
+}
+.email-add-row .field__input {
+    flex: 1;
+}
+
+.email-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+}
+.email-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px 4px 12px;
+    background: #f1f5f9;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #475569;
+}
+.email-chip__remove {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: none;
+    background: #e2e8f0;
+    color: #64748b;
+    font-size: 13px;
+    line-height: 1;
+    cursor: pointer;
+}
+.email-chip__remove:hover {
+    background: #cbd5e1;
+    color: #1a2332;
+}
+
 .btn-primary {
     display: inline-flex;
     align-items: center;
@@ -3286,4 +3431,3 @@ onMounted(() => loadReports());
     border-top-color: #059669 !important;
 }
 </style>
-
