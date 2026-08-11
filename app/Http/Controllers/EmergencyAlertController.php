@@ -441,8 +441,6 @@ class EmergencyAlertController extends Controller
         } elseif ($user->role === 'client') {
             $clientId = \App\Models\Client::where('user_id', $user->id)->value('id');
         } elseif ($user->role === 'estate_billing') {
-            // Scoped via channel_billing_contacts (user_id keyed), not employee ch() —
-            // a client can own multiple channels/estates, each with its own billing contact
             $channelIds = DB::table('channel_billing_contacts')
                 ->where('user_id', $user->id)
                 ->where('is_active', true)
@@ -460,6 +458,17 @@ class EmergencyAlertController extends Controller
             ])
             ->when($clientId !== null, fn ($q) => $q->where('client_id', $clientId))
             ->when($channelIds !== null, fn ($q) => $q->whereIn('channel_id', $channelIds))
+            ->when($request->status === 'active', fn ($q) => $q->where('is_resolved', false))
+            ->when($request->status === 'resolved', fn ($q) => $q->where('is_resolved', true))
+            ->when($request->search, function ($q) use ($request) {
+                $search = $request->search;
+                $q->where(function ($sq) use ($search) {
+                    $sq->where('name', 'like', "%{$search}%")
+                    ->orWhere('unit_number', 'like', "%{$search}%")
+                    ->orWhereHas('channel', fn ($cq) => $cq->where('name', 'like', "%{$search}%"))
+                    ->orWhereHas('client.user', fn ($cq) => $cq->where('name', 'like', "%{$search}%"));
+                });
+            })
             ->latest()
             ->paginate(20);
 

@@ -59,16 +59,28 @@ function showFlash(msg: string, type: 'success' | 'error' = 'success') {
 // read live off the related User), so this stays accurate even after the
 // household is removed from an estate (soft-deleted) or re-registers
 // elsewhere. Always read these off the alert itself, never off `alert.user`.
+// function shouldShowUnit(a: any) {
+//     return a?.alert_location_source === 'registered_address' && a?.is_estate;
+// }
+
 function shouldShowUnit(a: any) {
-    return a?.alert_location_source === 'registered_address' && a?.is_estate;
+    return a?.is_estate;
 }
 
-async function load(url?: string) {
+async function load(url: string | null = null) {
     loading.value = true;
     try {
         const endpoint =
             url || `${import.meta.env.VITE_APP_URL}/api/emergency-alerts`;
-        const { data } = await axios.get(endpoint, { headers: authHeaders() });
+        const { data } = await axios.get(endpoint, {
+            headers: authHeaders(),
+            params: url
+                ? undefined
+                : {
+                      search: search.value || undefined,
+                      status: filter.value !== 'all' ? filter.value : undefined,
+                  },
+        });
         alerts.value = data.data;
         pagination.value = {
             current_page: data.current_page,
@@ -84,6 +96,17 @@ async function load(url?: string) {
     } finally {
         loading.value = false;
     }
+}
+
+let searchTimeout: any = null;
+function handleSearch() {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => load(), 400);
+}
+
+function setFilter(v: any) {
+    filter.value = v;
+    load();
 }
 
 onMounted(() => load());
@@ -102,6 +125,7 @@ const filteredAlerts = computed(() => {
             const s = search.value.toLowerCase();
             return (
                 a.name?.toLowerCase().includes(s) ||
+                a.unit_number?.toString().toLowerCase().includes(s) ||
                 a.channel?.name?.toLowerCase().includes(s) ||
                 a.client?.user?.name?.toLowerCase().includes(s)
             );
@@ -309,14 +333,18 @@ const timelineSteps = computed(() => {
                         </svg>
                         <input
                             v-model="search"
+                            @input="handleSearch"
                             type="text"
                             class="search-input"
-                            placeholder="Search by name, channel, client…"
+                            placeholder="Search by name, unit…"
                         />
                         <span
                             v-if="search"
                             class="search-clear"
-                            @click="search = ''"
+                            @click="
+                                search = '';
+                                load();
+                            "
                             >×</span
                         >
                     </div>
@@ -331,7 +359,7 @@ const timelineSteps = computed(() => {
                                 :key="f.value"
                                 class="chip"
                                 :class="{ 'chip--active': filter === f.value }"
-                                @click="filter = f.value"
+                                @click="setFilter(f.value)"
                             >
                                 {{ f.label }}
                             </button>
@@ -344,10 +372,7 @@ const timelineSteps = computed(() => {
                 <div v-if="loading" class="empty-state">
                     <span class="text-sm text-slate-400">Loading alerts…</span>
                 </div>
-                <div
-                    v-else-if="filteredAlerts.length === 0"
-                    class="empty-state"
-                >
+                <div v-else-if="alerts.length === 0" class="empty-state">
                     <p class="empty-state__title">No alerts found</p>
                     <p class="empty-state__sub">
                         No emergency alerts match your current filter
@@ -369,7 +394,7 @@ const timelineSteps = computed(() => {
                         </thead>
                         <tbody>
                             <tr
-                                v-for="alert in filteredAlerts"
+                                v-for="alert in alerts"
                                 :key="alert.id"
                                 class="clickable-row"
                                 @click="openDetail(alert)"
@@ -419,6 +444,9 @@ const timelineSteps = computed(() => {
                                     >
                                         {{ fmtUnit(alert.unit_number) }}
                                     </span>
+                                    <span v-else class="td-time text-slate-400"
+                                        >—</span
+                                    >
                                 </td>
 
                                 <td class="td-time">
@@ -488,7 +516,7 @@ const timelineSteps = computed(() => {
 
                 <div
                     class="pagination-bar"
-                    v-if="!loading && filteredAlerts.length > 0"
+                    v-if="!loading && alerts.length > 0"
                 >
                     <span class="pagination-bar__info">
                         Showing {{ pagination.from }} to {{ pagination.to }} of
