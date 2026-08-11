@@ -679,13 +679,6 @@ const timelineSteps = computed(() => {
             icon: Siren,
             done: !!a?.created_at,
         },
-        // {
-        //     key: 'ack',
-        //     label: 'First Acknowledged',
-        //     time: a?.first_ack_at,
-        //     icon: BellRing,
-        //     done: !!a?.first_ack_at,
-        // },
         {
             key: 'accepted',
             label: 'Patroller Accepted',
@@ -1032,6 +1025,8 @@ onMounted(() => loadReports());
                         <thead>
                             <tr>
                                 <th>Household</th>
+                                <th>Channel</th>
+                                <th>Client</th>
                                 <th>Unit</th>
                                 <th>Source</th>
                                 <th>Responder</th>
@@ -1074,6 +1069,20 @@ onMounted(() => loadReports());
                                         </div>
                                     </div>
                                 </td>
+                                <!-- Assumes emergency_alert.channel is eager-loaded on the backend -->
+                                <td class="td-time">
+                                    {{
+                                        report.emergency_alert?.channel?.name ??
+                                        '—'
+                                    }}
+                                </td>
+                                <!-- Assumes channel.client is eager-loaded on the backend -->
+                                <td class="td-time">
+                                    {{
+                                        report.emergency_alert?.channel?.client
+                                            ?.name ?? '—'
+                                    }}
+                                </td>
                                 <td>
                                     <div class="reporter-cell">
                                         <div>
@@ -1081,7 +1090,7 @@ onMounted(() => loadReports());
                                                 {{
                                                     fmtUnit(
                                                         report.emergency_alert
-                                                            .unit_number,
+                                                            ?.unit_number,
                                                     )
                                                 }}
                                             </div>
@@ -1326,7 +1335,7 @@ onMounted(() => loadReports());
                                         class="type-badge bg-slate-100 text-slate-600"
                                     >
                                         {{
-                                            selectedreport.emergency_alert
+                                            selectedReport.emergencyAlert
                                                 .alert_type
                                         }}
                                     </span>
@@ -1338,6 +1347,29 @@ onMounted(() => loadReports());
                                         class="type-badge bg-slate-100 text-slate-600"
                                     >
                                         Muted
+                                    </span>
+                                    <span
+                                        v-if="
+                                            selectedReport?.emergencyAlert
+                                                ?.cancel_pin_used &&
+                                            selectedReport.emergencyAlert
+                                                .cancel_pin_used !== 'none'
+                                        "
+                                        class="type-badge"
+                                        :class="
+                                            selectedReport.emergencyAlert
+                                                .cancel_pin_used === 'duress'
+                                                ? 'bg-red-50 text-red-600'
+                                                : 'bg-slate-100 text-slate-600'
+                                        "
+                                    >
+                                        Cancel PIN:
+                                        {{
+                                            selectedReport.emergencyAlert
+                                                .cancel_pin_used === 'duress'
+                                                ? 'Duress'
+                                                : 'Safe Cancel'
+                                        }}
                                     </span>
                                 </div>
 
@@ -1354,16 +1386,20 @@ onMounted(() => loadReports());
                                         </div>
                                         <div
                                             class="toggle-row"
-                                            style="margin: 2px 0"
+                                            style="
+                                                margin: 2px 0;
+                                                align-items: center;
+                                            "
                                         >
-                                            <div
-                                                class="ir-unit-badge ir-unit-badge--modal"
+                                            <!-- Grey plain-text unit number — shown whenever present,
+                                                 estate or not. No more loud red badge. -->
+                                            <span
                                                 v-if="
-                                                    isRegisteredAddressSource &&
                                                     selectedReport
                                                         ?.emergencyAlert
                                                         ?.unit_number
                                                 "
+                                                class="unit-plain"
                                             >
                                                 {{
                                                     fmtUnit(
@@ -1372,7 +1408,7 @@ onMounted(() => loadReports());
                                                             .unit_number,
                                                     )
                                                 }}
-                                            </div>
+                                            </span>
                                             <span
                                                 v-if="
                                                     selectedReport
@@ -1692,7 +1728,7 @@ onMounted(() => loadReports());
                                     <audio
                                         controls
                                         :src="
-                                            selectedreport.emergency_alert
+                                            selectedReport.emergencyAlert
                                                 .audio_path
                                         "
                                         class="audio-player"
@@ -2639,27 +2675,13 @@ onMounted(() => loadReports());
     font-size: 12px;
 }
 
-/* ── Unit number — deliberately loud, registered-address households only ── */
-.ir-unit-badge {
-    display: inline-flex;
-    align-items: center;
-    background: #fef2f2;
-    border: 1.5px solid #fca5a5;
-    border-radius: 8px;
-    font-weight: 800;
-    color: #dc2626;
-    letter-spacing: 0.3px;
+/* ── Unit number — grey plain text, no more loud red badge ── */
+.unit-plain {
+    font-size: 13px;
+    font-weight: 700;
+    color: #64748b;
+    letter-spacing: 0.2px;
     white-space: nowrap;
-}
-.ir-unit-badge--table {
-    padding: 2px 9px;
-    font-size: 11px;
-}
-.ir-unit-badge--modal {
-    align-self: flex-start;
-    margin: 4px 0 2px;
-    padding: 5px 14px;
-    font-size: 16px;
 }
 
 .row-action-btn {
@@ -3362,7 +3384,7 @@ onMounted(() => loadReports());
     overflow-x: auto;
 }
 .data-table {
-    min-width: 1150px;
+    min-width: 1350px;
 }
 
 /* RESPONSIVE */
@@ -3417,7 +3439,7 @@ onMounted(() => loadReports());
         overflow-x: auto;
     }
     .data-table {
-        min-width: 900px; /* adjust to fit all columns comfortably */
+        min-width: 1100px; /* adjust to fit all columns comfortably */
     }
     .table-card {
         overflow-x: auto;
