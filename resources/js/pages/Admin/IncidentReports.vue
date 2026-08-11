@@ -3309,7 +3309,7 @@ onMounted(() => loadReports());
 }
 .ir-location-row__role--household {
     background: #fef2f2;
-    color: #dc2626;
+    color: #f97316;
 }
 .ir-location-row__role--guard {
     background: #eff6ff;

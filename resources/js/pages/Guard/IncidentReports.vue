@@ -265,7 +265,7 @@ const mapPoints = computed(() => {
             label: 'Guard Start',
             role: 'guard',
             person: guardName,
-            color: '#dc2626',
+            color: '#2563eb',
             lat: Number(res.start_latitude),
             lng: Number(res.start_longitude),
         });
@@ -2712,11 +2712,11 @@ onMounted(() => loadReports());
 }
 .ir-location-row__role--household {
     background: #fef2f2;
-    color: #F97316;
+    color: #f97316;
 }
 .ir-location-row__role--guard {
     background: #eff6ff;
-    color: #F97316;
+    color: #2563eb;
 }
 .ir-location-row__addr {
     font-size: 12.5px;
@@ -2751,7 +2751,7 @@ onMounted(() => loadReports());
     background: #059669;
 }
 .toast--error {
-    background: #F97316;
+    background: #f97316;
 }
 
 .modal-enter-active,
@@ -2817,7 +2817,7 @@ onMounted(() => loadReports());
 .duress-banner {
     background: #fef2f2;
     border: 1.5px solid #fecaca;
-    color: #F97316;
+    color: #f97316;
     font-size: 13px;
     font-weight: 700;
     padding: 10px 14px;
@@ -2856,10 +2856,10 @@ onMounted(() => loadReports());
     color: #fff;
 }
 .ir-leaflet-label--household {
-    background: #F97316;
+    background: #f97316;
 }
 .ir-leaflet-label--household::before {
-    border-top-color: #F97316 !important;
+    border-top-color: #f97316 !important;
 }
 .ir-leaflet-label--guard {
     background: #059669;
