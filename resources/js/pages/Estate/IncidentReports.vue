@@ -718,13 +718,6 @@ onMounted(() => loadReports());
                             >
                                 <td>
                                     <div class="reporter-cell">
-                                        <div class="reporter-cell__avatar">
-                                            {{
-                                                (report.alert?.name || 'H')
-                                                    .charAt(0)
-                                                    .toUpperCase()
-                                            }}
-                                        </div>
                                         <div>
                                             <div
                                                 class="reporter-cell__name-row"
@@ -993,8 +986,8 @@ onMounted(() => loadReports());
                                             class="toggle-row"
                                             style="margin: 2px 0"
                                         >
-                                            <div
-                                                class="ir-unit-badge ir-unit-badge--modal"
+                                            <span
+                                                class="unit-plain"
                                                 v-if="
                                                     isRegisteredAddressSource &&
                                                     selectedReport?.alert
@@ -1007,7 +1000,7 @@ onMounted(() => loadReports());
                                                             .unit_number,
                                                     )
                                                 }}
-                                            </div>
+                                            </span>
                                             <span
                                                 v-if="
                                                     selectedReport?.alert
@@ -2532,5 +2525,11 @@ onMounted(() => loadReports());
 }
 .ir-leaflet-label--guard::before {
     border-top-color: #059669 !important;
+}
+
+.unit-plain {
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
 }
 </style>

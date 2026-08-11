@@ -433,7 +433,7 @@ type MapPoint = {
 };
 
 function roleLabel(role: 'household' | 'guard') {
-    return role === 'guard' ? 'Patroller' : 'Household';
+    return role === 'guard' ? 'Guard' : 'Household';
 }
 
 const mapPoints = computed<MapPoint[]>(() => {
@@ -442,7 +442,7 @@ const mapPoints = computed<MapPoint[]>(() => {
     const a = r.emergency_alert;
     const res = r.resolution;
     const householdName = r.household?.name || 'Household';
-    const patrollerName = r.reporter?.name || 'Patroller';
+    const patrollerName = r.reporter?.name || 'Guard';
     const pts: MapPoint[] = [];
 
     if (a?.trigger_lat && a?.trigger_lng) {
@@ -682,14 +682,14 @@ const timelineSteps = computed(() => {
         },
         {
             key: 'accepted',
-            label: 'Patroller Accepted',
+            label: 'Guard Accepted',
             time: res?.accepted_at,
             icon: UserCheck,
             done: !!res?.accepted_at,
         },
         {
             key: 'arrived',
-            label: 'Patroller Arrived',
+            label: 'Guard Arrived',
             time: res?.arrival_time,
             icon: MapPin,
             done: !!res?.arrival_time,
@@ -753,8 +753,8 @@ onMounted(() => loadReports());
                     <div class="page-header__eyebrow">Safety</div>
                     <h1 class="page-header__title">Incident Reports</h1>
                     <p class="page-header__sub">
-                        SOS alert reports submitted by patrollers - review and
-                        take action
+                        SOS alert reports submitted by Guard - review and take
+                        action
                     </p>
                 </div>
                 <div class="page-header__right">
@@ -1450,9 +1450,7 @@ onMounted(() => loadReports());
                                         </div>
                                     </div>
                                     <div class="review-info-panel">
-                                        <div class="field__label">
-                                            Patroller
-                                        </div>
+                                        <div class="field__label">Guard</div>
                                         <div class="review-info-panel__name">
                                             {{ selectedReport?.reporter?.name }}
                                         </div>
@@ -1646,7 +1644,7 @@ onMounted(() => loadReports());
                                     <div class="detail-grid">
                                         <div>
                                             <div class="field__label">
-                                                Patroller-Reported Arrival
+                                                Guard-Reported Arrival
                                             </div>
                                             <div class="detail-grid__value">
                                                 {{
@@ -1658,7 +1656,7 @@ onMounted(() => loadReports());
                                         </div>
                                         <div>
                                             <div class="field__label">
-                                                Patroller-Reported Departure
+                                                Guard-Reported Departure
                                             </div>
                                             <div class="detail-grid__value">
                                                 {{
@@ -1709,7 +1707,7 @@ onMounted(() => loadReports());
 
                                 <div class="field">
                                     <label class="field__label"
-                                        >Patroller's Account</label
+                                        >Guard's Account</label
                                     >
                                     <p class="review-description">
                                         {{ selectedReport?.narrative }}

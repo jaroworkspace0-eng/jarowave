@@ -1085,31 +1085,68 @@ onMounted(() => loadReports());
                                                 selectedReport?.household?.name
                                             }}
                                         </div>
+
                                         <div
-                                            class="ir-unit-badge ir-unit-badge--modal"
+                                            class="toggle-row"
+                                            style="margin: 2px 0"
+                                        >
+                                            <span
+                                                class="unit-plain"
+                                                v-if="
+                                                    isRegisteredAddressSource &&
+                                                    selectedReport?.alert
+                                                        ?.unit_number
+                                                "
+                                            >
+                                                {{
+                                                    fmtUnit(
+                                                        selectedReport.alert
+                                                            .unit_number,
+                                                    )
+                                                }}
+                                            </span>
+                                            <span
+                                                v-if="
+                                                    selectedReport?.alert
+                                                        ?.alert_location_source
+                                                "
+                                                class="type-badge bg-slate-100 text-slate-600"
+                                            >
+                                                {{
+                                                    locationSourceLabel[
+                                                        selectedReport.alert
+                                                            .alert_location_source
+                                                    ]
+                                                }}
+                                            </span>
+                                        </div>
+
+                                        <div
                                             v-if="
                                                 isRegisteredAddressSource &&
-                                                selectedReport?.household
-                                                    ?.unit_number
+                                                !isEstateAlert &&
+                                                householdAddress
                                             "
+                                            class="review-info-panel__sub"
                                         >
-                                            {{
-                                                fmtUnit(
-                                                    selectedReport.household
-                                                        .unit_number,
-                                                )
-                                            }}
+                                            {{ householdAddress }}
                                         </div>
                                         <div class="review-info-panel__sub">
-                                            {{
-                                                selectedReport?.household?.phone
-                                            }}
+                                            {{ selectedReport?.alert?.email }}
+                                        </div>
+                                        <div class="review-info-panel__sub">
+                                            {{ selectedReport?.alert?.phone }}
                                         </div>
                                     </div>
                                     <div class="review-info-panel">
                                         <div class="field__label">Guard</div>
                                         <div class="review-info-panel__name">
                                             {{ selectedReport?.reporter?.name }}
+                                        </div>
+                                        <div class="review-info-panel__sub">
+                                            {{
+                                                selectedReport?.reporter?.email
+                                            }}
                                         </div>
                                         <div class="review-info-panel__sub">
                                             {{
@@ -2866,5 +2903,11 @@ onMounted(() => loadReports());
 }
 .ir-leaflet-label--guard::before {
     border-top-color: #059669 !important;
+}
+
+.unit-plain {
+    font-size: 12px;
+    font-weight: 700;
+    color: #64748b;
 }
 </style>
