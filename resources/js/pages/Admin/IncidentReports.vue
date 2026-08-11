@@ -474,10 +474,10 @@ const mapPoints = computed<MapPoint[]>(() => {
     if (res?.start_latitude && res?.start_longitude) {
         pts.push({
             key: 'start',
-            label: 'Patroller Start',
+            label: 'Guard Start',
             role: 'guard',
             person: patrollerName,
-            color: '#2563eb',
+            color: '#dc2626',
             lat: Number(res.start_latitude),
             lng: Number(res.start_longitude),
         });
@@ -485,7 +485,7 @@ const mapPoints = computed<MapPoint[]>(() => {
     if (res?.arrival_latitude && res?.arrival_longitude) {
         pts.push({
             key: 'arrival',
-            label: 'Patroller Arrival',
+            label: 'Guard Arrival',
             role: 'guard',
             person: patrollerName,
             color: '#059669',
@@ -590,7 +590,7 @@ function drawPoints(map: any) {
         });
         L.marker([p.lat, p.lng], { icon })
             .bindTooltip(
-                `<strong>${p.label}</strong><br>${roleLabel(p.role)} — ${p.person}`,
+                `<strong>${p.label}</strong><br>${roleLabel(p.role)} - ${p.person}`,
                 {
                     permanent: true,
                     direction: 'top',
@@ -608,7 +608,7 @@ function drawPoints(map: any) {
 
     if (routeCoords.value?.length) {
         L.polyline(routeCoords.value, {
-            color: '#2563eb',
+            color: '#dc2626',
             weight: 4,
             opacity: 0.75,
         }).addTo(layer);
@@ -675,7 +675,7 @@ const timelineSteps = computed(() => {
     return [
         {
             key: 'triggered',
-            label: 'Alert Triggeredjj',
+            label: 'Alert Triggered',
             time: a?.created_at,
             icon: Siren,
             done: !!a?.created_at,
@@ -753,7 +753,7 @@ onMounted(() => loadReports());
                     <div class="page-header__eyebrow">Safety</div>
                     <h1 class="page-header__title">Incident Reports</h1>
                     <p class="page-header__sub">
-                        SOS alert reports submitted by patrollers — review and
+                        SOS alert reports submitted by patrollers - review and
                         take action
                     </p>
                 </div>
@@ -1582,8 +1582,10 @@ onMounted(() => loadReports());
                                                         class="ir-location-row__role"
                                                         :class="`ir-location-row__role--${p.role}`"
                                                     >
-                                                        {{ roleLabel(p.role) }}
-                                                        — {{ p.person }}
+                                                        {{
+                                                            roleLabel(p.role)
+                                                        }}
+                                                        - {{ p.person }}
                                                     </span>
                                                 </div>
                                                 <div
@@ -3313,7 +3315,7 @@ onMounted(() => loadReports());
 }
 .ir-location-row__role--guard {
     background: #eff6ff;
-    color: #2563eb;
+    color: #dc2626;
 }
 .ir-location-row__addr {
     font-size: 12.5px;
@@ -3497,9 +3499,9 @@ onMounted(() => loadReports());
     border-top-color: #dc2626 !important;
 }
 .ir-leaflet-label--guard {
-    background: #2563eb;
+    background: #dc2626;
 }
 .ir-leaflet-label--guard::before {
-    border-top-color: #2563eb !important;
+    border-top-color: #dc2626 !important;
 }
 </style>

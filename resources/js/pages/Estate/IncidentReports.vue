@@ -288,7 +288,7 @@ const mapPoints = computed<MapPoint[]>(() => {
             label: 'Guard Start',
             role: 'guard',
             person: guardName,
-            color: '#2563eb',
+            color: '#dc2626',
             lat: Number(res.start_latitude),
             lng: Number(res.start_longitude),
         });
@@ -419,7 +419,7 @@ function drawPoints(map: any) {
 
     if (routeCoords.value?.length) {
         L.polyline(routeCoords.value, {
-            color: '#2563eb',
+            color: '#dc2626',
             weight: 4,
             opacity: 0.75,
         }).addTo(layer);
@@ -2271,7 +2271,7 @@ onMounted(() => loadReports());
 }
 .ir-location-row__role--guard {
     background: #eff6ff;
-    color: #2563eb;
+    color: #dc2626;
 }
 .ir-location-row__addr {
     font-size: 12.5px;
@@ -2417,9 +2417,9 @@ onMounted(() => loadReports());
     border-top-color: #dc2626 !important;
 }
 .ir-leaflet-label--guard {
-    background: #2563eb;
+    background: #dc2626;
 }
 .ir-leaflet-label--guard::before {
-    border-top-color: #2563eb !important;
+    border-top-color: #dc2626 !important;
 }
 </style>
