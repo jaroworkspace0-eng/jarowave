@@ -2712,11 +2712,11 @@ onMounted(() => loadReports());
 }
 .ir-location-row__role--household {
     background: #fef2f2;
-    color: #dc2626;
+    color: #F97316;
 }
 .ir-location-row__role--guard {
     background: #eff6ff;
-    color: #dc2626;
+    color: #F97316;
 }
 .ir-location-row__addr {
     font-size: 12.5px;
@@ -2751,7 +2751,7 @@ onMounted(() => loadReports());
     background: #059669;
 }
 .toast--error {
-    background: #dc2626;
+    background: #F97316;
 }
 
 .modal-enter-active,
@@ -2817,7 +2817,7 @@ onMounted(() => loadReports());
 .duress-banner {
     background: #fef2f2;
     border: 1.5px solid #fecaca;
-    color: #dc2626;
+    color: #F97316;
     font-size: 13px;
     font-weight: 700;
     padding: 10px 14px;
@@ -2856,15 +2856,15 @@ onMounted(() => loadReports());
     color: #fff;
 }
 .ir-leaflet-label--household {
-    background: #dc2626;
+    background: #F97316;
 }
 .ir-leaflet-label--household::before {
-    border-top-color: #dc2626 !important;
+    border-top-color: #F97316 !important;
 }
 .ir-leaflet-label--guard {
-    background: #dc2626;
+    background: #059669;
 }
 .ir-leaflet-label--guard::before {
-    border-top-color: #dc2626 !important;
+    border-top-color: #059669 !important;
 }
 </style>
