@@ -5,12 +5,15 @@ import axios from 'axios';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import {
+    AlertTriangle,
+    CheckCircle,
     CheckCircle2,
     Crosshair,
     MapPin as MapPinIcon,
     Siren,
     UserCheck,
     X,
+    XCircle,
 } from 'lucide-vue-next';
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 
@@ -665,10 +668,11 @@ const timelineSteps = computed(() => {
                                         class="type-badge"
                                         :class="
                                             alert.cancel_pin_used ===
-                                                'safe_cancel' ||
-                                            alert.is_resolved
-                                                ? 'bg-emerald-50 text-emerald-700'
-                                                : 'badge--pulse bg-red-50 text-red-600'
+                                            'safe_cancel'
+                                                ? 'bg-slate-50 text-slate-600'
+                                                : alert.is_resolved
+                                                  ? 'bg-emerald-50 text-emerald-700'
+                                                  : 'badge--pulse bg-red-50 text-red-600'
                                         "
                                     >
                                         {{
@@ -849,17 +853,34 @@ const timelineSteps = computed(() => {
                             <div class="modal-sheet__body">
                                 <div class="toggle-row">
                                     <span
-                                        class="type-badge"
+                                        class="type-badge inline-flex items-center gap-1"
                                         :class="
-                                            selectedAlert?.is_resolved
-                                                ? 'bg-emerald-50 text-emerald-700'
-                                                : 'bg-red-50 text-red-600'
+                                            selectedAlert?.cancel_pin_used ===
+                                            'safe_cancel'
+                                                ? 'bg-slate-50 text-slate-600'
+                                                : selectedAlert?.is_resolved
+                                                  ? 'bg-emerald-50 text-emerald-700'
+                                                  : 'bg-red-50 text-red-600'
                                         "
                                     >
+                                        <component
+                                            :is="
+                                                selectedAlert?.cancel_pin_used ===
+                                                'safe_cancel'
+                                                    ? XCircle
+                                                    : selectedAlert?.is_resolved
+                                                      ? CheckCircle
+                                                      : AlertTriangle
+                                            "
+                                            class="h-3.5 w-3.5"
+                                        />
                                         {{
-                                            selectedAlert?.is_resolved
-                                                ? '✓ Resolved'
-                                                : '🚨 Active'
+                                            selectedAlert?.cancel_pin_used ===
+                                            'safe_cancel'
+                                                ? 'Cancelled'
+                                                : selectedAlert?.is_resolved
+                                                  ? 'Resolved'
+                                                  : 'Active'
                                         }}
                                     </span>
                                 </div>
