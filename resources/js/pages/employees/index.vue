@@ -77,11 +77,27 @@ const confirmToggleEmployee = ref<any>(null);
 const clientChannels = ref<any[]>([]);
 
 const personnel = ref<any>({ data: [], from: 0, to: 0, total: 0, links: [] });
-const households = ref<any>({ data: [], from: 0, to: 0, total: 0, links: [] });
 const personnelList = ref<any[]>([]);
-const householdList = ref<any[]>([]);
 const personnelTotal = ref(0);
-const householdTotal = ref(0);
+
+// Estate and Standalone households are now two independently paginated
+// buckets (role='household' only — 'resident' and 'estate_billing' are
+// excluded from both, even when is_estate=1). Each carries its own
+// from/to/total/links so pagination never bleeds between the two tabs.
+const householdEstate = ref<any>({
+    data: [],
+    from: 0,
+    to: 0,
+    total: 0,
+    links: [],
+});
+const householdStandalone = ref<any>({
+    data: [],
+    from: 0,
+    to: 0,
+    total: 0,
+    links: [],
+});
 
 const employees = ref<any>({ data: [], from: 0, to: 0, total: 0, links: [] });
 
@@ -336,10 +352,20 @@ async function toggleActivationFee(employee: any) {
 
 // ─── computed lists ───────────────────────────────────────────────────────────
 
+// Which paginated bucket is currently on screen — drives the table body
+// and the pagination bar for the Households tab.
+const activeHouseholdPage = computed(() =>
+    householdSubTab.value === 'estate'
+        ? householdEstate.value
+        : householdStandalone.value,
+);
+
 const clientOrgType = computed(() => {
-    const first = householdList.value.find(
-        (e) => e.user?.subscription?.client_type,
-    );
+    const combined = [
+        ...householdEstate.value.data,
+        ...householdStandalone.value.data,
+    ];
+    const first = combined.find((e) => e.user?.subscription?.client_type);
     return first?.user?.subscription?.client_type ?? 'watch';
 });
 
@@ -351,40 +377,6 @@ const clientShare = computed(() =>
 
 const platformShare = computed(() =>
     clientOrgType.value === 'estate' ? 50 : 28,
-);
-
-const activeHouseholds = computed(
-    () =>
-        householdList.value.filter(
-            (e) => e.user.subscription?.status === 'active',
-        ).length,
-);
-
-const trialingHouseholds = computed(
-    () =>
-        householdList.value.filter(
-            (e) => e.user.subscription?.status === 'trialing',
-        ).length,
-);
-
-// Estate/Standalone split only ever applies to role='household'.
-// role='resident' and role='estate_billing' are excluded from both
-// buckets, even when is_estate=1 (estate_billing is a billing-only
-// entry, not a household to manage here).
-const estateHouseholds = computed(() =>
-    householdList.value.filter(
-        (e) => e.user.role === 'household' && e.user.is_estate,
-    ),
-);
-const standaloneHouseholds = computed(() =>
-    householdList.value.filter(
-        (e) => e.user.role === 'household' && !e.user.is_estate,
-    ),
-);
-const filteredHouseholdList = computed(() =>
-    householdSubTab.value === 'estate'
-        ? estateHouseholds.value
-        : standaloneHouseholds.value,
 );
 
 const channelsWithoutInvite = computed(() => {
@@ -619,9 +611,9 @@ const reloadEmployees = async (
         personnel.value = data.personnel;
         personnelList.value = data.personnel.data;
         personnelTotal.value = data.personnel_total;
-        households.value = data.households;
-        householdList.value = data.households.data;
-        householdTotal.value = data.household_total;
+
+        householdEstate.value = data.household_estate;
+        householdStandalone.value = data.household_standalone;
     } catch (e) {
         console.error('Error fetching employees', e);
     }
@@ -967,7 +959,6 @@ const proceedNoCoverage = async () => {
     }
 };
 </script>
-
 <template>
     <Head title="Personnel" />
 
@@ -1028,18 +1019,9 @@ const proceedNoCoverage = async () => {
                     >
                         Households
                         <span class="chip__count">{{
-                            estateHouseholds.length +
-                            standaloneHouseholds.length
+                            householdEstate.total + householdStandalone.total
                         }}</span>
                     </button>
-                    <!-- <button
-                        class="chip"
-                        :class="{ 'chip--active': activeTab === 'households' }"
-                        @click="activeTab = 'households'"
-                    >
-                        Households
-                        <span class="chip__count">{{ householdTotal }}</span>
-                    </button> -->
                 </div>
                 <div class="search-wrap">
                     <svg
@@ -1262,21 +1244,24 @@ const proceedNoCoverage = async () => {
                 </div>
 
                 <!-- Field unit pagination -->
-                <div class="pagination-bar" v-if="personnelList.length > 0">
+                <div
+                    class="pagination-bar"
+                    v-if="activeHouseholdPage.data.length > 0"
+                >
                     <span class="pagination-bar__info">
-                        Showing {{ personnel.from || 0 }}–{{
-                            personnel.to || 0
+                        Showing {{ activeHouseholdPage.from || 0 }}–{{
+                            activeHouseholdPage.to || 0
                         }}
-                        of {{ personnel.total }}
+                        of {{ activeHouseholdPage.total }}
                     </span>
                     <div class="pagination-bar__pages">
                         <template
-                            v-for="(link, index) in personnel.links"
+                            v-for="(link, index) in activeHouseholdPage.links"
                             :key="index"
                         >
                             <button
                                 v-if="link.url"
-                                @click="reloadEmployees(link.url, undefined)"
+                                @click="reloadEmployees(undefined, link.url)"
                                 v-html="link.label"
                                 class="page-btn"
                                 :class="{ 'page-btn--active': link.active }"
@@ -1306,7 +1291,7 @@ const proceedNoCoverage = async () => {
                     >
                         Estates
                         <span class="chip__count">{{
-                            estateHouseholds.length
+                            householdEstate.total
                         }}</span>
                     </button>
                     <button
@@ -1318,7 +1303,7 @@ const proceedNoCoverage = async () => {
                     >
                         Standalone
                         <span class="chip__count">{{
-                            standaloneHouseholds.length
+                            householdStandalone.total
                         }}</span>
                     </button>
                 </div>
@@ -1326,7 +1311,7 @@ const proceedNoCoverage = async () => {
                 <!-- HOUSEHOLDS TABLE -->
                 <div class="table-card" style="margin-top: 20px">
                     <div
-                        v-if="filteredHouseholdList.length === 0"
+                        v-if="activeHouseholdPage.data.length === 0"
                         class="empty-state"
                     >
                         <div class="empty-state__icon">
@@ -1345,13 +1330,18 @@ const proceedNoCoverage = async () => {
                                 />
                             </svg>
                         </div>
-                        <p class="empty-state__title">
-                            {{
-                                householdSubTab === 'estate'
-                                    ? 'No estate households yet'
-                                    : 'No standalone households yet'
-                            }}
-                        </p>
+                        <div
+                            v-if="activeHouseholdPage.data.length === 0"
+                            class="empty-state"
+                        >
+                            <p class="empty-state__title">
+                                {{
+                                    householdSubTab === 'estate'
+                                        ? 'No estate households yet'
+                                        : 'No standalone households yet'
+                                }}
+                            </p>
+                        </div>
                         <p class="empty-state__sub">
                             Share your invite links above to start onboarding
                             households
@@ -1376,7 +1366,7 @@ const proceedNoCoverage = async () => {
                             </thead>
                             <tbody>
                                 <tr
-                                    v-for="employee in filteredHouseholdList"
+                                    v-for="employee in activeHouseholdPage.data"
                                     :key="employee.id"
                                 >
                                     <td class="td-announce">
@@ -1961,38 +1951,24 @@ const proceedNoCoverage = async () => {
                     </div>
 
                     <!-- Households pagination -->
-                    <div
-                        class="pagination-bar"
-                        v-if="filteredHouseholdList.length > 0"
-                    >
-                        <span class="pagination-bar__info">
-                            Showing {{ filteredHouseholdList.length }} of
-                            {{ households.total }} (page total, unfiltered)
-                        </span>
-                        <div class="pagination-bar__pages">
-                            <template
-                                v-for="(link, index) in households.links"
-                                :key="index"
-                            >
-                                <button
-                                    v-if="link.url"
-                                    @click="
-                                        reloadEmployees(undefined, link.url)
-                                    "
-                                    v-html="link.label"
-                                    class="page-btn"
-                                    :class="{
-                                        'page-btn--active': link.active,
-                                    }"
-                                />
-                                <span
-                                    v-else
-                                    v-html="link.label"
-                                    class="page-btn page-btn--disabled"
-                                />
-                            </template>
-                        </div>
-                    </div>
+                    <div class="pagination-bar" v-if="activeHouseholdPage.data.length > 0">
+    <span class="pagination-bar__info">
+        Showing {{ activeHouseholdPage.from || 0 }}–{{ activeHouseholdPage.to || 0 }}
+        of {{ activeHouseholdPage.total }}
+    </span>
+    <div class="pagination-bar__pages">
+        <template v-for="(link, index) in activeHouseholdPage.links" :key="index">
+            <button
+                v-if="link.url"
+                @click="reloadEmployees(undefined, link.url)"
+                v-html="link.label"
+                class="page-btn"
+                :class="{ 'page-btn--active': link.active }"
+            />
+            <span v-else v-html="link.label" class="page-btn page-btn--disabled" />
+        </template>
+    </div>
+</div>
                 </div>
             </div>
         </div>

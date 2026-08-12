@@ -89,16 +89,24 @@ class EmployeeController extends Controller
             ->paginate(10, ['*'], 'personnel_page')
             ->withQueryString();
 
-        $households = (clone $base)
-            ->whereHas('user', fn($q) => $q->whereIn('occupation', ['household', 'resident']))
-            ->paginate(10, ['*'], 'household_page')
+        // Estate households — role='household' AND is_estate=1 only.
+        // Residents and estate_billing are never included, per spec.
+        $householdEstate = (clone $base)
+            ->whereHas('user', fn($q) => $q->where('occupation', 'household')->where('is_estate', true))
+            ->paginate(10, ['*'], 'household_estate_page')
+            ->withQueryString();
+
+        // Standalone households — role='household' AND is_estate=0 only.
+        $householdStandalone = (clone $base)
+            ->whereHas('user', fn($q) => $q->where('occupation', 'household')->where('is_estate', false))
+            ->paginate(10, ['*'], 'household_standalone_page')
             ->withQueryString();
 
         return response()->json([
-            'personnel'       => $personnel,
-            'households'      => $households,
-            'personnel_total' => $personnel->total(),
-            'household_total' => $households->total(),
+            'personnel'            => $personnel,
+            'personnel_total'      => $personnel->total(),
+            'household_estate'     => $householdEstate,
+            'household_standalone' => $householdStandalone,
         ]);
     }
 
