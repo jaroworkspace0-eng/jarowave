@@ -14,11 +14,6 @@ class Client extends Model
         'user_id',
         'partner_type',
         'revenue_share_percentage',
-        // 'name',
-        // 'phone',
-        // 'email',
-        // 'address',
-        // 'is_active',
     ];
 
     public function channels() {

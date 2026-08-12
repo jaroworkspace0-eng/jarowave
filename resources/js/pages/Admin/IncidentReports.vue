@@ -1104,7 +1104,7 @@ onMounted(() => loadReports());
                                 <td class="td-time">
                                     {{
                                         report.emergency_alert?.channel?.client
-                                            ?.name ?? '—'
+                                            ?.user?.name ?? '—'
                                     }}
                                 </td>
                                 <td>
