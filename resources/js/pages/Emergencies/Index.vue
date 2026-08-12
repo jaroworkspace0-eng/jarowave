@@ -664,17 +664,19 @@ const timelineSteps = computed(() => {
                                     <span
                                         class="type-badge"
                                         :class="
+                                            alert.cancel_pin_used ===
+                                                'safe_cancel' ||
                                             alert.is_resolved
                                                 ? 'bg-emerald-50 text-emerald-700'
                                                 : 'badge--pulse bg-red-50 text-red-600'
                                         "
                                     >
                                         {{
-                                            alert.is_resolved
-                                                ? 'Resolved'
-                                                : alert.cancel_pin_used ===
-                                                    'safe_cancel'
-                                                  ? 'Cancelled'
+                                            alert.cancel_pin_used ===
+                                            'safe_cancel'
+                                                ? 'Cancelled'
+                                                : alert.is_resolved
+                                                  ? 'Resolved'
                                                   : 'Active'
                                         }}
                                     </span>
