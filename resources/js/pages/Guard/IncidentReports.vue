@@ -845,7 +845,7 @@ onMounted(() => loadReports());
                                 class="clickable-row"
                                 @click="openDetail(report)"
                             >
-                             <td>
+                                <td>
                                     <span
                                         class="type-badge"
                                         :class="

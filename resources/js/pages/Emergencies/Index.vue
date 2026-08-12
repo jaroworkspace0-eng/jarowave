@@ -512,10 +512,16 @@ const timelineSteps = computed(() => {
         },
         {
             key: 'resolved',
-            label: 'Resolved',
-            time: a.is_resolved ? a.resolved_at : null,
-            icon: CheckCircle2,
-            done: !!a.is_resolved,
+            label:
+                a.cancel_pin_used === 'safe_cancel' ? 'Cancelled' : 'Resolved',
+            time:
+                a.cancel_pin_used === 'safe_cancel'
+                    ? a.cancelled_at
+                    : a.is_resolved
+                      ? a.resolved_at
+                      : null,
+            icon: a.cancel_pin_used === 'safe_cancel' ? XCircle : CheckCircle2,
+            done: !!a.is_resolved || a.cancel_pin_used === 'safe_cancel',
         },
     ];
 });
