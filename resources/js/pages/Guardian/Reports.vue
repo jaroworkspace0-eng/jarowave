@@ -16,8 +16,8 @@ const showReviewModal = ref(false);
 const selectedReport = ref<any | null>(null);
 
 // ── Filters ───────────────────────────────────────────────────
-const filterStatus = ref;
-'all' | 'pending' | 'reviewed' | 'escalated' | ('flagged' > 'all');
+type ReportStatus = 'all' | 'pending' | 'reviewed' | 'escalated' | 'flagged';
+const filterStatus = ref<ReportStatus>('all');
 const filterSeverity = ref<'all' | 'low' | 'medium' | 'high'>('all');
 const filterAlertType = ref<'all' | 'dv' | 'sos'>('all');
 const search = ref('');
