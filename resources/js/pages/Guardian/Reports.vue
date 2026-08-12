@@ -5,10 +5,7 @@ import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
 
-const breadcrumbs: BreadcrumbItem[] = [
-    // { title: 'Dashboard', href: '/dashboard' },
-    // { title: 'Guardian Reports', href: '/guardian-reports' },
-];
+const breadcrumbs: BreadcrumbItem[] = [];
 
 // ── State ─────────────────────────────────────────────────────
 const reports = ref<any[]>([]);
@@ -19,9 +16,8 @@ const showReviewModal = ref(false);
 const selectedReport = ref<any | null>(null);
 
 // ── Filters ───────────────────────────────────────────────────
-const filterStatus = ref<
-    'all' | 'pending' | 'reviewed' | 'escalated' | 'flagged'
->('all');
+const filterStatus = ref;
+'all' | 'pending' | 'reviewed' | 'escalated' | ('flagged' > 'all');
 const filterSeverity = ref<'all' | 'low' | 'medium' | 'high'>('all');
 const filterAlertType = ref<'all' | 'dv' | 'sos'>('all');
 const search = ref('');
@@ -54,7 +50,7 @@ const filtered = computed(() => {
         list = list.filter(
             (r) =>
                 String(r.alert_id).includes(q) ||
-                r.reporting_user?.name?.toLowerCase().includes(q) ||
+                r.reporting_household?.name?.toLowerCase().includes(q) ||
                 r.description?.toLowerCase().includes(q),
         );
     }
@@ -426,9 +422,13 @@ onMounted(loadReports);
                             </td>
                             <td>
                                 <div class="reporter-cell">
+                                    <!-- table row reporter cell -->
                                     <div class="reporter-cell__avatar">
                                         {{
-                                            (report.reporting_user?.name || 'U')
+                                            (
+                                                report.reporting_household
+                                                    ?.name || 'U'
+                                            )
                                                 .charAt(0)
                                                 .toUpperCase()
                                         }}
@@ -436,13 +436,13 @@ onMounted(loadReports);
                                     <div>
                                         <div class="reporter-cell__name">
                                             {{
-                                                report.reporting_user?.name ??
-                                                '—'
+                                                report.reporting_household
+                                                    ?.name ?? '—'
                                             }}
                                         </div>
                                         <div class="reporter-cell__sub">
                                             {{
-                                                report.reporting_user
+                                                report.reporting_household
                                                     ?.address_line_1 ?? ''
                                             }}
                                         </div>
@@ -585,17 +585,18 @@ onMounted(loadReports);
                         <!-- Body -->
                         <div class="modal-sheet__body">
                             <!-- Reporter -->
+                            <!-- modal reporter panel -->
                             <div class="review-info-panel">
                                 <div class="field__label">Reporter</div>
                                 <div class="review-info-panel__name">
                                     {{
-                                        selectedReport.reporting_user?.name ??
-                                        '—'
+                                        selectedReport.reporting_household
+                                            ?.name ?? '—'
                                     }}
                                 </div>
                                 <div class="review-info-panel__sub">
                                     {{
-                                        selectedReport.reporting_user
+                                        selectedReport.reporting_household
                                             ?.address_line_1 ?? ''
                                     }}
                                 </div>
