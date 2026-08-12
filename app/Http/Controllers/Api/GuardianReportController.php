@@ -13,8 +13,11 @@ class GuardianReportController extends Controller
     public function index(Request $request): JsonResponse
     {
         $query = GuardianReport::with(['reportingHousehold', 'reviewedBy'])
-            ->where('reporting_household_id', $request->user()->id)
             ->orderByDesc('submitted_at');
+
+        if ($request->user()->role !== 'admin') {
+            $query->where('reporting_household_id', $request->user()->id);
+        }
 
         if ($request->filled('review_status')) {
             $query->where('review_status', $request->input('review_status'));
