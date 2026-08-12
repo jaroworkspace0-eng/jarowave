@@ -401,16 +401,6 @@ onMounted(loadReports);
                             </td>
                             <td>
                                 <div class="reporter-cell">
-                                    <div class="reporter-cell__avatar">
-                                        {{
-                                            (
-                                                report.reporting_household
-                                                    ?.name || 'U'
-                                            )
-                                                .charAt(0)
-                                                .toUpperCase()
-                                        }}
-                                    </div>
                                     <div>
                                         <div class="reporter-cell__name">
                                             {{
