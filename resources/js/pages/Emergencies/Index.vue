@@ -631,7 +631,7 @@ const timelineSteps = computed(() => {
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>Cancel Pin</th>
+                                <!-- <th>Cancel Pin</th> -->
                                 <th>Status</th>
                                 <th>Household</th>
                                 <th>Unit</th>
@@ -649,7 +649,7 @@ const timelineSteps = computed(() => {
                                 class="clickable-row"
                                 @click="openDetail(alert)"
                             >
-                                <td>
+                                <!-- <td>
                                     <span
                                         class="type-badge"
                                         :class="
@@ -668,7 +668,7 @@ const timelineSteps = computed(() => {
                                                   : 'None'
                                         }}
                                     </span>
-                                </td>
+                                </td> -->
                                 <td>
                                     <span
                                         class="type-badge"

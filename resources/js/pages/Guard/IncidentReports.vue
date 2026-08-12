@@ -826,7 +826,7 @@ onMounted(() => loadReports());
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>Cancel Pin</th>
+                                <!-- <th>Cancel Pin</th> -->
                                 <th>Household</th>
                                 <th>Unit</th>
                                 <th>Type</th>
@@ -845,7 +845,7 @@ onMounted(() => loadReports());
                                 class="clickable-row"
                                 @click="openDetail(report)"
                             >
-                                <td>
+                                <!-- <td>
                                     <span
                                         class="type-badge"
                                         :class="
@@ -866,7 +866,7 @@ onMounted(() => loadReports());
                                                   : 'None'
                                         }}
                                     </span>
-                                </td>
+                                </td> -->
                                 <td>
                                     <div class="reporter-cell__name-row">
                                         <span class="reporter-cell__name">
