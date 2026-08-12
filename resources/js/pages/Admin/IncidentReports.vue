@@ -1025,6 +1025,7 @@ onMounted(() => loadReports());
                     <table class="data-table">
                         <thead>
                             <tr>
+                                <th>Cancel Pin</th>
                                 <th>Household</th>
                                 <th>Channel</th>
                                 <th>Client</th>
@@ -1046,6 +1047,28 @@ onMounted(() => loadReports());
                                 class="clickable-row"
                                 @click="openDetail(report)"
                             >
+                                <td>
+                                    <span
+                                        class="type-badge"
+                                        :class="
+                                            report.alert?.cancel_pin_used ===
+                                            'duress'
+                                                ? 'bg-red-50 text-red-600'
+                                                : 'bg-slate-100 text-slate-600'
+                                        "
+                                    >
+                                        {{
+                                            report.alert?.cancel_pin_used ===
+                                            'safe_cancel'
+                                                ? 'Safe Cancel'
+                                                : report.alert
+                                                        ?.cancel_pin_used ===
+                                                    'duress'
+                                                  ? 'Duress'
+                                                  : 'None'
+                                        }}
+                                    </span>
+                                </td>
                                 <td>
                                     <div class="reporter-cell">
                                         <div>

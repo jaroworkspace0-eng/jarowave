@@ -576,7 +576,7 @@ const timelineSteps = computed(() => {
                             @input="handleSearch"
                             type="text"
                             class="search-input"
-                            placeholder="Search by name, unit…"
+                            placeholder="Search by household name or unit number…"
                         />
                         <span
                             v-if="search"
@@ -622,7 +622,7 @@ const timelineSteps = computed(() => {
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>Cancel Pin Used</th>
+                                <th>Cancel Pin</th>
                                 <th>Status</th>
                                 <th>Household</th>
                                 <th>Unit</th>
@@ -641,7 +641,14 @@ const timelineSteps = computed(() => {
                                 @click="openDetail(alert)"
                             >
                                 <td>
-                                    <span class="td-time">
+                                    <span
+                                        class="type-badge"
+                                        :class="
+                                            alert.cancel_pin_used === 'duress'
+                                                ? 'bg-red-50 text-red-600'
+                                                : 'bg-slate-100 text-slate-600'
+                                        "
+                                    >
                                         {{
                                             alert.cancel_pin_used ===
                                             'safe_cancel'
@@ -665,7 +672,10 @@ const timelineSteps = computed(() => {
                                         {{
                                             alert.is_resolved
                                                 ? 'Resolved'
-                                                : 'Active'
+                                                : alert.cancel_pin_used ===
+                                                    'safe_cancel'
+                                                  ? 'Cancelled'
+                                                  : 'Active'
                                         }}
                                     </span>
                                 </td>
