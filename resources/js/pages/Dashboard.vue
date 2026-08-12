@@ -19,6 +19,14 @@ import {
     Title,
     Tooltip,
 } from 'chart.js';
+import {
+    AlertTriangle,
+    Circle,
+    CircleDot,
+    Radio,
+    Ticket,
+    Users,
+} from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
 import { Bar, Doughnut, Line } from 'vue-chartjs';
 const auth = useAuthStore();
@@ -86,37 +94,37 @@ const metrics = computed(() => {
         {
             label: 'Channels',
             value: stats.value.channelsCount.toLocaleString(),
-            icon: '🎯',
+            icon: Radio,
             href: '/channels',
         },
         {
             label: 'Personnel',
             value: stats.value.employeesCount.toLocaleString(),
-            icon: '🎫',
+            icon: Ticket,
             href: '/employees',
         },
         {
             label: 'Clients',
             value: stats.value.clientsCount.toLocaleString(),
-            icon: '🧑‍💼',
+            icon: Users,
             href: '/clients',
         },
         {
             label: 'Online Now',
             value: stats.value.onlineCount.toLocaleString(),
-            icon: '🟢',
+            icon: CircleDot,
             href: '/employees?status=online',
         },
         {
             label: 'Offline',
             value: stats.value.offlineCount.toLocaleString(),
-            icon: '⚪',
+            icon: Circle,
             href: '/employees?status=offline',
         },
         {
             label: 'Emergencies',
             value: stats.value.activeEmergencies.toLocaleString(),
-            icon: '🚨',
+            icon: AlertTriangle,
             href: '/emergencies',
             emergency: true,
         },
@@ -445,7 +453,15 @@ function timeAgo(ts: string) {
                                         stats.activeEmergencies > 0),
                             }"
                         >
-                            {{ metric.icon }}
+                            <component
+                                :is="metric.icon"
+                                class="h-5 w-5"
+                                :class="
+                                    metric.emergency
+                                        ? 'text-red-600'
+                                        : 'text-slate-500'
+                                "
+                            />
                         </div>
                     </div>
                     <div

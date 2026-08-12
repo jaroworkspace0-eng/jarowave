@@ -132,7 +132,7 @@ class SosIncidentReportController extends Controller
         $report->load([
             'household:id,name,email',
             'reporter:id,name,email,phone',
-            'emergencyAlert',
+            'emergencyAlert.channel.client.user',
             'actionedBy:id,name',
         ]);
 

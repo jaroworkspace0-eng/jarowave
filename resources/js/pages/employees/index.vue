@@ -9,6 +9,23 @@ import Multiselect from 'vue-multiselect';
 import { VueTelInput } from 'vue-tel-input';
 import 'vue-tel-input/vue-tel-input.css';
 
+import {
+    AlertTriangle,
+    Ban,
+    CheckCircle2,
+    Clock,
+    CreditCard,
+    History,
+    Loader2,
+    MapPinOff,
+    MoreVertical,
+    Pencil,
+    ShieldCheck,
+    ShieldOff,
+    Trash2,
+    XCircle,
+} from 'lucide-vue-next';
+
 const auth = useAuthStore();
 
 onMounted(() => {
@@ -26,6 +43,7 @@ const isHouseholdRole = (role: string) =>
 
 // ─── tab state ────────────────────────────────────────────────────────────────
 const activeTab = ref<'personnel' | 'households'>('personnel');
+const householdSubTab = ref<'estate' | 'standalone'>('estate');
 
 // ─── invite links state ───────────────────────────────────────────────────────
 const invites = ref<any[]>([]);
@@ -347,6 +365,26 @@ const trialingHouseholds = computed(
         householdList.value.filter(
             (e) => e.user.subscription?.status === 'trialing',
         ).length,
+);
+
+// Estate/Standalone split only ever applies to role='household'.
+// role='resident' and role='estate_billing' are excluded from both
+// buckets, even when is_estate=1 (estate_billing is a billing-only
+// entry, not a household to manage here).
+const estateHouseholds = computed(() =>
+    householdList.value.filter(
+        (e) => e.user.role === 'household' && e.user.is_estate,
+    ),
+);
+const standaloneHouseholds = computed(() =>
+    householdList.value.filter(
+        (e) => e.user.role === 'household' && !e.user.is_estate,
+    ),
+);
+const filteredHouseholdList = computed(() =>
+    householdSubTab.value === 'estate'
+        ? estateHouseholds.value
+        : standaloneHouseholds.value,
 );
 
 const channelsWithoutInvite = computed(() => {
@@ -989,8 +1027,19 @@ const proceedNoCoverage = async () => {
                         @click="activeTab = 'households'"
                     >
                         Households
-                        <span class="chip__count">{{ householdTotal }}</span>
+                        <span class="chip__count">{{
+                            estateHouseholds.length +
+                            standaloneHouseholds.length
+                        }}</span>
                     </button>
+                    <!-- <button
+                        class="chip"
+                        :class="{ 'chip--active': activeTab === 'households' }"
+                        @click="activeTab = 'households'"
+                    >
+                        Households
+                        <span class="chip__count">{{ householdTotal }}</span>
+                    </button> -->
                 </div>
                 <div class="search-wrap">
                     <svg
@@ -1246,9 +1295,40 @@ const proceedNoCoverage = async () => {
             <!-- HOUSEHOLDS TAB                             -->
             <!-- ══════════════════════════════════════════ -->
             <div v-if="activeTab === 'households'">
+                <!-- ESTATE / STANDALONE SUB-TABS -->
+                <div class="filter-bar__chips" style="margin-bottom: 12px">
+                    <button
+                        class="chip"
+                        :class="{
+                            'chip--active': householdSubTab === 'estate',
+                        }"
+                        @click="householdSubTab = 'estate'"
+                    >
+                        Estates
+                        <span class="chip__count">{{
+                            estateHouseholds.length
+                        }}</span>
+                    </button>
+                    <button
+                        class="chip"
+                        :class="{
+                            'chip--active': householdSubTab === 'standalone',
+                        }"
+                        @click="householdSubTab = 'standalone'"
+                    >
+                        Standalone
+                        <span class="chip__count">{{
+                            standaloneHouseholds.length
+                        }}</span>
+                    </button>
+                </div>
+
                 <!-- HOUSEHOLDS TABLE -->
                 <div class="table-card" style="margin-top: 20px">
-                    <div v-if="householdList.length === 0" class="empty-state">
+                    <div
+                        v-if="filteredHouseholdList.length === 0"
+                        class="empty-state"
+                    >
                         <div class="empty-state__icon">
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
@@ -1265,7 +1345,13 @@ const proceedNoCoverage = async () => {
                                 />
                             </svg>
                         </div>
-                        <p class="empty-state__title">No households yet</p>
+                        <p class="empty-state__title">
+                            {{
+                                householdSubTab === 'estate'
+                                    ? 'No estate households yet'
+                                    : 'No standalone households yet'
+                            }}
+                        </p>
                         <p class="empty-state__sub">
                             Share your invite links above to start onboarding
                             households
@@ -1290,7 +1376,7 @@ const proceedNoCoverage = async () => {
                             </thead>
                             <tbody>
                                 <tr
-                                    v-for="employee in householdList"
+                                    v-for="employee in filteredHouseholdList"
                                     :key="employee.id"
                                 >
                                     <td class="td-announce">
@@ -1503,11 +1589,41 @@ const proceedNoCoverage = async () => {
                                                         'cancelled',
                                                 }"
                                             >
+                                                <CheckCircle2
+                                                    v-if="
+                                                        employee.user
+                                                            .subscription
+                                                            .status === 'active'
+                                                    "
+                                                    class="h-3 w-3"
+                                                />
+                                                <Clock
+                                                    v-else-if="
+                                                        employee.user
+                                                            .subscription
+                                                            .status ===
+                                                        'trialing'
+                                                    "
+                                                    class="h-3 w-3"
+                                                />
+                                                <AlertTriangle
+                                                    v-else-if="
+                                                        employee.user
+                                                            .subscription
+                                                            .status ===
+                                                        'past_due'
+                                                    "
+                                                    class="h-3 w-3"
+                                                />
+                                                <XCircle
+                                                    v-else
+                                                    class="h-3 w-3"
+                                                />
                                                 {{
                                                     {
-                                                        active: '✓ Paying',
-                                                        trialing: '⏳ Trial',
-                                                        past_due: '⚠ Overdue',
+                                                        active: 'Paying',
+                                                        trialing: 'Trial',
+                                                        past_due: 'Overdue',
                                                         cancelled: 'Cancelled',
                                                     }[
                                                         employee.user
@@ -1561,20 +1677,7 @@ const proceedNoCoverage = async () => {
                                                 class="icon-btn icon-btn--edit"
                                                 title="Edit"
                                             >
-                                                <svg
-                                                    xmlns="http://www.w3.org/2000/svg"
-                                                    class="h-4 w-4"
-                                                    fill="none"
-                                                    viewBox="0 0 24 24"
-                                                    stroke="currentColor"
-                                                    stroke-width="2"
-                                                >
-                                                    <path
-                                                        stroke-linecap="round"
-                                                        stroke-linejoin="round"
-                                                        d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
-                                                    />
-                                                </svg>
+                                                <Pencil class="h-4 w-4" />
                                             </button>
 
                                             <!-- Subscription actions dropdown -->
@@ -1602,46 +1705,18 @@ const proceedNoCoverage = async () => {
                                                     style="margin-right: 10px"
                                                     title="Subscription actions"
                                                 >
-                                                    <svg
+                                                    <Loader2
                                                         v-if="
-                                                            subLoading !==
+                                                            subLoading ===
                                                             employee.user
                                                                 .subscription.id
                                                         "
-                                                        xmlns="http://www.w3.org/2000/svg"
-                                                        class="h-4 w-4"
-                                                        fill="none"
-                                                        viewBox="0 0 24 24"
-                                                        stroke="currentColor"
-                                                        stroke-width="2"
-                                                    >
-                                                        <path
-                                                            stroke-linecap="round"
-                                                            stroke-linejoin="round"
-                                                            d="M12 5v.01M12 12v.01M12 19v.01"
-                                                        />
-                                                    </svg>
-                                                    <svg
-                                                        v-else
                                                         class="spin h-4 w-4"
-                                                        xmlns="http://www.w3.org/2000/svg"
-                                                        fill="none"
-                                                        viewBox="0 0 24 24"
-                                                    >
-                                                        <circle
-                                                            class="opacity-25"
-                                                            cx="12"
-                                                            cy="12"
-                                                            r="10"
-                                                            stroke="currentColor"
-                                                            stroke-width="4"
-                                                        />
-                                                        <path
-                                                            class="opacity-75"
-                                                            fill="currentColor"
-                                                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                                                        />
-                                                    </svg>
+                                                    />
+                                                    <MoreVertical
+                                                        v-else
+                                                        class="h-4 w-4"
+                                                    />
                                                 </button>
 
                                                 <!-- Dropdown -->
@@ -1671,26 +1746,22 @@ const proceedNoCoverage = async () => {
                                                         "
                                                         class="sub-menu__item"
                                                     >
-                                                        <div
-                                                            class="sub-menu__item-title"
-                                                        >
-                                                            {{
-                                                                employee.user
-                                                                    .subscription
-                                                                    .activation_fee_paid
-                                                                    ? 'Unmark Activation Fee'
-                                                                    : 'Mark Activation Fee Paid'
-                                                            }}
-                                                        </div>
-                                                        <div
-                                                            class="sub-menu__item-sub"
-                                                        >
-                                                            R50 once-off fee
-                                                        </div>
+                                                        <CreditCard
+                                                            class="sub-menu__item-icon"
+                                                        />
+                                                        {{
+                                                            employee.user
+                                                                .subscription
+                                                                .activation_fee_paid
+                                                                ? 'Unmark Activation Fee'
+                                                                : 'Mark Activation Fee Paid'
+                                                        }}
                                                     </button>
+
                                                     <div
                                                         class="sub-menu__divider"
                                                     ></div>
+
                                                     <button
                                                         @click="
                                                             openEftModal(
@@ -1699,17 +1770,10 @@ const proceedNoCoverage = async () => {
                                                         "
                                                         class="sub-menu__item"
                                                     >
-                                                        <div
-                                                            class="sub-menu__item-title"
-                                                        >
-                                                            Mark EFT Paid
-                                                        </div>
-                                                        <div
-                                                            class="sub-menu__item-sub"
-                                                        >
-                                                            Record manual
-                                                            payment
-                                                        </div>
+                                                        <CreditCard
+                                                            class="sub-menu__item-icon"
+                                                        />
+                                                        Mark EFT Paid
                                                     </button>
 
                                                     <button
@@ -1730,36 +1794,24 @@ const proceedNoCoverage = async () => {
                                                             )
                                                         "
                                                         class="sub-menu__item"
-                                                        :class="
+                                                    >
+                                                        <component
+                                                            :is="
+                                                                employee.user
+                                                                    .subscription
+                                                                    .sos_suspended_at
+                                                                    ? ShieldCheck
+                                                                    : ShieldOff
+                                                            "
+                                                            class="sub-menu__item-icon"
+                                                        />
+                                                        {{
                                                             employee.user
                                                                 .subscription
                                                                 .sos_suspended_at
-                                                                ? 'sub-menu__item--success'
-                                                                : 'sub-menu__item--warn'
-                                                        "
-                                                    >
-                                                        <div
-                                                            class="sub-menu__item-title"
-                                                        >
-                                                            {{
-                                                                employee.user
-                                                                    .subscription
-                                                                    .sos_suspended_at
-                                                                    ? 'Reinstate SOS'
-                                                                    : 'Suspend SOS'
-                                                            }}
-                                                        </div>
-                                                        <div
-                                                            class="sub-menu__item-sub"
-                                                        >
-                                                            {{
-                                                                employee.user
-                                                                    .subscription
-                                                                    .sos_suspended_at
-                                                                    ? 'Re-enable panic button'
-                                                                    : 'Disable panic button'
-                                                            }}
-                                                        </div>
+                                                                ? 'Reinstate SOS'
+                                                                : 'Suspend SOS'
+                                                        }}
                                                     </button>
 
                                                     <button
@@ -1777,17 +1829,10 @@ const proceedNoCoverage = async () => {
                                                         "
                                                         class="sub-menu__item sub-menu__item--danger"
                                                     >
-                                                        <div
-                                                            class="sub-menu__item-title"
-                                                        >
-                                                            Cancel Subscription
-                                                        </div>
-                                                        <div
-                                                            class="sub-menu__item-sub"
-                                                        >
-                                                            Access until period
-                                                            end
-                                                        </div>
+                                                        <Ban
+                                                            class="sub-menu__item-icon"
+                                                        />
+                                                        Cancel Subscription
                                                     </button>
 
                                                     <button
@@ -1798,18 +1843,10 @@ const proceedNoCoverage = async () => {
                                                         "
                                                         class="sub-menu__item sub-menu__item--danger"
                                                     >
-                                                        <div
-                                                            class="sub-menu__item-title"
-                                                        >
-                                                            No Coverage —
-                                                            Deactivate
-                                                        </div>
-                                                        <div
-                                                            class="sub-menu__item-sub"
-                                                        >
-                                                            Moved to non-Echo
-                                                            Link area
-                                                        </div>
+                                                        <MapPinOff
+                                                            class="sub-menu__item-icon"
+                                                        />
+                                                        No Coverage - Deactivate
                                                     </button>
 
                                                     <div
@@ -1831,16 +1868,10 @@ const proceedNoCoverage = async () => {
                                                         "
                                                         class="sub-menu__item sub-menu__item--danger"
                                                     >
-                                                        <div
-                                                            class="sub-menu__item-title"
-                                                        >
-                                                            Conduct Block
-                                                        </div>
-                                                        <div
-                                                            class="sub-menu__item-sub"
-                                                        >
-                                                            Abuse of panic alert
-                                                        </div>
+                                                        <Ban
+                                                            class="sub-menu__item-icon"
+                                                        />
+                                                        Conduct Block
                                                     </button>
                                                     <button
                                                         v-else
@@ -1852,18 +1883,12 @@ const proceedNoCoverage = async () => {
                                                             subActionMenu =
                                                                 null;
                                                         "
-                                                        class="sub-menu__item sub-menu__item--success"
+                                                        class="sub-menu__item"
                                                     >
-                                                        <div
-                                                            class="sub-menu__item-title"
-                                                        >
-                                                            Lift Conduct Block
-                                                        </div>
-                                                        <div
-                                                            class="sub-menu__item-sub"
-                                                        >
-                                                            Restore SOS access
-                                                        </div>
+                                                        <ShieldCheck
+                                                            class="sub-menu__item-icon"
+                                                        />
+                                                        Lift Conduct Block
                                                     </button>
 
                                                     <div
@@ -1880,17 +1905,10 @@ const proceedNoCoverage = async () => {
                                                         "
                                                         class="sub-menu__item"
                                                     >
-                                                        <div
-                                                            class="sub-menu__item-title"
-                                                        >
-                                                            Payment History
-                                                        </div>
-                                                        <div
-                                                            class="sub-menu__item-sub"
-                                                        >
-                                                            View past
-                                                            transactions
-                                                        </div>
+                                                        <History
+                                                            class="sub-menu__item-icon"
+                                                        />
+                                                        Payment History
                                                     </button>
 
                                                     <button
@@ -1903,16 +1921,10 @@ const proceedNoCoverage = async () => {
                                                         "
                                                         class="sub-menu__item sub-menu__item--danger"
                                                     >
-                                                        <div
-                                                            class="sub-menu__item-title"
-                                                        >
-                                                            Delete
-                                                        </div>
-                                                        <div
-                                                            class="sub-menu__item-sub"
-                                                        >
-                                                            Remove household
-                                                        </div>
+                                                        <Trash2
+                                                            class="sub-menu__item-icon"
+                                                        />
+                                                        Delete
                                                     </button>
                                                 </div>
                                             </div>
@@ -1949,12 +1961,13 @@ const proceedNoCoverage = async () => {
                     </div>
 
                     <!-- Households pagination -->
-                    <div class="pagination-bar" v-if="householdList.length > 0">
+                    <div
+                        class="pagination-bar"
+                        v-if="filteredHouseholdList.length > 0"
+                    >
                         <span class="pagination-bar__info">
-                            Showing {{ households.from || 0 }}–{{
-                                households.to || 0
-                            }}
-                            of {{ households.total }}
+                            Showing {{ filteredHouseholdList.length }} of
+                            {{ households.total }} (page total, unfiltered)
                         </span>
                         <div class="pagination-bar__pages">
                             <template
@@ -4598,50 +4611,52 @@ const proceedNoCoverage = async () => {
     z-index: 100;
     width: 220px;
     background: #ffffff;
-    border: 1px solid #e4e8ef;
-    border-radius: 12px;
-    padding: 4px 0;
-    box-shadow: var(--shadow-lg);
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 4px;
+    box-shadow:
+        0 10px 32px rgba(15, 23, 42, 0.12),
+        0 2px 8px rgba(15, 23, 42, 0.06);
 }
 .sub-menu__item {
-    display: block;
+    display: flex;
+    align-items: center;
+    gap: 10px;
     width: 100%;
     text-align: left;
-    padding: 10px 16px;
+    padding: 8px 10px;
     background: none;
     border: none;
+    border-radius: 6px;
     cursor: pointer;
     font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    color: #1a2332;
+    white-space: nowrap;
     transition: background 0.12s;
 }
 .sub-menu__item:hover {
     background: #f8fafc;
 }
-.sub-menu__item-title {
-    font-size: 13px;
-    font-weight: 700;
-    color: #1a2332;
+.sub-menu__item-icon {
+    flex-shrink: 0;
+    width: 16px;
+    height: 16px;
+    color: #64748b;
 }
-.sub-menu__item-sub {
-    font-size: 11px;
-    color: #94a3b8;
-    margin-top: 1px;
+.sub-menu__item--danger {
+    color: #b91c1c;
 }
-.sub-menu__item--warn .sub-menu__item-title {
-    color: #b45309;
-}
-.sub-menu__item--success .sub-menu__item-title {
-    color: #15803d;
-}
-.sub-menu__item--danger .sub-menu__item-title {
-    color: #dc2626;
+.sub-menu__item--danger .sub-menu__item-icon {
+    color: #b91c1c;
 }
 .sub-menu__item--danger:hover {
     background: #fef2f2;
 }
 .sub-menu__divider {
     border-top: 1px solid #f1f5f9;
-    margin: 4px 0;
+    margin: 4px 6px;
 }
 
 /* BUTTONS */
