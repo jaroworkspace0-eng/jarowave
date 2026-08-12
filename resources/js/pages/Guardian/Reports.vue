@@ -5,10 +5,7 @@ import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
 
-const breadcrumbs: BreadcrumbItem[] = [
-    // { title: 'Dashboard', href: '/dashboard' },
-    // { title: 'Guardian Reports', href: '/guardian-reports' },
-];
+const breadcrumbs: BreadcrumbItem[] = [];
 
 // ── State ─────────────────────────────────────────────────────
 const reports = ref<any[]>([]);
@@ -19,9 +16,8 @@ const showReviewModal = ref(false);
 const selectedReport = ref<any | null>(null);
 
 // ── Filters ───────────────────────────────────────────────────
-const filterStatus = ref<
-    'all' | 'pending' | 'reviewed' | 'escalated' | 'flagged'
->('all');
+const filterStatus = ref;
+'all' | 'pending' | 'reviewed' | 'escalated' | ('flagged' > 'all');
 const filterSeverity = ref<'all' | 'low' | 'medium' | 'high'>('all');
 const filterAlertType = ref<'all' | 'dv' | 'sos'>('all');
 const search = ref('');
@@ -53,8 +49,8 @@ const filtered = computed(() => {
         const q = search.value.toLowerCase();
         list = list.filter(
             (r) =>
-                String(r.alert_id).includes(q) ||
-                r.reporting_user?.name?.toLowerCase().includes(q) ||
+                String(r.id).includes(q) ||
+                r.reporting_household?.name?.toLowerCase().includes(q) ||
                 r.description?.toLowerCase().includes(q),
         );
     }
@@ -262,7 +258,7 @@ onMounted(loadReports);
                         v-model="search"
                         type="text"
                         class="search-input"
-                        placeholder="Search by name, alert ID, description…"
+                        placeholder="Search by name, report ID, description…"
                     />
                     <span
                         v-if="search"
@@ -308,7 +304,7 @@ onMounted(loadReports);
                     </div>
 
                     <div class="filter-group">
-                        <span class="filter-group__label">Alert Type</span>
+                        <span class="filter-group__label">Type</span>
                         <div class="filter-bar__chips">
                             <button
                                 v-for="f in alertTypeOptions"
@@ -387,9 +383,10 @@ onMounted(loadReports);
                 <table v-else class="data-table">
                     <thead>
                         <tr>
-                            <th>Alert</th>
+                            <th>Report</th>
                             <th>Reporter</th>
                             <th>Description</th>
+                            <th>Flags</th>
                             <th>Severity</th>
                             <th>Type</th>
                             <th>Status</th>
@@ -400,35 +397,16 @@ onMounted(loadReports);
                     <tbody>
                         <tr v-for="report in filtered" :key="report.id">
                             <td>
-                                <div
-                                    style="
-                                        display: flex;
-                                        flex-direction: column;
-                                        gap: 4px;
-                                    "
-                                >
-                                    <span class="alert-id"
-                                        >#{{ report.alert_id }}</span
-                                    >
-                                    <div style="display: flex; gap: 4px">
-                                        <span
-                                            v-if="report.seen_perpetrator"
-                                            class="flag-badge flag-badge--danger"
-                                            >Saw perp</span
-                                        >
-                                        <span
-                                            v-if="report.heard_disturbance"
-                                            class="flag-badge flag-badge--warn"
-                                            >Heard it</span
-                                        >
-                                    </div>
-                                </div>
+                                <span class="alert-id">#{{ report.id }}</span>
                             </td>
                             <td>
                                 <div class="reporter-cell">
                                     <div class="reporter-cell__avatar">
                                         {{
-                                            (report.reporting_user?.name || 'U')
+                                            (
+                                                report.reporting_household
+                                                    ?.name || 'U'
+                                            )
                                                 .charAt(0)
                                                 .toUpperCase()
                                         }}
@@ -436,13 +414,13 @@ onMounted(loadReports);
                                     <div>
                                         <div class="reporter-cell__name">
                                             {{
-                                                report.reporting_user?.name ??
-                                                '—'
+                                                report.reporting_household
+                                                    ?.name ?? '—'
                                             }}
                                         </div>
                                         <div class="reporter-cell__sub">
                                             {{
-                                                report.reporting_user
+                                                report.reporting_household
                                                     ?.address_line_1 ?? ''
                                             }}
                                         </div>
@@ -452,6 +430,28 @@ onMounted(loadReports);
                             <td class="td-announce">
                                 <div class="td-announce__sub td-clamp-2">
                                     {{ report.description }}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="flags-cell">
+                                    <span
+                                        v-if="report.seen_perpetrator"
+                                        class="flag-badge flag-badge--danger"
+                                        >Saw Perpetrator</span
+                                    >
+                                    <span
+                                        v-if="report.heard_disturbance"
+                                        class="flag-badge flag-badge--warn"
+                                        >Heard Disturbance</span
+                                    >
+                                    <span
+                                        v-if="
+                                            !report.seen_perpetrator &&
+                                            !report.heard_disturbance
+                                        "
+                                        class="flags-cell__none"
+                                        >—</span
+                                    >
                                 </div>
                             </td>
                             <td>
@@ -560,7 +560,7 @@ onMounted(loadReports);
                                         Review Report
                                     </div>
                                     <div class="modal-sheet__sub">
-                                        Alert #{{ selectedReport.alert_id }}
+                                        Report #{{ selectedReport.id }}
                                     </div>
                                 </div>
                             </div>
@@ -589,64 +589,67 @@ onMounted(loadReports);
                                 <div class="field__label">Reporter</div>
                                 <div class="review-info-panel__name">
                                     {{
-                                        selectedReport.reporting_user?.name ??
-                                        '—'
+                                        selectedReport.reporting_household
+                                            ?.name ?? '—'
                                     }}
                                 </div>
                                 <div class="review-info-panel__sub">
                                     {{
-                                        selectedReport.reporting_user
+                                        selectedReport.reporting_household
                                             ?.address_line_1 ?? ''
                                     }}
                                 </div>
                             </div>
 
                             <!-- Flags -->
-                            <div class="toggle-row">
-                                <div
-                                    class="flag-panel"
-                                    :class="{
-                                        'flag-panel--danger':
-                                            selectedReport.seen_perpetrator,
-                                    }"
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        class="h-4 w-4"
-                                        fill="currentColor"
-                                        viewBox="0 0 20 20"
+                            <div class="field">
+                                <label class="field__label">Flags</label>
+                                <div class="toggle-row">
+                                    <div
+                                        class="flag-panel"
+                                        :class="{
+                                            'flag-panel--danger':
+                                                selectedReport.seen_perpetrator,
+                                        }"
                                     >
-                                        <path
-                                            d="M10 12a2 2 0 100-4 2 2 0 000 4z"
-                                        />
-                                        <path
-                                            fill-rule="evenodd"
-                                            d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
-                                            clip-rule="evenodd"
-                                        />
-                                    </svg>
-                                    Saw perpetrator
-                                </div>
-                                <div
-                                    class="flag-panel"
-                                    :class="{
-                                        'flag-panel--warn':
-                                            selectedReport.heard_disturbance,
-                                    }"
-                                >
-                                    <svg
-                                        xmlns="http://www.w3.org/2000/svg"
-                                        class="h-4 w-4"
-                                        fill="currentColor"
-                                        viewBox="0 0 20 20"
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            class="h-4 w-4"
+                                            fill="currentColor"
+                                            viewBox="0 0 20 20"
+                                        >
+                                            <path
+                                                d="M10 12a2 2 0 100-4 2 2 0 000 4z"
+                                            />
+                                            <path
+                                                fill-rule="evenodd"
+                                                d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z"
+                                                clip-rule="evenodd"
+                                            />
+                                        </svg>
+                                        Saw Perpetrator
+                                    </div>
+                                    <div
+                                        class="flag-panel"
+                                        :class="{
+                                            'flag-panel--warn':
+                                                selectedReport.heard_disturbance,
+                                        }"
                                     >
-                                        <path
-                                            fill-rule="evenodd"
-                                            d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z"
-                                            clip-rule="evenodd"
-                                        />
-                                    </svg>
-                                    Heard disturbance
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            class="h-4 w-4"
+                                            fill="currentColor"
+                                            viewBox="0 0 20 20"
+                                        >
+                                            <path
+                                                fill-rule="evenodd"
+                                                d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z"
+                                                clip-rule="evenodd"
+                                            />
+                                        </svg>
+                                        Heard Disturbance
+                                    </div>
                                 </div>
                             </div>
 
