@@ -1140,10 +1140,6 @@ const proceedNoCoverage = async () => {
                                             v-for="c in employee.channels"
                                             :key="c.id"
                                             class="channel-pill"
-                                            :class="{
-                                                'channel-pill--online':
-                                                    c.pivot.is_online,
-                                            }"
                                         >
                                             <span
                                                 class="channel-pill__dot"
@@ -1951,24 +1947,40 @@ const proceedNoCoverage = async () => {
                     </div>
 
                     <!-- Households pagination -->
-                    <div class="pagination-bar" v-if="activeHouseholdPage.data.length > 0">
-    <span class="pagination-bar__info">
-        Showing {{ activeHouseholdPage.from || 0 }}–{{ activeHouseholdPage.to || 0 }}
-        of {{ activeHouseholdPage.total }}
-    </span>
-    <div class="pagination-bar__pages">
-        <template v-for="(link, index) in activeHouseholdPage.links" :key="index">
-            <button
-                v-if="link.url"
-                @click="reloadEmployees(undefined, link.url)"
-                v-html="link.label"
-                class="page-btn"
-                :class="{ 'page-btn--active': link.active }"
-            />
-            <span v-else v-html="link.label" class="page-btn page-btn--disabled" />
-        </template>
-    </div>
-</div>
+                    <div
+                        class="pagination-bar"
+                        v-if="activeHouseholdPage.data.length > 0"
+                    >
+                        <span class="pagination-bar__info">
+                            Showing {{ activeHouseholdPage.from || 0 }}–{{
+                                activeHouseholdPage.to || 0
+                            }}
+                            of {{ activeHouseholdPage.total }}
+                        </span>
+                        <div class="pagination-bar__pages">
+                            <template
+                                v-for="(
+                                    link, index
+                                ) in activeHouseholdPage.links"
+                                :key="index"
+                            >
+                                <button
+                                    v-if="link.url"
+                                    @click="
+                                        reloadEmployees(undefined, link.url)
+                                    "
+                                    v-html="link.label"
+                                    class="page-btn"
+                                    :class="{ 'page-btn--active': link.active }"
+                                />
+                                <span
+                                    v-else
+                                    v-html="link.label"
+                                    class="page-btn page-btn--disabled"
+                                />
+                            </template>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
