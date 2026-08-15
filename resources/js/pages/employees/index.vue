@@ -41,6 +41,35 @@ const generatePin = () => String(Math.floor(100000 + Math.random() * 900000));
 const isHouseholdRole = (role: string) =>
     role === 'household' || role === 'resident';
 
+// Date/time formatter used for "Joined" and "Last Payment" columns.
+const formatDateTime = (dateStr: string | null | undefined) => {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleString('en-ZA', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+};
+
+// Presentable label for a payment method/gateway string (e.g. "payfast" -> "PayFast").
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+    payfast: 'PayFast',
+    eft: 'EFT',
+    manual: 'Manual',
+    cash: 'Cash',
+};
+const formatPaymentMethod = (method: string | null | undefined) => {
+    if (!method) return '';
+    return (
+        PAYMENT_METHOD_LABELS[method.toLowerCase()] ??
+        method.charAt(0).toUpperCase() + method.slice(1)
+    );
+};
+
 // ─── tab state ────────────────────────────────────────────────────────────────
 const activeTab = ref<'personnel' | 'households'>('personnel');
 const householdSubTab = ref<'estate' | 'standalone'>('estate');
@@ -516,7 +545,7 @@ const form = ref({
     id: null,
     name: '',
     email: '',
-    phone: '+27',
+    phone: '',
     occupation: '',
     channel_ids: [] as any[],
     client_id: '',
@@ -761,7 +790,7 @@ const openModal = (forceHousehold = false) => {
         id: null,
         name: '',
         email: '',
-        phone: '+27',
+        phone: '',
         occupation: forceHousehold ? 'household' : '',
         channel_ids: [],
         client_id: '',
@@ -1098,6 +1127,7 @@ const proceedNoCoverage = async () => {
                                 <th>Channels</th>
                                 <th>Online / Offline</th>
                                 <th>Account</th>
+                                <th>Joined</th>
                                 <th></th>
                             </tr>
                         </thead>
@@ -1190,6 +1220,11 @@ const proceedNoCoverage = async () => {
                                         </span>
                                     </button>
                                 </td>
+                                <td class="td-muted" style="font-size: 12px">
+                                    {{
+                                        formatDateTime(employee.user.created_at)
+                                    }}
+                                </td>
                                 <td>
                                     <div style="display: flex; gap: 2px">
                                         <button
@@ -1240,24 +1275,21 @@ const proceedNoCoverage = async () => {
                 </div>
 
                 <!-- Field unit pagination -->
-                <div
-                    class="pagination-bar"
-                    v-if="activeHouseholdPage.data.length > 0"
-                >
+                <div class="pagination-bar" v-if="personnel.data.length > 0">
                     <span class="pagination-bar__info">
-                        Showing {{ activeHouseholdPage.from || 0 }}–{{
-                            activeHouseholdPage.to || 0
+                        Showing {{ personnel.from || 0 }}–{{
+                            personnel.to || 0
                         }}
-                        of {{ activeHouseholdPage.total }}
+                        of {{ personnel.total }}
                     </span>
                     <div class="pagination-bar__pages">
                         <template
-                            v-for="(link, index) in activeHouseholdPage.links"
+                            v-for="(link, index) in personnel.links"
                             :key="index"
                         >
                             <button
                                 v-if="link.url"
-                                @click="reloadEmployees(undefined, link.url)"
+                                @click="reloadEmployees(link.url, undefined)"
                                 v-html="link.label"
                                 class="page-btn"
                                 :class="{ 'page-btn--active': link.active }"
@@ -1352,11 +1384,13 @@ const proceedNoCoverage = async () => {
                                     <th>Address</th>
                                     <th>Unit</th>
                                     <th>Role</th>
+                                    <th>Joined</th>
                                     <th>Trial Ends</th>
                                     <th>Monthly Fee</th>
                                     <th>Your Share</th>
                                     <th>Status</th>
                                     <th>Activation Fee</th>
+                                    <th>Last Payment</th>
                                     <th></th>
                                 </tr>
                             </thead>
@@ -1427,6 +1461,16 @@ const proceedNoCoverage = async () => {
                                                 employee.user.occupation
                                             }}</span
                                         >
+                                    </td>
+                                    <td
+                                        class="td-muted"
+                                        style="font-size: 12px"
+                                    >
+                                        {{
+                                            formatDateTime(
+                                                employee.user.created_at,
+                                            )
+                                        }}
                                     </td>
                                     <td
                                         class="td-muted"
@@ -1645,6 +1689,44 @@ const proceedNoCoverage = async () => {
                                         >
                                             R50 Pending
                                         </span>
+                                    </td>
+                                    <td
+                                        class="td-muted"
+                                        style="font-size: 12px"
+                                    >
+                                        <div
+                                            v-if="
+                                                employee.user?.subscription
+                                                    ?.last_payment_at
+                                            "
+                                        >
+                                            <div
+                                                style="
+                                                    font-weight: 600;
+                                                    color: #1a2332;
+                                                "
+                                            >
+                                                {{
+                                                    formatDateTime(
+                                                        employee.user
+                                                            .subscription
+                                                            .last_payment_at,
+                                                    )
+                                                }}
+                                            </div>
+                                            <div style="color: #94a3b8">
+                                                {{
+                                                    formatPaymentMethod(
+                                                        employee.user
+                                                            .subscription
+                                                            .last_payment_gateway,
+                                                    ) || '—'
+                                                }}
+                                            </div>
+                                        </div>
+                                        <span v-else style="color: #94a3b8"
+                                            >—</span
+                                        >
                                     </td>
                                     <td
                                         class="relative"
@@ -2559,11 +2641,11 @@ const proceedNoCoverage = async () => {
                                     <span class="callout__label-title"
                                         >This is a gate guard</span
                                     >
-                                    <span class="callout__label-sub">
+                                    <!-- <span class="callout__label-sub">
                                         Gate guards are paid a fixed share of
                                         the estate's guard fee, separate from
                                         responding security earnings.
-                                    </span>
+                                    </span> -->
                                 </label>
                             </div>
                         </div>
@@ -2630,12 +2712,12 @@ const proceedNoCoverage = async () => {
                                 <VueTelInput
                                     v-model="form.phone"
                                     mode="international"
-                                    :onlyCountries="['ZA']"
-                                    defaultCountry="ZA"
+                                    :onlyCountries="['za']"
+                                    defaultCountry="za"
                                     :autoFormat="true"
                                     :inputOptions="{
                                         showDialCode: true,
-                                        placeholder: '+27821234567',
+                                        placeholder: '+27 82 123 4567',
                                     }"
                                     @input="handlePhoneInput"
                                     class="custom-tel-input"
@@ -2694,7 +2776,7 @@ const proceedNoCoverage = async () => {
                                     isHousehold
                                         ? 'Channel (one only)'
                                         : form.is_gate_guard
-                                          ? 'Channel (one only — gate guard)'
+                                          ? 'Channel (one only - gate guard)'
                                           : 'Channels'
                                 }}
                                 <span
@@ -2708,7 +2790,7 @@ const proceedNoCoverage = async () => {
                                         font-style: normal;
                                         font-weight: 700;
                                     "
-                                    >Household — 1 max</span
+                                    >Household - 1 max</span
                                 >
                                 <span
                                     v-else-if="form.is_gate_guard"
@@ -4087,6 +4169,11 @@ const proceedNoCoverage = async () => {
 .data-table td {
     padding: 13px 16px;
     vertical-align: middle;
+    /* Keep row content on a single line by default so columns auto-size
+       to their content instead of wrapping. Cells that intentionally need
+       to wrap (e.g. multi-line address / channel pill groups) override
+       this locally with their own inline styles. */
+    white-space: nowrap;
 }
 
 .td-announce__title {
@@ -5050,8 +5137,11 @@ const proceedNoCoverage = async () => {
     .page-root {
         padding: 16px;
     }
+    /* Field Units table gained a "Joined" column; Households table gained
+       "Joined" and "Last Payment" columns — both need more horizontal room
+       before the table scrolls instead of wrapping. */
     .data-table {
-        min-width: 900px;
+        min-width: 1200px;
     }
     .table-card,
     .invite-table-wrap {

@@ -145,7 +145,10 @@ const adminGroups: NavGroup[] = [
 const clientGroups: NavGroup[] = [
     {
         label: 'Overview',
-        items: [{ title: 'Dashboard', href: dashboard(), icon: HomeIcon }],
+        items: [
+            { title: 'Dashboard', href: dashboard(), icon: HomeIcon },
+            { title: 'Channels', href: '/channels', icon: RadioIcon },
+        ],
     },
     {
         label: 'Live Monitoring',

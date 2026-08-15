@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { toUrl, urlIsActive } from '@/lib/utils';
+import { edit as editAddress } from '@/routes/address';
 import { edit as editAppearance } from '@/routes/appearance';
 import { edit as editProfile } from '@/routes/profile';
 import { edit as editPassword } from '@/routes/user-password';
@@ -10,6 +11,10 @@ const sidebarNavItems: NavItem[] = [
     {
         title: 'Profile',
         href: editProfile(),
+    },
+    {
+        title: 'Address',
+        href: editAddress(),
     },
     {
         title: 'Password',
@@ -24,7 +29,6 @@ const sidebarNavItems: NavItem[] = [
         href: editAppearance(),
     },
 ];
-
 const currentPath = typeof window !== undefined ? window.location.pathname : '';
 </script>
 

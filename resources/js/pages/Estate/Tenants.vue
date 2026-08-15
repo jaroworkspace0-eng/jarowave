@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head } from '@inertiajs/vue3';
+import { Head, Link } from '@inertiajs/vue3';
 import axios from 'axios';
 import { onMounted, ref } from 'vue';
 import { VueTelInput } from 'vue-tel-input';
@@ -97,15 +97,22 @@ const form = ref({
     id: null as number | null,
     name: '',
     email: '',
-    phone: '+27',
+    phone: '',
     unit_number: '',
     safe_cancel_pin: '',
     duress_pin: '',
     channel_id: '' as any,
 });
 
+// const selectedChannel = computed(() =>
+//     myChannels.value.find((c) => c.id === form.value.channel_id),
+// );
+
 const selectedChannel = computed(() =>
     myChannels.value.find((c) => c.id === form.value.channel_id),
+);
+const channelHasAddress = computed(
+    () => !!selectedChannel.value?.address_line_1,
 );
 
 const openModal = () => {
@@ -115,7 +122,7 @@ const openModal = () => {
         id: null,
         name: '',
         email: '',
-        phone: '+27',
+        phone: '',
         unit_number: '',
         safe_cancel_pin: generatePin(),
         duress_pin: generatePin(),
@@ -156,6 +163,14 @@ const handlePhoneInput = (val: string) => {
 };
 
 const submitTenant = async () => {
+    if (!channelHasAddress.value) {
+        errors.value = {
+            channel_id: [
+                'This estate needs an address configured before tenants can be added.',
+            ],
+        };
+        return;
+    }
     loading.value = true;
     errors.value = {};
     try {
@@ -1063,12 +1078,12 @@ import { computed } from 'vue';
                                 <VueTelInput
                                     v-model="form.phone"
                                     mode="international"
-                                    :onlyCountries="['ZA']"
-                                    defaultCountry="ZA"
+                                    :onlyCountries="['za']"
+                                    defaultCountry="za"
                                     :autoFormat="true"
                                     :inputOptions="{
                                         showDialCode: true,
-                                        placeholder: '+27821234567',
+                                        placeholder: '+27 82 123 4567',
                                     }"
                                     @input="handlePhoneInput"
                                     class="custom-tel-input"
@@ -1089,7 +1104,14 @@ import { computed } from 'vue';
                             </div>
                         </div>
 
-                        <div class="callout callout--info">
+                        <div
+                            class="callout"
+                            :class="
+                                channelHasAddress
+                                    ? 'callout--info'
+                                    : 'callout--amber'
+                            "
+                        >
                             <span
                                 style="
                                     width: 100%;
@@ -1104,16 +1126,30 @@ import { computed } from 'vue';
                                     class="callout__label-sub"
                                     style="margin-top: 2px"
                                 >
-                                    {{
-                                        selectedChannel?.address_line_1 ||
-                                        'Not set for this estate yet - contact an admin to configure the estate address'
-                                    }}
-                                    <template v-if="selectedChannel?.suburb">
-                                        , {{ selectedChannel.suburb }}
+                                    <template v-if="channelHasAddress">
+                                        {{ selectedChannel.address_line_1 }}
+                                        <template v-if="selectedChannel?.suburb"
+                                            >,
+                                            {{
+                                                selectedChannel.suburb
+                                            }}</template
+                                        >
+                                    </template>
+                                    <template v-else>
+                                        No address set for this estate yet.
+                                        <Link
+                                            href="/settings/address"
+                                            class="callout__link"
+                                        >
+                                            Configure estate address →
+                                        </Link>
                                     </template>
                                 </span>
                             </span>
                         </div>
+                        <span v-if="errors.channel_id" class="field__error">{{
+                            errors.channel_id[0]
+                        }}</span>
 
                         <div class="pin-panel">
                             <div class="pin-panel__header">
@@ -1183,14 +1219,16 @@ import { computed } from 'vue';
                             <button
                                 type="submit"
                                 class="btn-primary"
-                                :disabled="loading"
+                                :disabled="loading || !channelHasAddress"
                             >
                                 {{
-                                    loading
-                                        ? 'Saving…'
-                                        : isEditing
-                                          ? 'Update Tenant'
-                                          : 'Add Tenant'
+                                    !channelHasAddress
+                                        ? 'Estate needs an address'
+                                        : loading
+                                          ? 'Saving…'
+                                          : isEditing
+                                            ? 'Update Tenant'
+                                            : 'Add Tenant'
                                 }}
                             </button>
                         </div>
@@ -1402,6 +1440,17 @@ import { computed } from 'vue';
     display: flex;
     align-items: center;
     gap: 10px;
+}
+
+.callout__link {
+    display: inline-block;
+    margin-top: 2px;
+    font-weight: 700;
+    color: #ea580c;
+    text-decoration: none;
+}
+.callout__link:hover {
+    text-decoration: underline;
 }
 
 /* FILTER BAR */
@@ -1797,7 +1846,7 @@ import { computed } from 'vue';
 }
 .field__label {
     display: flex;
-    justify-content: space-between;
+    /* justify-content: space-between; */
     align-items: center;
     font-size: 12px;
     font-weight: 700;
@@ -1991,7 +2040,7 @@ import { computed } from 'vue';
 
 /* PIN PANEL */
 .pin-panel {
-    border: 1px solid #fecaca;
+    border: 1px solid #f3f3f3;
     background: #ffffff;
     border-radius: 10px;
     padding: 14px;
@@ -2048,7 +2097,7 @@ import { computed } from 'vue';
     text-align: center;
 }
 .pin-input--green {
-    background: #f0fdf4 !important;
+    background: #ffffff !important;
 }
 .pin-input--red {
     background: #fef2f2 !important;

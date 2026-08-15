@@ -6,6 +6,8 @@ import { type BreadcrumbItem } from '@/types';
 import { router, useForm } from '@inertiajs/vue3';
 import axios from 'axios';
 import { onMounted, ref } from 'vue';
+import { VueTelInput } from 'vue-tel-input';
+import 'vue-tel-input/vue-tel-input.css';
 
 const auth = useAuthStore();
 
@@ -322,6 +324,14 @@ const estateCount = computed(
         clients.value.data.filter((c: any) => c.organisation_type === 'estate')
             .length,
 );
+
+const handlePhoneInput = (val: string) => {
+    if (!val || !val.startsWith('+27')) {
+        form.value.phone = '+27';
+        return;
+    }
+    form.value.phone = val.replace(/\s+/g, '').replace(/[^0-9+]/g, '');
+};
 </script>
 
 <template>
@@ -696,7 +706,20 @@ const estateCount = computed(
                             </div>
                             <div class="field">
                                 <label class="field__label">Phone</label>
-                                <input
+                                <VueTelInput
+                                    v-model="form.phone"
+                                    mode="international"
+                                    :onlyCountries="['za']"
+                                    defaultCountry="za"
+                                    :autoFormat="true"
+                                    :inputOptions="{
+                                        showDialCode: true,
+                                        placeholder: '+27 82 123 4567',
+                                    }"
+                                    @input="handlePhoneInput"
+                                    class="custom-tel-input"
+                                />
+                                <!-- <input
                                     v-model="form.phone"
                                     type="text"
                                     class="field__input"
@@ -704,7 +727,7 @@ const estateCount = computed(
                                         'field__input--error': errors.phone,
                                     }"
                                     placeholder="+27 82 000 0000"
-                                />
+                                /> -->
                                 <span
                                     v-if="errors.phone"
                                     class="field__error"
@@ -1842,5 +1865,26 @@ const estateCount = computed(
     .table-card {
         overflow-x: auto;
     }
+}
+
+/* VUE-TEL-INPUT OVERRIDE (kept, restyled to match field tokens) */
+:deep(.custom-tel-input),
+:deep(.vue-tel-input) {
+    display: flex !important;
+    height: 42px !important;
+    border-radius: 8px;
+    border: 1.5px solid #e4e8ef !important;
+    background-color: #f8fafc;
+}
+:deep(.vti__input) {
+    background: transparent !important;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    font-size: 14px;
+    font-family: inherit;
+}
+:deep(.vti__dropdown) {
+    border-radius: 8px 0 0 8px;
 }
 </style>
