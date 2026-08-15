@@ -98,11 +98,11 @@ class EstateTenantController extends Controller
         $plainPassword = Str::password(12);
 
 
-        Log::info('Phone before insert', [
-    'raw' => $request->input('phone'),
-    'validated' => $validated['phone'],
-    'length' => strlen($validated['phone']),
-]);
+        // Log::info('Phone before insert', [
+        //     'raw' => $request->input('phone'),
+        //     'validated' => $validated['phone'],
+        //     'length' => strlen($validated['phone']),
+        // ]);
 
         return DB::transaction(function () use ($validated, $channel, $billingContact, $plainPassword) {
             $user = User::create([
@@ -145,6 +145,7 @@ class EstateTenantController extends Controller
         });
     }
 
+   
     public function update(Request $request, Employee $employee)
     {
         $channelIds = $this->myChannelIds($request);
@@ -157,11 +158,20 @@ class EstateTenantController extends Controller
         abort_unless(in_array($newChannelId, $channelIds), 403);
         $channel = Channel::findOrFail($newChannelId);
 
+        $validated = $request->validate([
+            'name'        => 'required|string|max:255',
+            'email'       => 'required|email|max:255|unique:users,email,' . $employee->user_id,
+            'phone'       => 'required|string|max:15',
+            'unit_number' => 'nullable|string|max:50',
+        ]);
+
+        $validated['phone'] = preg_replace('/\s+/', '', $validated['phone']);
+
         $employee->user->update([
-            'name'           => $request->input('name'),
-            'email'          => $request->input('email'),
-            'phone'          => $request->input('phone'),
-            'unit_number'    => $request->input('unit_number'),
+            'name'           => $validated['name'],
+            'email'          => $validated['email'],
+            'phone'          => $validated['phone'],
+            'unit_number'    => $validated['unit_number'] ?? null,
             'address_line_1' => $request->user()->address_line_1,
             'suburb'         => $request->user()->suburb,
             'latitude'       => $request->user()->latitude,
