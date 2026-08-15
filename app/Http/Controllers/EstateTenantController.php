@@ -81,6 +81,10 @@ class EstateTenantController extends Controller
     {
         $channelIds = $this->myChannelIds($request);
 
+        $request->merge([
+            'phone' => preg_replace('/\s+/', '', (string) $request->input('phone')),
+        ]);
+
         $validated = $request->validate([
             'channel_id'      => 'required|integer',
             'name'            => 'required|string|max:255',
@@ -91,18 +95,9 @@ class EstateTenantController extends Controller
             'duress_pin'      => 'required|string|size:6',
         ]);
 
-        $validated['phone'] = preg_replace('/\s+/', '', $validated['phone']);
-
         $channel = Channel::whereIn('id', $channelIds)->findOrFail($validated['channel_id']);
         $billingContact = $request->user();
         $plainPassword = Str::password(12);
-
-
-        // Log::info('Phone before insert', [
-        //     'raw' => $request->input('phone'),
-        //     'validated' => $validated['phone'],
-        //     'length' => strlen($validated['phone']),
-        // ]);
 
         return DB::transaction(function () use ($validated, $channel, $billingContact, $plainPassword) {
             $user = User::create([
@@ -129,11 +124,6 @@ class EstateTenantController extends Controller
 
             $employee->channels()->attach($channel->id);
 
-            // Create the individual subscription first (same as any household),
-            // then immediately opt in — optInHousehold() finds this subscription
-            // and cancels it with cancellation_reason: 'estate_optin' and
-            // channel_subscription_id set, leaving a real audit trail instead
-            // of skipping subscription creation altogether.
             $this->employeeController->createHouseholdSubscription($user, $channel->client_id, false);
             $this->billingService->optInHousehold($user, $channel);
 
@@ -158,14 +148,16 @@ class EstateTenantController extends Controller
         abort_unless(in_array($newChannelId, $channelIds), 403);
         $channel = Channel::findOrFail($newChannelId);
 
+        $request->merge([
+            'phone' => preg_replace('/\s+/', '', (string) $request->input('phone')),
+        ]);
+
         $validated = $request->validate([
             'name'        => 'required|string|max:255',
             'email'       => 'required|email|max:255|unique:users,email,' . $employee->user_id,
             'phone'       => 'required|string|max:15',
             'unit_number' => 'nullable|string|max:50',
         ]);
-
-        $validated['phone'] = preg_replace('/\s+/', '', $validated['phone']);
 
         $employee->user->update([
             'name'           => $validated['name'],
