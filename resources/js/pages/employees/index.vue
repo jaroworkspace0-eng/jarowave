@@ -3193,8 +3193,12 @@ const proceedNoCoverage = async () => {
                     </div>
                     <h2 class="confirm-modal__title">Confirm Deletion</h2>
                     <p class="confirm-modal__body">
-                        Are you sure you want to delete this record? This action
-                        is permanent.
+                        Are you sure you want to delete this record? If this
+                        user is a tenant linked to an estate, they will be
+                        removed from that estate, their subscription will be
+                        cancelled, and they'll lose access to the app
+                        immediately. This action is permanent and cannot be
+                        undone.
                     </p>
                     <div class="confirm-modal__actions">
                         <button
