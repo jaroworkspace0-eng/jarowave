@@ -107,11 +107,15 @@ class HouseholdController extends Controller
     }
 
 
-    // self-registration for households via invite token
+   // self-registration for households via invite token
     // ── POST /api/household/register ──────────────────────────────────────────
     public function register(Request $request)
     {
         $request->headers->set('Accept', 'application/json');
+
+        if ($request->has('phone')) {
+            $request->merge(['phone' => preg_replace('/\s+/', '', (string) $request->phone)]);
+        }
 
         $request->validate([
             'invite_token' => 'required|string',
@@ -119,7 +123,7 @@ class HouseholdController extends Controller
             'email'        => 'required|email|unique:users,email',
             'phone'        => 'nullable|string|max:20|unique:users,phone',
             'password'     => 'required|string|min:8|confirmed',
-            'is_estate' => 'boolean',
+            'is_estate'    => 'boolean',
             // 'gateway'      => 'required|in:payfast,ozow',
         ]);
 
@@ -139,7 +143,6 @@ class HouseholdController extends Controller
             return response()->json(['message' => 'This invite link has reached its limit.'], 422);
         }
 
-
         $channel = $invite->channel_id ? Channel::find($invite->channel_id) : null;
 
         // Determine org type from the client's user record
@@ -156,7 +159,6 @@ class HouseholdController extends Controller
             'is_active'  => true,
             'status'     => 'offline',
             'is_estate'  => $request->boolean('is_estate', false),
-
         ]);
 
         // Create employee record
@@ -187,7 +189,7 @@ class HouseholdController extends Controller
             'status'             => 'trialing',
             'plan'               => null,
             'billing_cycle'      => 'monthly',
-            'price' => BillingService::unitPrice($channel->amount_per_household),
+            'price'              => BillingService::unitPrice($channel->amount_per_household),
             'trial_ends_at'      => now()->addDays(14), // 14-day trial
             'merchant_reference' => $merchantReference,
         ]);
@@ -195,7 +197,6 @@ class HouseholdController extends Controller
         $channelName = $channel?->name ?? $invite->client->user->organisation_name;
         $amountPerHousehold = $channel->amount_per_household;
         $token = $user->createToken('household-token')->plainTextToken;
-
 
         Mail::to($user->email)->queue(new HouseholdWelcomeMail(
             user: $user,
@@ -209,11 +210,6 @@ class HouseholdController extends Controller
             channelName: $channelName
         ));
 
-        // Build PayFast payment URL
-        // $redirectUrl = $this->initiatePayment($user, $request->gateway, $merchantReference);
-
-
-
         return response()->json([
             'token'        => $token,
             'user'         => [
@@ -224,7 +220,6 @@ class HouseholdController extends Controller
                 'role'  => $user->role,
             ],
             'redirect_url' => 'dashboard.html',
-            // 'redirect_url' => $redirectUrl,
         ]);
     }
  

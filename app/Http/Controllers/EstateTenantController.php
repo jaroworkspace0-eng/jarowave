@@ -10,6 +10,7 @@ use App\Models\ChannelBillingContact;
 use App\Models\Employee;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\AddressHistoryService;
 use App\Services\ChannelBillingService;
 use App\Traits\NotifiesNode;
 use Illuminate\Http\Request;
@@ -26,6 +27,7 @@ class EstateTenantController extends Controller
     public function __construct(
         protected EmployeeController $employeeController,
         protected ChannelBillingService $billingService,
+        protected AddressHistoryService $addressHistory,
     ) {}
 
     use NotifiesNode;
@@ -76,7 +78,7 @@ class EstateTenantController extends Controller
         ]);
     }
 
-    
+
     public function store(Request $request)
     {
         $channelIds = $this->myChannelIds($request);
@@ -117,6 +119,8 @@ class EstateTenantController extends Controller
                 'duress_pin'      => $validated['duress_pin'],
             ]);
 
+            $this->addressHistory->record($user, $channel);
+
             $employee = Employee::create([
                 'user_id'   => $user->id,
                 'client_id' => $channel->client_id,
@@ -135,8 +139,8 @@ class EstateTenantController extends Controller
         });
     }
 
-   
-    public function update(Request $request, Employee $employee)
+
+   public function update(Request $request, Employee $employee)
     {
         $channelIds = $this->myChannelIds($request);
         abort_unless(
@@ -159,6 +163,9 @@ class EstateTenantController extends Controller
             'unit_number' => 'nullable|string|max:50',
         ]);
 
+        $addressChanged = $employee->user->complex_name !== $channel->name
+            || $employee->user->unit_number !== ($validated['unit_number'] ?? null);
+
         $employee->user->update([
             'name'           => $validated['name'],
             'email'          => $validated['email'],
@@ -170,6 +177,10 @@ class EstateTenantController extends Controller
             'longitude'      => $request->user()->longitude,
             'complex_name'   => $channel->name,
         ]);
+
+        if ($addressChanged) {
+            $this->addressHistory->record($employee->user, $channel);
+        }
 
         $employee->channels()->sync([$channel->id]);
 
@@ -191,11 +202,19 @@ class EstateTenantController extends Controller
             ->first();
 
         DB::transaction(function () use ($employee) {
+            $this->addressHistory->close($employee->user);
+
             User::where('id', $employee->user_id)
                 ->update([
-                    'is_active' => false,
+                    'is_active'           => false,
                     'subscription_status' => 'cancelled',
-                    ]);
+                    'address_line_1'      => null,
+                    'suburb'              => null,
+                    'latitude'            => null,
+                    'longitude'           => null,
+                    'complex_name'        => null,
+                    'unit_number'         => null,
+                ]);
 
             User::where('id', $employee->user_id)->delete();
             $employee->delete();
@@ -203,10 +222,10 @@ class EstateTenantController extends Controller
 
         if ($subscription) {
             $subscription->update([
-                'status' => 'cancelled',
-                'ends_at' => now(),
+                'status'                  => 'cancelled',
+                'ends_at'                 => now(),
                 'channel_subscription_id' => null,
-                'cancellation_reason' => 'no_coverage_relocation',
+                'cancellation_reason'     => 'no_coverage_relocation',
             ]);
         }
 
@@ -219,7 +238,7 @@ class EstateTenantController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Tenant deleted successfully!',
+            'message' => 'Tenant removed successfully!',
         ]);
     }
 
@@ -329,6 +348,5 @@ class EstateTenantController extends Controller
 
         return response()->json(['message' => 'Guard removed successfully.']);
     }
-
 
 }

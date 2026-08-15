@@ -8,6 +8,7 @@ use App\Models\Client;
 use App\Models\Employee;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\AddressHistoryService;
 use App\Services\BillingService;
 use App\Services\ChannelBillingService;
 use App\Services\SubscriptionService;
@@ -22,12 +23,13 @@ use Illuminate\Validation\Rule;
 
 class EmployeeController extends Controller
 {
-
     private ChannelBillingService $estateBilling;
+    private AddressHistoryService $addressHistory;
 
-    public function __construct(ChannelBillingService $estateBilling)
+    public function __construct(ChannelBillingService $estateBilling, AddressHistoryService $addressHistory)
     {
         $this->estateBilling = $estateBilling;
+        $this->addressHistory = $addressHistory;
     }
     // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -158,6 +160,7 @@ class EmployeeController extends Controller
 
 
     // registration for households via admin dashboard
+
     // ── Store ─────────────────────────────────────────────────────────────────
 
     public function store(Request $request)
@@ -172,8 +175,7 @@ class EmployeeController extends Controller
             'phone'           => ['required', 'unique:users,phone', 'min:10', 'max:15', 'regex:/^\+[1-9]\d{1,14}$/'],
             'occupation'      => 'required|string',
             'password'        => 'required|string|min:8',
-            // 'channel_ids'     => 'required|array',
-             'channel_ids'     => [
+            'channel_ids'     => [
                 'required',
                 'array',
                 function ($attribute, $value, $fail) use ($request) {
@@ -186,8 +188,6 @@ class EmployeeController extends Controller
             'role'            => 'required|string',
             'address_line_1'  => 'required_if:role,household,resident|nullable|string',
             'suburb'          => 'required_if:role,household,resident|nullable|string',
-            // 'latitude'        => 'required_if:role,household,resident|nullable|numeric',
-            // 'longitude'       => 'required_if:role,household,resident|nullable|numeric',
             'latitude'        => 'nullable|numeric',
             'longitude'       => 'nullable|numeric',
             'complex_name'    => 'nullable|string',
@@ -195,7 +195,7 @@ class EmployeeController extends Controller
             'unit_number'     => 'nullable|string',
             'safe_cancel_pin' => 'nullable|string|size:6',
             'duress_pin'      => 'nullable|string|size:6',
-            'is_estate' => 'boolean',
+            'is_estate'       => 'boolean',
             'is_gate_guard'   => 'boolean',
         ], [
             'phone.regex' => 'The phone number must include a country code starting with +',
@@ -222,7 +222,7 @@ class EmployeeController extends Controller
                 'unit_number'     => $isHousehold ? ($validated['unit_number'] ?? null)      : null,
                 'safe_cancel_pin' => $isHousehold ? ($validated['safe_cancel_pin'] ?? null)  : null,
                 'duress_pin'      => $isHousehold ? ($validated['duress_pin'] ?? null)       : null,
-                'is_estate' => $isHousehold ? $request->boolean('is_estate', false) : false,
+                'is_estate'       => $isHousehold ? $request->boolean('is_estate', false) : false,
                 'is_gate_guard'   => !$isHousehold ? $request->boolean('is_gate_guard', false) : false,
             ]);
 
@@ -239,6 +239,7 @@ class EmployeeController extends Controller
             if ($isHousehold) {
                 $this->createHouseholdSubscription($user, $clientId, $request->boolean('activation_fee_paid', false));
                 $this->sendHouseholdWelcomeMail($user, $clientId, $plainPassword, $channel);
+                $this->addressHistory->record($user, $channel);
             }
 
             return response()->json([
@@ -249,14 +250,6 @@ class EmployeeController extends Controller
         });
     }
 
-    // ── Edit ──────────────────────────────────────────────────────────────────
-
-    public function edit(Employee $employee)
-    {
-        return response()->json(
-            $employee->load('channels', 'user', 'client')
-        );
-    }
 
     // ── Update ────────────────────────────────────────────────────────────────
 
@@ -275,7 +268,6 @@ class EmployeeController extends Controller
             'phone'                     => ['required', 'min:10', 'max:15', Rule::unique('users', 'phone')->ignore($employee->user_id), 'regex:/^\+[1-9]\d{1,14}$/'],
             'occupation'                => 'required|string',
             'role'                      => 'required|string',
-            // 'channel_ids'               => 'array',
             'channel_ids'   => [
                 'array',
                 function ($attribute, $value, $fail) use ($request) {
@@ -291,9 +283,6 @@ class EmployeeController extends Controller
             'new_password_confirmation' => 'nullable|string',
             'address_line_1'            => ($fromApp ? 'nullable' : 'required_if:role,household,resident') . '|nullable|string',
             'suburb'                    => ($fromApp ? 'nullable' : 'required_if:role,household,resident') . '|nullable|string',
-            // 'latitude'                  => ($fromApp ? 'nullable' : 'required_if:role,household,resident') . '|nullable|numeric',
-            // 'longitude'                 => ($fromApp ? 'nullable' : 'required_if:role,household,resident') . '|nullable|numeric',
-
             'latitude'                  => 'nullable|numeric',
             'longitude'                 => 'nullable|numeric',
             'complex_name'              => 'nullable|string',
@@ -301,7 +290,7 @@ class EmployeeController extends Controller
             'unit_number'               => 'nullable|string',
             'safe_cancel_pin'           => 'nullable|string|size:6',
             'duress_pin'                => 'nullable|string|size:6',
-            'is_estate' => 'boolean',
+            'is_estate'                 => 'boolean',
             'is_gate_guard'             => 'boolean',
             'alert_location_source'     => 'nullable|in:gps,registered_address',
         ]);
@@ -321,11 +310,11 @@ class EmployeeController extends Controller
             $isHousehold = $this->isHouseholdRole($finalRole);
 
             $userData = [
-                'name'       => $validated['name'],
-                'email'      => $validated['email'],
-                'phone'      => $validated['phone'],
-                'occupation' => $validated['occupation'],
-                'role'       => $finalRole,
+                'name'          => $validated['name'],
+                'email'         => $validated['email'],
+                'phone'         => $validated['phone'],
+                'occupation'    => $validated['occupation'],
+                'role'          => $finalRole,
                 'is_gate_guard' => $isHousehold ? false : ($validated['is_gate_guard'] ?? false),
             ];
 
@@ -345,7 +334,7 @@ class EmployeeController extends Controller
                     'unit_number'     => $isHousehold ? ($validated['unit_number'] ?? null)      : null,
                     'safe_cancel_pin' => $isHousehold ? ($validated['safe_cancel_pin'] ?? null)  : null,
                     'duress_pin'      => $isHousehold ? ($validated['duress_pin'] ?? null)       : null,
-                    'is_estate' => $isHousehold ? (bool) ($validated['is_estate'] ?? false) : false,
+                    'is_estate'       => $isHousehold ? (bool) ($validated['is_estate'] ?? false) : false,
                 ]);
             }
 
@@ -360,6 +349,13 @@ class EmployeeController extends Controller
             }
 
             $employee->user->update($userData);
+
+            if ($isHousehold && !$fromApp) {
+                $currentChannel = $employee->channels()->first();
+                if ($currentChannel) {
+                    $this->addressHistory->record($employee->user, $currentChannel);
+                }
+            }
 
             // Update client_id from first channel if channels provided
             $clientId = $employee->client_id;
@@ -426,6 +422,13 @@ class EmployeeController extends Controller
                                 $billingOutcome = 'opted_out_individual_required';
                             }
                         }
+
+                        if ($isHousehold) {
+                            $movedToChannel = Channel::find($newPrimaryId);
+                            if ($movedToChannel) {
+                                $this->addressHistory->record($employee->user, $movedToChannel);
+                            }
+                        }
                     }
                 }
 
@@ -468,21 +471,23 @@ class EmployeeController extends Controller
             app(SubscriptionService::class)->cancelForUser($user->id);
 
             if ($user) {
+                $this->addressHistory->close($user);
+
                 $user->tokens()->delete();
                 $user->update([
-                    'name'             => 'Deleted User',
-                    'email'            => 'deleted_' . $user->id . '@deleted.com',
-                    'phone'            => null,
-                    'password'         => bcrypt(str()->random(32)),
-                    'is_active'        => 0,
-                    'address_line_1'   => null,
-                    'suburb'           => null,
-                    'longitude'        => null,
-                    'latitude'         => null,
-                    'complex_name'     => null,
-                    'unit_number'      => null,
-                    'safe_cancel_pin'  => null,
-                    'duress_pin'       => null,
+                    'name'            => 'Deleted User',
+                    'email'           => 'deleted_' . $user->id . '@deleted.com',
+                    'phone'           => null,
+                    'password'        => bcrypt(str()->random(32)),
+                    'is_active'       => 0,
+                    'address_line_1'  => null,
+                    'suburb'          => null,
+                    'longitude'       => null,
+                    'latitude'        => null,
+                    'complex_name'    => null,
+                    'unit_number'     => null,
+                    'safe_cancel_pin' => null,
+                    'duress_pin'      => null,
                 ]);
             }
 
@@ -498,6 +503,14 @@ class EmployeeController extends Controller
             'success' => true,
             'message' => 'Household deleted successfully!',
         ]);
+    }
+      // ── Edit ──────────────────────────────────────────────────────────────────
+
+    public function edit(Employee $employee)
+    {
+        return response()->json(
+            $employee->load('channels', 'user', 'client')
+        );
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

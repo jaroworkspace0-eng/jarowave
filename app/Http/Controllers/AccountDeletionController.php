@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AccountDeletionRequest;
 use App\Models\User;
+use App\Services\AddressHistoryService;
 use App\Services\SubscriptionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -12,8 +13,14 @@ use Illuminate\Support\Facades\Mail;
 
 class AccountDeletionController extends Controller
 {
-    public function store(Request $request)
+    private AddressHistoryService $addressHistory;
+
+    public function __construct(AddressHistoryService $addressHistory)
     {
+        $this->addressHistory = $addressHistory;
+    }
+
+    public function store(Request $request) {
         $request->validate([
             'name'   => 'required|string|max:255',
             'email'  => 'required|email',
@@ -125,24 +132,25 @@ class AccountDeletionController extends Controller
         $user = User::find($deletion->user_id);
 
         if ($user) {
-
             app(SubscriptionService::class)->cancelForUser($user->id);
+
+            $this->addressHistory->close($user);
 
             $user->tokens()->delete();
             $user->update([
-                'name'             => 'Deleted User',
-                'email'            => 'deleted_' . $user->id . '@deleted.com',
-                'phone'            => null,
-                'password'         => bcrypt(str()->random(32)),
-                'is_active'        => 0,
-                'address_line_1'   => null,
-                'suburb'           => null,
-                'longitude'        => null,
-                'latitude'         => null,
-                'complex_name'     => null,
-                'unit_number'      => null,
-                'safe_cancel_pin'  => null,
-                'duress_pin'       => null,
+                'name'            => 'Deleted User',
+                'email'           => 'deleted_' . $user->id . '@deleted.com',
+                'phone'           => null,
+                'password'        => bcrypt(str()->random(32)),
+                'is_active'       => 0,
+                'address_line_1'  => null,
+                'suburb'          => null,
+                'longitude'       => null,
+                'latitude'        => null,
+                'complex_name'    => null,
+                'unit_number'     => null,
+                'safe_cancel_pin' => null,
+                'duress_pin'      => null,
             ]);
             $user->employee?->delete();
         }
@@ -159,13 +167,12 @@ class AccountDeletionController extends Controller
                 "Hi {$deletion->name},\n\nYour Echo Link account and all associated data has been permanently deleted.\n\nThank you for using Echo Link.\n\nManagement",
                 function ($message) use ($deletion) {
                     $message->to($deletion->email)
-                            ->subject('Account Deleted - Echo Link');
+                        ->subject('Account Deleted - Echo Link');
                 }
             );
         } catch (\Exception $e) {
             Log::warning('Deletion confirmation email failed: ' . $e->getMessage());
         }
-
 
         return response()->json(['message' => 'Account deleted successfully.']);
     }
