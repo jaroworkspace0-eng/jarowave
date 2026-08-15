@@ -97,6 +97,13 @@ class EstateTenantController extends Controller
         $billingContact = $request->user();
         $plainPassword = Str::password(12);
 
+
+        Log::info('Phone before insert', [
+    'raw' => $request->input('phone'),
+    'validated' => $validated['phone'],
+    'length' => strlen($validated['phone']),
+]);
+
         return DB::transaction(function () use ($validated, $channel, $billingContact, $plainPassword) {
             $user = User::create([
                 'name'            => $validated['name'],
