@@ -205,4 +205,9 @@ class User extends Authenticatable
             ? $this->accountLinkAsLinked !== null
             : $this->accountLinkAsLinked()->exists();
     }
+
+    public function addressHistory()
+    {
+        return $this->hasMany(TenantAddressHistory::class);
+    }
 }
