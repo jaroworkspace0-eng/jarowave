@@ -85,11 +85,13 @@ class EstateTenantController extends Controller
             'channel_id'      => 'required|integer',
             'name'            => 'required|string|max:255',
             'email'           => 'required|email|max:255|unique:users,email',
-            'phone'           => 'required|string|max:20',
+            'phone'           => 'required|string|max:15',
             'unit_number'     => 'nullable|string|max:50',
             'safe_cancel_pin' => 'required|string|size:6',
             'duress_pin'      => 'required|string|size:6',
         ]);
+
+        $validated['phone'] = preg_replace('/\s+/', '', $validated['phone']);
 
         $channel = Channel::whereIn('id', $channelIds)->findOrFail($validated['channel_id']);
         $billingContact = $request->user();
