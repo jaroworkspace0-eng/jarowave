@@ -85,14 +85,19 @@ class ChannelBillingService
             ->where('status', 'past_due')
             ->exists();
 
+        $suspended = Subscription::where('user_id', $user->id)
+            ->where('status', 'cancelled')
+            ->whereNotNull('sos_suspended_at')
+            ->exists();
+
         $balance = Subscription::where('user_id', $user->id)
-            ->where('status', 'past_due')
+            ->whereIn('status', ['past_due', 'cancelled'])
+            ->latest()
             ->first();
 
-        if ($pastDue) {
-            throw new \Exception('Your individual subscription has an outstanding balance of R' . number_format($balance->price, 0) .'. Please settle it before opting into estate billing.');
+        if ($pastDue || $suspended) {
+            throw new \Exception('Your individual subscription has an outstanding balance of R' . number_format($balance->price, 0) . '. Please settle it before opting into estate billing.');
         }
-
         $channelSubscription = $this->resolveActiveChannelSubscription($channel);
 
 
@@ -211,9 +216,12 @@ class ChannelBillingService
      * Opt a household out of estate bulk billing.
      * Restores them to individual billing with a fresh subscription.
      */
+   
     public function optOutHousehold(User $user, Channel $channel, bool $deactivating = false): void
     {
-        DB::transaction(function () use ($user, $channel, $deactivating) {
+        $linkedUserIds = [];
+
+        DB::transaction(function () use ($user, $channel, $deactivating, &$linkedUserIds) {
             $channelSubscription = ChannelSubscription::where('channel_id', $channel->id)
                 ->where('status', 'active')
                 ->where('current_period_end', '>=', now())
@@ -241,6 +249,7 @@ class ChannelBillingService
 
             $periodEnd = $channelSubscription?->current_period_end;
             $newStatus = $deactivating ? 'cancelled' : 'past_due';
+            $oldChannelSubscriptionId = $subscription->channel_subscription_id;
 
             $subscription->update([
                 'status'                  => $newStatus,
@@ -254,12 +263,56 @@ class ChannelBillingService
             $user->update([
                 'subscription_status' => $newStatus,
             ]);
+
+            // Fold out any linked accounts sharing this household's channel_subscription_id —
+            // mirrors the fold-in logic in ChannelBillingService::optInHousehold.
+            $linkedSubs = Subscription::where('channel_subscription_id', $oldChannelSubscriptionId)
+                ->where('cancellation_reason', 'estate_optin')
+                ->where('user_id', '!=', $user->id)
+                ->get();
+
+            foreach ($linkedSubs as $linkedSub) {
+                $linkedSub->update([
+                    'status'                  => $newStatus,
+                    'cancelled_at'            => $deactivating ? now() : null,
+                    'ends_at'                 => $periodEnd ?? null,
+                    'cancellation_reason'     => $deactivating ? 'no_coverage_relocation' : null,
+                    'channel_subscription_id' => null,
+                    'current_period_end'      => $periodEnd ?? null,
+                ]);
+
+                User::where('id', $linkedSub->user_id)->update(['subscription_status' => $newStatus]);
+                $linkedUserIds[] = $linkedSub->user_id;
+            }
         });
+
+        // Suspend SOS immediately — opt-out is voluntary, not a payment failure,
+        // so no grace period applies regardless of $deactivating.
+        foreach ([$user->id, ...$linkedUserIds] as $suspendUserId) {
+            try {
+                Http::timeout(5)
+                    ->withHeaders([
+                        'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
+                        'Content-Type'  => 'application/json',
+                    ])
+                    ->post(rtrim(env('PTT_SERVER_URL', 'https://radio.server.jaroworkspace.com'), '/') . '/payment-failed', [
+                        'userId'       => $suspendUserId,
+                        'forceSuspend' => true,
+                        'reason'       => 'household_opted_out',
+                    ]);
+            } catch (\Throwable $e) {
+                Log::warning('optOutHousehold: failed to notify Node of SOS suspension', [
+                    'user_id' => $suspendUserId,
+                    'error'   => $e->getMessage(),
+                ]);
+            }
+        }
 
         Log::info('Household opted out of estate billing', [
             'user_id'      => $user->id,
             'channel_id'   => $channel->id,
             'deactivating' => $deactivating,
+            'linked_users' => $linkedUserIds,
         ]);
     }
 

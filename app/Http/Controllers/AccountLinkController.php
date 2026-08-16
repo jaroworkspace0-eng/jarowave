@@ -525,7 +525,7 @@ class AccountLinkController extends Controller
                     'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
                     'Content-Type'  => 'application/json',
                 ])
-                ->post(rtrim(env('PTT_SERVER_URL'), '/') . '/payment-failed', [
+                ->post(rtrim(env('PTT_SERVER_URL', 'https://radio.server.jaroworkspace.com'), '/') . '/payment-failed', [
                     'userId'       => $link->linked_account_id,
                     'forceSuspend' => true,
                     'reason'       => 'account_unlinked',

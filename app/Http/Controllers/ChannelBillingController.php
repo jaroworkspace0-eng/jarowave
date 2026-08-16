@@ -195,13 +195,23 @@ class ChannelBillingController extends Controller
             'user_id' => 'required|exists:users,id',
         ]);
 
-        $user = User::findOrFail($request->user_id);
+        $requester = $request->user();
 
-        $this->billingService->optOutHousehold($user, $channel);
+        if (!in_array($requester->role, ['admin', 'estate_billing'])) {
+            abort(403);
+        }
+
+        if ($requester->role === 'estate_billing' && !$requester->accessibleChannelIds()->contains($channel->id)) {
+            abort(403, 'Not your estate.');
+        }
+
+        $targetUser = User::findOrFail($request->user_id);
+
+        $this->billingService->optOutHousehold($targetUser, $channel);
 
         return response()->json([
             'success' => true,
-            'message' => "{$user->name} has been removed from estate billing.",
+            'message' => "{$targetUser->name} has been removed from estate billing.",
         ]);
     }
 
