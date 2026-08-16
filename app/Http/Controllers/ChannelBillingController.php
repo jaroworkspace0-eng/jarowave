@@ -184,7 +184,7 @@ class ChannelBillingController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'You have left estate billing. An individual subscription has been created for you.',
+            'message' => 'You have left estate billing. Please complete payment on your individual subscription to restore access.',
         ]);
     }
 
