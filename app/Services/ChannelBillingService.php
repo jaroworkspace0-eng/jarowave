@@ -75,6 +75,7 @@ class ChannelBillingService
      * Opt a household into estate bulk billing.
      * Cancels their individual subscription and links them to the channel subscription.
      */
+   
     public function optInHousehold(User $user, Channel $channel): void
     {
         DB::transaction(function () use ($user, $channel) {
@@ -88,14 +89,20 @@ class ChannelBillingService
 
             $suspended = Subscription::where('user_id', $user->id)
                 ->where('status', 'cancelled')
-                ->where('cancellation_reason', '!=', 'no_coverage_relocation')
+                ->where(function ($q) {
+                    $q->whereNull('cancellation_reason')
+                    ->orWhere('cancellation_reason', '!=', 'no_coverage_relocation');
+                })
                 ->whereNotNull('sos_suspended_at')
                 ->exists();
 
             if ($pastDue || $suspended) {
                 $balance = Subscription::where('user_id', $user->id)
                     ->whereIn('status', ['past_due', 'cancelled'])
-                    ->where('cancellation_reason', '!=', 'no_coverage_relocation')
+                    ->where(function ($q) {
+                        $q->whereNull('cancellation_reason')
+                        ->orWhere('cancellation_reason', '!=', 'no_coverage_relocation');
+                    })
                     ->latest()
                     ->first();
 
@@ -130,9 +137,6 @@ class ChannelBillingService
                 'subscription_status' => $channelSubscription?->status === 'active' ? 'active' : 'pending',
             ]);
 
-            // Fold any accounts linked under this household into the same
-            // channel subscription, so they're covered by estate billing too
-            // (picked up automatically by activateOptedInHouseholds()/suspendChannel()).
             $accountLinks = \App\Models\AccountLink::with('linkedAccount.subscription')
                 ->where('primary_account_id', $user->id)
                 ->where('status', 'active')
@@ -170,8 +174,6 @@ class ChannelBillingService
                     'subscription_status' => $channelSubscription?->status === 'active' ? 'active' : 'pending',
                 ]);
 
-                // Clear any independent payment-failure suspension this linked account
-                // may have had on Node before being folded into estate billing.
                 try {
                     Http::timeout(5)
                         ->withHeaders([
@@ -190,7 +192,6 @@ class ChannelBillingService
             }
         });
 
-        // Clear any payment failure suspension on Node
         try {
             Http::timeout(5)
                 ->withHeaders([
