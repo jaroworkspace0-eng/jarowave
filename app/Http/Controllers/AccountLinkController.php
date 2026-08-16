@@ -5,9 +5,11 @@ namespace App\Http\Controllers;
 use App\Mail\AccountLinkApprovedPrimaryMail;
 use App\Mail\AccountLinkedMail;
 use App\Mail\AccountLinkRejectedMail;
+use App\Mail\AccountUnlinkedMail;
 use App\Models\AccountLink;
 use App\Models\Subscription;
 use App\Models\User;
+use App\Services\AddressHistoryService;
 use App\Services\BillingService;
 use App\Services\ChannelBillingService;
 use App\Services\PayFastService;
@@ -19,6 +21,13 @@ use Illuminate\Support\Facades\Mail;
 
 class AccountLinkController extends Controller
 {
+
+    private AddressHistoryService $addressHistory;
+
+    public function __construct(AddressHistoryService $addressHistory)
+    {
+        $this->addressHistory = $addressHistory;
+    }
 
     // ── Is the current user eligible to be a "primary" and link others? ──
     // A user is NOT eligible if they themselves are currently linked
@@ -218,78 +227,7 @@ class AccountLinkController extends Controller
         ], 201);
     }
 
-    // Cancel a pending request (primary-initiated)
-    // Cancel a pending request (primary-initiated), or unlink an active one
-    public function destroy(Request $request, int $id): JsonResponse
-    {
-        $userId = $request->user()->id;
-
-        $link = AccountLink::with(['primaryAccount', 'linkedAccount.subscription'])
-            ->where('id', $id)
-            ->where(function ($q) use ($userId) {
-                $q->where('primary_account_id', $userId)
-                ->orWhere('linked_account_id', $userId);
-            })
-            ->firstOrFail();
-
-        $wasActive = $link->status === 'active';
-        $primary   = $link->primaryAccount;
-        $linkedSub = $link->linkedAccount?->subscription;
-
-
-         if ($wasActive && ! $primary) {
-            Log::error('destroy: AccountLink has no primaryAccount', ['link_id' => $link->id]);
-            return response()->json(['error' => 'Link has no primary account'], 422);
-        }
-
-
-        if ($wasActive) {
-            if ($linkedSub) {
-                $linkedSub->update([
-                    'channel_subscription_id' => null,
-                    'cancellation_reason'     => null,
-                    'status'                  => 'cancelled',
-                    'ends_at'                 => now(),
-                ]);
-            }
-
-            $link->linkedAccount?->update(['subscription_status' => 'cancelled']);
-
-            try {
-                Http::timeout(5)
-                    ->withHeaders([
-                        'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
-                        'Content-Type'  => 'application/json',
-                    ])
-                    ->post(rtrim(env('PTT_SERVER_URL'), '/') . '/payment-failed', [
-                        'userId'       => $link->linked_account_id,
-                        'forceSuspend' => true,
-                        'reason'       => 'account_unlinked',
-                    ]);
-            } catch (\Throwable $e) {
-                Log::warning('destroy: failed to notify Node of linked account suspension', [
-                    'linked_user_id' => $link->linked_account_id,
-                    'error'          => $e->getMessage(),
-                ]);
-            }
-        }
-
-        $link->delete();
-
-        $syncFailed = false;
-
-        if ($wasActive) {
-            $sync = app(ChannelBillingService::class)->syncStandaloneSubscriptionAmount($primary);
-            $syncFailed = $sync['failed'];
-        }
-
-        return response()->json([
-            'success'             => true,
-            'action'              => $wasActive ? 'unlinked' : 'cancelled',
-            'billing_sync_failed' => $syncFailed,
-        ]);
-
-    }
+    
  
 
     // ── Approval - called by estate admin or Echo Link admin dashboard ──
@@ -337,6 +275,13 @@ class AccountLinkController extends Controller
             'latitude'       => $primary->latitude,
             'longitude'      => $primary->longitude,
         ]);
+
+
+        $primaryChannel = $primary->employee?->channels->first();
+
+        if ($primaryChannel) {
+            $this->addressHistory->record($link->linkedAccount, $primaryChannel, $primary);
+        }
 
         // If the primary is on estate billing, fold the linked account into the
         // same channel subscription so it's picked up by activateOptedInHouseholds()
@@ -463,19 +408,76 @@ class AccountLinkController extends Controller
             }
         }
 
-        $primary   = $link->primaryAccount;
-        $linkedSub = $link->linkedAccount?->subscription;
-
+        $primary = $link->primaryAccount;
 
         if (! $primary) {
             Log::error('forceUnlink: AccountLink has no primaryAccount', ['link_id' => $link->id]);
             return response()->json(['error' => 'Link has no primary account'], 422);
         }
 
+        $this->unwindLinkedAccountCoverage($link, $primary);
 
-        // Unwind the linked account's coverage — no billing relationship covers
-        // them anymore, whether they were folded into estate billing or riding
-        // on the primary's standalone PayFast subscription.
+        $link->delete();
+
+        $sync = app(ChannelBillingService::class)->syncStandaloneSubscriptionAmount($primary);
+
+        return response()->json([
+            'success'             => true,
+            'action'              => 'force_unlinked',
+            'billing_sync_failed' => $sync['failed'],
+        ]);
+    }
+
+
+    public function destroy(Request $request, int $id): JsonResponse
+    {
+        $userId = $request->user()->id;
+
+        $link = AccountLink::with(['primaryAccount.employee.channels', 'linkedAccount.subscription'])
+            ->where('id', $id)
+            ->where(function ($q) use ($userId) {
+                $q->where('primary_account_id', $userId)
+                    ->orWhere('linked_account_id', $userId);
+            })
+            ->firstOrFail();
+
+        $wasActive = $link->status === 'active';
+        $primary   = $link->primaryAccount;
+
+        if ($wasActive && ! $primary) {
+            Log::error('destroy: AccountLink has no primaryAccount', ['link_id' => $link->id]);
+            return response()->json(['error' => 'Link has no primary account'], 422);
+        }
+
+        if ($wasActive) {
+            $this->unwindLinkedAccountCoverage($link, $primary);
+        }
+
+        $link->delete();
+
+        $syncFailed = false;
+
+        if ($wasActive) {
+            $sync = app(ChannelBillingService::class)->syncStandaloneSubscriptionAmount($primary);
+            $syncFailed = $sync['failed'];
+        }
+
+        return response()->json([
+            'success'             => true,
+            'action'              => $wasActive ? 'unlinked' : 'cancelled',
+            'billing_sync_failed' => $syncFailed,
+        ]);
+    }
+
+
+    // Cancels the linked account's subscription and, if the primary isn't
+    // in an estate, clears the address they inherited (estate residency is
+    // physical, not billing-derived, so unlinking there doesn't mean they
+    // moved out). Also notifies the PTT server to suspend them.
+    private function unwindLinkedAccountCoverage(AccountLink $link, User $primary): void
+    {
+        $linkedSub = $link->linkedAccount?->subscription;
+
         if ($linkedSub) {
             $linkedSub->update([
                 'channel_subscription_id' => null,
@@ -485,7 +487,37 @@ class AccountLinkController extends Controller
             ]);
         }
 
-        $link->linkedAccount?->update(['subscription_status' => 'cancelled']);
+        if ($link->linkedAccount) {
+            $primaryChannel  = $primary->employee?->channels->first();
+            $isEstateContext = $primaryChannel && $primaryChannel->billing_model === 'bulk';
+
+            if ($isEstateContext) {
+                $link->linkedAccount->update([
+                    'subscription_status' => 'cancelled',
+                ]);
+            } else {
+                app(AddressHistoryService::class)->close($link->linkedAccount);
+
+                $link->linkedAccount->update([
+                    'subscription_status' => 'cancelled',
+                    'address_line_1'      => null,
+                    'suburb'              => null,
+                    'latitude'            => null,
+                    'longitude'           => null,
+                    'complex_name'        => null,
+                    'unit_number'         => null,
+                ]);
+
+                try {
+                    Mail::to($link->linkedAccount->email)->queue(new AccountUnlinkedMail($link->linkedAccount));
+                } catch (\Throwable $e) {
+                    Log::warning('unwindLinkedAccountCoverage: failed to queue unlinked-account email', [
+                        'linked_user_id' => $link->linked_account_id,
+                        'error'          => $e->getMessage(),
+                    ]);
+                }
+            }
+        }
 
         try {
             Http::timeout(5)
@@ -499,22 +531,10 @@ class AccountLinkController extends Controller
                     'reason'       => 'account_unlinked',
                 ]);
         } catch (\Throwable $e) {
-            Log::warning('forceUnlink: failed to notify Node of linked account suspension', [
+            Log::warning('unwindLinkedAccountCoverage: failed to notify Node of linked account suspension', [
                 'linked_user_id' => $link->linked_account_id,
                 'error'          => $e->getMessage(),
             ]);
         }
-
-        $link->delete();
-
-
-        $sync = app(ChannelBillingService::class)->syncStandaloneSubscriptionAmount($primary);
-
-        return response()->json([
-            'success'            => true,
-            'action'             => 'force_unlinked',
-            'billing_sync_failed' => $sync['failed'],
-        ]);
-
     }
 }

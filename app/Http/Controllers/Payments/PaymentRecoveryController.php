@@ -226,6 +226,8 @@ class PaymentRecoveryController extends Controller
 
     // In PaymentRecoveryController
 
+    // In PaymentRecoveryController
+
     public function activeFailures(Request $request)
     {
         if ($request->header('X-PTT-Secret') !== env('ASSIGN_SECRET')) {
@@ -247,7 +249,7 @@ class PaymentRecoveryController extends Controller
                     $isTrialDerived = $sub->trial_ends_at !== null;
 
                     $graceEndsAt = $isTrialDerived
-                        ? $sub->current_period_end
+                        ? ($sub->current_period_end ?? \Carbon\Carbon::parse($sub->trial_ends_at)->addDays(7))
                         : ($sub->payment_failed_at
                             ? \Carbon\Carbon::parse($sub->payment_failed_at)->addDays(3)
                             : now()->addDays(3));
@@ -263,6 +265,7 @@ class PaymentRecoveryController extends Controller
 
         return response()->json($failures);
     }
+
     // public function activeFailures(Request $request)
     // {
     //     // Internal only — verify PTT secret

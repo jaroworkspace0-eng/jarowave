@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\AccountLink;
 use App\Models\Employee;
 use App\Models\TenantAddressHistory;
 use Illuminate\Console\Command;
@@ -36,23 +37,36 @@ class BackfillTenantAddressHistory extends Command
                 continue;
             }
 
+            // Was this address inherited via an approved account link, rather
+            // than being the tenant's own? Look up the active link where this
+            // user is the linked (dependent) side.
+            $accountLink = AccountLink::where('linked_account_id', $user->id)
+                ->where('status', 'active')
+                ->first();
+
+            $sourceUserId = $accountLink?->primary_account_id;
+            $isInherited  = (bool) $sourceUserId;
+
             if ($dryRun) {
-                $this->line("Would create history for user #{$user->id} ({$user->name}) — channel #{$channel->id} ({$channel->name}), effective_from {$user->created_at}");
+                $inheritedNote = $isInherited ? " (inherited from user #{$sourceUserId})" : '';
+                $this->line("Would create history for user #{$user->id} ({$user->name}) — channel #{$channel->id} ({$channel->name}), effective_from {$user->created_at}{$inheritedNote}");
                 $created++;
                 continue;
             }
 
             TenantAddressHistory::create([
-                'user_id'        => $user->id,
-                'channel_id'     => $channel->id,
-                'address_line_1' => $user->address_line_1,
-                'suburb'         => $user->suburb,
-                'complex_name'   => $user->complex_name,
-                'unit_number'    => $user->unit_number,
-                'latitude'       => $user->latitude,
-                'longitude'      => $user->longitude,
-                'effective_from' => $user->created_at,
-                'effective_to'   => null,
+                'user_id'         => $user->id,
+                'channel_id'      => $channel->id,
+                'is_inherited'    => $isInherited,
+                'source_user_id'  => $sourceUserId,
+                'address_line_1'  => $user->address_line_1,
+                'suburb'          => $user->suburb,
+                'complex_name'    => $user->complex_name,
+                'unit_number'     => $user->unit_number,
+                'latitude'        => $user->latitude,
+                'longitude'       => $user->longitude,
+                'effective_from'  => $user->created_at,
+                'effective_to'    => null,
             ]);
 
             $created++;

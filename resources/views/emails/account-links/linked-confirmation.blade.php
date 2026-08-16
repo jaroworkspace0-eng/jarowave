@@ -43,7 +43,7 @@ Open App
 
 <p style="font-size:12px; color:#ccc; text-align:center; margin-top:24px;">
     Questions? Contact us at
-    <a href="mailto:support@echolink.co.za" style="color:#f97316; text-decoration:none;">support@echolink.co.za</a>
+    <a href="mailto:support@echolink.co.za" style="color:#f97316; text-decoration:none;">support@jaroworkspace.co.za</a>
 </p>
 
 @endcomponent
