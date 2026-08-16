@@ -349,4 +349,45 @@ class EstateTenantController extends Controller
         return response()->json(['message' => 'Guard removed successfully.']);
     }
 
+
+    public function bulkBilling(Request $request)
+    {
+        $channelIds = $this->myChannelIds($request);
+
+        $validated = $request->validate([
+            'action'          => 'required|in:opt_in,opt_out',
+            'employee_ids'    => 'required|array|min:1',
+            'employee_ids.*'  => 'integer|exists:employees,id',
+        ]);
+
+        $employees = Employee::with('user.subscription', 'channels')
+            ->whereIn('id', $validated['employee_ids'])
+            ->whereHas('channels', fn($q) => $q->whereIn('channels.id', $channelIds))
+            ->get();
+
+        $results = [];
+
+        foreach ($employees as $employee) {
+            $channel = $employee->channels->whereIn('id', $channelIds)->first();
+
+            if (!$channel) {
+                $results[] = ['id' => $employee->id, 'success' => false, 'message' => 'No matching channel.'];
+                continue;
+            }
+
+            try {
+                if ($validated['action'] === 'opt_in') {
+                    $this->billingService->optInHousehold($employee->user, $channel);
+                } else {
+                    $this->billingService->optOutHousehold($employee->user, $channel);
+                }
+                $results[] = ['id' => $employee->id, 'success' => true];
+            } catch (\Exception $e) {
+                $results[] = ['id' => $employee->id, 'success' => false, 'message' => $e->getMessage()];
+            }
+        }
+
+        return response()->json(['success' => true, 'results' => $results]);
+    }
+
 }

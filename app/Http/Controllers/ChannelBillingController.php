@@ -173,13 +173,16 @@ class ChannelBillingController extends Controller
     {
         $user = $request->user();
 
+        $inChannel = $user->employee?->channels()->where('channels.id', $channel->id)->exists();
+
+        if (!$inChannel) {
+            return response()->json(['success' => false, 'message' => 'You do not belong to this channel.'], 403);
+        }
+
         try {
             $this->billingService->optOutHousehold($user, $channel);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage(),
-            ], 400);
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 400);
         }
 
         return response()->json([
@@ -206,6 +209,10 @@ class ChannelBillingController extends Controller
         }
 
         $targetUser = User::findOrFail($request->user_id);
+
+        if (!$targetUser->employee?->channels()->where('channels.id', $channel->id)->exists()) {
+            abort(422, 'User is not a household on this channel.');
+        }
 
         $this->billingService->optOutHousehold($targetUser, $channel);
 

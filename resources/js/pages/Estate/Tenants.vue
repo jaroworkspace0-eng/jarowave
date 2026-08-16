@@ -14,6 +14,65 @@ const getHeaders = () => ({
 
 const showInviteModal = ref(false);
 
+// ── bulk selection ──────────────────────────────────────────────────────────
+const selectedIds = ref<number[]>([]);
+
+const isAllSelected = computed(
+    () =>
+        householdList.value.length > 0 &&
+        householdList.value.every((t) => selectedIds.value.includes(t.id)),
+);
+
+const toggleSelectAll = () => {
+    selectedIds.value = isAllSelected.value
+        ? []
+        : householdList.value.map((t) => t.id);
+};
+
+const toggleRow = (id: number) => {
+    const idx = selectedIds.value.indexOf(id);
+    if (idx === -1) selectedIds.value.push(id);
+    else selectedIds.value.splice(idx, 1);
+};
+
+const selectedOptedInIds = computed(() =>
+    householdList.value
+        .filter((t) => selectedIds.value.includes(t.id) && t.is_opted_in)
+        .map((t) => t.id),
+);
+
+const selectedNotOptedInIds = computed(() =>
+    householdList.value
+        .filter((t) => selectedIds.value.includes(t.id) && !t.is_opted_in)
+        .map((t) => t.id),
+);
+
+const bulkLoading = ref(false);
+
+const runBulkAction = async (action: 'opt_in' | 'opt_out', ids: number[]) => {
+    if (ids.length === 0) return;
+    bulkLoading.value = true;
+    try {
+        const { data } = await axios.post(
+            `${import.meta.env.VITE_APP_URL}/api/estate/tenants/bulk-billing`,
+            { action, employee_ids: ids },
+            getHeaders(),
+        );
+        const failed = data.results.filter((r: any) => !r.success);
+        showMessage(
+            failed.length === 0
+                ? `${ids.length} tenant(s) ${action === 'opt_in' ? 'opted in' : 'opted out'}.`
+                : `${ids.length - failed.length} succeeded, ${failed.length} failed.`,
+        );
+        selectedIds.value = [];
+        await reloadTenants();
+    } catch {
+        showMessage('Bulk action failed.');
+    } finally {
+        bulkLoading.value = false;
+    }
+};
+
 // ── my channels ─────────────────────────────────────────────────────────────
 const myChannels = ref<any[]>([]);
 const loadMyChannels = async () => {
@@ -400,6 +459,31 @@ import { computed } from 'vue';
                 </div>
             </div>
 
+            <div
+                v-if="selectedIds.length > 0"
+                style="display: flex; align-items: center; gap: 10px"
+            >
+                <span style="font-size: 13px; font-weight: 600; color: #64748b">
+                    {{ selectedIds.length }} selected
+                </span>
+                <button
+                    v-if="selectedNotOptedInIds.length > 0"
+                    class="btn-primary"
+                    :disabled="bulkLoading"
+                    @click="runBulkAction('opt_in', selectedNotOptedInIds)"
+                >
+                    Opt-in {{ selectedNotOptedInIds.length }}
+                </button>
+                <button
+                    v-if="selectedOptedInIds.length > 0"
+                    class="btn-ghost"
+                    :disabled="bulkLoading"
+                    @click="runBulkAction('opt_out', selectedOptedInIds)"
+                >
+                    Opt-out {{ selectedOptedInIds.length }}
+                </button>
+            </div>
+
             <div class="table-card">
                 <div v-if="householdList.length === 0" class="empty-state">
                     <div class="empty-state__icon">
@@ -427,6 +511,13 @@ import { computed } from 'vue';
                     <table class="data-table">
                         <thead>
                             <tr>
+                                <th style="width: 36px">
+                                    <input
+                                        type="checkbox"
+                                        :checked="isAllSelected"
+                                        @change="toggleSelectAll"
+                                    />
+                                </th>
                                 <th>Tenant</th>
                                 <th>Contact</th>
                                 <th>Unit</th>
@@ -436,6 +527,13 @@ import { computed } from 'vue';
                         </thead>
                         <tbody>
                             <tr v-for="t in householdList" :key="t.id">
+                                <td>
+                                    <input
+                                        type="checkbox"
+                                        :checked="selectedIds.includes(t.id)"
+                                        @change="toggleRow(t.id)"
+                                    />
+                                </td>
                                 <td class="td-announce">
                                     <div class="td-announce__title">
                                         {{ t.user.name }}
