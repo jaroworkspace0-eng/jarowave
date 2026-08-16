@@ -79,27 +79,28 @@ class ChannelBillingService
     {
         DB::transaction(function () use ($user, $channel) {
 
-        // Block opt-in if household has an outstanding past_due subscription.
-        // This prevents the exploit of opting out before estate payment then re-opting in for free coverage.
-        $pastDue = Subscription::where('user_id', $user->id)
-            ->where('status', 'past_due')
-            ->exists();
+            // Block opt-in if household has an outstanding past_due subscription.
+            // This prevents the exploit of opting out before estate payment then re-opting in for free coverage.
+            // Voluntary relocation exits (no_coverage_relocation) are excluded — they didn't skip a payment.
+            $pastDue = Subscription::where('user_id', $user->id)
+                ->where('status', 'past_due')
+                ->exists();
 
-        $suspended = Subscription::where('user_id', $user->id)
-            ->where('status', 'cancelled')
-            ->whereNotNull('sos_suspended_at')
-            ->exists();
+            $suspended = Subscription::where('user_id', $user->id)
+                ->where('status', 'cancelled')
+                ->where('cancellation_reason', '!=', 'no_coverage_relocation')
+                ->whereNotNull('sos_suspended_at')
+                ->exists();
 
-        $balance = Subscription::where('user_id', $user->id)
-            ->whereIn('status', ['past_due', 'cancelled'])
-            ->latest()
-            ->first();
+            if ($pastDue || $suspended) {
+                $balance = Subscription::where('user_id', $user->id)
+                    ->whereIn('status', ['past_due', 'cancelled'])
+                    ->where('cancellation_reason', '!=', 'no_coverage_relocation')
+                    ->latest()
+                    ->first();
 
-        if ($pastDue || $suspended) {
-            throw new \Exception('Your individual subscription has an outstanding balance of R' . number_format($balance->price, 0) . '. Please settle it before opting into estate billing.');
-        }
-        $channelSubscription = $this->resolveActiveChannelSubscription($channel);
-
+                throw new \Exception('Your individual subscription has an outstanding balance of R' . number_format($balance->price, 0) . '. Please settle it before opting into estate billing.');
+            }
 
             $channelSubscription = $this->resolveActiveChannelSubscription($channel);
 
@@ -119,7 +120,10 @@ class ChannelBillingService
                     'ends_at'                 => $subscription->current_period_end,
                     'cancellation_reason'     => 'estate_optin',
                     'channel_subscription_id' => $channelSubscription?->id,
+                    'sos_suspended_at'        => null,
                 ]);
+
+                $subscription->syncUserStatus();
             }
 
             $user->update([
@@ -157,7 +161,10 @@ class ChannelBillingService
                     'ends_at'                 => $linkedSub->current_period_end,
                     'cancellation_reason'     => 'estate_optin',
                     'channel_subscription_id' => $channelSubscription?->id,
+                    'sos_suspended_at'        => null,
                 ]);
+
+                $linkedSub->syncUserStatus();
 
                 $linkedUser->update([
                     'subscription_status' => $channelSubscription?->status === 'active' ? 'active' : 'pending',
@@ -183,7 +190,6 @@ class ChannelBillingService
             }
         });
 
-
         // Clear any payment failure suspension on Node
         try {
             Http::timeout(5)
@@ -202,13 +208,8 @@ class ChannelBillingService
         }
 
         Log::info('Household opted into estate billing', [
-            'user_id'   => $user->id,
+            'user_id'    => $user->id,
             'channel_id' => $channel->id,
-        ]);
-
-        Log::info('Household opted into estate billing', [
-            'user_id'                 => $user->id,
-            'channel_id'              => $channel->id,
         ]);
     }
 
@@ -217,7 +218,7 @@ class ChannelBillingService
      * Restores them to individual billing with a fresh subscription.
      */
    
-    public function optOutHousehold(User $user, Channel $channel, bool $deactivating = false): void
+   public function optOutHousehold(User $user, Channel $channel, bool $deactivating = false): void
     {
         $linkedUserIds = [];
 
@@ -250,6 +251,7 @@ class ChannelBillingService
             $periodEnd = $channelSubscription?->current_period_end;
             $newStatus = $deactivating ? 'cancelled' : 'past_due';
             $oldChannelSubscriptionId = $subscription->channel_subscription_id;
+            $suspendedAt = now();
 
             $subscription->update([
                 'status'                  => $newStatus,
@@ -258,11 +260,10 @@ class ChannelBillingService
                 'cancellation_reason'     => $deactivating ? 'no_coverage_relocation' : null,
                 'channel_subscription_id' => null,
                 'current_period_end'      => $periodEnd ?? null,
+                'sos_suspended_at'        => $suspendedAt,
             ]);
 
-            $user->update([
-                'subscription_status' => $newStatus,
-            ]);
+            $subscription->syncUserStatus();
 
             // Fold out any linked accounts sharing this household's channel_subscription_id —
             // mirrors the fold-in logic in ChannelBillingService::optInHousehold.
@@ -279,15 +280,16 @@ class ChannelBillingService
                     'cancellation_reason'     => $deactivating ? 'no_coverage_relocation' : null,
                     'channel_subscription_id' => null,
                     'current_period_end'      => $periodEnd ?? null,
+                    'sos_suspended_at'        => $suspendedAt,
                 ]);
 
-                User::where('id', $linkedSub->user_id)->update(['subscription_status' => $newStatus]);
+                $linkedSub->syncUserStatus();
                 $linkedUserIds[] = $linkedSub->user_id;
             }
         });
 
-        // Suspend SOS immediately — opt-out is voluntary, not a payment failure,
-        // so no grace period applies regardless of $deactivating.
+        // Suspend SOS immediately at the real-time layer — opt-out is voluntary, not a
+        // payment failure, so no grace period applies regardless of $deactivating.
         foreach ([$user->id, ...$linkedUserIds] as $suspendUserId) {
             try {
                 Http::timeout(5)
