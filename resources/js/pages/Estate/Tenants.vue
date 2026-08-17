@@ -732,10 +732,10 @@ import { computed } from 'vue';
                             SOS access is suspended immediately.
                         </p>
                         <p>
-                            Each tenant's individual subscription will be marked
-                            past due and they will not be able to opt into
-                            estate billing again (on this or any other estate)
-                            until it's settled.
+                            Each tenant's coverage under this estate ends now.
+                            Since this is an estate-initiated removal, they're
+                            free to opt into estate billing again — here or
+                            elsewhere — with no payment required first.
                         </p>
                     </div>
                     <div

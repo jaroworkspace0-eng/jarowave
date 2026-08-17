@@ -379,7 +379,7 @@ class EstateTenantController extends Controller
                 if ($validated['action'] === 'opt_in') {
                     $this->billingService->optInHousehold($employee->user, $channel);
                 } else {
-                    $this->billingService->optOutHousehold($employee->user, $channel);
+                    $this->billingService->optOutHousehold($employee->user, $channel, true);
                 }
                 $results[] = ['id' => $employee->id, 'success' => true];
             } catch (\Exception $e) {
