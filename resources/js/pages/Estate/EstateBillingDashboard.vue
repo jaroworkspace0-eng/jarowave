@@ -61,6 +61,7 @@ interface Household {
     phone: string | null;
     unit_number: string | null;
     subscription_status: string;
+    billed_amount: number | null;
 }
 
 interface Payment {
@@ -767,6 +768,7 @@ const filteredPayments = computed(() => {
                                 <th>Household</th>
                                 <th>Unit</th>
                                 <th>Status</th>
+                                <th>Amount</th>
                                 <th></th>
                             </tr>
                         </thead>
@@ -789,6 +791,9 @@ const filteredPayments = computed(() => {
                                 </td>
                                 <td class="td-time">
                                     {{ hh.unit_number ?? '—' }}
+                                </td>
+                                <td class="pay-amount-cell">
+                                    {{ fmt(hh.billed_amount) }}
                                 </td>
                                 <td>
                                     <span

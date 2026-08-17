@@ -299,6 +299,7 @@ class ChannelBillingController extends Controller
     /**
      * List opted-in households for a channel.
      */
+
     public function optedInHouseholds(Channel $channel)
     {
         $channelSubscription = $this->billingService->resolveActiveChannelSubscription($channel);
@@ -307,11 +308,28 @@ class ChannelBillingController extends Controller
             return response()->json(['success' => true, 'households' => []]);
         }
 
+        $linkedUserIds = \App\Models\AccountLink::where('status', 'active')
+            ->whereIn('linked_account_id', function ($q) use ($channelSubscription) {
+                $q->select('user_id')
+                ->from('subscriptions')
+                ->where('channel_subscription_id', $channelSubscription->id)
+                ->where('cancellation_reason', 'estate_optin');
+            })
+            ->pluck('linked_account_id')
+            ->all();
+
         $households = $channelSubscription->subscriptions()
             ->where('cancellation_reason', 'estate_optin')
             ->with('user:id,name,email,phone,subscription_status,unit_number')
             ->get()
-            ->map(fn($sub) => $sub->user);
+            ->map(function ($sub) use ($channelSubscription, $linkedUserIds) {
+                $isLinked = in_array($sub->user_id, $linkedUserIds);
+                $user = $sub->user;
+                $user->billed_amount = $isLinked
+                    ? $channelSubscription->amount_per_linked_account
+                    : $channelSubscription->amount_per_household;
+                return $user;
+            });
 
         return response()->json([
             'success'    => true,
