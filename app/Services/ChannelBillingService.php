@@ -266,7 +266,7 @@ class ChannelBillingService
 
             $periodEnd = $channelSubscription?->current_period_end;
             $newStatus = $deactivating ? 'cancelled' : 'past_due';
-            $oldChannelSubscriptionId = $subscription->channel_subscription_id;
+            // $oldChannelSubscriptionId = $subscription->channel_subscription_id;
             $suspendedAt = now();
 
             $subscription->update([
