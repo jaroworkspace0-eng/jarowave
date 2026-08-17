@@ -40,13 +40,13 @@ const isOptedIn = (t: any) =>
 
 const selectedOptedInIds = computed(() =>
     householdList.value
-        .filter((t) => selectedIds.value.includes(t.id) && t.is_opted_in)
+        .filter((t) => selectedIds.value.includes(t.id) && isOptedIn(t))
         .map((t) => t.id),
 );
 
 const selectedNotOptedInIds = computed(() =>
     householdList.value
-        .filter((t) => selectedIds.value.includes(t.id) && !t.is_opted_in)
+        .filter((t) => selectedIds.value.includes(t.id) && !isOptedIn(t))
         .map((t) => t.id),
 );
 
