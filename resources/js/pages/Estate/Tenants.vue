@@ -35,6 +35,9 @@ const toggleRow = (id: number) => {
     else selectedIds.value.splice(idx, 1);
 };
 
+const isOptedIn = (t: any) =>
+    t.user?.subscription?.cancellation_reason === 'estate_optin';
+
 const selectedOptedInIds = computed(() =>
     householdList.value
         .filter((t) => selectedIds.value.includes(t.id) && t.is_opted_in)
@@ -550,6 +553,19 @@ import { computed } from 'vue';
                                 <td class="td-announce">
                                     <div class="td-announce__title">
                                         {{ t.user.name }}
+                                        <span
+                                            v-if="isOptedIn(t)"
+                                            class="type-badge"
+                                            style="
+                                                background: #f0fdf4;
+                                                color: #16a34a;
+                                                font-size: 10px;
+                                                padding: 2px 8px;
+                                                margin-left: 6px;
+                                            "
+                                        >
+                                            Estate Billed
+                                        </span>
                                     </div>
                                     <div class="td-announce__sub">
                                         {{ t.user.email }}
