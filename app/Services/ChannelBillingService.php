@@ -111,8 +111,22 @@ class ChannelBillingService
 
             $channelSubscription = $this->resolveActiveChannelSubscription($channel);
 
+            // Match a live subscription (existing behavior), OR a dead/stale cancelled
+            // row that was never tied to estate billing — e.g. an old individual
+            // subscription, or history from a previous estate this household left.
+            // Excludes rows already cancellation_reason='estate_optin' so an
+            // already-opted-in household calling this again doesn't get re-processed.
             $subscription = Subscription::where('user_id', $user->id)
-                ->whereIn('status', ['active', 'trialing', 'past_due'])
+                ->where(function ($q) {
+                    $q->whereIn('status', ['active', 'trialing', 'past_due'])
+                    ->orWhere(function ($q2) {
+                        $q2->where('status', 'cancelled')
+                            ->where(function ($q3) {
+                                $q3->whereNull('cancellation_reason')
+                                    ->orWhere('cancellation_reason', '!=', 'estate_optin');
+                            });
+                    });
+                })
                 ->latest()
                 ->first();
 
@@ -122,6 +136,7 @@ class ChannelBillingService
                 }
 
                 $subscription->update([
+                    'client_id'               => $channel->client_id,
                     'status'                  => 'cancelled',
                     'cancelled_at'            => now(),
                     'ends_at'                 => $subscription->current_period_end,
