@@ -791,7 +791,7 @@ const filteredPayments = computed(() => {
                                 <td class="td-time">
                                     {{ hh.unit_number ?? '—' }}
                                 </td>
-                                <td class="pay-amount-cell">
+                                <td class="pay-amount-cell-opt-in">
                                     {{ fmt(hh.billed_amount) }}
                                 </td>
                                 <td>
@@ -1487,6 +1487,14 @@ const filteredPayments = computed(() => {
     white-space: nowrap;
     font-size: 12px;
 }
+
+.pay-amount-cell-opt-in {
+    text-align: left;
+    font-weight: 800;
+    color: #ea580c;
+    white-space: nowrap;
+}
+
 .pay-amount-cell {
     text-align: right;
     font-weight: 800;
