@@ -237,7 +237,7 @@ class EmployeeController extends Controller
             $channel = Channel::find($request->channel_ids[0]);
 
             if ($isHousehold) {
-                $this->createHouseholdSubscription($user, $clientId, $request->boolean('activation_fee_paid', false));
+                $this->createHouseholdSubscription($user, $channel, $request->boolean('activation_fee_paid', false));
                 $this->sendHouseholdWelcomeMail($user, $clientId, $plainPassword, $channel);
                 $this->addressHistory->record($user, $channel);
             }
@@ -515,23 +515,21 @@ class EmployeeController extends Controller
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    public function createHouseholdSubscription(User $user, ?int $clientId, bool $activationFeePaid = false): void
+    public function createHouseholdSubscription(User $user, Channel $channel, bool $activationFeePaid = false): void
     {
-        $client  = Client::with('user')->find($clientId);
+        $client  = $channel->client;
         $orgType = $client?->user?->organisation_type ?? 'watch';
 
-        $channel = $client?->channels()->first();
-
         Subscription::create([
-            'user_id'              => $user->id,
-            'client_id'            => $clientId,
-            'client_type'          => $orgType,
-            'status'               => 'trialing',
-            'plan'               => null,
-            'billing_cycle'        => 'monthly',
-            'price' => BillingService::unitPrice($channel->amount_per_household ?? null),
-            'trial_ends_at'        => now()->addDays(14), // 14-day trial for households
-            'merchant_reference'   => 'HH-' . $user->id . '-' . time(),
+            'user_id'                => $user->id,
+            'client_id'              => $channel->client_id,
+            'client_type'            => $orgType,
+            'status'                 => 'trialing',
+            'plan'                   => null,
+            'billing_cycle'          => 'monthly',
+            'price'                  => BillingService::unitPrice($channel->amount_per_household ?? null),
+            'trial_ends_at'          => now()->addDays(14),
+            'merchant_reference'     => 'HH-' . $user->id . '-' . time(),
             'activation_fee_paid'    => $activationFeePaid ?? null,
             'activation_fee_paid_at' => $activationFeePaid ? now() : null,
         ]);

@@ -128,7 +128,7 @@ class EstateTenantController extends Controller
 
             $employee->channels()->attach($channel->id);
 
-            $this->employeeController->createHouseholdSubscription($user, $channel->client_id, false);
+            $this->employeeController->createHouseholdSubscription($user, $channel, false);
             $this->billingService->optInHousehold($user, $channel);
 
             $this->employeeController->sendHouseholdWelcomeMail(
