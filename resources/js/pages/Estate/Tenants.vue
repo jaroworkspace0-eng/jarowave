@@ -49,8 +49,16 @@ const selectedNotOptedInIds = computed(() =>
 
 const bulkLoading = ref(false);
 
+// ── bulk results modal ──────────────────────────────────────────────────────
+const showBulkResultsModal = ref(false);
+const bulkResults = ref<
+    { id: number; success: boolean; message?: string; name?: string }[]
+>([]);
+const bulkAction = ref<'opt_in' | 'opt_out'>('opt_in');
+
 const runBulkAction = async (action: 'opt_in' | 'opt_out', ids: number[]) => {
     if (ids.length === 0) return;
+    bulkAction.value = action;
     bulkLoading.value = true;
     try {
         const { data } = await axios.post(
@@ -58,12 +66,17 @@ const runBulkAction = async (action: 'opt_in' | 'opt_out', ids: number[]) => {
             { action, employee_ids: ids },
             getHeaders(),
         );
-        const failed = data.results.filter((r: any) => !r.success);
-        showMessage(
-            failed.length === 0
-                ? `${ids.length} tenant(s) ${action === 'opt_in' ? 'opted in' : 'opted out'}.`
-                : `${ids.length - failed.length} succeeded, ${failed.length} failed.`,
+
+        // Attach tenant names so the modal can show who, not just an id.
+        const nameById = new Map(
+            householdList.value.map((t) => [t.id, t.user.name]),
         );
+        bulkResults.value = data.results.map((r: any) => ({
+            ...r,
+            name: nameById.get(r.id) ?? `Tenant #${r.id}`,
+        }));
+
+        showBulkResultsModal.value = true;
         selectedIds.value = [];
         await reloadTenants();
     } catch {
@@ -627,6 +640,116 @@ import { computed } from 'vue';
                 </div>
             </div>
         </div>
+
+        <!-- BULK RESULTS MODAL -->
+        <transition name="modal">
+            <div
+                v-if="showBulkResultsModal"
+                class="modal-backdrop"
+                @click.self="showBulkResultsModal = false"
+            >
+                <div class="modal-sheet" style="max-width: 520px">
+                    <div class="modal-sheet__header">
+                        <div class="modal-sheet__header-left">
+                            <div>
+                                <div class="modal-sheet__title">
+                                    {{
+                                        bulkAction === 'opt_in'
+                                            ? 'Opt-in'
+                                            : 'Opt-out'
+                                    }}
+                                    Results
+                                </div>
+                                <div class="modal-sheet__sub">
+                                    {{
+                                        bulkResults.filter((r) => r.success)
+                                            .length
+                                    }}
+                                    succeeded,
+                                    {{
+                                        bulkResults.filter((r) => !r.success)
+                                            .length
+                                    }}
+                                    failed
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            class="close-btn"
+                            @click="showBulkResultsModal = false"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4"
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    d="M6 18L18 6M6 6l12 12"
+                                />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div
+                        class="modal-sheet__body"
+                        style="
+                            max-height: 60vh;
+                            overflow-y: auto;
+                            padding-top: 8px;
+                        "
+                    >
+                        <div
+                            v-for="r in bulkResults"
+                            :key="r.id"
+                            style="
+                                display: flex;
+                                align-items: flex-start;
+                                gap: 10px;
+                                padding: 10px 0;
+                                border-bottom: 1px solid #f1f5f9;
+                            "
+                        >
+                            <span
+                                :style="{
+                                    color: r.success ? '#16a34a' : '#dc2626',
+                                    fontWeight: 700,
+                                    fontSize: '14px',
+                                    flexShrink: 0,
+                                }"
+                            >
+                                {{ r.success ? '✓' : '✕' }}
+                            </span>
+                            <div style="flex: 1; min-width: 0">
+                                <div
+                                    style="
+                                        font-weight: 600;
+                                        font-size: 13px;
+                                        color: #1a2332;
+                                    "
+                                >
+                                    {{ r.name }}
+                                </div>
+                                <div
+                                    v-if="!r.success"
+                                    style="
+                                        font-size: 12px;
+                                        color: #94a3b8;
+                                        margin-top: 2px;
+                                    "
+                                >
+                                    {{ r.message ?? 'Unknown error' }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </transition>
 
         <!-- INVITE LINKS MODAL -->
         <transition name="modal">
