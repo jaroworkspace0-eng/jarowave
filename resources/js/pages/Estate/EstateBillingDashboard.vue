@@ -10,7 +10,6 @@ import {
     Clock,
     Copy,
     CreditCard,
-    Trash2,
     Upload,
 } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
@@ -767,9 +766,9 @@ const filteredPayments = computed(() => {
                             <tr>
                                 <th>Household</th>
                                 <th>Unit</th>
-                                <th>Status</th>
                                 <th>Amount</th>
-                                <th></th>
+                                <th>Status</th>
+                                <!-- <th></th> -->
                             </tr>
                         </thead>
                         <tbody>
@@ -811,7 +810,7 @@ const filteredPayments = computed(() => {
                                         }}
                                     </span>
                                 </td>
-                                <td>
+                                <!-- <td>
                                     <div
                                         style="
                                             display: flex;
@@ -830,7 +829,7 @@ const filteredPayments = computed(() => {
                                             Remove
                                         </button>
                                     </div>
-                                </td>
+                                </td> -->
                             </tr>
                         </tbody>
                     </table>
