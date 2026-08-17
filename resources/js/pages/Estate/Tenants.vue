@@ -734,7 +734,7 @@ import { computed } from 'vue';
                         <p>
                             Each tenant's coverage under this estate ends now.
                             Since this is an estate-initiated removal, they're
-                            free to opt into estate billing again — here or
+                            free to opt into estate billing again - here or
                             elsewhere — with no payment required first.
                         </p>
                     </div>
@@ -1420,10 +1420,22 @@ import { computed } from 'vue';
                                 <input
                                     v-model="form.email"
                                     class="field__input"
+                                    :disabled="isEditing"
                                     :class="{
                                         'field__input--error': errors.email,
                                     }"
                                 />
+                                <span
+                                    v-if="isEditing"
+                                    style="
+                                        font-size: 11px;
+                                        color: #94a3b8;
+                                        margin-top: 2px;
+                                    "
+                                >
+                                    Can only be changed by the household from
+                                    their own account.
+                                </span>
                                 <span
                                     v-if="errors.email"
                                     class="field__error"
@@ -1447,6 +1459,7 @@ import { computed } from 'vue';
                                     :onlyCountries="['za']"
                                     defaultCountry="za"
                                     :autoFormat="true"
+                                    :disabled="isEditing"
                                     :inputOptions="{
                                         showDialCode: true,
                                         placeholder: '+27 82 123 4567',
@@ -1454,6 +1467,17 @@ import { computed } from 'vue';
                                     @input="handlePhoneInput"
                                     class="custom-tel-input"
                                 />
+                                <span
+                                    v-if="isEditing"
+                                    style="
+                                        font-size: 11px;
+                                        color: #94a3b8;
+                                        margin-top: 2px;
+                                    "
+                                >
+                                    Can only be changed by the household from
+                                    their own account.
+                                </span>
                                 <span
                                     v-if="errors.phone"
                                     class="field__error"
@@ -1517,7 +1541,7 @@ import { computed } from 'vue';
                             errors.channel_id[0]
                         }}</span>
 
-                        <div class="pin-panel">
+                        <div v-if="!isEditing" class="pin-panel">
                             <div class="pin-panel__header">
                                 <div>
                                     <div class="pin-panel__title">

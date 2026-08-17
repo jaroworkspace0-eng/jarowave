@@ -140,7 +140,7 @@ class EstateTenantController extends Controller
     }
 
 
-   public function update(Request $request, Employee $employee)
+    public function update(Request $request, Employee $employee)
     {
         $channelIds = $this->myChannelIds($request);
         abort_unless(
@@ -152,14 +152,8 @@ class EstateTenantController extends Controller
         abort_unless(in_array($newChannelId, $channelIds), 403);
         $channel = Channel::findOrFail($newChannelId);
 
-        $request->merge([
-            'phone' => preg_replace('/\s+/', '', (string) $request->input('phone')),
-        ]);
-
         $validated = $request->validate([
             'name'        => 'required|string|max:255',
-            'email'       => 'required|email|max:255|unique:users,email,' . $employee->user_id,
-            'phone'       => 'required|string|max:15',
             'unit_number' => 'nullable|string|max:50',
         ]);
 
@@ -168,8 +162,6 @@ class EstateTenantController extends Controller
 
         $employee->user->update([
             'name'           => $validated['name'],
-            'email'          => $validated['email'],
-            'phone'          => $validated['phone'],
             'unit_number'    => $validated['unit_number'] ?? null,
             'address_line_1' => $request->user()->address_line_1,
             'suburb'         => $request->user()->suburb,
@@ -186,7 +178,6 @@ class EstateTenantController extends Controller
 
         return response()->json(['message' => 'Tenant updated successfully.']);
     }
-
     public function destroy(Request $request, Employee $employee)
     {
         $channelIds = $this->myChannelIds($request);
