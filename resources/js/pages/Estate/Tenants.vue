@@ -2455,6 +2455,7 @@ import { computed } from 'vue';
     font-weight: 600;
     cursor: pointer;
     transition: background 0.15s;
+    border: thin solid #e2e8f0;
 }
 .btn-ghost:hover {
     background: #e2e8f0;

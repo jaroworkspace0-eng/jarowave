@@ -283,12 +283,19 @@ class ChannelBillingService
 
             // Fold out any linked accounts sharing this household's channel_subscription_id —
             // mirrors the fold-in logic in ChannelBillingService::optInHousehold.
-            $linkedSubs = Subscription::where('channel_subscription_id', $oldChannelSubscriptionId)
-                ->where('cancellation_reason', 'estate_optin')
-                ->where('user_id', '!=', $user->id)
+            $accountLinks = \App\Models\AccountLink::where('primary_account_id', $user->id)
+                ->where('status', 'active')
+                ->with('linkedAccount.subscription')
                 ->get();
 
-            foreach ($linkedSubs as $linkedSub) {
+            foreach ($accountLinks as $link) {
+                $linkedUser = $link->linkedAccount;
+                $linkedSub  = $linkedUser?->subscription;
+
+                if (!$linkedUser || !$linkedSub || $linkedSub->cancellation_reason !== 'estate_optin') {
+                    continue;
+                }
+
                 $linkedSub->update([
                     'status'                  => $newStatus,
                     'cancelled_at'            => $deactivating ? now() : null,
@@ -300,7 +307,7 @@ class ChannelBillingService
                 ]);
 
                 $linkedSub->syncUserStatus();
-                $linkedUserIds[] = $linkedSub->user_id;
+                $linkedUserIds[] = $linkedUser->id;
             }
         });
 
