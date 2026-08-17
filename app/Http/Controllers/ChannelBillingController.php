@@ -10,6 +10,7 @@ use App\Models\ChannelBillingContact;
 use App\Models\ChannelSubscription;
 use App\Models\ChannelSubscriptionPayment;
 use App\Models\Employee;
+use App\Models\EstateMidcycleOptout;
 use App\Models\User;
 use App\Services\ChannelBillingService;
 use Illuminate\Http\Request;
@@ -120,15 +121,24 @@ class ChannelBillingController extends Controller
         $this->billingService->refreshChannelSubscription($channelSubscription);
         $channelSubscription->refresh();
 
+        $breakdown = $this->billingService->calculateBillingAmount($channel);
+
+        $midcycleOptouts = EstateMidcycleOptout::where('channel_subscription_id', $channelSubscription->id)
+            ->with('user:id,name,email,unit_number')
+            ->orderByDesc('opted_out_at')
+            ->get();
+
         return response()->json([
-            'success'              => true,
-            'channel_subscription' => $channelSubscription,
-            'household_count'      => $channelSubscription->household_count,
-            'amount_per_household' => $channelSubscription->amount_per_household,
-            'total_amount'         => $channelSubscription->total_amount,
-            'status'               => $channelSubscription->status,
-            'current_period_start' => $channelSubscription->current_period_start,
-            'current_period_end'   => $channelSubscription->current_period_end,
+            'success'                => true,
+            'channel_subscription'   => $channelSubscription,
+            'household_count'        => $channelSubscription->household_count,
+            'amount_per_household'   => $channelSubscription->amount_per_household,
+            'total_amount'           => $channelSubscription->total_amount,
+            'midcycle_optout_total'  => $breakdown['midcycle_optout_total'],
+            'status'                 => $channelSubscription->status,
+            'current_period_start'   => $channelSubscription->current_period_start,
+            'current_period_end'     => $channelSubscription->current_period_end,
+            'midcycle_optouts'       => $midcycleOptouts,
         ]);
     }
 
@@ -263,6 +273,7 @@ class ChannelBillingController extends Controller
             'payment' => $payment,
         ]);
     }
+
 
     // -------------------------------------------------------------------------
     // Payment History

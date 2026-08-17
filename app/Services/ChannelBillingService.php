@@ -9,6 +9,7 @@ use App\Models\Channel;
 use App\Models\ChannelSubscription;
 use App\Models\ChannelSubscriptionPayment;
 use App\Models\Earning;
+use App\Models\EstateMidcycleOptout;
 use App\Models\Invoice;
 use App\Models\Subscription;
 use App\Models\User;
@@ -266,8 +267,21 @@ class ChannelBillingService
 
             $periodEnd = $channelSubscription?->current_period_end;
             $newStatus = $deactivating ? 'cancelled' : 'past_due';
-            // $oldChannelSubscriptionId = $subscription->channel_subscription_id;
+            $oldChannelSubscriptionId = $subscription->channel_subscription_id;
             $suspendedAt = now();
+
+            // Log mid-cycle opt-out so the estate is still billed for this household
+            // for the cycle already in progress — they had coverage for part of it.
+            if ($channelSubscription) {
+                EstateMidcycleOptout::create([
+                    'user_id'                 => $user->id,
+                    'channel_id'              => $channel->id,
+                    'channel_subscription_id' => $channelSubscription->id,
+                    'amount_owed'             => BillingService::unitPrice($channel->amount_per_household ?? null),
+                    'opted_out_at'            => $suspendedAt,
+                    'billed'                  => false,
+                ]);
+            }
 
             $subscription->update([
                 'status'                  => $newStatus,
@@ -294,6 +308,17 @@ class ChannelBillingService
 
                 if (!$linkedUser || !$linkedSub || $linkedSub->cancellation_reason !== 'estate_optin') {
                     continue;
+                }
+
+                if ($channelSubscription) {
+                    EstateMidcycleOptout::create([
+                        'user_id'                 => $linkedUser->id,
+                        'channel_id'              => $channel->id,
+                        'channel_subscription_id' => $channelSubscription->id,
+                        'amount_owed'             => BillingService::unitPrice($channel->amount_per_linked_account ?? null),
+                        'opted_out_at'            => $suspendedAt,
+                        'billed'                  => false,
+                    ]);
                 }
 
                 $linkedSub->update([
@@ -350,17 +375,28 @@ class ChannelBillingService
         $householdCount = $this->getOptedInCount($channel);
         $amountPerHousehold = BillingService::unitPrice($channel->amount_per_household);
         $householdTotal = $householdCount * $amountPerHousehold;
-    
+
         $linkedAccountCount = $this->getActiveLinkedAccountCount($channel);
         $amountPerLinkedAccount = BillingService::unitPrice($channel->amount_per_linked_account);
         $linkedAccountTotal = $linkedAccountCount * $amountPerLinkedAccount;
-    
+
+        // Households that opted out mid-cycle are no longer counted above, but
+        // they had coverage for part of this cycle and still owe for it — until
+        // the estate's payment for this cycle clears (which deletes these rows).
+        $channelSubscription = $this->resolveActiveChannelSubscription($channel);
+
+        $midcycleOptoutTotal = $channelSubscription
+            ? EstateMidcycleOptout::where('channel_subscription_id', $channelSubscription->id)
+                ->sum('amount_owed')
+            : 0;
+
         return [
             'household_count'           => $householdCount,
             'amount_per_household'      => $amountPerHousehold,
             'linked_account_count'      => $linkedAccountCount,
             'amount_per_linked_account' => $amountPerLinkedAccount,
-            'total_amount'              => $householdTotal + $linkedAccountTotal,
+            'midcycle_optout_total'     => $midcycleOptoutTotal,
+            'total_amount'              => $householdTotal + $linkedAccountTotal + $midcycleOptoutTotal,
         ];
     }
 
@@ -519,13 +555,12 @@ class ChannelBillingService
     ): void {
 
         if ($payment->status !== 'pending_review') {
-            return; // or throw, depending on how you want the controller to respond
+            return;
         }
         $channelSubscription = $payment->channelSubscription;
 
         $this->refreshChannelSubscription($channelSubscription);
         $channelSubscription->refresh();
-
 
         $periodStart = ($channelSubscription->current_period_end && $channelSubscription->current_period_end->isPast())
             ? now()
@@ -554,6 +589,12 @@ class ChannelBillingService
                 ]);
 
                 $this->activateOptedInHouseholds($channelSubscription, $periodStart, $periodEnd);
+
+                // Payment for this cycle is confirmed — mid-cycle opt-outs logged
+                // against this cycle's ChannelSubscription have now been paid for
+                // and served their purpose. Clear them so they don't linger or
+                // get counted again against a future cycle.
+                EstateMidcycleOptout::where('channel_subscription_id', $channelSubscription->id)->delete();
             });
         } catch (\Throwable $e) {
             Log::error('Transaction failed', [
@@ -562,13 +603,9 @@ class ChannelBillingService
             ]);
             throw $e;
         }
-        
 
         $this->handlePaymentSideEffects($payment, $channelSubscription);
 
-
-        // Email billing contact
-        // $channelSubscription = $payment->channelSubscription;
         $channelSubscription->refresh();
         $billingContact = $channelSubscription->channel->billingContact?->user;
         if ($billingContact) {

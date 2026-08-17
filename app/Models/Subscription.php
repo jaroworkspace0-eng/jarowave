@@ -74,17 +74,17 @@ class Subscription extends Model
      */
     public function getPriceInRandsAttribute(): string
     {
-        return 'R' . number_format($this->price / 100, 2);
+        return 'R' . number_format($this->price, 2);
     }
 
     public function getOriginalPriceInRandsAttribute(): string
     {
-        return 'R' . number_format($this->original_price / 100, 2);
+        return 'R' . number_format($this->original_price, 2);
     }
 
     public function getSavingsInRandsAttribute(): string
     {
-        return 'R' . number_format($this->discount_amount / 100, 2);
+        return 'R' . number_format($this->discount_amount, 2);
     }
 
     // ── Status checks ──

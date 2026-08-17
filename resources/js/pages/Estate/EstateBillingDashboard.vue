@@ -42,6 +42,18 @@ interface ChannelSubscription {
     paid_at: string | null;
 }
 
+interface MidcycleOptout {
+    id: number;
+    amount_owed: number;
+    opted_out_at: string;
+    user: {
+        id: number;
+        name: string;
+        email: string;
+        unit_number: string | null;
+    };
+}
+
 interface Household {
     id: number;
     name: string;
@@ -74,6 +86,9 @@ const channel = ref<Channel | null>(null);
 const summary = ref<ChannelSubscription | null>(null);
 const households = ref<Household[]>([]);
 const payments = ref<Payment[]>([]);
+const midcycleOptouts = ref<MidcycleOptout[]>([]);
+const midcycleOptoutTotal = ref<number>(0);
+
 const isLoading = ref(true);
 const flash = ref<{ msg: string; type: 'success' | 'error' } | null>(null);
 
@@ -93,7 +108,7 @@ const householdToRemove = ref<Household | null>(null);
 const isRemoving = ref(false);
 
 // Tabs
-const activeTab = ref<'households' | 'payments'>('households');
+const activeTab = ref<'households' | 'payments' | 'moving_out'>('households');
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 const getHeaders = () => ({
@@ -260,6 +275,8 @@ const fetchAll = async () => {
             axios.get(`${base()}/payment-history`, getHeaders()),
         ]);
         summary.value = sumRes.data.channel_subscription;
+        midcycleOptouts.value = sumRes.data.midcycle_optouts ?? [];
+        midcycleOptoutTotal.value = sumRes.data.midcycle_optout_total ?? 0;
         households.value = hhRes.data.households;
         payments.value = payRes.data.payments.data ?? payRes.data.payments;
     } catch (err: any) {
@@ -546,6 +563,12 @@ const filteredPayments = computed(() => {
                             {{ summary.household_count }}
                         </div>
                     </div>
+                    <!-- <div v-if="midcycleOptoutTotal > 0" class="stat-card">
+                        <div class="stat-card__label">Mid-Cycle Exits</div>
+                        <div class="stat-card__value stat-card__value--orange">
+                            {{ fmt(midcycleOptoutTotal) }}
+                        </div>
+                    </div> -->
                     <div class="stat-card">
                         <div class="stat-card__label">
                             {{
@@ -592,6 +615,13 @@ const filteredPayments = computed(() => {
                                 + {{ summary.linked_account_count }} linked ×
                                 {{ fmt(summary.amount_per_linked_account) }}
                             </template>
+                            <template v-if="midcycleOptoutTotal > 0">
+                                + {{ fmt(midcycleOptoutTotal) }} from
+                                {{ midcycleOptouts.length }} household{{
+                                    midcycleOptouts.length > 1 ? 's' : ''
+                                }}
+                                that left mid-cycle
+                            </template>
                             = <strong>{{ fmt(summary.total_amount) }}</strong>
                         </div>
                     </div>
@@ -633,6 +663,16 @@ const filteredPayments = computed(() => {
                             Households ({{ households.length }})
                         </button>
                         <button
+                            v-if="midcycleOptouts.length > 0"
+                            class="chip"
+                            :class="{
+                                'chip--active': activeTab === 'moving_out',
+                            }"
+                            @click="activeTab = 'moving_out'"
+                        >
+                            Moving Out ({{ midcycleOptouts.length }})
+                        </button>
+                        <button
                             class="chip"
                             :class="{
                                 'chip--active': activeTab === 'payments',
@@ -642,6 +682,71 @@ const filteredPayments = computed(() => {
                             Payment History ({{ payments.length }})
                         </button>
                     </div>
+                </div>
+
+                <!-- MOVING OUT TAB -->
+                <div v-if="activeTab === 'moving_out'" class="table-card">
+                    <div
+                        style="
+                            padding: 14px 18px;
+                            border-bottom: 1px solid #e4e8ef;
+                            font-size: 12.5px;
+                            color: #64748b;
+                            line-height: 1.6;
+                            background: #fffbeb;
+                        "
+                    >
+                        These households opted out mid-cycle. They're still
+                        included in this period's total since they had coverage
+                        for part of it. They will not appear on next period's
+                        bill unless they, or the estate, opt them back in.
+                    </div>
+
+                    <div v-if="!midcycleOptouts.length" class="empty-state">
+                        <p class="empty-state__title">No mid-cycle exits</p>
+                        <p class="empty-state__sub">
+                            Every household currently billed is still active.
+                        </p>
+                    </div>
+
+                    <table v-else class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Household</th>
+                                <th>Unit</th>
+                                <th>Opted Out</th>
+                                <th style="text-align: right">Amount Owed</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="o in midcycleOptouts" :key="o.id">
+                                <td>
+                                    <div class="person-cell">
+                                        <div class="avatar">
+                                            {{ initials(o.user.name) }}
+                                        </div>
+                                        <div>
+                                            <div class="td-announce__title">
+                                                {{ o.user.name }}
+                                            </div>
+                                            <div class="td-announce__sub">
+                                                {{ o.user.email }}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td class="td-time">
+                                    {{ o.user.unit_number ?? '—' }}
+                                </td>
+                                <td class="td-time">
+                                    {{ formatDate(o.opted_out_at) }}
+                                </td>
+                                <td class="pay-amount-cell">
+                                    {{ fmt(o.amount_owed) }}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
 
                 <!-- HOUSEHOLDS TAB -->
