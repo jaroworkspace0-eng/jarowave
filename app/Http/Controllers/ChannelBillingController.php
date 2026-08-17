@@ -214,7 +214,7 @@ class ChannelBillingController extends Controller
             abort(422, 'User is not a household on this channel.');
         }
 
-        $this->billingService->optOutHousehold($targetUser, $channel);
+        $this->billingService->optOutHousehold($targetUser, $channel, true);
 
         return response()->json([
             'success' => true,

@@ -14,6 +14,24 @@ const getHeaders = () => ({
 
 const showInviteModal = ref(false);
 
+// ── bulk action confirmation ────────────────────────────────────────────────
+const confirmBulkAction = ref<{
+    action: 'opt_in' | 'opt_out';
+    ids: number[];
+} | null>(null);
+
+const promptBulkAction = (action: 'opt_in' | 'opt_out', ids: number[]) => {
+    if (ids.length === 0) return;
+    confirmBulkAction.value = { action, ids };
+};
+
+const proceedBulkAction = async () => {
+    if (!confirmBulkAction.value) return;
+    const { action, ids } = confirmBulkAction.value;
+    confirmBulkAction.value = null;
+    await runBulkAction(action, ids);
+};
+
 // ── bulk selection ──────────────────────────────────────────────────────────
 const selectedIds = ref<number[]>([]);
 
@@ -486,15 +504,16 @@ import { computed } from 'vue';
                     v-if="selectedNotOptedInIds.length > 0"
                     class="btn-primary"
                     :disabled="bulkLoading"
-                    @click="runBulkAction('opt_in', selectedNotOptedInIds)"
+                    @click="promptBulkAction('opt_in', selectedNotOptedInIds)"
                 >
                     Opt-in {{ selectedNotOptedInIds.length }}
                 </button>
                 <button
                     v-if="selectedOptedInIds.length > 0"
                     class="btn-ghost"
+                    style="border: 1px solid #cbd5e1"
                     :disabled="bulkLoading"
-                    @click="runBulkAction('opt_out', selectedOptedInIds)"
+                    @click="promptBulkAction('opt_out', selectedOptedInIds)"
                 >
                     Opt-out {{ selectedOptedInIds.length }}
                 </button>
@@ -656,6 +675,116 @@ import { computed } from 'vue';
                 </div>
             </div>
         </div>
+
+        <!-- BULK ACTION CONFIRM -->
+        <transition name="modal">
+            <div
+                v-if="confirmBulkAction"
+                class="modal-backdrop"
+                @click.self="confirmBulkAction = null"
+            >
+                <div class="confirm-modal">
+                    <div
+                        class="confirm-modal__icon"
+                        :style="
+                            confirmBulkAction.action === 'opt_out'
+                                ? { background: '#fef2f2' }
+                                : { background: '#fff7ed' }
+                        "
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            class="h-7 w-7"
+                            :style="{
+                                color:
+                                    confirmBulkAction.action === 'opt_out'
+                                        ? '#dc2626'
+                                        : '#ea580c',
+                            }"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            stroke-width="1.5"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"
+                            />
+                        </svg>
+                    </div>
+                    <h2 class="confirm-modal__title">
+                        {{
+                            confirmBulkAction.action === 'opt_in'
+                                ? 'Opt-in'
+                                : 'Opt-out'
+                        }}
+                        {{ confirmBulkAction.ids.length }}
+                        tenant{{ confirmBulkAction.ids.length > 1 ? 's' : '' }}?
+                    </h2>
+
+                    <div
+                        v-if="confirmBulkAction.action === 'opt_out'"
+                        class="toggle-warning toggle-warning--danger"
+                        style="text-align: left"
+                    >
+                        <p style="font-weight: 700; margin-bottom: 4px">
+                            SOS access is suspended immediately.
+                        </p>
+                        <p>
+                            Each tenant's individual subscription will be marked
+                            past due and they will not be able to opt into
+                            estate billing again (on this or any other estate)
+                            until it's settled.
+                        </p>
+                    </div>
+                    <div
+                        v-else
+                        class="toggle-warning"
+                        style="
+                            text-align: left;
+                            background: #eff6ff;
+                            border: 1px solid #bfdbfe;
+                            color: #1e40af;
+                        "
+                    >
+                        <p style="font-weight: 700; margin-bottom: 4px">
+                            This cancels their individual subscription.
+                        </p>
+                        <p>
+                            Coverage moves to estate billing. Any tenant with an
+                            outstanding balance will be blocked and shown
+                            separately in the results.
+                        </p>
+                    </div>
+
+                    <div class="confirm-modal__actions">
+                        <button
+                            @click="confirmBulkAction = null"
+                            class="btn-ghost"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            @click="proceedBulkAction"
+                            class="btn-primary"
+                            :class="{
+                                'btn-danger':
+                                    confirmBulkAction.action === 'opt_out',
+                            }"
+                            style="flex: 1.4; justify-content: center"
+                        >
+                            Yes,
+                            {{
+                                confirmBulkAction.action === 'opt_in'
+                                    ? 'Opt In'
+                                    : 'Opt Out'
+                            }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </transition>
 
         <!-- BULK RESULTS MODAL -->
         <transition name="modal">
