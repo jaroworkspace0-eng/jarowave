@@ -8,9 +8,11 @@ use App\Mail\HouseholdWelcomeMail;
 use App\Models\Channel;
 use App\Models\ChannelBillingContact;
 use App\Models\Employee;
+use App\Models\EstateMidcycleOptout;
 use App\Models\Subscription;
 use App\Models\User;
 use App\Services\AddressHistoryService;
+use App\Services\BillingService;
 use App\Services\ChannelBillingService;
 use App\Traits\NotifiesNode;
 use Illuminate\Http\Request;
@@ -178,6 +180,7 @@ class EstateTenantController extends Controller
 
         return response()->json(['message' => 'Tenant updated successfully.']);
     }
+    
     public function destroy(Request $request, Employee $employee)
     {
         $channelIds = $this->myChannelIds($request);
@@ -191,6 +194,25 @@ class EstateTenantController extends Controller
         $subscription = Subscription::where('user_id', $userId)
             ->latest()
             ->first();
+
+        // Log mid-cycle exit for billing, same as ChannelBillingService::optOutHousehold —
+        // this tenant had estate coverage for part of the current cycle.
+        if ($subscription && $subscription->channel_subscription_id && $subscription->cancellation_reason === 'estate_optin') {
+            $channelSubscription = $subscription->channelSubscription;
+
+            if ($channelSubscription) {
+                $channel = $employee->channels()->first();
+
+                EstateMidcycleOptout::create([
+                    'user_id'                 => $userId,
+                    'channel_id'              => $channel->id,
+                    'channel_subscription_id' => $channelSubscription->id,
+                    'amount_owed'             => BillingService::unitPrice($channel->amount_per_household ?? null),
+                    'opted_out_at'            => now(),
+                    'billed'                  => false,
+                ]);
+            }
+        }
 
         DB::transaction(function () use ($employee) {
             $this->addressHistory->close($employee->user);
@@ -217,6 +239,7 @@ class EstateTenantController extends Controller
                 'ends_at'                 => now(),
                 'channel_subscription_id' => null,
                 'cancellation_reason'     => 'no_coverage_relocation',
+                'sos_suspended_at'        => now(),
             ]);
         }
 

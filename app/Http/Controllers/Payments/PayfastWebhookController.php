@@ -165,6 +165,16 @@ class PayfastWebhookController extends Controller
                             continue;
                         }
 
+
+                        if ($linkedSub->isEstateBilled()) {
+                            Log::info('PayFast ITN: linked account is estate-billed, skipping standalone reactivation', [
+                                'primary_subscription_id' => $subscription->id,
+                                'account_link_id'         => $link->id,
+                                'linked_subscription_id'  => $linkedSub->id,
+                            ]);
+                            continue;
+                        }
+
                         $linkedSub->update([
                             'status'               => 'active',
                             'payment_failed_at'    => null,

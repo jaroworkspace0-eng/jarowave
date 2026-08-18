@@ -617,6 +617,7 @@ class HouseholdController extends Controller
     }
 
     
+    // User is on debit but missed payment maybe due to insufficient funds, and now past due, user has payfast token
     public function payNow(Request $request)
     {
         $user         = $request->user();
@@ -682,6 +683,8 @@ class HouseholdController extends Controller
     }
 
 
+
+    // Re-enter bank card details every time household makes payment, no payfast token
     public function payNowOnetime(Request $request)
     {
         $user         = $request->user();
@@ -716,8 +719,10 @@ class HouseholdController extends Controller
         $basePrice  = BillingService::unitPrice($channel?->amount_per_household);
         $linkedRate = BillingService::unitPrice($channel?->amount_per_linked_account);
 
+
         $activeLinkedCount = AccountLink::where('primary_account_id', $user->id)
             ->where('status', 'active')
+            ->whereHas('linkedAccount.subscription', fn ($q) => $q->notEstateBilled())
             ->count();
 
         $totalAmount = $basePrice + ($activeLinkedCount * $linkedRate);

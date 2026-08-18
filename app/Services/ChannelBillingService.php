@@ -549,6 +549,7 @@ class ChannelBillingService
     }
 
 
+    // Admin approving EFT payment by the estate
     public function approveEftPayment(
     ChannelSubscriptionPayment $payment,
     string $ipAddress

@@ -164,4 +164,24 @@ class Subscription extends Model
             'sos_suspended_at'    => $this->sos_suspended_at,
         ]);
     }
+
+
+    
+    //-------------
+
+
+
+    public function isEstateBilled(): bool
+    {
+        return (bool) ($this->channel_subscription_id || $this->cancellation_reason === 'estate_optin');
+    }
+
+    public function scopeNotEstateBilled($query)
+    {
+        return $query->whereNull('channel_subscription_id')
+            ->where(function ($q) {
+                $q->whereNull('cancellation_reason')
+                ->orWhere('cancellation_reason', '!=', 'estate_optin');
+            });
+    }
 }

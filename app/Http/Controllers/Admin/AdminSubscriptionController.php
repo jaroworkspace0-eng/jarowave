@@ -193,6 +193,16 @@ class AdminSubscriptionController extends Controller
                     continue;
                 }
 
+                if ($linkedSub->isEstateBilled()) {
+                    Log::warning('EFT payment: linked account is estate-billed, skipping standalone EFT activation', [
+                        'primary_subscription_id' => $subscription->id,
+                        'account_link_id'         => $link->id,
+                        'linked_user_id'          => $linkedUser->id,
+                        'linked_subscription_id'  => $linkedSub->id,
+                    ]);
+                    continue;
+                }
+
                 $linkedPeriodStart = ($linkedSub->current_period_end && $linkedSub->current_period_end->isPast())
                     ? $linkedSub->current_period_end
                     : ($linkedSub->current_period_start ?? $subscription->current_period_start);

@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\AddressHistoryService;
 use App\Services\SubscriptionService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -131,36 +132,51 @@ class AccountDeletionController extends Controller
 
         $user = User::find($deletion->user_id);
 
-        if ($user) {
-            app(SubscriptionService::class)->cancelForUser($user->id);
+        DB::transaction(function () use ($user, $deletion) {
+            if ($user) {
+                app(SubscriptionService::class)->cancelForUser($user->id);
 
-            $this->addressHistory->close($user);
+                $this->addressHistory->close($user);
 
-            $user->tokens()->delete();
-            $user->update([
-                'name'            => 'Deleted User',
-                'email'           => 'deleted_' . $user->id . '@deleted.com',
-                'phone'           => null,
-                'password'        => bcrypt(str()->random(32)),
-                'is_active'       => 0,
-                'address_line_1'  => null,
-                'suburb'          => null,
-                'longitude'       => null,
-                'latitude'        => null,
-                'complex_name'    => null,
-                'unit_number'     => null,
-                'safe_cancel_pin' => null,
-                'duress_pin'      => null,
+                $user->tokens()->delete();
+                $user->update([
+                    'name'            => 'Deleted User',
+                    'email'           => 'deleted_' . $user->id . '@deleted.com',
+                    'phone'           => null,
+                    'password'        => bcrypt(str()->random(32)),
+                    'is_active'       => 0,
+                    'address_line_1'  => null,
+                    'suburb'          => null,
+                    'longitude'       => null,
+                    'latitude'        => null,
+                    'complex_name'    => null,
+                    'unit_number'     => null,
+                    'safe_cancel_pin' => null,
+                    'duress_pin'      => null,
+                ]);
+                $user->employee?->delete();
+            }
+
+            $deletion->update([
+                'status'            => 'deleted',
+                'processed_at'      => now(),
+                'processed_by'      => auth()->id(),
+                'processed_by_type' => 'admin',
             ]);
-            $user->employee?->delete();
-        }
+        });
 
-        $deletion->update([
-            'status'            => 'deleted',
-            'processed_at'      => now(),
-            'processed_by'      => auth()->id(),
-            'processed_by_type' => 'admin',
-        ]);
+        if ($user) {
+            try {
+                Http::timeout(5)
+                    ->withHeaders(['Authorization' => 'Bearer ' . env('ASSIGN_SECRET')])
+                    ->post(env('PTT_SERVER_URL') . '/force-disconnect', [
+                        'userId' => $user->id,
+                        'reason' => 'user_inactive',
+                    ]);
+            } catch (\Exception $e) {
+                Log::warning('PTT force-disconnect failed: ' . $e->getMessage());
+            }
+        }
 
         try {
             Mail::raw(

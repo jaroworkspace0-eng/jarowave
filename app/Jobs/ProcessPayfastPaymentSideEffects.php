@@ -84,6 +84,17 @@ class ProcessPayfastPaymentSideEffects implements ShouldQueue
                 continue;
             }
 
+
+            if ($linkedSub->isEstateBilled()) {
+                Log::info('PayFast payment: linked account is estate-billed, skipping standalone payment/invoice', [
+                    'primary_subscription_id' => $subscription->id,
+                    'account_link_id'         => $link->id,
+                    'linked_user_id'          => $linkedUser->id,
+                    'linked_subscription_id'  => $linkedSub->id,
+                ]);
+                continue;
+            }
+
             $linkedPayment = SubscriptionPayment::create([
                 'subscription_id'           => $linkedSub->id,
                 'user_id'                   => $linkedSub->user_id,

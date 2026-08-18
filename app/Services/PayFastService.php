@@ -284,7 +284,7 @@ class PayFastService
     {
         $timestamp = now()->toIso8601String();
         $version   = 'v1';
-        $amountCents = (int)($amount * 100);
+        $amountCents = (int) round($amount * 100);
         $itemName  = 'Echo Link Community Protection';
 
         $parts = [

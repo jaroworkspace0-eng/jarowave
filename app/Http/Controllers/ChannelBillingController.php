@@ -401,6 +401,9 @@ class ChannelBillingController extends Controller
             return response()->json(['message' => 'This billing period is already paid.'], 400);
         }
 
+        $this->billingService->refreshChannelSubscription($channelSubscription);
+        $channelSubscription->refresh();
+
         $contact = ChannelBillingContact::where('channel_id', $channel->id)
             ->where('is_active', true)
             ->with('user')
