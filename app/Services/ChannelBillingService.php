@@ -144,6 +144,7 @@ class ChannelBillingService
                     'cancellation_reason'     => 'estate_optin',
                     'channel_subscription_id' => $channelSubscription?->id,
                     'sos_suspended_at'        => null,
+                    'estate_optin_at'         => now(),
                 ]);
 
                 $subscription->syncUserStatus();
@@ -273,14 +274,20 @@ class ChannelBillingService
             // Log mid-cycle opt-out so the estate is still billed for this household
             // for the cycle already in progress — they had coverage for part of it.
             if ($channelSubscription) {
-                EstateMidcycleOptout::create([
-                    'user_id'                 => $user->id,
-                    'channel_id'              => $channel->id,
-                    'channel_subscription_id' => $channelSubscription->id,
-                    'amount_owed'             => BillingService::unitPrice($channel->amount_per_household ?? null),
-                    'opted_out_at'            => $suspendedAt,
-                    'billed'                  => false,
-                ]);
+                $alreadyPaidForThisCycle = $channelSubscription->paid_at
+                    && $subscription->estate_optin_at
+                    && $subscription->estate_optin_at->lte($channelSubscription->paid_at);
+
+                if (!$alreadyPaidForThisCycle) {
+                    EstateMidcycleOptout::create([
+                        'user_id'                 => $user->id,
+                        'channel_id'              => $channel->id,
+                        'channel_subscription_id' => $channelSubscription->id,
+                        'amount_owed'             => BillingService::unitPrice($channel->amount_per_household ?? null),
+                        'opted_out_at'            => $suspendedAt,
+                        'billed'                  => false,
+                    ]);
+                }
             }
 
             $subscription->update([

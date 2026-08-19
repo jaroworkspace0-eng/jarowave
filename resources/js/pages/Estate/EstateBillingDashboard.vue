@@ -446,9 +446,14 @@ const nextBillingDate = computed(() => {
     return d.toISOString();
 });
 
+// const nextBillingAmount = computed(() => {
+//     if (!summary.value) return null;
+//     return summary.value.total_amount - (midcycleOptoutTotal.value ?? 0);
+// });
+
 const nextBillingAmount = computed(() => {
     if (!summary.value) return null;
-    return summary.value.total_amount - (midcycleOptoutTotal.value ?? 0);
+    return summary.value.total_amount;
 });
 
 const filteredPayments = computed(() => {

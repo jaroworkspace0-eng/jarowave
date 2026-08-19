@@ -33,7 +33,8 @@ class Subscription extends Model
         'activation_fee_paid',
         'activation_fee_paid_at',
         'cancellation_reason',
-        'channel_subscription_id'
+        'channel_subscription_id',
+        'estate_optin_at',
     ];
 
     protected $casts = [
