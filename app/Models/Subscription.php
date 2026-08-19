@@ -44,6 +44,7 @@ class Subscription extends Model
         'cancelled_at'           => 'datetime',
         'ends_at'                => 'datetime',
         'activation_fee_paid_at' => 'datetime',
+        'estate_optin_at' => 'datetime',
         // 'price'                  => 'integer',
         'original_price'         => 'integer',
         'discount_amount'        => 'integer',
