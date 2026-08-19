@@ -287,6 +287,15 @@ const fetchAll = async () => {
     } finally {
         isLoading.value = false;
     }
+
+    console.log(
+        'isPastDue:',
+        isPastDue.value,
+        'status:',
+        summary.value?.status,
+        'period_end:',
+        summary.value?.current_period_end,
+    );
 };
 
 onMounted(async () => {
