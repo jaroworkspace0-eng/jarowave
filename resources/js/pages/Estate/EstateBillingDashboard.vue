@@ -288,14 +288,7 @@ const fetchAll = async () => {
         isLoading.value = false;
     }
 
-    console.log(
-        'isPastDue:',
-        isPastDue.value,
-        'status:',
-        summary.value?.status,
-        'period_end:',
-        summary.value?.current_period_end,
-    );
+    //  console.log('isPastDue:', isPastDue.value, 'status:', summary.value?.status, 'period_end:', summary.value?.current_period_end);
 };
 
 onMounted(async () => {
@@ -670,7 +663,8 @@ const filteredPayments = computed(() => {
                             class="btn-ghost btn-ghost--outline"
                             :disabled="
                                 summary.status === 'cancelled' ||
-                                summary.status === 'active'
+                                summary.status === 'active' ||
+                                summary.total_amount <= 0
                             "
                             @click="openEftModal"
                         >
@@ -681,8 +675,8 @@ const filteredPayments = computed(() => {
                             class="btn-primary"
                             :disabled="
                                 summary.status === 'cancelled' ||
-                                isPayingNow ||
-                                summary.status === 'active'
+                                summary.status === 'active' ||
+                                summary.total_amount <= 0
                             "
                             @click="payNow"
                         >

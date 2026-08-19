@@ -236,8 +236,12 @@ class ChannelBillingController extends Controller
     // EFT Payment
     // -------------------------------------------------------------------------
 
-    /**
-     * Admin marks an estate EFT payment as paid.
+   /**
+     * Estate billing contact submits proof of an EFT payment for review.
+     * Creates a pending_review ChannelSubscriptionPayment with the uploaded
+     * proof — does not activate households. An Echo Link admin must review
+     * and call ChannelBillingService::approveEftPayment() to actually
+     * mark it paid and activate opted-in households for the period.
      */
     public function markEftPaid(Request $request, Channel $channel)
     {
@@ -351,6 +355,13 @@ class ChannelBillingController extends Controller
     }
 
 
+    /**
+     * Echo Link admin approves an estate's submitted EFT proof.
+     * Delegates to ChannelBillingService::approveEftPayment(), which marks
+     * the payment paid, activates the channel subscription and every
+     * opted-in household for the period, and clears any mid-cycle
+     * opt-outs already folded into this payment's total.
+     */
     public function approveEftPayment(Request $request, ChannelSubscriptionPayment $payment)
     {
         $this->billingService->approveEftPayment($payment, $request->ip());
@@ -416,6 +427,11 @@ class ChannelBillingController extends Controller
 
         $this->billingService->refreshChannelSubscription($channelSubscription);
         $channelSubscription->refresh();
+
+
+        if ((float) $channelSubscription->total_amount <= 0) {
+            return response()->json(['message' => 'No amount currently due.'], 400);
+        }
 
         $contact = ChannelBillingContact::where('channel_id', $channel->id)
             ->where('is_active', true)
