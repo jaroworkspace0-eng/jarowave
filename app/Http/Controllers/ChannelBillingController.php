@@ -241,22 +241,35 @@ class ChannelBillingController extends Controller
      */
     public function markEftPaid(Request $request, Channel $channel)
     {
-
-         if ($channel->billing_model !== 'bulk') {
+        if ($channel->billing_model !== 'bulk') {
             return response()->json([
                 'success' => false,
                 'message' => 'This channel is not on estate/bulk billing. Process payment via individual subscriber billing instead.',
             ], 422);
         }
 
-        
+        $channelSubscription = $this->billingService->resolveActiveChannelSubscription($channel);
+
+        if ($channelSubscription->isActive()) {
+            return response()->json(['message' => 'This billing period is already paid.'], 400);
+        }
+
+        $hasPendingEft = ChannelSubscriptionPayment::where('channel_subscription_id', $channelSubscription->id)
+            ->where('payment_method', 'eft')
+            ->where('status', 'pending')
+            ->exists();
+
+        if ($hasPendingEft) {
+            return response()->json([
+                'message' => 'An EFT proof for this billing period is already awaiting admin review.',
+            ], 400);
+        }
+
         $request->validate([
             'amount' => 'required|numeric|min:1',
             'note'   => 'required|string|max:255',
             'proof'  => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
         ]);
-
-        $channelSubscription = $this->billingService->resolveActiveChannelSubscription($channel);
 
         $proofPath = $request->file('proof')->store('eft-proofs/channel', 'public');
 
