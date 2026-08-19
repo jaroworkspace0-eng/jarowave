@@ -148,6 +148,12 @@ class ChannelBillingService
                 ]);
 
                 $subscription->syncUserStatus();
+
+                if ($channelSubscription) {
+                    EstateMidcycleOptout::where('user_id', $user->id)
+                        ->where('channel_subscription_id', $channelSubscription->id)
+                        ->delete();
+                }
             }
 
             $user->update([
@@ -183,9 +189,16 @@ class ChannelBillingService
                     'cancellation_reason'     => 'estate_optin',
                     'channel_subscription_id' => $channelSubscription?->id,
                     'sos_suspended_at'        => null,
+                    'estate_optin_at'         => now(),
                 ]);
 
                 $linkedSub->syncUserStatus();
+
+                if ($channelSubscription) {
+                    EstateMidcycleOptout::where('user_id', $linkedUser->id)
+                        ->where('channel_subscription_id', $channelSubscription->id)
+                        ->delete();
+                }
 
                 $linkedUser->update([
                     'subscription_status' => $channelSubscription?->status === 'active' ? 'active' : 'pending',
@@ -278,7 +291,11 @@ class ChannelBillingService
                     && $subscription->estate_optin_at
                     && $subscription->estate_optin_at->lte($channelSubscription->paid_at);
 
-                if (!$alreadyPaidForThisCycle) {
+                $alreadyLoggedThisCycle = EstateMidcycleOptout::where('user_id', $user->id)
+                    ->where('channel_subscription_id', $channelSubscription->id)
+                    ->exists();
+
+                if (!$alreadyPaidForThisCycle && !$alreadyLoggedThisCycle) {
                     EstateMidcycleOptout::create([
                         'user_id'                 => $user->id,
                         'channel_id'              => $channel->id,
