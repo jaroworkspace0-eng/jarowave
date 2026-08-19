@@ -437,6 +437,11 @@ const clearPayFilters = () => {
     payDateTo.value = '';
 };
 
+const nextBillingAmount = computed(() => {
+    if (!summary.value) return null;
+    return summary.value.total_amount - (midcycleOptoutTotal.value ?? 0);
+});
+
 const filteredPayments = computed(() => {
     let result = [...payments.value];
 
@@ -583,6 +588,19 @@ const filteredPayments = computed(() => {
                                     ? 'Paid'
                                     : fmt(summary.total_amount)
                             }}
+                        </div>
+                    </div>
+                    <!-- <div v-if="summary.status === 'active'" class="stat-card"> -->
+                    <div class="stat-card">
+                        <div class="stat-card__label">Next Billing</div>
+                        <div class="stat-card__value">
+                            {{ formatDate(summary.current_period_end) }}
+                        </div>
+                        <div
+                            class="pay-panel__rate"
+                            style="font-size: 12px; margin-top: -2px"
+                        >
+                            {{ fmt(nextBillingAmount) }}
                         </div>
                     </div>
                     <div class="stat-card">
@@ -1244,7 +1262,7 @@ const filteredPayments = computed(() => {
 /* Stats */
 .stat-row {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 16px;
 }
 .stat-card {
