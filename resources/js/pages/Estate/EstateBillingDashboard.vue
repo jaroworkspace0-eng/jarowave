@@ -590,6 +590,13 @@ const filteredPayments = computed(() => {
                             }}
                         </div>
                     </div>
+                    <div class="stat-card">
+                        <div class="stat-card__label">Period Ends</div>
+                        <div class="stat-card__value">
+                            {{ formatDate(summary.current_period_end) }}
+                        </div>
+                    </div>
+
                     <!-- <div v-if="summary.status === 'active'" class="stat-card"> -->
                     <div class="stat-card">
                         <div class="stat-card__label">Next Billing</div>
@@ -601,12 +608,6 @@ const filteredPayments = computed(() => {
                             style="font-size: 12px; margin-top: -2px"
                         >
                             {{ fmt(nextBillingAmount) }}
-                        </div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-card__label">Period Ends</div>
-                        <div class="stat-card__value">
-                            {{ formatDate(summary.current_period_end) }}
                         </div>
                     </div>
                     <div class="stat-card">
@@ -646,7 +647,10 @@ const filteredPayments = computed(() => {
                     <div class="pay-panel__actions">
                         <button
                             class="btn-ghost btn-ghost--outline"
-                            :disabled="summary.status === 'cancelled'"
+                            :disabled="
+                                summary.status === 'cancelled' ||
+                                summary.status === 'active'
+                            "
                             @click="openEftModal"
                         >
                             <Upload :size="15" stroke-width="2" />
@@ -655,7 +659,9 @@ const filteredPayments = computed(() => {
                         <button
                             class="btn-primary"
                             :disabled="
-                                summary.status === 'cancelled' || isPayingNow
+                                summary.status === 'cancelled' ||
+                                isPayingNow ||
+                                summary.status === 'active'
                             "
                             @click="payNow"
                         >
