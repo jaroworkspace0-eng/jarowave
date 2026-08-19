@@ -437,6 +437,13 @@ const clearPayFilters = () => {
     payDateTo.value = '';
 };
 
+const nextBillingDate = computed(() => {
+    if (!summary.value?.current_period_end) return null;
+    const d = new Date(summary.value.current_period_end);
+    d.setDate(d.getDate() + 1);
+    return d.toISOString();
+});
+
 const nextBillingAmount = computed(() => {
     if (!summary.value) return null;
     return summary.value.total_amount - (midcycleOptoutTotal.value ?? 0);
@@ -600,8 +607,13 @@ const filteredPayments = computed(() => {
                     <!-- <div v-if="summary.status === 'active'" class="stat-card"> -->
                     <div class="stat-card">
                         <div class="stat-card__label">Next Billing</div>
-                        <div class="stat-card__value">
-                            {{ formatDate(summary.current_period_end) }}
+                        <div
+                            class="stat-card__value"
+                            :class="{ 'stat-card__value--red': isPastDue }"
+                        >
+                            {{
+                                isPastDue ? 'Now' : formatDate(nextBillingDate)
+                            }}
                         </div>
                         <div
                             class="pay-panel__rate"
