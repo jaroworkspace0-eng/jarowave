@@ -587,11 +587,14 @@ class ChannelBillingService
         $this->refreshChannelSubscription($channelSubscription);
         $channelSubscription->refresh();
 
-        $periodStart = ($channelSubscription->current_period_end && $channelSubscription->current_period_end->isPast())
-            ? now()
-            : ($channelSubscription->current_period_start ?? now());
+        // $periodStart = ($channelSubscription->current_period_end && $channelSubscription->current_period_end->isPast())
+        //     ? now()
+        //     : ($channelSubscription->current_period_start ?? now());
 
-        $periodEnd = $periodStart->copy()->addDays(30);
+        // $periodEnd = $periodStart->copy()->addDays(30);
+
+        $periodStart = $channelSubscription->current_period_end ?? ($channelSubscription->current_period_start ?? now());
+        $periodEnd   = $periodStart->copy()->addDays(30);
 
         try {
             DB::transaction(function () use ($payment, $channelSubscription, $periodStart, $periodEnd, $ipAddress) {
