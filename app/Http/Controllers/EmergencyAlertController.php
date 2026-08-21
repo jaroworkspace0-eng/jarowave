@@ -3,8 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Models\Channel;
+use App\Models\Client;
 use App\Models\EmergencyAlert;
 use App\Models\EmergencyResolution;
+use App\Models\Employee;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -79,6 +82,7 @@ class EmergencyAlertController extends Controller
             'longitude' => 'nullable|numeric',
             'accuracy' => 'nullable|string',
             'alert_type' => 'nullable|string|in:sos,domestic_violence',
+            'trigger_source' => 'nullable|string|in:manual,auto_detected',
         ]);
 
         $channel = Channel::find($request->channel_id);
@@ -97,6 +101,7 @@ class EmergencyAlertController extends Controller
             'last_lng' => $request->longitude,
             'accuracy' => $request->accuracy,
             'alert_type' => $request->alert_type ?? 'sos',
+            'trigger_source' => $request->trigger_source ?? 'manual',
             'name' => $user->name,
             'phone' => $user->phone,
             'email' => $user->email,
@@ -112,7 +117,7 @@ class EmergencyAlertController extends Controller
 
         // $alert->load(['user:id,name,phone,address_line_1,complex_name,suburb,unit_number,alert_location_source,is_estate', 'channel:id,name']);
 
-        $channelGuards = \App\Models\Employee::whereHas('channels', fn ($q) =>
+        $channelGuards = Employee::whereHas('channels', fn ($q) =>
                 $q->where('channels.id', $alert->channel_id))
             ->whereHas('user', fn ($q) => $q->where('is_gate_guard', true))
             ->with('user:id,name,phone')
@@ -164,6 +169,35 @@ class EmergencyAlertController extends Controller
                 'alert_id' => $alert->id,
                 'error' => $e->getMessage(),
             ]);
+        }
+
+
+        if ($alert->alert_location_source === 'gps' && $alert->latitude && $alert->longitude) {
+            $nearby = User::where('id', '!=', $alert->user_id)
+                ->whereNotNull('current_lat')->whereNotNull('current_long')
+                ->whereIn('subscription_status', ['active', 'trialing'])
+                ->get()
+                ->filter(fn ($u) => $this->haversineMeters(
+                    $alert->latitude, $alert->longitude, $u->current_lat, $u->current_long
+                ) <= 500)
+                ->pluck('id');
+
+            if ($nearby->isNotEmpty()) {
+                try {
+                    \Illuminate\Support\Facades\Http::timeout(5)->post(env('PTT_SERVER_URL') . '/nearby-alert', [
+                        'alert_id' => $alert->id,
+                        'lat' => $alert->latitude,
+                        'lng' => $alert->longitude,
+                        'trigger' => $alert->trigger_source,
+                        'user_ids' => $nearby,
+                    ]);
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Failed to push nearby-alert', [
+                        'alert_id' => $alert->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
         }
 
         return response()->json([
@@ -228,7 +262,7 @@ class EmergencyAlertController extends Controller
                     ]
                 );
 
-                $responder = \App\Models\User::find($request->responder_user_id);
+                $responder = User::find($request->responder_user_id);
 
                 app(\App\Services\AlertEventService::class)->record(
                     $alert,
@@ -439,7 +473,7 @@ class EmergencyAlertController extends Controller
         if ($isAdmin) {
             // no scope
         } elseif ($user->role === 'client') {
-            $clientId = \App\Models\Client::where('user_id', $user->id)->value('id');
+            $clientId = Client::where('user_id', $user->id)->value('id');
         } elseif ($user->role === 'estate_billing') {
             $channelIds = DB::table('channel_billing_contacts')
                 ->where('user_id', $user->id)
@@ -654,6 +688,16 @@ class EmergencyAlertController extends Controller
                     'username' => $senderUser->name,
                 ],
             ]);
+    }
+
+
+    private function haversineMeters($lat1, $lng1, $lat2, $lng2)
+    {
+        $earth = 6371000;
+        $dLat = deg2rad($lat2 - $lat1);
+        $dLng = deg2rad($lng2 - $lng1);
+        $a = sin($dLat / 2) ** 2 + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
+        return $earth * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 
 }
