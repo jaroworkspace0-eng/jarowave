@@ -37,6 +37,7 @@ class EmergencyAlert extends Model
         'location_updated_at',
         'first_ack_at',
         'muted',
+        'trigger_source'
     ];
 
     protected $casts = [
