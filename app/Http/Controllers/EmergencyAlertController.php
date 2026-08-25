@@ -115,6 +115,37 @@ class EmergencyAlertController extends Controller
 
         $alert->load(['channel:id,name']);
 
+
+
+        // 
+        if ($request->input('trigger_source') === 'auto_detected') {
+            try {
+                \Illuminate\Support\Facades\Http::withHeaders([
+                    'Authorization' => 'Bearer ' . env('ASSIGN_SECRET'),
+                ])->timeout(5)->post(env('PTT_SERVER_URL') . '/internal-panic-alert', [
+                    'channelId'   => $alert->channel_id,
+                    'alertId'     => $alert->id,
+                    'userId'      => $alert->user_id,
+                    'username'    => $alert->name,
+                    'phone'       => $alert->phone,
+                    'token'       => $request->bearerToken(),
+                    'location'    => ['lat' => $alert->latitude ?? 0, 'lng' => $alert->longitude ?? 0],
+                    'address'     => $alert->address_line_1,
+                    'complex'     => $alert->complex_name,
+                    'suburb'      => $alert->suburb,
+                    'unit'        => $alert->unit_number,
+                    'alertType'   => $alert->alert_type,
+                    'alertLocationSource' => $alert->alert_location_source,
+                    'isHousehold' => true,
+                ]);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Failed to push internal-panic-alert', [
+                    'alert_id' => $alert->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
         // $alert->load(['user:id,name,phone,address_line_1,complex_name,suburb,unit_number,alert_location_source,is_estate', 'channel:id,name']);
 
         $channelGuards = Employee::whereHas('channels', fn ($q) =>
@@ -127,6 +158,7 @@ class EmergencyAlertController extends Controller
                 'username' => $e->user->name,
                 'phone' => $e->user->phone,
             ]);
+            
 
         try {
             \Illuminate\Support\Facades\Http::withHeaders([
