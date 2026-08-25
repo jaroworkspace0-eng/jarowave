@@ -63,6 +63,7 @@ class EmergencyAlertController extends Controller
      */
     public function store(Request $request)
     {
+        \Illuminate\Support\Facades\Log::info('emergency-alerts payload', $request->all());
         $existingAlert = EmergencyAlert::where('user_id', auth()->id())
             ->where('is_resolved', false)
             ->where('created_at', '>', now()->subMinutes(2))
