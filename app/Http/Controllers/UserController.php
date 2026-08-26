@@ -9,6 +9,7 @@ use App\Services\ChannelBillingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
@@ -268,6 +269,20 @@ class UserController extends Controller
             'fcm_token' => $user->fcm_token,
             'device_id' => $user->fcm_device_id,
         ]);
+    }
+
+
+    public function verifyPassword(Request $request)
+    {
+        $request->validate([
+            'password' => 'required|string',
+        ]);
+    
+        $user = $request->user(); // Sanctum-authenticated user
+    
+        $valid = Hash::check($request->input('password'), $user->password);
+    
+        return response()->json(['valid' => $valid]);
     }
     
 }

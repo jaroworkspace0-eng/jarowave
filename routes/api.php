@@ -470,6 +470,8 @@ Route::middleware(['auth:sanctum'])->group(function () {
     // });
 
 
+    Route::post('/auth/verify-password', [UserController::class, 'verifyPassword']);
+
 
     Route::get('/user', function (Request $request) {
         $user = $request->user()->load('employee.client', 'employee.channels');
