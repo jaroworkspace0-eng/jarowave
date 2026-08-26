@@ -83,9 +83,11 @@ class AlertEventService
     public function updateLocation(EmergencyAlert $alert, float $lat, float $lng): void
     {
         $alert->update([
-            'last_lat' => $lat,
-            'last_lng' => $lng,
-            'location_updated_at' => now(),
+            'latitude'             => $lat,
+            'longitude'            => $lng,
+            'last_lat'             => $lat,
+            'last_lng'             => $lng,
+            'location_updated_at'  => now(),
         ]);
 
         $this->record($alert, 'household', $alert->user_id, 'location_updated', [
@@ -93,7 +95,6 @@ class AlertEventService
             'lng' => $lng,
         ]);
     }
-
     public function logAdminCallAttempt(EmergencyAlert $alert, int $adminId, string $outcome): void
     {
         $this->record($alert, 'admin', $adminId, 'admin_call_logged', ['outcome' => $outcome]);
