@@ -373,6 +373,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/estate/incident-reports', [EstateIncidentReportController::class, 'index']);
     Route::get('/estate/incident-reports/{report}', [EstateIncidentReportController::class, 'show']);
     Route::post('estate/tenants/bulk-billing', [EstateTenantController::class, 'bulkBilling']);
+
+    Route::put('/estate/guards/{employee}', [EstateTenantController::class, 'updateGuard']);
 });
 
 

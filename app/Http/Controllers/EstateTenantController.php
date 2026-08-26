@@ -372,12 +372,44 @@ class EstateTenantController extends Controller
         $channelIds = $this->myChannelIds($request);
 
         $guards = Employee::whereHas('channels', fn ($q) =>
-                $q->whereIn('channels.id', $channelIds))
+            $q->whereIn('channels.id', $channelIds))
             ->whereHas('user', fn ($q) => $q->where('is_gate_guard', true))
-            ->with('user:id,name,phone,is_gate_guard')
+            ->with('user:id,name,email,phone,is_gate_guard', 'channels:id,name')
             ->get();
 
         return response()->json($guards);
+    }
+
+    public function updateGuard(Request $request, Employee $employee)
+    {
+        $channelIds = $this->myChannelIds($request);
+        abort_unless(
+            $employee->channels()->whereIn('channels.id', $channelIds)->exists(),
+            403,
+        );
+        abort_unless($employee->user->is_gate_guard, 422, 'This employee is not a gate guard.');
+
+        $request->merge([
+            'phone' => preg_replace('/\s+/', '', (string) $request->input('phone')),
+        ]);
+
+        $validated = $request->validate([
+            'channel_id' => 'required|integer',
+            'name'       => 'required|string|max:255',
+            'phone'      => 'required|string|max:20',
+        ]);
+
+        $channel = Channel::whereIn('id', $channelIds)->findOrFail($validated['channel_id']);
+
+        $employee->user->update([
+            'name'  => $validated['name'],
+            'phone' => $validated['phone'],
+        ]);
+
+        // Re-point the guard at the selected channel if it changed.
+        $employee->channels()->sync([$channel->id]);
+
+        return response()->json(['message' => 'Guard updated successfully.']);
     }
 
     public function toggleDashboardAccess(Request $request, Employee $employee)
