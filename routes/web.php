@@ -80,6 +80,19 @@ Route::get('/dv-recordings', function() {
 });
 
 
+Route::get('/admin/flagged-households', function () {
+    return inertia('Admin/FlaggedHouseholds');
+});
+
+Route::get('/estate/flagged-households', function () {
+    return inertia('Estate/FlaggedHouseholds');
+});
+
+Route::get('/guard/flagged-households', function () {
+    return inertia('Guard/FlaggedHouseholds');
+});
+
+
 // ── Live Alerts (admin) ───────────────────────────────────
  
 Route::get('/live-alerts', function() {

@@ -715,6 +715,10 @@ Route::middleware(['auth:sanctum'])->group(function () {
     Route::patch('/guards/duty-status', [UserController::class, 'updateDutyStatus']);
     Route::get('/guards/duty-status', [UserController::class, 'getDutyStatus']);
 
+
+    Route::get('/flagged-households', [EmergencyAlertController::class, 'listFlagged']);
+    Route::post('/users/{user}/clear-alert-flag', [EmergencyAlertController::class, 'clearAlertFlag']);
+
     Route::get('clients/list', [ClientController::class, 'clients']);
     Route::post('/emergency-alerts', [EmergencyAlertController::class, 'store']);
     Route::patch('/emergency-alerts/{alert}', [EmergencyAlertController::class, 'update']);

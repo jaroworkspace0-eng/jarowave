@@ -26,6 +26,7 @@ import {
     ClipboardList,
     DollarSign,
     FileText,
+    Flag,
     HomeIcon,
     Link2,
     Megaphone,
@@ -95,6 +96,11 @@ const adminGroups: NavGroup[] = [
                 title: 'Incident Reports',
                 href: '/admin/incident-reports',
                 icon: Newspaper,
+            },
+            {
+                title: 'Flagged Households',
+                href: '/admin/flagged-households',
+                icon: Flag,
             },
             {
                 title: 'Guardian Reports',
@@ -206,6 +212,11 @@ const estateBillingGroups: NavGroup[] = [
                 href: '/estate/incident-reports',
                 icon: Newspaper,
             },
+            {
+                title: 'Flagged Households',
+                href: '/estate/flagged-households',
+                icon: Flag,
+            },
         ],
     },
     {
@@ -247,6 +258,11 @@ const gateGuardGroups: NavGroup[] = [
                 title: 'Incident Reports',
                 href: '/guard/incident-reports',
                 icon: Newspaper,
+            },
+            {
+                title: 'Flagged Households',
+                href: '/guard/flagged-households',
+                icon: Flag,
             },
         ],
     },

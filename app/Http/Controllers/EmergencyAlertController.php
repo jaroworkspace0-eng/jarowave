@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Mail\AlertAbuseFlagMail;
 use App\Models\Channel;
 use App\Models\Client;
 use App\Models\EmergencyAlert;
@@ -14,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class EmergencyAlertController extends Controller
 {
@@ -21,34 +23,34 @@ class EmergencyAlertController extends Controller
      * Display a listing of the resource.
      */
     public function index(Request $request, string $id)
-{
-    // 1. Fetch with relationships
-    // Note: Ensure your EmergencyAlert model has these relationships defined!
-    $alert = EmergencyAlert::with(['user', 'channels', 'client', 'resolver'])
-        ->findOrFail($id);
+    {
+        // 1. Fetch with relationships
+        // Note: Ensure your EmergencyAlert model has these relationships defined!
+        $alert = EmergencyAlert::with(['user', 'channels', 'client', 'resolver'])
+            ->findOrFail($id);
 
-    // 2. Optional: Security check
-    // Ensure the logged-in user belongs to the same client as the alert
-    if ($alert->client_id !== $request->user()->client_id) {
-        return response()->json(['status' => 'error', 'message' => 'Unauthorized access to alert.'], 403);
+        // 2. Optional: Security check
+        // Ensure the logged-in user belongs to the same client as the alert
+        if ($alert->client_id !== $request->user()->client_id) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized access to alert.'], 403);
+        }
+
+        return response()->json([
+            'status' => 'success',
+            'data' => [
+                'id' => $alert->id,
+                'sender' => $alert->user->name,
+                'channel' => $alert->channels->name,
+                'location' => [
+                    'lat' => (float)$alert->latitude,
+                    'lng' => (float)$alert->longitude,
+                ],
+                'is_resolved' => (bool)$alert->is_resolved,
+                'timestamp' => $alert->created_at->toIso8601String(),
+                'formatted_time' => $alert->created_at->format('H:i:s'),
+            ]
+        ]);
     }
-
-    return response()->json([
-        'status' => 'success',
-        'data' => [
-            'id' => $alert->id,
-            'sender' => $alert->user->name,
-            'channel' => $alert->channels->name,
-            'location' => [
-                'lat' => (float)$alert->latitude,
-                'lng' => (float)$alert->longitude,
-            ],
-            'is_resolved' => (bool)$alert->is_resolved,
-            'timestamp' => $alert->created_at->toIso8601String(),
-            'formatted_time' => $alert->created_at->format('H:i:s'),
-        ]
-    ]);
-}
 
     /**
      * Show the form for creating a new resource.
@@ -87,9 +89,6 @@ class EmergencyAlertController extends Controller
         ]);
 
         $channel = Channel::find($request->channel_id);
-
-        $channel = Channel::find($request->channel_id);
-
         $user = auth()->user();
 
         $alert = EmergencyAlert::create([
@@ -116,9 +115,43 @@ class EmergencyAlertController extends Controller
 
         $alert->load(['channel:id,name']);
 
+        // Abuse tracking — manual alerts only; auto_detected excluded (accelerometer tuning, not misuse).
+        // Soft flag only, never blocks delivery — sendPanic/guard notification already happened client-side
+        // before this request even lands, so nothing here can gate anything in real time.
+        if ($alert->trigger_source === 'manual') {
+            $manualAlertCount = EmergencyAlert::where('user_id', $user->id)
+                ->where('trigger_source', 'manual')
+                ->where('created_at', '>=', now()->subDays(30))
+                ->count();
 
+            
+                if ($manualAlertCount >= 8 && !$user->alert_flagged_for_review) {
+                    $user->update([
+                        'alert_flagged_for_review' => true,
+                        'alert_flagged_at' => now(),
+                    ]);
 
-        // 
+                    $contact = DB::table('channel_billing_contacts')
+                        ->where('channel_id', $alert->channel_id)
+                        ->where('is_active', true)
+                        ->first();
+
+                    if ($contact) {
+                        $contactUser = User::find($contact->user_id);
+                        if ($contactUser) {
+                            Mail::to($contactUser->email)->queue(new \App\Mail\AlertAbuseFlagMail(
+                                userName: $user->name,
+                                unitNumber: $user->unit_number ?? '',
+                                alertCount: $manualAlertCount,
+                                flaggedAt: $user->alert_flagged_at,
+                                reviewUrl: config('app.url') . '/estate/incident-reports',
+                            ));
+                        }
+                    }
+                    // Standalone (no channel_billing_contacts match) - DB flag only, surfaced in the admin dashboard.
+                }
+        }
+
         if ($request->input('trigger_source') === 'auto_detected') {
             try {
                 \Illuminate\Support\Facades\Http::withHeaders([
@@ -147,8 +180,6 @@ class EmergencyAlertController extends Controller
             }
         }
 
-        // $alert->load(['user:id,name,phone,address_line_1,complex_name,suburb,unit_number,alert_location_source,is_estate', 'channel:id,name']);
-
         $channelGuards = Employee::whereHas('channels', fn ($q) =>
                 $q->where('channels.id', $alert->channel_id))
             ->whereHas('user', fn ($q) => $q->where('is_gate_guard', true))
@@ -159,7 +190,6 @@ class EmergencyAlertController extends Controller
                 'username' => $e->user->name,
                 'phone' => $e->user->phone,
             ]);
-            
 
         try {
             \Illuminate\Support\Facades\Http::withHeaders([
@@ -203,7 +233,6 @@ class EmergencyAlertController extends Controller
                 'error' => $e->getMessage(),
             ]);
         }
-
 
         if ($alert->alert_location_source === 'gps' && $alert->latitude && $alert->longitude) {
             $nearby = User::where('id', '!=', $alert->user_id)
@@ -731,6 +760,69 @@ class EmergencyAlertController extends Controller
         $dLng = deg2rad($lng2 - $lng1);
         $a = sin($dLat / 2) ** 2 + cos(deg2rad($lat1)) * cos(deg2rad($lat2)) * sin($dLng / 2) ** 2;
         return $earth * 2 * atan2(sqrt($a), sqrt(1 - $a));
+    }
+
+
+    public function clearAlertFlag(Request $request, User $user)
+    {
+        $requester = auth()->user();
+
+        if ($requester->role !== 'admin') {
+            $canManage = DB::table('channel_billing_contacts')
+                ->where('user_id', $requester->id)
+                ->where('is_active', true)
+                ->whereIn('channel_id', function ($q) use ($user) {
+                    $q->select('channel_id')
+                    ->from('emergency_alerts')
+                    ->where('user_id', $user->id);
+                })
+                ->exists();
+
+            if (!$canManage) {
+                abort(403);
+            }
+        }
+
+        $user->update([
+            'alert_flagged_for_review' => false,
+            'alert_flagged_at' => null,
+        ]);
+
+        return response()->json(['status' => 'success', 'message' => 'Flag cleared.']);
+    }
+
+
+    public function listFlagged(Request $request)
+    {
+        $requester = auth()->user();
+
+        $query = User::where('alert_flagged_for_review', true)
+            ->select('id', 'name', 'email', 'phone', 'unit_number', 'complex_name', 'suburb', 'alert_flagged_at');
+
+        if ($requester->role === 'admin') {
+            // no scoping — sees everyone
+        } elseif ($requester->role === 'estate_billing') {
+            $channelIds = \DB::table('channel_billing_contacts')
+                ->where('user_id', $requester->id)
+                ->where('is_active', true)
+                ->pluck('channel_id');
+
+            $flaggedUserIds = EmergencyAlert::whereIn('channel_id', $channelIds)
+                ->distinct()->pluck('user_id');
+
+            $query->whereIn('id', $flaggedUserIds);
+        } elseif ($requester->is_gate_guard) {
+            $channelIds = $requester->employee?->ch()->pluck('channels.id') ?? collect();
+
+            $flaggedUserIds = EmergencyAlert::whereIn('channel_id', $channelIds)
+                ->distinct()->pluck('user_id');
+
+            $query->whereIn('id', $flaggedUserIds);
+        } else {
+            abort(403);
+        }
+
+        return response()->json(['data' => $query->orderByDesc('alert_flagged_at')->get()]);
     }
 
 }
