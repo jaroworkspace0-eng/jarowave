@@ -4,8 +4,8 @@ import { router } from '@inertiajs/vue3';
 import axios from 'axios';
 import {
     AlertTriangle,
-    ChevronDown,
     Clock,
+    Eye,
     Flag,
     ShieldOff,
     User as UserIcon,
@@ -71,6 +71,24 @@ function fmtDateTime(ts: string | null | undefined) {
     });
 }
 
+function alertStatusLabel(a: any) {
+    if (a.cancel_pin_used === 'safe_cancel') return 'Cancelled';
+    if (a.is_resolved) return 'Resolved';
+    return 'Active';
+}
+function alertStatusClass(a: any) {
+    if (a.cancel_pin_used === 'safe_cancel')
+        return 'alert-timeline__status--cancelled';
+    if (a.is_resolved) return 'alert-timeline__status--resolved';
+    return 'alert-timeline__status--active';
+}
+function alertIconClass(a: any) {
+    if (a.cancel_pin_used === 'safe_cancel')
+        return 'alert-timeline__icon--cancelled';
+    if (a.is_resolved) return 'alert-timeline__icon--resolved';
+    return '';
+}
+
 // ══════════ Clear-flag modal (with note) ══════════
 const clearTarget = ref<any>(null);
 const clearNote = ref('');
@@ -107,38 +125,35 @@ async function confirmClear() {
     }
 }
 
-// ══════════ History expand/collapse (events + recent alerts) ══════════
-const expandedId = ref<any>(null);
-const history = ref<Record<string, any[]>>({});
-const recentAlerts = ref<Record<string, any[]>>({});
-const historyLoading = ref<any>(null);
+// ══════════ Detail modal (recent alerts + flag/clear event log) ══════════
+const detailTarget = ref<any>(null);
+const detailEvents = ref<any[]>([]);
+const detailAlerts = ref<any[]>([]);
+const detailLoading = ref(false);
 
-async function toggleHistory(household: any) {
-    if (expandedId.value === household.id) {
-        expandedId.value = null;
-        return;
-    }
-    expandedId.value = household.id;
-
-    if (history.value[household.id]) return; // already fetched
-
-    historyLoading.value = household.id;
+async function openDetail(household: any) {
+    detailTarget.value = household;
+    detailEvents.value = [];
+    detailAlerts.value = [];
+    detailLoading.value = true;
     try {
         const { data } = await axios.get(
             `${import.meta.env.VITE_APP_URL}/api/users/${household.id}/alert-flag-history`,
             { headers: authHeaders() },
         );
-        history.value = { ...history.value, [household.id]: data.data };
-        recentAlerts.value = {
-            ...recentAlerts.value,
-            [household.id]: data.recent_alerts ?? [],
-        };
+        detailEvents.value = data.data ?? [];
+        detailAlerts.value = data.recent_alerts ?? [];
     } catch (e) {
         console.error(e);
         showFlash('Failed to load history.', 'error');
     } finally {
-        historyLoading.value = null;
+        detailLoading.value = false;
     }
+}
+function closeDetail() {
+    detailTarget.value = null;
+    detailEvents.value = [];
+    detailAlerts.value = [];
 }
 
 function actorLabel(event: any) {
@@ -182,7 +197,6 @@ function alertTypeLabel(type: string) {
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th></th>
                                 <th>Household</th>
                                 <th>Unit</th>
                                 <th>Phone</th>
@@ -193,255 +207,229 @@ function alertTypeLabel(type: string) {
                             </tr>
                         </thead>
                         <tbody>
-                            <template v-for="h in households" :key="h.id">
-                                <tr
-                                    class="clickable-row"
-                                    @click="toggleHistory(h)"
-                                >
-                                    <td class="expand-cell">
-                                        <ChevronDown
-                                            :size="14"
-                                            class="expand-chevron"
-                                            :class="{
-                                                'expand-chevron--open':
-                                                    expandedId === h.id,
-                                            }"
-                                        />
-                                    </td>
-                                    <td>
-                                        <div class="reporter-cell__name">
-                                            {{ h.name }}
-                                        </div>
-                                        <div class="reporter-cell__sub">
-                                            {{ h.email }}
-                                        </div>
-                                    </td>
-                                    <td class="td-time">
-                                        {{ h.unit_number || '—' }}
-                                    </td>
-                                    <td class="td-time">
-                                        {{ h.phone || '—' }}
-                                    </td>
-                                    <td class="td-time">
-                                        {{ h.complex_name || '—' }}
-                                    </td>
-                                    <td class="td-time">
-                                        {{
-                                            h.last_alert_at
-                                                ? fmtDateTime(h.last_alert_at)
-                                                : '—'
-                                        }}
-                                    </td>
-                                    <td class="td-time">
-                                        {{ fmtDateTime(h.alert_flagged_at) }}
-                                    </td>
-                                    <td @click.stop>
+                            <tr
+                                v-for="h in households"
+                                :key="h.id"
+                                class="clickable-row"
+                                @click="openDetail(h)"
+                            >
+                                <td>
+                                    <div class="reporter-cell__name">
+                                        {{ h.name }}
+                                    </div>
+                                    <div class="reporter-cell__sub">
+                                        {{ h.email }}
+                                    </div>
+                                </td>
+                                <td class="td-time">
+                                    {{ h.unit_number || '—' }}
+                                </td>
+                                <td class="td-time">{{ h.phone || '—' }}</td>
+                                <td class="td-time">
+                                    {{ h.complex_name || '—' }}
+                                </td>
+                                <td class="td-time">
+                                    {{
+                                        h.last_alert_at
+                                            ? fmtDateTime(h.last_alert_at)
+                                            : '—'
+                                    }}
+                                </td>
+                                <td class="td-time">
+                                    {{ fmtDateTime(h.alert_flagged_at) }}
+                                </td>
+                                <td @click.stop>
+                                    <div class="row-actions">
+                                        <button
+                                            class="row-action-btn"
+                                            @click="openDetail(h)"
+                                        >
+                                            <Eye :size="12" />
+                                            View
+                                        </button>
                                         <button
                                             v-if="canClear"
-                                            class="row-action-btn"
+                                            class="row-action-btn row-action-btn--primary"
                                             @click="openClearModal(h)"
                                         >
                                             <Flag :size="12" />
                                             Clear Flag
                                         </button>
-                                    </td>
-                                </tr>
-                                <tr
-                                    v-if="expandedId === h.id"
-                                    class="history-row"
-                                >
-                                    <td colspan="8">
-                                        <div class="history-panel">
-                                            <div
-                                                v-if="historyLoading === h.id"
-                                                class="history-loading"
-                                            >
-                                                Loading history…
-                                            </div>
-
-                                            <template v-else>
-                                                <!-- Recent alerts timeline -->
-                                                <div
-                                                    class="field__label"
-                                                    style="margin-bottom: 8px"
-                                                >
-                                                    Recent Alerts (last 30 days)
-                                                </div>
-                                                <div
-                                                    v-if="
-                                                        recentAlerts[h.id]
-                                                            ?.length
-                                                    "
-                                                    class="alert-timeline"
-                                                >
-                                                    <div
-                                                        v-for="a in recentAlerts[
-                                                            h.id
-                                                        ]"
-                                                        :key="a.id"
-                                                        class="alert-timeline__row"
-                                                    >
-                                                        <AlertTriangle
-                                                            :size="12"
-                                                            class="alert-timeline__icon"
-                                                            :class="
-                                                                a.is_resolved
-                                                                    ? 'alert-timeline__icon--resolved'
-                                                                    : ''
-                                                            "
-                                                        />
-                                                        <span
-                                                            class="alert-timeline__type"
-                                                        >
-                                                            {{
-                                                                alertTypeLabel(
-                                                                    a.alert_type,
-                                                                )
-                                                            }}
-                                                        </span>
-                                                        <span
-                                                            class="alert-timeline__time"
-                                                        >
-                                                            {{
-                                                                fmtDateTime(
-                                                                    a.created_at,
-                                                                )
-                                                            }}
-                                                        </span>
-                                                        <span
-                                                            class="alert-timeline__status"
-                                                            :class="
-                                                                a.is_resolved
-                                                                    ? 'alert-timeline__status--resolved'
-                                                                    : 'alert-timeline__status--active'
-                                                            "
-                                                        >
-                                                            {{
-                                                                a.is_resolved
-                                                                    ? 'Resolved'
-                                                                    : 'Active'
-                                                            }}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                                <div
-                                                    v-else
-                                                    class="history-empty"
-                                                    style="margin-bottom: 14px"
-                                                >
-                                                    No alerts in the last 30
-                                                    days.
-                                                </div>
-
-                                                <!-- Flag / clear event log -->
-                                                <div
-                                                    class="field__label"
-                                                    style="margin: 14px 0 8px"
-                                                >
-                                                    Flag History
-                                                </div>
-                                                <div
-                                                    v-if="history[h.id]?.length"
-                                                    class="history-list"
-                                                >
-                                                    <div
-                                                        v-for="event in history[
-                                                            h.id
-                                                        ]"
-                                                        :key="event.id"
-                                                        class="history-item"
-                                                    >
-                                                        <span
-                                                            class="history-item__badge"
-                                                            :class="
-                                                                event.event_type ===
-                                                                'flagged'
-                                                                    ? 'history-item__badge--flagged'
-                                                                    : 'history-item__badge--cleared'
-                                                            "
-                                                        >
-                                                            {{
-                                                                event.event_type ===
-                                                                'flagged'
-                                                                    ? 'Flagged'
-                                                                    : 'Cleared'
-                                                            }}
-                                                        </span>
-                                                        <div
-                                                            class="history-item__body"
-                                                        >
-                                                            <div
-                                                                class="history-item__meta"
-                                                            >
-                                                                <span
-                                                                    class="history-item__actor"
-                                                                >
-                                                                    <UserIcon
-                                                                        :size="
-                                                                            11
-                                                                        "
-                                                                    />
-                                                                    {{
-                                                                        actorLabel(
-                                                                            event,
-                                                                        )
-                                                                    }}
-                                                                </span>
-                                                                <span
-                                                                    class="history-item__time"
-                                                                >
-                                                                    <Clock
-                                                                        :size="
-                                                                            11
-                                                                        "
-                                                                    />
-                                                                    {{
-                                                                        fmtDateTime(
-                                                                            event.created_at,
-                                                                        )
-                                                                    }}
-                                                                </span>
-                                                                <span
-                                                                    v-if="
-                                                                        event.alert_count_at_event
-                                                                    "
-                                                                    class="history-item__count"
-                                                                >
-                                                                    {{
-                                                                        event.alert_count_at_event
-                                                                    }}
-                                                                    alerts
-                                                                </span>
-                                                            </div>
-                                                            <div
-                                                                v-if="
-                                                                    event.note
-                                                                "
-                                                                class="history-item__note"
-                                                            >
-                                                                "{{
-                                                                    event.note
-                                                                }}"
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div
-                                                    v-else
-                                                    class="history-empty"
-                                                >
-                                                    No flag events recorded.
-                                                </div>
-                                            </template>
-                                        </div>
-                                    </td>
-                                </tr>
-                            </template>
+                                    </div>
+                                </td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
         </div>
+
+        <!-- DETAIL MODAL — recent alerts + flag history, scrollable -->
+        <Teleport to="body">
+            <transition name="modal">
+                <div
+                    v-if="detailTarget"
+                    class="modal-backdrop"
+                    @click.self="closeDetail"
+                >
+                    <div class="modal-sheet modal-sheet--wide">
+                        <div class="modal-sheet__header">
+                            <div>
+                                <h3 class="confirm-title">
+                                    {{ detailTarget.name }}
+                                </h3>
+                                <p class="confirm-sub">
+                                    <span v-if="detailTarget.unit_number"
+                                        >Unit {{ detailTarget.unit_number }} ·
+                                    </span>
+                                    Flagged
+                                    {{
+                                        fmtDateTime(
+                                            detailTarget.alert_flagged_at,
+                                        )
+                                    }}
+                                </p>
+                            </div>
+                            <div class="modal-sheet__header-actions">
+                                <button
+                                    v-if="canClear"
+                                    class="row-action-btn row-action-btn--primary"
+                                    @click="openClearModal(detailTarget)"
+                                >
+                                    <Flag :size="12" />
+                                    Clear Flag
+                                </button>
+                                <button class="close-btn" @click="closeDetail">
+                                    <X :size="16" />
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="modal-sheet__body">
+                            <div v-if="detailLoading" class="history-loading">
+                                Loading…
+                            </div>
+
+                            <template v-else>
+                                <div
+                                    class="field__label"
+                                    style="margin-bottom: 8px"
+                                >
+                                    Recent Alerts (last 30 days)
+                                </div>
+                                <div
+                                    v-if="detailAlerts.length"
+                                    class="alert-timeline"
+                                >
+                                    <div
+                                        v-for="a in detailAlerts"
+                                        :key="a.id"
+                                        class="alert-timeline__row"
+                                    >
+                                        <AlertTriangle
+                                            :size="12"
+                                            class="alert-timeline__icon"
+                                            :class="alertIconClass(a)"
+                                        />
+                                        <span class="alert-timeline__type">{{
+                                            alertTypeLabel(a.alert_type)
+                                        }}</span>
+                                        <span class="alert-timeline__time">{{
+                                            fmtDateTime(a.created_at)
+                                        }}</span>
+                                        <span
+                                            class="alert-timeline__status"
+                                            :class="alertStatusClass(a)"
+                                        >
+                                            {{ alertStatusLabel(a) }}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div
+                                    v-else
+                                    class="history-empty"
+                                    style="margin-bottom: 8px"
+                                >
+                                    No alerts in the last 30 days.
+                                </div>
+
+                                <div
+                                    class="field__label"
+                                    style="margin: 20px 0 8px"
+                                >
+                                    Flag History
+                                </div>
+                                <div
+                                    v-if="detailEvents.length"
+                                    class="history-list"
+                                >
+                                    <div
+                                        v-for="event in detailEvents"
+                                        :key="event.id"
+                                        class="history-item"
+                                    >
+                                        <span
+                                            class="history-item__badge"
+                                            :class="
+                                                event.event_type === 'flagged'
+                                                    ? 'history-item__badge--flagged'
+                                                    : 'history-item__badge--cleared'
+                                            "
+                                        >
+                                            {{
+                                                event.event_type === 'flagged'
+                                                    ? 'Flagged'
+                                                    : 'Cleared'
+                                            }}
+                                        </span>
+                                        <div class="history-item__body">
+                                            <div class="history-item__meta">
+                                                <span
+                                                    class="history-item__actor"
+                                                >
+                                                    <UserIcon :size="11" />
+                                                    {{ actorLabel(event) }}
+                                                </span>
+                                                <span
+                                                    class="history-item__time"
+                                                >
+                                                    <Clock :size="11" />
+                                                    {{
+                                                        fmtDateTime(
+                                                            event.created_at,
+                                                        )
+                                                    }}
+                                                </span>
+                                                <span
+                                                    v-if="
+                                                        event.alert_count_at_event
+                                                    "
+                                                    class="history-item__count"
+                                                >
+                                                    {{
+                                                        event.alert_count_at_event
+                                                    }}
+                                                    alerts
+                                                </span>
+                                            </div>
+                                            <div
+                                                v-if="event.note"
+                                                class="history-item__note"
+                                            >
+                                                "{{ event.note }}"
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div v-else class="history-empty">
+                                    No flag events recorded.
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+        </Teleport>
 
         <!-- CLEAR FLAG MODAL (with note) -->
         <Teleport to="body">
@@ -652,7 +640,7 @@ function alertTypeLabel(type: string) {
     width: 100%;
     border-collapse: collapse;
     font-size: 13px;
-    min-width: 920px;
+    min-width: 880px;
 }
 .data-table thead tr {
     background: #f8fafc;
@@ -668,8 +656,11 @@ function alertTypeLabel(type: string) {
     text-align: left;
     white-space: nowrap;
 }
-.data-table tbody tr:not(.history-row) {
+.data-table tbody tr {
     border-bottom: 1px solid #e4e8ef;
+}
+.data-table tbody tr:last-child {
+    border-bottom: none;
 }
 .data-table td {
     padding: 13px 16px;
@@ -680,18 +671,6 @@ function alertTypeLabel(type: string) {
 }
 .clickable-row:hover {
     background: #fafbfc;
-}
-.expand-cell {
-    width: 32px;
-    padding-right: 0 !important;
-}
-.expand-chevron {
-    color: #94a3b8;
-    transition: transform 0.18s ease;
-}
-.expand-chevron--open {
-    transform: rotate(180deg);
-    color: #ea580c;
 }
 
 .reporter-cell__name {
@@ -710,6 +689,10 @@ function alertTypeLabel(type: string) {
     font-size: 12px;
 }
 
+.row-actions {
+    display: flex;
+    gap: 6px;
+}
 .row-action-btn {
     display: inline-flex;
     align-items: center;
@@ -730,20 +713,13 @@ function alertTypeLabel(type: string) {
     color: #ea580c;
     background: #fff7ed;
 }
-
-/* ── History panel ── */
-.history-row td {
-    padding: 0;
-    background: #f8fafc;
-    border-bottom: 1px solid #e4e8ef;
+.row-action-btn--primary {
+    border-color: #fed7aa;
+    color: #ea580c;
+    background: #fff7ed;
 }
-.history-panel {
-    padding: 16px 20px 18px 48px;
-}
-.history-loading,
-.history-empty {
-    font-size: 12px;
-    color: #94a3b8;
+.row-action-btn--primary:hover {
+    background: #ffedd5;
 }
 
 .field__label {
@@ -753,19 +729,27 @@ function alertTypeLabel(type: string) {
     letter-spacing: 0.4px;
     text-transform: uppercase;
 }
+.history-loading,
+.history-empty {
+    font-size: 12px;
+    color: #94a3b8;
+}
 
 /* ── Alert timeline ── */
 .alert-timeline {
     display: flex;
     flex-direction: column;
-    gap: 7px;
-    margin-bottom: 4px;
+    gap: 8px;
 }
 .alert-timeline__row {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     font-size: 12.5px;
+    padding: 8px 10px;
+    background: #f8fafc;
+    border: 1px solid #e4e8ef;
+    border-radius: 8px;
 }
 .alert-timeline__icon {
     color: #dc2626;
@@ -773,6 +757,9 @@ function alertTypeLabel(type: string) {
 }
 .alert-timeline__icon--resolved {
     color: #059669;
+}
+.alert-timeline__icon--cancelled {
+    color: #94a3b8;
 }
 .alert-timeline__type {
     font-weight: 700;
@@ -798,6 +785,10 @@ function alertTypeLabel(type: string) {
 .alert-timeline__status--resolved {
     background: #ecfdf5;
     color: #059669;
+}
+.alert-timeline__status--cancelled {
+    background: #f1f5f9;
+    color: #64748b;
 }
 
 /* ── Flag/clear event log ── */
@@ -879,11 +870,38 @@ function alertTypeLabel(type: string) {
 .modal-sheet--sm {
     max-width: 440px;
 }
+.modal-sheet--wide {
+    max-width: 640px;
+    max-height: 82vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.modal-sheet__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 22px 24px;
+    border-bottom: 1px solid #e4e8ef;
+    flex-shrink: 0;
+}
+.modal-sheet__header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
 .modal-sheet__header--plain {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
     padding: 22px 24px 0;
+}
+.modal-sheet__body {
+    padding: 20px 24px 24px;
+    overflow-y: auto;
+    flex: 1;
 }
 .modal-body-padded {
     padding: 16px 24px 24px;
@@ -997,10 +1015,10 @@ function alertTypeLabel(type: string) {
         padding: 16px;
     }
     .data-table {
-        min-width: 760px;
+        min-width: 700px;
     }
-    .history-panel {
-        padding-left: 24px;
+    .modal-sheet--wide {
+        max-height: 90vh;
     }
 }
 </style>

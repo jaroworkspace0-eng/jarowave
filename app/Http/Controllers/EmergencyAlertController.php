@@ -883,7 +883,7 @@ class EmergencyAlertController extends Controller
             ->where('created_at', '>=', now()->subDays(30))
             ->orderByDesc('created_at')
             ->limit(15)
-            ->get(['id', 'created_at', 'alert_type', 'is_resolved']);
+            ->get(['id', 'created_at', 'alert_type', 'is_resolved', 'cancel_pin_used']);
 
         return response()->json([
             'data' => $events,
