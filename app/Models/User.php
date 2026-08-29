@@ -213,4 +213,9 @@ class User extends Authenticatable
     {
         return $this->hasMany(TenantAddressHistory::class);
     }
+
+    public function emergencyAlerts()
+    {
+        return $this->hasMany(EmergencyAlert::class);
+    }
 }

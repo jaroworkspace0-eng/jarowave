@@ -833,17 +833,20 @@ class EmergencyAlertController extends Controller
     }
 
 
-    public function listFlagged(Request $request)
+   public function listFlagged(Request $request)
     {
         $requester = auth()->user();
 
         $query = User::where('alert_flagged_for_review', true)
-            ->select('id', 'name', 'email', 'phone', 'unit_number', 'complex_name', 'suburb', 'alert_flagged_at');
+            ->select('id', 'name', 'email', 'phone', 'unit_number', 'complex_name', 'suburb', 'alert_flagged_at')
+            ->withMax(['emergencyAlerts as last_alert_at' => function ($q) {
+                $q->where('trigger_source', 'manual');
+            }], 'created_at');
 
         if ($requester->role === 'admin') {
             // no scoping — sees everyone
         } elseif ($requester->role === 'estate_billing') {
-            $channelIds = \DB::table('channel_billing_contacts')
+            $channelIds = DB::table('channel_billing_contacts')
                 ->where('user_id', $requester->id)
                 ->where('is_active', true)
                 ->pluck('channel_id');
@@ -870,11 +873,21 @@ class EmergencyAlertController extends Controller
 
     public function alertFlagHistory(User $user)
     {
+        $events = AlertFlagEvent::where('user_id', $user->id)
+            ->with('actor:id,name,role')
+            ->latest('created_at')
+            ->get();
+
+        $recentAlerts = EmergencyAlert::where('user_id', $user->id)
+            ->where('trigger_source', 'manual')
+            ->where('created_at', '>=', now()->subDays(30))
+            ->orderByDesc('created_at')
+            ->limit(15)
+            ->get(['id', 'created_at', 'alert_type', 'is_resolved']);
+
         return response()->json([
-            'data' => AlertFlagEvent::where('user_id', $user->id)
-                ->with('actor:id,name,role')
-                ->latest('created_at')
-                ->get(),
+            'data' => $events,
+            'recent_alerts' => $recentAlerts,
         ]);
     }
 
