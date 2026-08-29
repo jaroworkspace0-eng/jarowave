@@ -718,6 +718,7 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
     Route::get('/flagged-households', [EmergencyAlertController::class, 'listFlagged']);
     Route::post('/users/{user}/clear-alert-flag', [EmergencyAlertController::class, 'clearAlertFlag']);
+    Route::get('/users/{user}/alert-flag-history', [EmergencyAlertController::class, 'alertFlagHistory']);
 
     Route::get('clients/list', [ClientController::class, 'clients']);
     Route::post('/emergency-alerts', [EmergencyAlertController::class, 'store']);

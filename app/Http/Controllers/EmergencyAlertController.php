@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Mail\AlertAbuseFlagMail;
+use App\Models\AlertFlagEvent;
 use App\Models\Channel;
 use App\Models\Client;
 use App\Models\EmergencyAlert;
@@ -115,41 +116,59 @@ class EmergencyAlertController extends Controller
 
         $alert->load(['channel:id,name']);
 
-        // Abuse tracking — manual alerts only; auto_detected excluded (accelerometer tuning, not misuse).
+                // Abuse tracking — manual alerts only; auto_detected excluded (accelerometer tuning, not misuse).
         // Soft flag only, never blocks delivery — sendPanic/guard notification already happened client-side
         // before this request even lands, so nothing here can gate anything in real time.
         if ($alert->trigger_source === 'manual') {
+            $lastCleared = \App\Models\AlertFlagEvent::where('user_id', $user->id)
+                ->where('event_type', 'cleared')
+                ->latest('created_at')
+                ->first();
+
+            $windowStart = $lastCleared
+                ? max($lastCleared->created_at, now()->subDays(30))
+                : now()->subDays(30);
+
             $manualAlertCount = EmergencyAlert::where('user_id', $user->id)
                 ->where('trigger_source', 'manual')
-                ->where('created_at', '>=', now()->subDays(30))
+                ->where('created_at', '>=', $windowStart)
                 ->count();
 
-            
-                if ($manualAlertCount >= 8 && !$user->alert_flagged_for_review) {
-                    $user->update([
-                        'alert_flagged_for_review' => true,
-                        'alert_flagged_at' => now(),
-                    ]);
+            if ($manualAlertCount >= 8 && !$user->alert_flagged_for_review) {
+                $user->update([
+                    'alert_flagged_for_review' => true,
+                    'alert_flagged_at' => now(),
+                ]);
 
-                    $contact = DB::table('channel_billing_contacts')
-                        ->where('channel_id', $alert->channel_id)
-                        ->where('is_active', true)
-                        ->first();
+                AlertFlagEvent::create([
+                    'user_id' => $user->id,
+                    'emergency_alert_id' => $alert->id,
+                    'channel_id' => $alert->channel_id,
+                    'event_type' => 'flagged',
+                    'actor_id' => null,
+                    'actor_role' => 'system',
+                    'alert_count_at_event' => $manualAlertCount,
+                ]);
 
-                    if ($contact) {
-                        $contactUser = User::find($contact->user_id);
-                        if ($contactUser) {
-                            Mail::to($contactUser->email)->queue(new \App\Mail\AlertAbuseFlagMail(
-                                userName: $user->name,
-                                unitNumber: $user->unit_number ?? '',
-                                alertCount: $manualAlertCount,
-                                flaggedAt: $user->alert_flagged_at,
-                                reviewUrl: config('app.url') . '/estate/incident-reports',
-                            ));
-                        }
+                $contact = DB::table('channel_billing_contacts')
+                    ->where('channel_id', $alert->channel_id)
+                    ->where('is_active', true)
+                    ->first();
+
+                if ($contact) {
+                    $contactUser = User::find($contact->user_id);
+                    if ($contactUser) {
+                        Mail::to($contactUser->email)->queue(new AlertAbuseFlagMail(
+                            userName: $user->name,
+                            unitNumber: $user->unit_number ?? '',
+                            alertCount: $manualAlertCount,
+                            flaggedAt: $user->alert_flagged_at,
+                            reviewUrl: config('app.url') . '/estate/incident-reports',
+                        ));
                     }
-                    // Standalone (no channel_billing_contacts match) - DB flag only, surfaced in the admin dashboard.
                 }
+                // Standalone (no channel_billing_contacts match) - DB flag only, surfaced in the admin dashboard.
+            }
         }
 
         if ($request->input('trigger_source') === 'auto_detected') {
@@ -766,6 +785,9 @@ class EmergencyAlertController extends Controller
     public function clearAlertFlag(Request $request, User $user)
     {
         $requester = auth()->user();
+        $requesterRole = $requester->role === 'admin'
+            ? 'admin'
+            : ($requester->is_gate_guard ? 'gate_guard' : $requester->role);
 
         if ($requester->role !== 'admin') {
             $canManage = DB::table('channel_billing_contacts')
@@ -783,9 +805,28 @@ class EmergencyAlertController extends Controller
             }
         }
 
+        $request->validate([
+            'note' => 'nullable|string|max:500',
+        ]);
+
+        $lastFlagEvent = AlertFlagEvent::where('user_id', $user->id)
+            ->where('event_type', 'flagged')
+            ->latest('created_at')
+            ->first();
+
         $user->update([
             'alert_flagged_for_review' => false,
             'alert_flagged_at' => null,
+        ]);
+
+        AlertFlagEvent::create([
+            'user_id' => $user->id,
+            'emergency_alert_id' => $lastFlagEvent?->emergency_alert_id,
+            'channel_id' => $lastFlagEvent?->channel_id,
+            'event_type' => 'cleared',
+            'actor_id' => $requester->id,
+            'actor_role' => $requesterRole,
+            'note' => $request->input('note'),
         ]);
 
         return response()->json(['status' => 'success', 'message' => 'Flag cleared.']);
@@ -823,6 +864,18 @@ class EmergencyAlertController extends Controller
         }
 
         return response()->json(['data' => $query->orderByDesc('alert_flagged_at')->get()]);
+    }
+
+
+
+    public function alertFlagHistory(User $user)
+    {
+        return response()->json([
+            'data' => AlertFlagEvent::where('user_id', $user->id)
+                ->with('actor:id,name,role')
+                ->latest('created_at')
+                ->get(),
+        ]);
     }
 
 }
