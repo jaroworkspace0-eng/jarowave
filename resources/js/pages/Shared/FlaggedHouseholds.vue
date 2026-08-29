@@ -27,6 +27,7 @@ const households = ref<any[]>([]);
 const loading = ref(true);
 const clearingId = ref<any>(null);
 const flash = ref<{ msg: string; type: 'success' | 'error' } | null>(null);
+const confirmTarget = ref<any>(null);
 
 const authHeaders = () => ({
     Authorization: `Bearer ${localStorage.getItem('token')}`,
@@ -51,6 +52,21 @@ async function load() {
     } finally {
         loading.value = false;
     }
+}
+
+function requestClear(h: any) {
+    confirmTarget.value = h;
+}
+
+function cancelClear() {
+    confirmTarget.value = null;
+}
+
+async function confirmClear() {
+    if (!confirmTarget.value) return;
+    const id = confirmTarget.value.id;
+    confirmTarget.value = null;
+    await clearFlag(id);
 }
 
 async function clearFlag(id: any) {
@@ -146,7 +162,7 @@ function fmtDateTime(ts: string | null | undefined) {
                                         v-if="canClear"
                                         class="row-action-btn"
                                         :disabled="clearingId === h.id"
-                                        @click="clearFlag(h.id)"
+                                        @click="requestClear(h)"
                                     >
                                         <Flag :size="12" />
                                         {{
@@ -162,6 +178,39 @@ function fmtDateTime(ts: string | null | undefined) {
                 </div>
             </div>
         </div>
+
+        <Teleport to="body">
+            <transition name="modal">
+                <div
+                    v-if="confirmTarget"
+                    class="modal-overlay"
+                    @click.self="cancelClear"
+                >
+                    <div class="confirm-modal">
+                        <h3 class="confirm-modal__title">Clear this flag?</h3>
+                        <p class="confirm-modal__body">
+                            This will remove the alert flag for
+                            <strong>{{ confirmTarget.name }}</strong>
+                            <span v-if="confirmTarget.complex_name">
+                                ({{ confirmTarget.complex_name
+                                }}<span v-if="confirmTarget.unit_number"
+                                    >, Unit
+                                    {{ confirmTarget.unit_number }}</span
+                                >) </span
+                            >. This action cannot be undone.
+                        </p>
+                        <div class="confirm-modal__actions">
+                            <button class="btn-secondary" @click="cancelClear">
+                                Cancel
+                            </button>
+                            <button class="btn-danger" @click="confirmClear">
+                                Clear Flag
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+        </Teleport>
 
         <Teleport to="body">
             <transition name="modal">
@@ -240,6 +289,24 @@ function fmtDateTime(ts: string | null | undefined) {
     border-color: #ea580c;
     color: #ea580c;
     background: #fff7ed;
+}
+.btn-danger {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    background: #dc2626;
+    color: #fff;
+    border: 1.5px solid #dc2626;
+    border-radius: 12px;
+    padding: 10px 18px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+}
+.btn-danger:hover {
+    background: #b91c1c;
+    border-color: #b91c1c;
 }
 .table-card {
     background: #fff;
@@ -358,6 +425,42 @@ function fmtDateTime(ts: string | null | undefined) {
 }
 .toast--error {
     background: #dc2626;
+}
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    background: rgba(15, 23, 42, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.confirm-modal {
+    background: #fff;
+    border-radius: 16px;
+    padding: 24px;
+    max-width: 420px;
+    width: 100%;
+    box-shadow: var(--shadow-lg);
+    font-family: 'DM Sans', system-ui, sans-serif;
+}
+.confirm-modal__title {
+    font-size: 16px;
+    font-weight: 700;
+    color: #1a2332;
+    margin: 0 0 8px;
+}
+.confirm-modal__body {
+    font-size: 13px;
+    color: #64748b;
+    line-height: 1.5;
+    margin: 0 0 20px;
+}
+.confirm-modal__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
 }
 .modal-enter-active,
 .modal-leave-active {
