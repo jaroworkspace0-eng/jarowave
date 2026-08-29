@@ -49,6 +49,8 @@ class User extends Authenticatable
         'subscription_status',
         'payment_failed_at',
         'is_gate_guard',
+        'alert_flagged_for_review',
+        'alert_flagged_at'
     ];
 
     protected $hidden = [
@@ -65,6 +67,7 @@ class User extends Authenticatable
             'password'                => 'hashed',
             'two_factor_confirmed_at' => 'datetime',
             'fcm_token_updated_at'    => 'datetime',
+            'alert_flagged_at'        => 'datetime',
             'is_gate_guard' => 'boolean',
             'is_estate' => 'boolean',
             'is_on_duty' => 'boolean',
