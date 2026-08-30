@@ -1,17 +1,16 @@
 <script setup lang="ts">
 import StatCard from '@/components/StatCard.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { useAuthStore } from '@/stores/auth';
 import { type BreadcrumbItem } from '@/types';
-import { Head, usePage } from '@inertiajs/vue3';
+import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
 import { computed, onMounted, ref } from 'vue';
 
 const breadcrumbs: BreadcrumbItem[] = [];
 
-const page = usePage();
-const isAdmin = computed(
-    () => (page.props.auth as any)?.user?.role === 'admin',
-);
+const auth = useAuthStore();
+const isAdmin = computed(() => auth.user?.role === 'admin');
 
 const data = ref<any>(null);
 const loading = ref(false);
