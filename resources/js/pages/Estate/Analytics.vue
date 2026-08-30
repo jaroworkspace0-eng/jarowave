@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/auth';
 import { type BreadcrumbItem } from '@/types';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { computed, onMounted, ref } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 
 const breadcrumbs: BreadcrumbItem[] = [];
 
@@ -31,11 +31,49 @@ const customTo = ref(today);
 const dateError = ref('');
 
 // Admin-only channel picker — estate_billing users are scoped server-side
-// via channel_billing_contacts and never need this. Reuses the same
-// /api/channels endpoint the Channels admin page already calls, so the
-// dropdown shows real estate names instead of a blind numeric ID field.
+// via channel_billing_contacts and never need this. 'all' is a real,
+// selectable option (not just an empty default) so admins can explicitly
+// view aggregate analytics across every channel.
 const channelOptions = ref<{ id: number; name: string }[]>([]);
 const channelId = ref<string>('');
+const channelDropdownOpen = ref(false);
+const channelSearch = ref('');
+const channelSelectRef = ref<HTMLElement | null>(null);
+
+const filteredChannels = computed(() => {
+    const q = channelSearch.value.trim().toLowerCase();
+    if (!q) return channelOptions.value;
+    return channelOptions.value.filter((ch) =>
+        ch.name.toLowerCase().includes(q),
+    );
+});
+
+const selectedChannelLabel = computed(() => {
+    const found = channelOptions.value.find(
+        (ch) => String(ch.id) === channelId.value,
+    );
+    return found ? found.name : 'Select channel…';
+});
+
+function toggleChannelDropdown() {
+    channelDropdownOpen.value = !channelDropdownOpen.value;
+    if (channelDropdownOpen.value) channelSearch.value = '';
+}
+
+function selectChannel(id: string) {
+    channelId.value = id;
+    channelDropdownOpen.value = false;
+    load();
+}
+
+function handleClickOutside(e: MouseEvent) {
+    if (
+        channelSelectRef.value &&
+        !channelSelectRef.value.contains(e.target as Node)
+    ) {
+        channelDropdownOpen.value = false;
+    }
+}
 
 async function loadChannelOptions() {
     try {
@@ -85,9 +123,6 @@ function dateRangeParams() {
     const now = new Date();
 
     if (range.value === 'all') {
-        // No real lower bound on alert history — 2000-01-01 is just a
-        // safely-early floor so the backend's whereBetween still works
-        // without needing an "unbounded" special case server-side.
         return { from: '2000-01-01', to: now.toISOString().slice(0, 10) };
     }
     if (range.value === 'custom') {
@@ -159,11 +194,16 @@ function fmtPct(v: number | null | undefined) {
 }
 
 onMounted(async () => {
+    document.addEventListener('click', handleClickOutside);
     if (isAdmin.value) {
-        await loadChannelOptions(); // triggers load() itself once a channel is selected
+        await loadChannelOptions();
     } else {
         load();
     }
+});
+
+onBeforeUnmount(() => {
+    document.removeEventListener('click', handleClickOutside);
 });
 </script>
 
@@ -197,28 +237,50 @@ onMounted(async () => {
                         </button>
                     </div>
 
-                    <div v-if="isAdmin" class="date-field">
-                        <label class="date-field__label">Estate</label>
-                        <select
-                            v-model="channelId"
-                            class="field__input field__input--select"
-                            @change="load"
-                        >
-                            <option
-                                v-if="!channelOptions.length"
-                                value=""
-                                disabled
+                    <div v-if="isAdmin" class="date-field date-field--inline">
+                        <label class="date-field__label">Channel</label>
+                        <div class="searchable-select" ref="channelSelectRef">
+                            <button
+                                type="button"
+                                class="field__input field__input--select searchable-select__trigger"
+                                @click="toggleChannelDropdown"
                             >
-                                Loading estates…
-                            </option>
-                            <option
-                                v-for="ch in channelOptions"
-                                :key="ch.id"
-                                :value="String(ch.id)"
+                                {{ selectedChannelLabel }}
+                            </button>
+                            <div
+                                v-if="channelDropdownOpen"
+                                class="searchable-select__panel"
                             >
-                                {{ ch.name }}
-                            </option>
-                        </select>
+                                <input
+                                    v-model="channelSearch"
+                                    type="text"
+                                    placeholder="Search channels…"
+                                    class="searchable-select__search"
+                                    autofocus
+                                    @click.stop
+                                />
+                                <div class="searchable-select__list">
+                                    <div
+                                        v-for="ch in filteredChannels"
+                                        :key="ch.id"
+                                        class="searchable-select__option"
+                                        :class="{
+                                            'searchable-select__option--active':
+                                                channelId === String(ch.id),
+                                        }"
+                                        @click="selectChannel(String(ch.id))"
+                                    >
+                                        {{ ch.name }}
+                                    </div>
+                                    <div
+                                        v-if="!filteredChannels.length"
+                                        class="searchable-select__empty"
+                                    >
+                                        No matches
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <button
@@ -295,11 +357,6 @@ onMounted(async () => {
                     />
                 </div>
 
-                <!-- Cancellations — prioritized above the regular panel grid.
-                     resolved_at being set does NOT mean a guard actually
-                     responded; a household can self-cancel, and a duress
-                     cancellation in particular needs to stay visible on its
-                     own, never folded silently into "Resolved". -->
                 <div
                     class="cancel-panel"
                     :class="{
@@ -564,6 +621,14 @@ onMounted(async () => {
     flex-direction: column;
     gap: 4px;
 }
+.date-field--inline {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+}
+.date-field--inline .date-field__label {
+    white-space: nowrap;
+}
 .date-field__label {
     font-size: 11px;
     font-weight: 700;
@@ -602,6 +667,80 @@ onMounted(async () => {
     padding: 8px 12px;
     font-size: 13px;
     width: 200px;
+}
+
+.searchable-select {
+    position: relative;
+}
+.searchable-select__trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    text-align: left;
+}
+.searchable-select__trigger::after {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-right: 1.5px solid #94a3b8;
+    border-bottom: 1.5px solid #94a3b8;
+    transform: rotate(45deg);
+    margin-left: 8px;
+    flex-shrink: 0;
+}
+.searchable-select__panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 20;
+    width: 240px;
+    background: #fff;
+    border: 1.5px solid #e4e8ef;
+    border-radius: 10px;
+    box-shadow: var(--shadow-lg);
+    padding: 8px;
+}
+.searchable-select__search {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1.5px solid #e4e8ef;
+    border-radius: 8px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    outline: none;
+    margin-bottom: 6px;
+}
+.searchable-select__search:focus {
+    border-color: #ea580c;
+}
+.searchable-select__list {
+    max-height: 220px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.searchable-select__option {
+    padding: 7px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #1a2332;
+    cursor: pointer;
+}
+.searchable-select__option:hover {
+    background: #f8fafc;
+}
+.searchable-select__option--active {
+    background: #fff7ed;
+    color: #ea580c;
+    font-weight: 700;
+}
+.searchable-select__empty {
+    padding: 8px 10px;
+    font-size: 12px;
+    color: #94a3b8;
 }
 
 .btn-secondary {
@@ -778,6 +917,11 @@ onMounted(async () => {
 @media (max-width: 640px) {
     .page-root {
         padding: 16px;
+    }
+    .date-field--inline {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
     }
 }
 </style>
