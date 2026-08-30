@@ -31,9 +31,28 @@ const customFrom = ref(today);
 const customTo = ref(today);
 const dateError = ref('');
 
-// Admin-only manual channel override — estate_billing users are scoped
-// server-side via channel_billing_contacts and never need this field.
-const channelId = ref('');
+// Admin-only channel picker — estate_billing users are scoped server-side
+// via channel_billing_contacts and never need this. Reuses the same
+// /api/channels endpoint the Channels admin page already calls, so the
+// dropdown shows real estate names instead of a blind numeric ID field.
+const channelOptions = ref<{ id: number; name: string }[]>([]);
+const channelId = ref<string>('');
+
+async function loadChannelOptions() {
+    try {
+        const { data: res } = await axios.get(
+            `${import.meta.env.VITE_APP_URL}/api/channels`,
+            getHeaders(),
+        );
+        channelOptions.value = res.channels?.data ?? [];
+        if (channelOptions.value.length && !channelId.value) {
+            channelId.value = String(channelOptions.value[0].id);
+            load();
+        }
+    } catch {
+        showFlash('Failed to load channel list.', 'error');
+    }
+}
 
 function getHeaders() {
     return {
@@ -140,7 +159,13 @@ function fmtPct(v: number | null | undefined) {
     return v === null || v === undefined ? '—' : `${v}%`;
 }
 
-onMounted(() => load());
+onMounted(async () => {
+    if (isAdmin.value) {
+        await loadChannelOptions(); // triggers load() itself once a channel is selected
+    } else {
+        load();
+    }
+});
 </script>
 
 <template>
@@ -174,14 +199,27 @@ onMounted(() => load());
                     </div>
 
                     <div v-if="isAdmin" class="date-field">
-                        <label class="date-field__label">Channel ID</label>
-                        <input
+                        <label class="date-field__label">Estate</label>
+                        <select
                             v-model="channelId"
-                            type="number"
-                            class="field__input field__input--date"
-                            placeholder="e.g. 17"
+                            class="field__input field__input--select"
                             @change="load"
-                        />
+                        >
+                            <option
+                                v-if="!channelOptions.length"
+                                value=""
+                                disabled
+                            >
+                                Loading estates…
+                            </option>
+                            <option
+                                v-for="ch in channelOptions"
+                                :key="ch.id"
+                                :value="String(ch.id)"
+                            >
+                                {{ ch.name }}
+                            </option>
+                        </select>
                     </div>
 
                     <button
@@ -559,6 +597,12 @@ onMounted(() => load());
     padding: 8px 12px;
     font-size: 13px;
     width: 120px;
+}
+.field__input--select {
+    background: #fff;
+    padding: 8px 12px;
+    font-size: 13px;
+    width: 200px;
 }
 
 .btn-secondary {
