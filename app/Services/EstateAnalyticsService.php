@@ -135,35 +135,45 @@ class EstateAnalyticsService
     }
 
     public function householdGrowth(int $channelId, CarbonInterface $from, CarbonInterface $to): array
-    {
-        $subscription = ChannelSubscription::where('channel_id', $channelId)
-            ->latest()
-            ->first();
+{
+    $subscription = ChannelSubscription::where('channel_id', $channelId)
+        ->latest()
+        ->first();
 
-        // Estate-opted-in Subscriptions carry status='cancelled' (PayFast token
-        // cancelled, replaced by estate billing) — membership is identified by
-        // cancellation_reason='estate_optin' + matching channel_subscription_id,
-        // NOT status='active'.
-        // NOTE: this counts linked accounts too, since they share the same
-        // channel_subscription_id/cancellation_reason as their primary —
-        // subtracting linked_account_count below to isolate primaries.
-        $covered = \App\Models\Subscription::where('channel_subscription_id', $subscription->id ?? 0)
-            ->where('cancellation_reason', 'estate_optin')
-            ->count();
+    // Estate-opted-in Subscriptions carry status='cancelled' (PayFast token
+    // cancelled, replaced by estate billing) — membership is identified by
+    // cancellation_reason='estate_optin' + matching channel_subscription_id,
+    // NOT status='active'.
+    // NOTE: this counts linked accounts too, since they share the same
+    // channel_subscription_id/cancellation_reason as their primary —
+    // subtracting linked_account_count below to isolate primaries.
+    $covered = \App\Models\Subscription::where('channel_subscription_id', $subscription->id ?? 0)
+        ->where('cancellation_reason', 'estate_optin')
+        ->count();
 
-        $newThisPeriod = \App\Models\Subscription::where('channel_subscription_id', $subscription->id ?? 0)
-            ->where('cancellation_reason', 'estate_optin')
-            ->whereBetween('created_at', [$from, $to])
-            ->count();
+    $newThisPeriod = \App\Models\Subscription::where('channel_subscription_id', $subscription->id ?? 0)
+        ->where('cancellation_reason', 'estate_optin')
+        ->whereBetween('created_at', [$from, $to])
+        ->count();
 
-        $linkedAccounts = $subscription->linked_account_count ?? 0;
+    // Computed live against account_links, same query as
+    // ChannelBillingService::getActiveLinkedAccountCount() — the cached
+    // linked_account_count column on ChannelSubscription is a billing-cycle
+    // snapshot and goes stale between billing runs.
+    $primaryIds = \App\Models\Subscription::where('cancellation_reason', 'estate_optin')
+        ->whereHas('channelSubscription', fn ($q) => $q->where('channel_id', $channelId))
+        ->pluck('user_id');
 
-        return [
-            'active_households' => max($covered - $linkedAccounts, 0),
-            'linked_accounts' => $linkedAccounts,
-            'new_this_period' => $newThisPeriod,
-        ];
-    }
+    $linkedAccounts = \App\Models\AccountLink::where('status', 'active')
+        ->whereIn('primary_account_id', $primaryIds)
+        ->count();
+
+    return [
+        'active_households' => max($covered - $linkedAccounts, 0),
+        'linked_accounts' => $linkedAccounts,
+        'new_this_period' => $newThisPeriod,
+    ];
+}
 
     public function ticketSummary(int $channelId, CarbonInterface $from, CarbonInterface $to): array
     {
