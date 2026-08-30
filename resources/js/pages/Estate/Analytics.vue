@@ -247,6 +247,11 @@ onMounted(() => load());
                         :value="`${data.incidents.resolved}/${data.incidents.total}`"
                     />
                     <StatCard
+                        label="Unresolved"
+                        :value="data.incidents.unresolved"
+                        :accent="data.incidents.unresolved > 0"
+                    />
+                    <StatCard
                         label="Patrol Coverage"
                         :value="fmtPct(data.patrol.coverage_pct)"
                         accent
@@ -587,7 +592,7 @@ onMounted(() => load());
 
 .stat-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 14px;
 }
 .panel-grid {
@@ -714,6 +719,11 @@ onMounted(() => load());
     opacity: 0;
 }
 
+@media (max-width: 1100px) {
+    .stat-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
 @media (max-width: 900px) {
     .stat-grid {
         grid-template-columns: repeat(2, 1fr);
