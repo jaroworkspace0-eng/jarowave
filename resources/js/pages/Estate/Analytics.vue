@@ -78,10 +78,10 @@ function handleClickOutside(e: MouseEvent) {
 async function loadChannelOptions() {
     try {
         const { data: res } = await axios.get(
-            `${import.meta.env.VITE_APP_URL}/api/channels`,
+            `${import.meta.env.VITE_APP_URL}/api/channels/list`,
             getHeaders(),
         );
-        channelOptions.value = res.channels?.data ?? [];
+        channelOptions.value = res ?? [];
         if (channelOptions.value.length && !channelId.value) {
             channelId.value = String(channelOptions.value[0].id);
             load();
