@@ -18,17 +18,22 @@ const loading = ref(false);
 const flash = ref<{ msg: string; type: 'success' | 'error' } | null>(null);
 
 const rangeOptions = [
+    { value: 'all', label: 'All' },
     { value: 'this_month', label: 'This Month' },
     { value: 'last_30', label: 'Last 30 Days' },
     { value: 'last_month', label: 'Last Month' },
+    { value: 'custom', label: 'Custom' },
 ] as const;
 const range = ref<(typeof rangeOptions)[number]['value']>('this_month');
+
+const today = new Date().toISOString().split('T')[0];
+const customFrom = ref(today);
+const customTo = ref(today);
+const dateError = ref('');
 
 // Admin-only manual channel override — estate_billing users are scoped
 // server-side via channel_billing_contacts and never need this field.
 const channelId = ref('');
-
-const today = new Date().toISOString().split('T')[0];
 
 function getHeaders() {
     return {
@@ -41,8 +46,35 @@ function showFlash(msg: string, type: 'success' | 'error' = 'success') {
     setTimeout(() => (flash.value = null), 5000);
 }
 
+function validateCustomRange(): boolean {
+    if (range.value !== 'custom') {
+        dateError.value = '';
+        return true;
+    }
+    if (!customFrom.value || !customTo.value) {
+        dateError.value = 'Both dates are required.';
+        return false;
+    }
+    if (new Date(customTo.value) < new Date(customFrom.value)) {
+        dateError.value = '"To" date must be after "From" date.';
+        return false;
+    }
+    dateError.value = '';
+    return true;
+}
+
 function dateRangeParams() {
     const now = new Date();
+
+    if (range.value === 'all') {
+        // No real lower bound on alert history — 2000-01-01 is just a
+        // safely-early floor so the backend's whereBetween still works
+        // without needing an "unbounded" special case server-side.
+        return { from: '2000-01-01', to: now.toISOString().slice(0, 10) };
+    }
+    if (range.value === 'custom') {
+        return { from: customFrom.value, to: customTo.value };
+    }
     if (range.value === 'last_30') {
         const from = new Date(now);
         from.setDate(from.getDate() - 30);
@@ -67,6 +99,7 @@ function dateRangeParams() {
 }
 
 async function load() {
+    if (!validateCustomRange()) return;
     loading.value = true;
     try {
         const params: Record<string, string> = { ...dateRangeParams() };
@@ -87,7 +120,7 @@ async function load() {
 
 function setRange(v: (typeof rangeOptions)[number]['value']) {
     range.value = v;
-    load();
+    if (v !== 'custom') load();
 }
 
 function fmtDuration(v: number | null | undefined) {
@@ -159,6 +192,36 @@ onMounted(() => load());
                         {{ loading ? 'Loading…' : 'Refresh' }}
                     </button>
                 </div>
+
+                <div v-if="range === 'custom'" class="date-range">
+                    <div class="date-field">
+                        <label class="date-field__label">From</label>
+                        <input
+                            v-model="customFrom"
+                            type="date"
+                            :max="customTo"
+                            class="field__input field__input--date"
+                        />
+                    </div>
+                    <div class="date-field">
+                        <label class="date-field__label">To</label>
+                        <input
+                            v-model="customTo"
+                            type="date"
+                            :min="customFrom"
+                            :max="today"
+                            class="field__input field__input--date"
+                        />
+                    </div>
+                    <button
+                        class="btn-secondary btn-secondary--compact"
+                        :disabled="loading"
+                        @click="load()"
+                    >
+                        Apply
+                    </button>
+                </div>
+                <p v-if="dateError" class="date-error">{{ dateError }}</p>
             </div>
 
             <div v-if="loading" class="table-card">
@@ -188,6 +251,51 @@ onMounted(() => load());
                         :value="fmtPct(data.patrol.coverage_pct)"
                         accent
                     />
+                </div>
+
+                <!-- Cancellations — prioritized above the regular panel grid.
+                     resolved_at being set does NOT mean a guard actually
+                     responded; a household can self-cancel, and a duress
+                     cancellation in particular needs to stay visible on its
+                     own, never folded silently into "Resolved". -->
+                <div
+                    class="cancel-panel"
+                    :class="{
+                        'cancel-panel--alert':
+                            data.incidents.cancellations.duress > 0,
+                    }"
+                >
+                    <div class="cancel-panel__header">
+                        <span class="field__label">Alert Cancellations</span>
+                        <span
+                            v-if="data.incidents.cancellations.duress > 0"
+                            class="type-badge bg-red-50 text-red-600"
+                        >
+                            {{ data.incidents.cancellations.duress }} Duress
+                        </span>
+                    </div>
+                    <div class="detail-grid detail-grid--pad">
+                        <div>
+                            <div class="field__label">Safe Cancel</div>
+                            <div class="detail-grid__value">
+                                {{ data.incidents.cancellations.safe_cancel }}
+                            </div>
+                        </div>
+                        <div>
+                            <div class="field__label">Duress</div>
+                            <div
+                                class="detail-grid__value detail-grid__value--danger"
+                            >
+                                {{ data.incidents.cancellations.duress }}
+                            </div>
+                        </div>
+                        <div>
+                            <div class="field__label">Total Cancelled</div>
+                            <div class="detail-grid__value">
+                                {{ data.incidents.cancellations.total }}
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="panel-grid">
@@ -368,6 +476,9 @@ onMounted(() => load());
     border-radius: 16px;
     box-shadow: var(--shadow-sm);
     padding: 16px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
 }
 .filter-card__top {
     display: flex;
@@ -401,6 +512,11 @@ onMounted(() => load());
     border-color: #ea580c;
 }
 
+.date-range {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+}
 .date-field {
     display: flex;
     flex-direction: column;
@@ -412,6 +528,11 @@ onMounted(() => load());
     color: #94a3b8;
     text-transform: uppercase;
     letter-spacing: 0.6px;
+}
+.date-error {
+    font-size: 12px;
+    color: #dc2626;
+    margin: 0;
 }
 .field__input {
     box-sizing: border-box;
@@ -475,6 +596,23 @@ onMounted(() => load());
     gap: 14px;
 }
 
+.cancel-panel {
+    background: #f8fafc;
+    border: 1.5px solid #e4e8ef;
+    border-radius: 10px;
+    padding: 14px 16px;
+}
+.cancel-panel--alert {
+    background: #fef2f2;
+    border-color: #fecaca;
+}
+.cancel-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
 .table-card {
     background: #fff;
     border: 1px solid #e4e8ef;
@@ -526,12 +664,26 @@ onMounted(() => load());
     font-weight: 700;
     color: #1a2332;
 }
+.detail-grid__value--danger {
+    color: #dc2626;
+}
 
 .field__label {
     font-size: 12px;
     font-weight: 700;
     color: #64748b;
     letter-spacing: 0.3px;
+}
+
+.type-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    white-space: nowrap;
 }
 
 .toast {

@@ -52,22 +52,28 @@ class EstateAnalyticsService
     {
         $alerts = EmergencyAlert::where('channel_id', $channelId)
             ->whereBetween('created_at', [$from, $to])
-            ->get(['id', 'trigger_source', 'resolved_at', 'created_at']);
+            ->get(['id', 'trigger_source', 'resolved_at', 'cancel_pin_used', 'created_at']);
 
         $total = $alerts->count();
 
         $bySource = $alerts->groupBy(fn ($a) => $a->trigger_source ?? 'manual')
             ->map->count();
 
-        $resolved = $alerts->filter(fn ($a) => $a->resolved_at !== null)->count();
+        // cancel_pin_used: 'safe_cancel' | 'duress' | 'none' (or null, treated as none)
+        $byCancelPin = $alerts->groupBy(fn ($a) => $a->cancel_pin_used ?: 'none')
+            ->map->count();
+
+        $duressCount = $byCancelPin->get('duress', 0);
+        $safeCancelCount = $byCancelPin->get('safe_cancel', 0);
+
+        // "Resolved" now means genuinely handled — resolved_at set AND not a
+        // self-cancel. A duress or safe-cancel alert is tracked separately
+        // below, not folded into "resolved", so a duress cancellation never
+        // gets buried under a generic resolved count.
+        $resolved = $alerts->filter(fn ($a) => $a->resolved_at !== null && ($a->cancel_pin_used ?: 'none') === 'none')->count();
 
         $alertIds = $alerts->pluck('id');
 
-        // Response time = claimed_at -> arrived_at, straight off the claim
-        // itself. guardian_incident_responses is a general per-alert action
-        // log (any user, any action), not a 1:1 response-to-claim record, so
-        // it can't be reliably joined for this — arrived_at on the claim is
-        // the real signal.
         $responseTimes = DB::table('guardian_incident_claims')
             ->whereIn('emergency_alert_id', $alertIds)
             ->whereNotNull('arrived_at')
@@ -91,7 +97,12 @@ class EstateAnalyticsService
                 'auto_detected' => $bySource->get('auto_detected', 0),
             ],
             'resolved' => $resolved,
-            'unresolved' => $total - $resolved,
+            'unresolved' => $total - $resolved - $duressCount - $safeCancelCount,
+            'cancellations' => [
+                'duress' => $duressCount,
+                'safe_cancel' => $safeCancelCount,
+                'total' => $duressCount + $safeCancelCount,
+            ],
             'avg_response_seconds' => $avgResponseSeconds,
             'median_response_seconds' => $medianResponseSeconds,
         ];
