@@ -7,12 +7,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CheckpointScan extends Model
 {
-      protected $fillable = [
+    protected $fillable = [
         'checkpoint_id',
+        'channel_id',
         'guard_id',
         'note',
         'scanned_at',
     ];
+
+
 
     protected $casts = [
         'scanned_at' => 'datetime',
@@ -26,5 +29,10 @@ class CheckpointScan extends Model
     public function securityGuard(): BelongsTo
     {
         return $this->belongsTo(User::class, 'guard_id');
+    }
+
+    public function channel(): BelongsTo
+    {
+        return $this->belongsTo(Channel::class);
     }
 }

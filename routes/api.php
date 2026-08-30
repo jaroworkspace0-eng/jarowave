@@ -21,6 +21,7 @@ use App\Http\Controllers\AdminAlertScopeController;
 use App\Http\Controllers\AlertGuardNotifyController;
 use App\Http\Controllers\Api\Admin\PlatformTicketController;
 use App\Http\Controllers\Api\Estate\EstateTicketController;
+use App\Http\Controllers\Api\EstateAnalyticsController;
 use App\Http\Controllers\Api\GuardEarningController;
 use App\Http\Controllers\Api\GuardianIncidentController;
 use App\Http\Controllers\Api\GuardianReportController;
@@ -368,13 +369,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/estate/guards', [EstateTenantController::class, 'storeGuard']);
     Route::get('/estate/guards', [EstateTenantController::class, 'guards']);
     Route::delete('/estate/guards/{employee}', [EstateTenantController::class, 'destroyGuard']);
+    Route::put('/estate/guards/{employee}', [EstateTenantController::class, 'updateGuard']);
     Route::patch('/estate/guards/{employee}/dashboard-access', [EstateTenantController::class, 'toggleDashboardAccess']);
 
     Route::get('/estate/incident-reports', [EstateIncidentReportController::class, 'index']);
     Route::get('/estate/incident-reports/{report}', [EstateIncidentReportController::class, 'show']);
     Route::post('estate/tenants/bulk-billing', [EstateTenantController::class, 'bulkBilling']);
 
-    Route::put('/estate/guards/{employee}', [EstateTenantController::class, 'updateGuard']);
+
+    Route::middleware('auth:sanctum')->get('/estate/analytics', [EstateAnalyticsController::class, 'show']);
 });
 
 

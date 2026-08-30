@@ -20,6 +20,7 @@ import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/vue3';
 import {
     AlertTriangle,
+    BarChart3,
     Briefcase,
     Building,
     Building2,
@@ -107,6 +108,11 @@ const adminGroups: NavGroup[] = [
                 href: '/guardian-reports',
                 icon: ClipboardList,
             },
+            {
+                title: 'Estate Analytics',
+                href: '/estate/analytics',
+                icon: BarChart3,
+            },
         ],
     },
     {
@@ -190,6 +196,7 @@ const estateBillingGroups: NavGroup[] = [
         label: 'Overview',
         items: [
             { title: 'Dashboard', href: '/estate/dashboard', icon: HomeIcon },
+            { title: 'Analytics', href: '/estate/analytics', icon: BarChart3 },
         ],
     },
 

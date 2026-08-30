@@ -92,6 +92,8 @@ Route::get('/guard/flagged-households', function () {
     return inertia('Guard/FlaggedHouseholds');
 });
 
+Route::get('/estate/analytics', fn () => inertia('Estate/Analytics'));
+
 
 // ── Live Alerts (admin) ───────────────────────────────────
  

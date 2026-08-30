@@ -17,32 +17,38 @@ class PatrolController extends Controller
             'note'       => 'nullable|string|max:300',
             'scanned_at' => 'nullable|date',
         ]);
- 
+
         $guard = $request->user(); // authenticated guard
- 
+
         // Find the guard's employee record
         $employee = Employee::where('user_id', $guard->id)->firstOrFail();
- 
-        // Find checkpoint by token — must belong to the guard's estate
+
+        // Channels this guard is actually assigned to, via the channel_employee
+        // pivot — not client_id, which would let a guard scan checkpoints at
+        // any estate under the same client (same bug class as the
+        // InviteController/EmergencyAlertController cross-tenant leaks).
+        $channelIds = $employee->ch()->pluck('channels.id');
+
         $checkpoint = Checkpoint::where('token', $request->token)
-            ->where('client_id', $employee->client_id)
+            ->whereIn('channel_id', $channelIds)
             ->where('is_active', true)
             ->first();
- 
+
         if (!$checkpoint) {
             return response()->json([
                 'message' => 'Invalid or unrecognised checkpoint.',
             ], 404);
         }
- 
+
         // Log the scan
         $scan = CheckpointScan::create([
             'checkpoint_id' => $checkpoint->id,
+            'channel_id'    => $checkpoint->channel_id,
             'guard_id'      => auth()->id(),
             'note'          => $request->note,
             'scanned_at'    => $request->scanned_at ?? now(),
         ]);
- 
+
         return response()->json([
             'message'         => 'Checkpoint logged.',
             'checkpoint_name' => $checkpoint->name,

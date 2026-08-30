@@ -87,6 +87,7 @@ const form = ref({
     id: null as number | null,
     name: '',
     description: '',
+    channel_id: null as number | null,
 });
 
 // ── Auth guard ─────────────────────────────────────────────────────────────
@@ -127,7 +128,7 @@ async function load() {
 // ── Create / Edit modal ────────────────────────────────────────────────────
 function openCreate() {
     isEditing.value = false;
-    form.value = { id: null, name: '', description: '' };
+    form.value = { id: null, name: '', description: '', channel_id: null };
     errors.value = {};
     showCreateModal.value = true;
 }
@@ -138,6 +139,7 @@ function openEdit(cp: any) {
         id: cp.id,
         name: cp.name,
         description: cp.description ?? '',
+        channel_id: cp.channel_id,
     };
     errors.value = {};
     showCreateModal.value = true;
@@ -601,6 +603,33 @@ const totalScans = computed(() =>
                         </div>
 
                         <div class="field">
+                            <label class="field__label">Estate / Channel</label>
+                            <select
+                                v-model="form.channel_id"
+                                class="field__input"
+                                :class="{
+                                    'field__input--error': errors.channel_id,
+                                }"
+                            >
+                                <option :value="null" disabled>
+                                    Select an estate…
+                                </option>
+                                <option
+                                    v-for="ch in client?.channels ?? []"
+                                    :key="ch.id"
+                                    :value="ch.id"
+                                >
+                                    {{ ch.name }}
+                                </option>
+                            </select>
+                            <span
+                                v-if="errors.channel_id"
+                                class="field__error"
+                                >{{ errors.channel_id[0] }}</span
+                            >
+                        </div>
+
+                        <div class="field">
                             <label class="field__label">
                                 Description
                                 <span class="field__hint">optional</span>
@@ -624,7 +653,11 @@ const totalScans = computed(() =>
                             <button
                                 type="submit"
                                 class="btn-primary"
-                                :disabled="isProcessing || !form.name.trim()"
+                                :disabled="
+                                    isProcessing ||
+                                    !form.name.trim() ||
+                                    !form.channel_id
+                                "
                             >
                                 <svg
                                     v-if="isProcessing"

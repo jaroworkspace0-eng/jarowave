@@ -11,7 +11,7 @@ use SimpleSoftwareIO\QrCode\Facades\QrCode;
 class CheckpointController extends Controller
 {
     // ── List all checkpoints for a client ─────────────────────────────────────
-    public function index(Request $request, $clientId)
+   public function index(Request $request, $clientId)
     {
         $client = Client::findOrFail($clientId);
 
@@ -22,7 +22,7 @@ class CheckpointController extends Controller
             ->get();
 
         return response()->json([
-            'client'      => $client->load('user'),
+            'client'      => $client->load(['user', 'channels:id,client_id,name']),
             'checkpoints' => $checkpoints,
         ]);
     }
@@ -33,12 +33,20 @@ class CheckpointController extends Controller
         $request->validate([
             'name'        => 'required|string|max:100',
             'description' => 'nullable|string|max:255',
+            'channel_id'  => 'required|integer|exists:channels,id',
         ]);
 
         $client = Client::findOrFail($clientId);
 
+        // Guard against assigning a checkpoint to a channel that doesn't
+        // belong to this client — same class of leak as the InviteController
+        // cross-tenant bug.
+        $channelBelongsToClient = $client->channels()->where('channels.id', $request->channel_id)->exists();
+        abort_if(!$channelBelongsToClient, 422, 'Channel does not belong to this client.');
+
         $checkpoint = Checkpoint::create([
             'client_id'   => $client->id,
+            'channel_id'  => $request->channel_id,
             'name'        => $request->name,
             'description' => $request->description,
         ]);

@@ -10,12 +10,14 @@ use Illuminate\Support\Str;
 class Checkpoint extends Model
 {
     protected $fillable = [
-        'client_id',
-        'name',
-        'token',
-        'description',
-        'is_active',
-    ];
+    'client_id',
+    'channel_id',
+    'name',
+    'token',
+    'description',
+    'is_active',
+];
+
 
     protected $casts = [
         'is_active' => 'boolean',
@@ -27,6 +29,11 @@ class Checkpoint extends Model
         static::creating(function (Checkpoint $checkpoint) {
             $checkpoint->token = 'CHK_' . strtoupper(Str::random(8));
         });
+    }
+
+    public function channel(): BelongsTo
+    {
+        return $this->belongsTo(Channel::class);
     }
 
     public function client(): BelongsTo
