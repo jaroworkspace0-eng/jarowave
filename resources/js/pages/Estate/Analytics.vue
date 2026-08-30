@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import StatCard from '@/Components/StatCard.vue';
+import StatCard from '@/components/StatCard.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { type BreadcrumbItem } from '@/types';
 import { Head, usePage } from '@inertiajs/vue3';
