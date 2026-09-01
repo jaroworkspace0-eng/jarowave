@@ -159,11 +159,18 @@ class AdminSubscriptionController extends Controller
             $invoice = Invoice::createFromPayment($payment);
             $invoice->load('payment.subscription', 'client');
 
+            // Same fallback as ProcessPayfastPaymentSideEffects: subscription->price
+            // may not be set yet if this is the very first payment (it's written
+            // just below, gated on activation_fee_paid).
+            $primaryMonthlyPrice = $subscription->price
+                ?? BillingService::unitPrice($channel?->amount_per_household);
+
             Mail::to($user->email)->queue(new PaymentSuccessMail(
-                userName:  $user->name,
-                amount:    $amountRands,
-                periodEnd: $subscription->fresh()->current_period_end->format('d M Y'),
-                invoice:   $invoice,
+                userName:     $user->name,
+                amount:       $amountRands,
+                periodEnd:    $subscription->fresh()->current_period_end->format('d M Y'),
+                invoice:      $invoice,
+                monthlyPrice: $primaryMonthlyPrice,
             ));
 
             $invoiceSent = true;
@@ -207,13 +214,14 @@ class AdminSubscriptionController extends Controller
                     continue;
                 }
 
-                // $linkedPeriodStart = ($linkedSub->current_period_end && $linkedSub->current_period_end->isPast())
-                //     ? $linkedSub->current_period_end
-                //     : ($linkedSub->current_period_start ?? $subscription->current_period_start);
+
+                // $linkedPeriodStart = $linkedSub->current_period_end ?? ($linkedSub->current_period_start ?? $subscription->current_period_start);
                 // $linkedPeriodEnd   = $subscription->current_period_end;
 
-                $linkedPeriodStart = $linkedSub->current_period_end ?? ($linkedSub->current_period_start ?? $subscription->current_period_start);
-                $linkedPeriodEnd   = $subscription->current_period_end;
+
+                $linkedPeriodStart = $subscription->current_period_end ?? ($subscription->current_period_start ?? now());
+                $linkedPeriodEnd   = $linkedPeriodStart->copy()->addDays(30);
+
 
                 $linkedPayment = DB::transaction(function () use (
                     $linkedSub, $linkedUser, $linkedAmount, $eftReference,
@@ -261,16 +269,21 @@ class AdminSubscriptionController extends Controller
                     return $linkedPayment;
                 });
 
+
+                // 
+
                 try {
                     $linkedInvoice = Invoice::createFromPayment($linkedPayment);
                     $linkedInvoice->load('payment.subscription', 'client');
 
                     if ($linkedUser->email) {
                         Mail::to($linkedUser->email)->queue(new PaymentSuccessMail(
-                            userName:  $linkedUser->name,
-                            amount:    $linkedAmount,
-                            periodEnd: $linkedSub->fresh()->current_period_end->format('d M Y'),
-                            invoice:   $linkedInvoice,
+                            userName:         $linkedUser->name,
+                            amount:           $linkedAmount,
+                            periodEnd:        $linkedSub->fresh()->current_period_end->format('d M Y'),
+                            invoice:          $linkedInvoice,
+                            monthlyPrice:     $linkedAmount,
+                            primaryPayerName: $user->name,
                         ));
                     }
                 } catch (\Throwable $e) {

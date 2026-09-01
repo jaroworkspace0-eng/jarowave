@@ -84,6 +84,12 @@ Route::get('/admin/flagged-households', function () {
     return inertia('Admin/FlaggedHouseholds');
 });
 
+
+Route::get('/admin/finance', function () {
+    return inertia('Admin/Finance/Index');
+});
+
+
 Route::get('/estate/flagged-households', function () {
     return inertia('Estate/FlaggedHouseholds');
 });

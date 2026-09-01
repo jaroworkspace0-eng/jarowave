@@ -21,6 +21,15 @@ class PaymentSuccessMail extends Mailable implements ShouldQueue
         public readonly ?string  $amount,
         public readonly ?string  $periodEnd,
         public readonly ?Invoice $invoice = null,
+        // The subscriber's own recurring monthly rate (household price for a
+        // primary account, linked-account price for a linked account). This
+        // is what renders in the "Subscription" row — never hardcode it in
+        // the blade, it varies by channel and by primary/linked status.
+        public readonly ?string  $monthlyPrice = null,
+        // Only set for linked accounts: the primary account holder's name,
+        // so the linked user understands whose payment triggered this email
+        // and why their SOS access just renewed.
+        public readonly ?string  $primaryPayerName = null,
     ) {}
 
     public function envelope(): Envelope

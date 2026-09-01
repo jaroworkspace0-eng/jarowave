@@ -182,7 +182,7 @@ class PayfastWebhookController extends Controller
                             'payment_failed_at'    => null,
                             'sos_suspended_at'     => null,
                             'gateway'              => 'payfast',
-                            'current_period_start' => $linkedSub->current_period_end ?? $periodStart,
+                            'current_period_start' => $periodStart,
                             'current_period_end'   => $periodEnd,
                         ]);
 

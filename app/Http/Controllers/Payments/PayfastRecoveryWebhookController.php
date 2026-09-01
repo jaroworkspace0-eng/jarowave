@@ -7,6 +7,7 @@ use App\Models\Earning;
 use App\Models\Invoice;
 use App\Models\SubscriptionPayment;
 use App\Mail\PaymentSuccessMail;
+use App\Services\BillingService;
 use App\Services\PayFastService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
@@ -77,7 +78,7 @@ class PayfastRecoveryWebhookController extends Controller
                 'paid_at'                   => now(),
             ]);
 
-            // Reactivate subscription
+                        // Reactivate subscription
             $subscription->update([
                 'status'               => 'active',
                 'gateway_status'       => 'COMPLETE',
@@ -88,11 +89,20 @@ class PayfastRecoveryWebhookController extends Controller
             Earning::createFromPayment($payment, $subscription->client);
             Invoice::createFromPayment($payment);
 
+            // Same fallback pattern as ProcessPayfastPaymentSideEffects/markEftPaid:
+            // subscription->price should already be set for a recovery payment
+            // (this isn't a first-time activation), but fall back to the live
+            // channel rate defensively.
+            $channel      = $user->employee?->channels()->first();
+            $monthlyPrice = $subscription->price
+                ?? BillingService::unitPrice($channel?->amount_per_household);
+
             // Queue success email
             Mail::to($user->email)->queue(new PaymentSuccessMail(
-                userName:  $user->name,
-                amount:    $data['amount_gross'] ?? null,
-                periodEnd: now()->addDays(30)->format('d M Y'),
+                userName:     $user->name,
+                amount:       $data['amount_gross'] ?? null,
+                periodEnd:    now()->addDays(30)->format('d M Y'),
+                monthlyPrice: $monthlyPrice,
             ));
 
             Log::info('PayFast recovery payment complete', [

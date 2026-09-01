@@ -43,11 +43,19 @@ class ProcessPayfastPaymentSideEffects implements ShouldQueue
         $invoice = Invoice::createFromPayment($this->payment);
         $invoice->load('payment.subscription', 'client');
 
+        // Primary account's own recurring rate. $subscription->price is the
+        // source of truth once activation has run once (set just below on
+        // first payment); fall back to the live channel rate for the very
+        // first email, before that write has happened.
+        $primaryMonthlyPrice = $subscription->price
+            ?? BillingService::unitPrice($channel?->amount_per_household);
+
         Mail::to($user->email)->send(new PaymentSuccessMail(
-            userName:  $user->name,
-            amount:    $this->amountGross,
-            periodEnd: $this->periodEndFormatted,
-            invoice:   $invoice,
+            userName:     $user->name,
+            amount:       $this->amountGross,
+            periodEnd:    $this->periodEndFormatted,
+            invoice:      $invoice,
+            monthlyPrice: $primaryMonthlyPrice,
         ));
 
         if (! $subscription->activation_fee_paid) {
@@ -128,10 +136,12 @@ class ProcessPayfastPaymentSideEffects implements ShouldQueue
 
                 if ($linkedUser->email) {
                     Mail::to($linkedUser->email)->send(new PaymentSuccessMail(
-                        userName:  $linkedUser->name,
-                        amount:    $linkedAmount,
-                        periodEnd: $linkedSub->current_period_end->format('d M Y'),
-                        invoice:   $linkedInvoice,
+                        userName:         $linkedUser->name,
+                        amount:           $linkedAmount,
+                        periodEnd:        $linkedSub->current_period_end->format('d M Y'),
+                        invoice:          $linkedInvoice,
+                        monthlyPrice:     $linkedAmount,
+                        primaryPayerName: $user->name,
                     ));
                 }
             } catch (\Throwable $e) {

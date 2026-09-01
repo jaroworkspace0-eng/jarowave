@@ -77,12 +77,19 @@ class PaymentSimulatorController extends Controller
                 ]);
 
                 Earning::createFromPayment($payment, $subscription->client);
-                Invoice::createFromPayment($payment);
+                $invoice = Invoice::createFromPayment($payment);
+                $invoice->load('payment.subscription', 'client');
+
+                $channel      = $user->employee?->channels()->first();
+                $monthlyPrice = $subscription->price
+                    ?? BillingService::unitPrice($channel?->amount_per_household);
 
                 Mail::to($user->email)->queue(new PaymentSuccessMail(
-                    userName:  $user->name,
-                    amount:    number_format(BillingService::UNIT_PRICE / 100, 2, '.', ''),
-                    periodEnd: now()->addDays(30)->format('d M Y'),
+                    userName:     $user->name,
+                    amount:       number_format(BillingService::UNIT_PRICE / 100, 2, '.', ''),
+                    periodEnd:    now()->addDays(30)->format('d M Y'),
+                    invoice:      $invoice,
+                    monthlyPrice: $monthlyPrice,
                 ));
 
                 $results['payment_id'] = $payment->id;

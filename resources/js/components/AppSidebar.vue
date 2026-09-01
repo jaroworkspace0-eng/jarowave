@@ -72,6 +72,16 @@ const adminGroups: NavGroup[] = [
     {
         label: 'Finance',
         items: [
+            {
+                title: 'Revenue',
+                href: '/admin/finance',
+                icon: Building2,
+            },
+        ],
+    },
+    {
+        label: 'Payments',
+        items: [
             //         {
             //             title: 'Process Payouts',
             //             href: '/admin/process-payouts',

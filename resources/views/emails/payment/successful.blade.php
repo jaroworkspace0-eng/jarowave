@@ -16,32 +16,42 @@
     Hi {{ $userName }}, your payment was processed successfully. Your SOS and emergency features are fully active.
 </p>
 
+@if($primaryPayerName)
+<div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:14px 16px; margin-bottom:24px;">
+    <p style="font-size:13px; color:#1e40af; margin:0; font-weight:600;">
+        This payment was processed as part of {{ $primaryPayerName }}'s Echo Link account. Your access renews whenever their billing is successful.
+    </p>
+</div>
+@endif
+
 ---
 
 {{-- ── PAYMENT DETAILS ── --}}
 <p style="font-size:13px; font-weight:700; color:#1a1a2e; margin:0 0 12px;">Payment details</p>
 
 <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin:0 0 24px;">
-    @if($amount)
-    <tr>
-        <td style="padding:6px 0; font-size:13px; color:#888;">Amount paid</td>
-        <td style="padding:6px 0; font-size:13px; font-weight:700; color:#1a1a2e; text-align:right;">R{{ number_format($amount, 2) }}</td>
-    </tr>
-    @endif
-    @if($periodEnd)
-    <tr>
-        <td style="padding:6px 0; font-size:13px; color:#888;">Next billing date</td>
-        <td style="padding:6px 0; font-size:13px; font-weight:700; color:#1a1a2e; text-align:right;">{{ $periodEnd }}</td>
-    </tr>
-    @endif
-    <tr>
-        <td style="padding:6px 0; font-size:13px; color:#888;">SOS status</td>
-        <td style="padding:6px 0; font-size:13px; font-weight:700; color:#16a34a; text-align:right;">Active ✓</td>
-    </tr>
-    <tr>
-        <td style="padding:6px 0; font-size:13px; color:#888;">Subscription</td>
-        <td style="padding:6px 0; font-size:13px; font-weight:700; color:#f97316; text-align:right;">R80/month</td>
-    </tr>
+@if($amount)
+<tr>
+    <td style="padding:6px 0; font-size:13px; color:#888;">Amount paid</td>
+    <td style="padding:6px 0; font-size:13px; font-weight:700; color:#1a1a2e; text-align:right;">R{{ number_format($amount, 2) }}</td>
+</tr>
+@endif
+@if($periodEnd)
+<tr>
+    <td style="padding:6px 0; font-size:13px; color:#888;">Next billing date</td>
+    <td style="padding:6px 0; font-size:13px; font-weight:700; color:#1a1a2e; text-align:right;">{{ $periodEnd }}</td>
+</tr>
+@endif
+<tr>
+    <td style="padding:6px 0; font-size:13px; color:#888;">SOS status</td>
+    <td style="padding:6px 0; font-size:13px; font-weight:700; color:#16a34a; text-align:right;">Active ✓</td>
+</tr>
+@if($monthlyPrice)
+<tr>
+    <td style="padding:6px 0; font-size:13px; color:#888;">Subscription</td>
+    <td style="padding:6px 0; font-size:13px; font-weight:700; color:#f97316; text-align:right;">R{{ number_format($monthlyPrice, 2) }}/month</td>
+</tr>
+@endif
 </table>
 
 <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:14px 16px; margin-bottom:24px;">

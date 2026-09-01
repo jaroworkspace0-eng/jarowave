@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\AdminAlertController;
 use App\Http\Controllers\Admin\AdminGuardPayoutController;
 use App\Http\Controllers\Admin\AdminPayoutController;
 use App\Http\Controllers\Admin\AdminSubscriptionController;
+use App\Http\Controllers\Admin\FinanceController;
 use App\Http\Controllers\Admin\PaymentSimulatorController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\Api\SosIncidentReportController;
@@ -473,6 +474,15 @@ Route::middleware(['auth:sanctum'])->group(function () {
     //     Route::get('/user', function (Request $request) {
     //     return $request->user();
     // });
+
+
+        
+    Route::prefix('admin/finance')->group(function () {
+        Route::get('overview', [FinanceController::class, 'overview']);
+        Route::get('transactions', [FinanceController::class, 'transactions']);
+        Route::get('payfast-vs-eft', [FinanceController::class, 'payfastVsEft']);
+        Route::get('projections', [FinanceController::class, 'projections']);
+    });
 
 
     Route::post('/auth/verify-password', [UserController::class, 'verifyPassword']);
