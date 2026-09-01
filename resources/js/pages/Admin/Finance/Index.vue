@@ -8,9 +8,12 @@ import {
     AlertTriangle,
     CheckCircle,
     Clock,
+    FileText,
+    Link2,
     TrendingUp,
     Users,
     Wallet,
+    X,
 } from 'lucide-vue-next';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 
@@ -122,6 +125,10 @@ async function loadOverview() {
             params: rangeParams(),
         });
         overview.value = res.data;
+        // Flip the loading flag BEFORE drawing: the canvas only exists in the
+        // DOM once loadingOverview is false (v-else-if="overview" branch),
+        // so drawing while still "loading" was hitting a null canvas ref.
+        loadingOverview.value = false;
         await nextTick();
         drawRevenueChart();
     } catch (err: any) {
@@ -129,7 +136,6 @@ async function loadOverview() {
             err.response?.data?.message ?? 'Failed to load overview.',
             'error',
         );
-    } finally {
         loadingOverview.value = false;
     }
 }
@@ -165,12 +171,23 @@ function drawRevenueChart() {
 }
 
 /* ---------------- Transactions ---------------- */
+// NOTE: household_name and linked_accounts are NOT in your current API
+// response shape (`/api/admin/finance/transactions`) — you'll need to add
+// them server-side. household_name = the primary account holder's name.
+// linked_accounts = the spouse/children/etc. linked under that primary
+// account (per your R80 primary + R30/linked-member pricing model).
+interface LinkedAccount {
+    id: number;
+    name: string;
+}
 interface TransactionRow {
     id: number;
     source: 'individual' | 'estate';
+    household_name: string | null;
+    linked_accounts?: LinkedAccount[];
     amount: number;
     status: string;
-    payment_method: string;
+    payment_method: string | null;
     paid_at: string | null;
     created_at: string;
 }
@@ -224,8 +241,12 @@ const filteredTransactions = computed(() => {
     const q = txSearch.value.toLowerCase();
     return transactions.value.filter(
         (t) =>
-            t.payment_method.toLowerCase().includes(q) ||
-            t.status.toLowerCase().includes(q),
+            (t.payment_method ?? '').toLowerCase().includes(q) ||
+            t.status.toLowerCase().includes(q) ||
+            (t.household_name ?? '').toLowerCase().includes(q) ||
+            (t.linked_accounts ?? []).some((l) =>
+                l.name.toLowerCase().includes(q),
+            ),
     );
 });
 
@@ -264,15 +285,21 @@ function statusConfig(status: string) {
 
 /* ---------------- Payfast vs EFT ---------------- */
 interface SplitRow {
-    payment_method: string;
+    payment_method: string | null;
     total: number;
     count: number;
 }
+// NOTE: household_name and proof_of_payment_url are assumed additions to
+// `/api/admin/finance/payfast-vs-eft`'s pending_eft_review payload — swap
+// the field names below to whatever your ChannelPayment/EFT model actually
+// exposes (e.g. a stored file path you serve via Storage::url()).
 interface PendingEft {
     id: number;
     channel_subscription_id: number;
+    household_name: string | null;
     amount: number;
     created_at: string;
+    proof_of_payment_url: string | null;
 }
 const split = ref<SplitRow[]>([]);
 const pendingEft = ref<PendingEft[]>([]);
@@ -293,6 +320,7 @@ async function loadPayfast() {
         );
         split.value = res.data.split;
         pendingEft.value = res.data.pending_eft_review;
+        loadingPayfast.value = false;
         await nextTick();
         drawSplitChart();
     } catch (err: any) {
@@ -300,7 +328,6 @@ async function loadPayfast() {
             err.response?.data?.message ?? 'Failed to load payment split.',
             'error',
         );
-    } finally {
         loadingPayfast.value = false;
     }
 }
@@ -311,7 +338,9 @@ function drawSplitChart() {
     splitChart = new Chart(splitChartEl.value, {
         type: 'doughnut',
         data: {
-            labels: split.value.map((r) => r.payment_method.toUpperCase()),
+            labels: split.value.map((r) =>
+                (r.payment_method ?? 'Unknown').toUpperCase(),
+            ),
             datasets: [
                 {
                     data: split.value.map((r) => r.total),
@@ -348,6 +377,19 @@ async function approveEft(row: PendingEft) {
     }
 }
 
+/* ---------------- Proof of payment preview ---------------- */
+const proofPreviewUrl = ref<string | null>(null);
+function openProof(url: string | null) {
+    if (!url) return;
+    proofPreviewUrl.value = url;
+}
+function closeProof() {
+    proofPreviewUrl.value = null;
+}
+function isImageProof(url: string) {
+    return /\.(png|jpe?g|gif|webp)$/i.test(url);
+}
+
 /* ---------------- Projections ---------------- */
 interface ProjectionData {
     growth_rate: number;
@@ -369,6 +411,7 @@ async function loadProjections() {
             params: rangeParams(),
         });
         projections.value = res.data;
+        loadingProjections.value = false;
         await nextTick();
         drawProjChart();
     } catch (err: any) {
@@ -376,7 +419,6 @@ async function loadProjections() {
             err.response?.data?.message ?? 'Failed to load projections.',
             'error',
         );
-    } finally {
         loadingProjections.value = false;
     }
 }
@@ -594,7 +636,7 @@ onMounted(() => {
                                 v-model="txSearch"
                                 type="text"
                                 class="search-input"
-                                placeholder="Search method, status…"
+                                placeholder="Search name, method, status…"
                             />
                             <span
                                 v-if="txSearch"
@@ -680,6 +722,7 @@ onMounted(() => {
                     <table v-else class="data-table">
                         <thead>
                             <tr>
+                                <th>Household</th>
                                 <th>Source</th>
                                 <th>Method</th>
                                 <th>Status</th>
@@ -692,6 +735,22 @@ onMounted(() => {
                                 v-for="row in filteredTransactions"
                                 :key="row.source + '-' + row.id"
                             >
+                                <td class="household-cell">
+                                    <div class="household-cell__name">
+                                        {{ row.household_name ?? '—' }}
+                                    </div>
+                                    <div
+                                        v-if="row.linked_accounts?.length"
+                                        class="household-cell__linked"
+                                    >
+                                        <Link2 :size="10" />
+                                        {{
+                                            row.linked_accounts
+                                                .map((l) => l.name)
+                                                .join(', ')
+                                        }}
+                                    </div>
+                                </td>
                                 <td
                                     class="td-time"
                                     style="text-transform: capitalize"
@@ -699,7 +758,11 @@ onMounted(() => {
                                     {{ row.source }}
                                 </td>
                                 <td class="td-time mono">
-                                    {{ row.payment_method?.toUpperCase() }}
+                                    {{
+                                        (
+                                            row.payment_method ?? '—'
+                                        ).toUpperCase()
+                                    }}
                                 </td>
                                 <td>
                                     <span
@@ -770,11 +833,13 @@ onMounted(() => {
                         <div class="table-card split-legend">
                             <div
                                 v-for="row in split"
-                                :key="row.payment_method"
+                                :key="row.payment_method ?? 'unknown'"
                                 class="split-legend__row"
                             >
                                 <span class="split-legend__label">{{
-                                    row.payment_method.toUpperCase()
+                                    (
+                                        row.payment_method ?? 'Unknown'
+                                    ).toUpperCase()
                                 }}</span>
                                 <span class="split-legend__value">{{
                                     fmtAmount(row.total)
@@ -799,14 +864,19 @@ onMounted(() => {
                         <table v-else class="data-table">
                             <thead>
                                 <tr>
+                                    <th>Household</th>
                                     <th>Channel Subscription</th>
                                     <th>Amount</th>
                                     <th>Submitted</th>
+                                    <th>Proof</th>
                                     <th></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <tr v-for="row in pendingEft" :key="row.id">
+                                    <td class="td-time">
+                                        {{ row.household_name ?? '—' }}
+                                    </td>
                                     <td class="mono td-time">
                                         #{{ row.channel_subscription_id }}
                                     </td>
@@ -815,6 +885,23 @@ onMounted(() => {
                                     </td>
                                     <td class="td-time">
                                         {{ fmtDate(row.created_at) }}
+                                    </td>
+                                    <td>
+                                        <button
+                                            v-if="row.proof_of_payment_url"
+                                            class="proof-link"
+                                            @click="
+                                                openProof(
+                                                    row.proof_of_payment_url,
+                                                )
+                                            "
+                                        >
+                                            <FileText :size="13" />
+                                            View proof
+                                        </button>
+                                        <span v-else class="proof-missing"
+                                            >Not uploaded</span
+                                        >
                                     </td>
                                     <td>
                                         <div class="row-actions">
@@ -879,6 +966,43 @@ onMounted(() => {
             </template>
         </div>
 
+        <!-- Proof of payment preview modal -->
+        <Teleport to="body">
+            <transition name="modal">
+                <div
+                    v-if="proofPreviewUrl"
+                    class="proof-modal-backdrop"
+                    @click.self="closeProof"
+                >
+                    <div class="proof-modal">
+                        <div class="proof-modal__header">
+                            <span>Proof of Payment</span>
+                            <button class="icon-btn" @click="closeProof">
+                                <X :size="16" />
+                            </button>
+                        </div>
+                        <div class="proof-modal__body">
+                            <img
+                                v-if="isImageProof(proofPreviewUrl)"
+                                :src="proofPreviewUrl"
+                                alt="Proof of payment"
+                            />
+                            <a
+                                v-else
+                                :href="proofPreviewUrl"
+                                target="_blank"
+                                rel="noopener"
+                                class="proof-modal__filelink"
+                            >
+                                <FileText :size="18" />
+                                Open document
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+        </Teleport>
+
         <Teleport to="body">
             <transition name="modal">
                 <div
@@ -901,7 +1025,8 @@ onMounted(() => {
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
 
 .page-root,
-.toast {
+.toast,
+.proof-modal-backdrop {
     --c-primary: #ea580c;
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
     --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.14);
@@ -1207,6 +1332,23 @@ onMounted(() => {
     vertical-align: middle;
 }
 
+.household-cell {
+    min-width: 160px;
+}
+.household-cell__name {
+    font-weight: 700;
+    color: #1a2332;
+    font-size: 13px;
+}
+.household-cell__linked {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 2px;
+}
+
 .type-badge {
     display: inline-flex;
     align-items: center;
@@ -1229,6 +1371,29 @@ onMounted(() => {
     font-weight: 800;
     color: #ea580c;
     white-space: nowrap;
+}
+
+.proof-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #fff7ed;
+    color: #ea580c;
+    border: 1px solid #fed7aa;
+    border-radius: 8px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+}
+.proof-link:hover {
+    background: #ffedd5;
+}
+.proof-missing {
+    font-size: 12px;
+    color: #cbd5e1;
+    font-style: italic;
 }
 
 .row-actions {
@@ -1328,6 +1493,63 @@ onMounted(() => {
     font-size: 11px;
     color: #94a3b8;
     margin-left: auto;
+}
+
+.proof-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 10001;
+    background: rgba(15, 23, 42, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+}
+.proof-modal {
+    background: #fff;
+    border-radius: 16px;
+    box-shadow: var(--shadow-lg);
+    width: min(560px, 100%);
+    max-height: 82vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.proof-modal__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 1px solid #e4e8ef;
+    font-size: 13px;
+    font-weight: 700;
+    color: #1a2332;
+}
+.proof-modal__body {
+    padding: 18px;
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.proof-modal__body img {
+    max-width: 100%;
+    max-height: 68vh;
+    border-radius: 10px;
+    display: block;
+}
+.proof-modal__filelink {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border-radius: 10px;
+    background: #fff7ed;
+    color: #ea580c;
+    border: 1px solid #fed7aa;
+    font-weight: 700;
+    font-size: 13px;
+    text-decoration: none;
 }
 
 .toast {
