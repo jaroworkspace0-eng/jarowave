@@ -126,8 +126,7 @@ async function loadOverview() {
         });
         overview.value = res.data;
         // Flip the loading flag BEFORE drawing: the canvas only exists in the
-        // DOM once loadingOverview is false (v-else-if="overview" branch),
-        // so drawing while still "loading" was hitting a null canvas ref.
+        // DOM once loadingOverview is false (v-else-if="overview" branch).
         loadingOverview.value = false;
         await nextTick();
         drawRevenueChart();
@@ -171,11 +170,6 @@ function drawRevenueChart() {
 }
 
 /* ---------------- Transactions ---------------- */
-// NOTE: household_name and linked_accounts are NOT in your current API
-// response shape (`/api/admin/finance/transactions`) — you'll need to add
-// them server-side. household_name = the primary account holder's name.
-// linked_accounts = the spouse/children/etc. linked under that primary
-// account (per your R80 primary + R30/linked-member pricing model).
 interface LinkedAccount {
     id: number;
     name: string;
@@ -185,6 +179,7 @@ interface TransactionRow {
     source: 'individual' | 'estate';
     household_name: string | null;
     linked_accounts?: LinkedAccount[];
+    proof_of_payment_url?: string | null;
     amount: number;
     status: string;
     payment_method: string | null;
@@ -289,10 +284,6 @@ interface SplitRow {
     total: number;
     count: number;
 }
-// NOTE: household_name and proof_of_payment_url are assumed additions to
-// `/api/admin/finance/payfast-vs-eft`'s pending_eft_review payload — swap
-// the field names below to whatever your ChannelPayment/EFT model actually
-// exposes (e.g. a stored file path you serve via Storage::url()).
 interface PendingEft {
     id: number;
     channel_subscription_id: number;
@@ -379,7 +370,7 @@ async function approveEft(row: PendingEft) {
 
 /* ---------------- Proof of payment preview ---------------- */
 const proofPreviewUrl = ref<string | null>(null);
-function openProof(url: string | null) {
+function openProof(url: string | null | undefined) {
     if (!url) return;
     proofPreviewUrl.value = url;
 }
@@ -458,11 +449,29 @@ function reloadAll() {
     loadProjections();
 }
 
-watch(activeTab, (tab) => {
-    if (tab === 'transactions' && transactions.value.length === 0)
-        loadTransactions(1);
-    if (tab === 'payfast' && split.value.length === 0) loadPayfast();
-    if (tab === 'projections' && !projections.value) loadProjections();
+// FIX: previously this only reloaded a tab's data if that data array was
+// still empty — but reloadAll() on mount already fires all four loads in
+// parallel, so by the time you clicked into "Payfast" or "Projections" the
+// data was already populated and the chart draw call never ran (the canvas
+// for that tab doesn't exist in the DOM until the tab is active, and
+// switching tabs destroys/recreates the <canvas> element via v-if, which
+// orphans the old Chart.js instance). Now every tab activation either loads
+// fresh data (which draws once loaded) or, if data is already there,
+// redraws straight onto the newly-mounted canvas.
+watch(activeTab, async (tab) => {
+    await nextTick();
+    if (tab === 'overview') {
+        if (!overview.value) loadOverview();
+        else drawRevenueChart();
+    } else if (tab === 'transactions') {
+        if (transactions.value.length === 0) loadTransactions(1);
+    } else if (tab === 'payfast') {
+        if (split.value.length === 0) loadPayfast();
+        else drawSplitChart();
+    } else if (tab === 'projections') {
+        if (!projections.value) loadProjections();
+        else drawProjChart();
+    }
 });
 
 onMounted(() => {
@@ -620,7 +629,19 @@ onMounted(() => {
                     </div>
 
                     <div class="table-card chart-card">
-                        <div class="chart-card__inner">
+                        <div
+                            v-if="overview.monthly_series.length === 0"
+                            class="empty-state"
+                        >
+                            <p class="empty-state__title">
+                                No revenue recorded for this range
+                            </p>
+                            <p class="empty-state__sub">
+                                Try a wider range, or confirm payments in this
+                                window are marked paid/complete
+                            </p>
+                        </div>
+                        <div v-else class="chart-card__inner">
                             <canvas ref="revenueChartEl"></canvas>
                         </div>
                     </div>
@@ -728,6 +749,7 @@ onMounted(() => {
                                 <th>Status</th>
                                 <th>Paid At</th>
                                 <th>Amount</th>
+                                <th>Proof</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -778,6 +800,27 @@ onMounted(() => {
                                 <td class="amount-cell">
                                     {{ fmtAmount(row.amount) }}
                                 </td>
+                                <td>
+                                    <button
+                                        v-if="
+                                            row.payment_method === 'eft' &&
+                                            row.proof_of_payment_url
+                                        "
+                                        class="proof-link"
+                                        @click="
+                                            openProof(row.proof_of_payment_url)
+                                        "
+                                    >
+                                        <FileText :size="13" />
+                                        View
+                                    </button>
+                                    <span
+                                        v-else-if="row.payment_method === 'eft'"
+                                        class="proof-missing"
+                                        >Not uploaded</span
+                                    >
+                                    <span v-else class="proof-missing">—</span>
+                                </td>
                             </tr>
                         </tbody>
                     </table>
@@ -822,7 +865,19 @@ onMounted(() => {
                     <span class="text-sm text-slate-400">Loading…</span>
                 </div>
                 <template v-else>
-                    <div class="split-grid">
+                    <div
+                        v-if="split.length === 0"
+                        class="table-card empty-state"
+                    >
+                        <p class="empty-state__title">
+                            No payment data for this range
+                        </p>
+                        <p class="empty-state__sub">
+                            Try widening the date range — nothing paid or
+                            completed in the selected period
+                        </p>
+                    </div>
+                    <div v-else class="split-grid">
                         <div class="table-card chart-card">
                             <div
                                 class="chart-card__inner chart-card__inner--donut"

@@ -9,6 +9,7 @@ use App\Models\ChannelSubscriptionPayment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 
 class FinanceController extends Controller
 {
@@ -40,7 +41,14 @@ class FinanceController extends Controller
             ->select([
                 'id',
                 DB::raw("'individual' as source"),
-                'amount',
+                // SubscriptionPayment.amount is stored in CENTS (see
+                // getAmountInRandsAttribute, which divides by 100) while
+                // ChannelSubscriptionPayment.amount is stored in RANDS
+                // (decimal:2, no division). Without normalizing here, the
+                // union mixed units and every total downstream (MRR,
+                // revenue_in_range, the trend chart, projections) was wrong
+                // whenever both sources had rows in range.
+                DB::raw('amount / 100 as amount'),
                 'status',
                 'payment_method',
                 'paid_at',
@@ -61,6 +69,72 @@ class FinanceController extends Controller
             ->whereBetween('created_at', [$from, $to]);
 
         return $individual->unionAll($estate);
+    }
+
+    /**
+     * Attach household_name / linked_accounts / proof_of_payment_url onto a
+     * page of union rows by re-hydrating the underlying Eloquent models.
+     *
+     * Individual payments: SubscriptionPayment -> subscription -> user.
+     * Subscription has both `client_id` and `user_id` — client is the Area
+     * Partner/referrer (Client has partner_type/revenue_share_percentage,
+     * nothing person-like), while `user` is the actual subscriber, so that's
+     * what household_name should read. Falls back to the payment's own
+     * `payer_name` if the subscription/user chain is missing.
+     *
+     * Estate/bulk payments: ChannelSubscriptionPayment -> channelSubscription
+     * -> channel. household_name is the Channel's own `name` (the estate),
+     * since one ChannelSubscriptionPayment is a single bulk payment covering
+     * the whole estate, not one household. linked_accounts is the list of
+     * individual Subscriptions opted into that channel_subscription_id
+     * (Subscription.channel_subscription_id), each named via its own `user`
+     * (same reasoning as above — not `client`).
+     */
+    private function hydrateHouseholdInfo($rows)
+    {
+        $individualIds = collect($rows)->where('source', 'individual')->pluck('id');
+        $estateIds = collect($rows)->where('source', 'estate')->pluck('id');
+
+        $individualPayments = SubscriptionPayment::query()
+            ->with('subscription.user')
+            ->whereIn('id', $individualIds)
+            ->get()
+            ->keyBy('id');
+
+        $estatePayments = ChannelSubscriptionPayment::query()
+            ->with(['channelSubscription.channel', 'channelSubscription.subscriptions.user'])
+            ->whereIn('id', $estateIds)
+            ->get()
+            ->keyBy('id');
+
+        foreach ($rows as $row) {
+            if ($row->source === 'individual') {
+                $payment = $individualPayments->get($row->id);
+                $row->household_name = $payment?->subscription?->user?->name
+                    ?? $payment?->payer_name;
+                $row->linked_accounts = [];
+                $row->proof_of_payment_url = $payment?->proof_of_payment
+                    ? Storage::url($payment->proof_of_payment)
+                    : null;
+                continue;
+            }
+
+            $payment = $estatePayments->get($row->id);
+            $channelSubscription = $payment?->channelSubscription;
+
+            $row->household_name = $channelSubscription?->channel?->name;
+            $row->linked_accounts = $channelSubscription?->subscriptions
+                ?->map(fn ($s) => [
+                    'id' => $s->id,
+                    'name' => $s->user?->name ?? ('Household #' . $s->id),
+                ])
+                ->values() ?? [];
+            $row->proof_of_payment_url = $payment?->proof_of_payment
+                ? Storage::url($payment->proof_of_payment)
+                : null;
+        }
+
+        return $rows;
     }
 
     public function overview(Request $request)
@@ -132,9 +206,15 @@ class FinanceController extends Controller
 
         $perPage = (int) $request->input('per_page', 25);
 
-        return response()->json(
-            $query->orderByDesc('created_at')->paginate($perPage)
+        $paginated = $query->orderByDesc('created_at')->paginate($perPage);
+
+        // Attach household_name / linked_accounts / proof_of_payment_url —
+        // this is what the frontend's "Household" and "Proof" columns read.
+        $paginated->setCollection(
+            collect($this->hydrateHouseholdInfo($paginated->getCollection()))
         );
+
+        return response()->json($paginated);
     }
 
     public function payfastVsEft(Request $request)
@@ -150,11 +230,26 @@ class FinanceController extends Controller
             ->get();
 
         // EFT proofs awaiting review — estate-bulk flow only, per markEftPaid/approveEftPayment.
+        // NOTE: kept 'pending_review' as the status filter since that's what
+        // this controller used before — ChannelSubscriptionPayment's own
+        // isPending() checks 'pending' instead, so confirm which status your
+        // markEftPaid()/review flow actually sets and adjust if needed.
         $pendingEft = ChannelSubscriptionPayment::query()
+            ->with('channelSubscription.channel')
             ->where('payment_method', 'eft')
             ->where('status', 'pending_review')
             ->orderByDesc('created_at')
-            ->get(['id', 'channel_subscription_id', 'amount', 'created_at']);
+            ->get(['id', 'channel_subscription_id', 'amount', 'created_at', 'proof_of_payment'])
+            ->map(fn ($row) => [
+                'id' => $row->id,
+                'channel_subscription_id' => $row->channel_subscription_id,
+                'household_name' => $row->channelSubscription?->channel?->name,
+                'amount' => $row->amount,
+                'created_at' => $row->created_at,
+                'proof_of_payment_url' => $row->proof_of_payment
+                    ? Storage::url($row->proof_of_payment)
+                    : null,
+            ]);
 
         return response()->json([
             'split' => $split,
