@@ -41,14 +41,12 @@ class FinanceController extends Controller
             ->select([
                 'id',
                 DB::raw("'individual' as source"),
-                // SubscriptionPayment.amount is stored in CENTS (see
-                // getAmountInRandsAttribute, which divides by 100) while
-                // ChannelSubscriptionPayment.amount is stored in RANDS
-                // (decimal:2, no division). Without normalizing here, the
-                // union mixed units and every total downstream (MRR,
-                // revenue_in_range, the trend chart, projections) was wrong
-                // whenever both sources had rows in range.
-                DB::raw('amount / 100 as amount'),
+                // Confirmed against real data: amount is stored as a plain
+                // Rand figure (e.g. 10 = R10.00), NOT cents — despite
+                // SubscriptionPayment::getAmountInRandsAttribute() dividing
+                // by 100 elsewhere in the app. That accessor doesn't match
+                // how this data is actually saved, so no conversion here.
+                'amount',
                 'status',
                 'payment_method',
                 'paid_at',
@@ -306,6 +304,43 @@ class FinanceController extends Controller
             'six_month' => $months[5]['projected'] ?? 0,
             'annualized' => round(array_sum(array_column($months, 'projected')), 2),
             'series' => $months,
+        ]);
+    }
+
+    /**
+     * All-time totals, independent of the date-range picker — for a
+     * "Lifetime" tab so revenue since inception isn't buried inside a
+     * 30-day-default MRR figure.
+     *
+     * NOTE: add a route for this — e.g.
+     * Route::get('/admin/finance/lifetime', [FinanceController::class, 'lifetime']);
+     */
+    public function lifetime(Request $request)
+    {
+        $paidStatuses = ['paid', 'complete'];
+        $sinceEpoch = Carbon::createFromTimestamp(0);
+        $now = now()->endOfDay();
+
+        $rows = DB::query()
+            ->fromSub($this->unifiedQuery($sinceEpoch, $now), 'p')
+            ->whereIn('status', $paidStatuses)
+            ->get();
+
+        $monthly = DB::query()
+            ->fromSub($this->unifiedQuery($sinceEpoch, $now), 'p')
+            ->whereIn('status', $paidStatuses)
+            ->selectRaw("DATE_FORMAT(paid_at, '%Y-%m') as month, SUM(amount) as total")
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get();
+
+        return response()->json([
+            'total_revenue' => $rows->sum('amount'),
+            'individual_revenue' => $rows->where('source', 'individual')->sum('amount'),
+            'estate_revenue' => $rows->where('source', 'estate')->sum('amount'),
+            'total_paid_transactions' => $rows->count(),
+            'first_payment_at' => $rows->min('created_at'),
+            'monthly_series' => $monthly,
         ]);
     }
 }

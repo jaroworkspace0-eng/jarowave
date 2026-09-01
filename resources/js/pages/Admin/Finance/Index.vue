@@ -56,6 +56,7 @@ const tabs = [
     { key: 'transactions', label: 'Transactions' },
     { key: 'payfast', label: 'Payfast vs EFT' },
     { key: 'projections', label: 'Projections' },
+    { key: 'lifetime', label: 'Lifetime' },
 ] as const;
 type TabKey = (typeof tabs)[number]['key'];
 const activeTab = ref<TabKey>('overview');
@@ -370,12 +371,18 @@ async function approveEft(row: PendingEft) {
 
 /* ---------------- Proof of payment preview ---------------- */
 const proofPreviewUrl = ref<string | null>(null);
+const proofZoomed = ref(false);
 function openProof(url: string | null | undefined) {
     if (!url) return;
+    proofZoomed.value = false;
     proofPreviewUrl.value = url;
 }
 function closeProof() {
     proofPreviewUrl.value = null;
+    proofZoomed.value = false;
+}
+function toggleProofZoom() {
+    proofZoomed.value = !proofZoomed.value;
 }
 function isImageProof(url: string) {
     return /\.(png|jpe?g|gif|webp)$/i.test(url);
@@ -441,12 +448,76 @@ function drawProjChart() {
     });
 }
 
+/* ---------------- Lifetime ---------------- */
+interface LifetimeData {
+    total_revenue: number;
+    individual_revenue: number;
+    estate_revenue: number;
+    total_paid_transactions: number;
+    first_payment_at: string | null;
+    monthly_series: { month: string; total: number }[];
+}
+const lifetime = ref<LifetimeData | null>(null);
+const loadingLifetime = ref(false);
+const lifetimeChartEl = ref<HTMLCanvasElement | null>(null);
+let lifetimeChart: Chart | null = null;
+
+async function loadLifetime() {
+    loadingLifetime.value = true;
+    try {
+        const res = await axios.get(apiUrl('/api/admin/finance/lifetime'), {
+            ...getHeaders(),
+        });
+        lifetime.value = res.data;
+        loadingLifetime.value = false;
+        await nextTick();
+        drawLifetimeChart();
+    } catch (err: any) {
+        showFlash(
+            err.response?.data?.message ?? 'Failed to load lifetime revenue.',
+            'error',
+        );
+        loadingLifetime.value = false;
+    }
+}
+
+function drawLifetimeChart() {
+    if (!lifetimeChartEl.value || !lifetime.value) return;
+    lifetimeChart?.destroy();
+    lifetimeChart = new Chart(lifetimeChartEl.value, {
+        type: 'line',
+        data: {
+            labels: lifetime.value.monthly_series.map((r) => r.month),
+            datasets: [
+                {
+                    data: lifetime.value.monthly_series.map((r) => r.total),
+                    borderColor: '#059669',
+                    backgroundColor: 'rgba(5,150,105,0.08)',
+                    fill: true,
+                    tension: 0.35,
+                    pointRadius: 0,
+                    borderWidth: 2,
+                },
+            ],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { ticks: { callback: (v) => 'R' + v } },
+            },
+        },
+    });
+}
+
 /* ---------------- Orchestration ---------------- */
 function reloadAll() {
     loadOverview();
     loadTransactions(1);
     loadPayfast();
     loadProjections();
+    loadLifetime();
 }
 
 // FIX: previously this only reloaded a tab's data if that data array was
@@ -471,6 +542,9 @@ watch(activeTab, async (tab) => {
     } else if (tab === 'projections') {
         if (!projections.value) loadProjections();
         else drawProjChart();
+    } else if (tab === 'lifetime') {
+        if (!lifetime.value) loadLifetime();
+        else drawLifetimeChart();
     }
 });
 
@@ -1019,6 +1093,78 @@ onMounted(() => {
                     </div>
                 </template>
             </template>
+
+            <!-- ===================== LIFETIME ===================== -->
+            <template v-if="activeTab === 'lifetime'">
+                <div v-if="loadingLifetime" class="empty-state">
+                    <span class="text-sm text-slate-400">Loading…</span>
+                </div>
+                <template v-else-if="lifetime">
+                    <div class="stats-grid">
+                        <div class="stat-card stat-card--success">
+                            <div class="stat-card__value">
+                                {{ fmtAmount(lifetime.total_revenue) }}
+                            </div>
+                            <div class="stat-card__label">
+                                <TrendingUp
+                                    :size="11"
+                                    style="
+                                        display: inline;
+                                        vertical-align: -1px;
+                                        margin-right: 3px;
+                                    "
+                                />Total Revenue (all time)
+                            </div>
+                        </div>
+                        <div class="stat-card stat-card--info">
+                            <div class="stat-card__value">
+                                {{ fmtAmount(lifetime.individual_revenue) }}
+                            </div>
+                            <div class="stat-card__label">Individual</div>
+                        </div>
+                        <div class="stat-card stat-card--info">
+                            <div class="stat-card__value">
+                                {{ fmtAmount(lifetime.estate_revenue) }}
+                            </div>
+                            <div class="stat-card__label">Estate</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-card__value">
+                                {{ lifetime.total_paid_transactions }}
+                            </div>
+                            <div class="stat-card__label">
+                                Paid Transactions
+                            </div>
+                        </div>
+                    </div>
+
+                    <p
+                        v-if="lifetime.first_payment_at"
+                        style="
+                            font-size: 12px;
+                            color: #94a3b8;
+                            margin: -8px 0 0;
+                        "
+                    >
+                        Since first payment on
+                        {{ fmtDate(lifetime.first_payment_at) }}
+                    </p>
+
+                    <div class="table-card chart-card">
+                        <div
+                            v-if="lifetime.monthly_series.length === 0"
+                            class="empty-state"
+                        >
+                            <p class="empty-state__title">
+                                No paid revenue on record yet
+                            </p>
+                        </div>
+                        <div v-else class="chart-card__inner">
+                            <canvas ref="lifetimeChartEl"></canvas>
+                        </div>
+                    </div>
+                </template>
+            </template>
         </div>
 
         <!-- Proof of payment preview modal -->
@@ -1032,15 +1178,48 @@ onMounted(() => {
                     <div class="proof-modal">
                         <div class="proof-modal__header">
                             <span>Proof of Payment</span>
-                            <button class="icon-btn" @click="closeProof">
-                                <X :size="16" />
-                            </button>
+                            <div
+                                style="
+                                    display: flex;
+                                    align-items: center;
+                                    gap: 4px;
+                                "
+                            >
+                                <button
+                                    v-if="isImageProof(proofPreviewUrl)"
+                                    class="icon-btn"
+                                    :title="
+                                        proofZoomed ? 'Zoom out' : 'Zoom in'
+                                    "
+                                    @click="toggleProofZoom"
+                                >
+                                    {{ proofZoomed ? '−' : '+' }}
+                                </button>
+                                <a
+                                    :href="proofPreviewUrl"
+                                    target="_blank"
+                                    rel="noopener"
+                                    class="icon-btn"
+                                    title="Open in new tab"
+                                    >⤢</a
+                                >
+                                <button class="icon-btn" @click="closeProof">
+                                    <X :size="16" />
+                                </button>
+                            </div>
                         </div>
-                        <div class="proof-modal__body">
+                        <div
+                            class="proof-modal__body"
+                            :class="{
+                                'proof-modal__body--zoomed': proofZoomed,
+                            }"
+                        >
                             <img
                                 v-if="isImageProof(proofPreviewUrl)"
                                 :src="proofPreviewUrl"
                                 alt="Proof of payment"
+                                :class="{ 'is-zoomed': proofZoomed }"
+                                @click="toggleProofZoom"
                             />
                             <a
                                 v-else
@@ -1564,8 +1743,8 @@ onMounted(() => {
     background: #fff;
     border-radius: 16px;
     box-shadow: var(--shadow-lg);
-    width: min(560px, 100%);
-    max-height: 82vh;
+    width: min(92vw, 1100px);
+    max-height: 92vh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1586,12 +1765,29 @@ onMounted(() => {
     display: flex;
     align-items: center;
     justify-content: center;
+    min-height: 60vh;
 }
 .proof-modal__body img {
     max-width: 100%;
-    max-height: 68vh;
+    max-height: 84vh;
     border-radius: 10px;
     display: block;
+    cursor: zoom-in;
+    transition: transform 0.15s ease;
+}
+.proof-modal__body img.is-zoomed {
+    max-width: none;
+    max-height: none;
+    width: auto;
+    height: auto;
+    transform: scale(2);
+    transform-origin: center;
+    cursor: zoom-out;
+}
+.proof-modal__body--zoomed {
+    align-items: flex-start;
+    justify-content: flex-start;
+    cursor: zoom-out;
 }
 .proof-modal__filelink {
     display: inline-flex;

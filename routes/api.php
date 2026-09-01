@@ -477,13 +477,13 @@ Route::middleware(['auth:sanctum'])->group(function () {
 
 
         
-    Route::prefix('admin/finance')->group(function () {
-        Route::get('overview', [FinanceController::class, 'overview']);
-        Route::get('transactions', [FinanceController::class, 'transactions']);
-        Route::get('payfast-vs-eft', [FinanceController::class, 'payfastVsEft']);
-        Route::get('projections', [FinanceController::class, 'projections']);
-    });
-
+  Route::prefix('admin/finance')->group(function () {
+    Route::get('overview', [FinanceController::class, 'overview']);
+    Route::get('transactions', [FinanceController::class, 'transactions']);
+    Route::get('payfast-vs-eft', [FinanceController::class, 'payfastVsEft']);
+    Route::get('projections', [FinanceController::class, 'projections']);
+    Route::get('lifetime', [FinanceController::class, 'lifetime']);
+});
 
     Route::post('/auth/verify-password', [UserController::class, 'verifyPassword']);
 
