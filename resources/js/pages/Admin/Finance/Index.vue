@@ -273,6 +273,39 @@ const filteredTransactions = computed(() => {
     );
 });
 
+const groupedTransactions = computed(() => {
+    const rows = filteredTransactions.value;
+    const byId = new Map(rows.map((r) => [`${r.source}-${r.id}`, r]));
+    const consumed = new Set<string>();
+    const result: TransactionRow[] = [];
+
+    for (const row of rows) {
+        const key = `${row.source}-${row.id}`;
+        if (consumed.has(key)) continue;
+
+        result.push(row);
+        consumed.add(key);
+
+        // If this row is a primary, pull its linked accounts' rows in
+        // directly underneath it, wherever they actually sit in the list.
+        if (
+            row.account_link?.is_primary &&
+            row.account_link.linked_accounts?.length
+        ) {
+            for (const linked of row.account_link.linked_accounts) {
+                const linkedKey = `individual-${linked.id}`;
+                const linkedRow = byId.get(linkedKey);
+                if (linkedRow && !consumed.has(linkedKey)) {
+                    result.push(linkedRow);
+                    consumed.add(linkedKey);
+                }
+            }
+        }
+    }
+
+    return result;
+});
+
 watch([txStatus, txMethod, txSource], () => loadTransactions(1));
 
 function statusConfig(status: string) {
@@ -841,9 +874,11 @@ onMounted(() => {
                             Try adjusting your filters or date range
                         </p>
                     </div>
+
                     <table v-else class="data-table">
                         <thead>
                             <tr>
+                                <th class="connector-col"></th>
                                 <th>Household</th>
                                 <th>Source</th>
                                 <th>Method</th>
@@ -855,9 +890,36 @@ onMounted(() => {
                         </thead>
                         <tbody>
                             <tr
-                                v-for="row in filteredTransactions"
+                                v-for="row in groupedTransactions"
                                 :key="row.source + '-' + row.id"
                             >
+                                <td class="connector-col">
+                                    <div
+                                        v-if="
+                                            row.account_link?.is_primary &&
+                                            row.account_link.linked_accounts
+                                                ?.length
+                                        "
+                                        class="connector connector--primary"
+                                    >
+                                        <span class="connector__dot"></span>
+                                        <span
+                                            class="connector__line-down"
+                                        ></span>
+                                    </div>
+                                    <div
+                                        v-else-if="
+                                            row.account_link?.is_primary ===
+                                            false
+                                        "
+                                        class="connector connector--linked"
+                                    >
+                                        <span class="connector__line-up"></span>
+                                        <span
+                                            class="connector__dot connector__dot--linked"
+                                        ></span>
+                                    </div>
+                                </td>
                                 <td class="household-cell">
                                     <div class="household-cell__name">
                                         {{ row.household_name ?? '—' }}
@@ -868,37 +930,14 @@ onMounted(() => {
                                         >
                                     </div>
 
-                                    <!-- Thread: this account is primary, show its linked accounts -->
+                                    <!-- this account is linked: show who it's under -->
                                     <div
                                         v-if="
-                                            row.account_link?.is_primary &&
-                                            row.account_link.linked_accounts
-                                                ?.length
-                                        "
-                                        class="thread"
-                                    >
-                                        <div
-                                            v-for="acc in row.account_link
-                                                .linked_accounts"
-                                            :key="acc.id"
-                                            class="thread__branch"
-                                        >
-                                            <span class="thread__line"></span>
-                                            {{ acc.name }}
-                                        </div>
-                                    </div>
-
-                                    <!-- Thread: this account is linked, show who it's under -->
-                                    <div
-                                        v-else-if="
                                             row.account_link?.is_primary ===
                                             false
                                         "
-                                        class="thread thread--up"
+                                        class="linked-note"
                                     >
-                                        <span
-                                            class="thread__line thread__line--up"
-                                        ></span>
                                         linked to
                                         <strong>{{
                                             row.account_link.primary_name
@@ -1981,6 +2020,75 @@ onMounted(() => {
     border-top-left-radius: 4px;
 }
 
+.amount-breakdown {
+    font-size: 10px;
+    font-weight: 500;
+    color: #94a3b8;
+    margin-top: 2px;
+}
+
+.connector-col {
+    width: 20px;
+    padding: 0 !important;
+    position: relative;
+}
+.connector {
+    position: relative;
+    height: 100%;
+    min-height: 44px;
+}
+.connector__dot {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ea580c;
+    z-index: 2;
+}
+.connector__dot--linked {
+    background: #cbd5e1;
+    width: 6px;
+    height: 6px;
+}
+.connector__line-down {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: calc(50% + 44px);
+    background: #fed7aa;
+    z-index: 1;
+}
+.connector__line-up {
+    position: absolute;
+    left: 50%;
+    top: -50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: calc(50% + 22px);
+    background: #fed7aa;
+    z-index: 1;
+}
+.linked-note {
+    font-size: 11px;
+    color: #94a3b8;
+    margin-top: 2px;
+}
+.primary-badge {
+    font-size: 9px;
+    font-weight: 700;
+    color: #ea580c;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-radius: 10px;
+    padding: 1px 6px;
+    margin-left: 6px;
+    vertical-align: 1px;
+}
 .amount-breakdown {
     font-size: 10px;
     font-weight: 500;
