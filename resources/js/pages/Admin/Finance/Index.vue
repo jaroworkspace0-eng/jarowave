@@ -178,15 +178,23 @@ function drawRevenueChart() {
 interface LinkedAccount {
     id: number;
     name: string;
+    amount?: number;
+    account_link?: AccountLinkInfo | null;
 }
 
 interface AccountLinkInfo {
     is_primary: boolean | null;
-    linked_accounts?: { id: number; name: string; status: string }[];
+    linked_accounts?: {
+        id: number;
+        name: string;
+        status: string;
+        amount?: number;
+    }[];
     primary_name?: string;
     primary_id?: number;
     status?: string;
 }
+
 interface LinkedAccount {
     id: number;
     name: string;
@@ -923,6 +931,24 @@ onMounted(() => {
                                 </td>
                                 <td class="amount-cell">
                                     {{ fmtAmount(row.amount) }}
+                                    <div
+                                        v-if="
+                                            row.account_link?.is_primary &&
+                                            row.account_link.linked_accounts
+                                                ?.length
+                                        "
+                                        class="amount-breakdown"
+                                    >
+                                        includes
+                                        {{
+                                            row.account_link.linked_accounts
+                                                .map(
+                                                    (a) =>
+                                                        `${a.name}: ${fmtAmount(a.amount)}`,
+                                                )
+                                                .join(', ')
+                                        }}
+                                    </div>
                                 </td>
                                 <td>
                                     <button
@@ -1953,5 +1979,12 @@ onMounted(() => {
     border-left: 1.5px solid #e4e8ef;
     border-top: 1.5px solid #e4e8ef;
     border-top-left-radius: 4px;
+}
+
+.amount-breakdown {
+    font-size: 10px;
+    font-weight: 500;
+    color: #94a3b8;
+    margin-top: 2px;
 }
 </style>

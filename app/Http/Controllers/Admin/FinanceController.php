@@ -42,16 +42,12 @@ class FinanceController extends Controller
             ->select([
                 'id',
                 DB::raw("'individual' as source"),
-                // Confirmed against real data: amount is stored as a plain
-                // Rand figure (e.g. 10 = R10.00), NOT cents — despite
-                // SubscriptionPayment::getAmountInRandsAttribute() dividing
-                // by 100 elsewhere in the app. That accessor doesn't match
-                // how this data is actually saved, so no conversion here.
                 'amount',
                 'status',
                 'payment_method',
                 'paid_at',
                 'created_at',
+                'covered_by_payment_id',
             ])
             ->whereBetween('created_at', [$from, $to]);
 
@@ -64,6 +60,7 @@ class FinanceController extends Controller
                 'payment_method',
                 'paid_at',
                 'created_at',
+                DB::raw('NULL as covered_by_payment_id'), // estate payments are never "covered"
             ])
             ->whereBetween('created_at', [$from, $to]);
 
@@ -124,11 +121,18 @@ class FinanceController extends Controller
             if ($links['byPrimary']->has($userId)) {
                 return [
                     'is_primary' => true,
-                    'linked_accounts' => $links['byPrimary'][$userId]->map(fn ($l) => [
-                        'id' => $l->linked_account_id,
-                        'name' => $l->linkedAccount?->name ?? ('Account #' . $l->linked_account_id),
-                        'status' => $l->status,
-                    ])->values(),
+                    'linked_accounts' => $links['byPrimary'][$userId]->map(function ($l) {
+                        $linkedPayment = SubscriptionPayment::where('subscription_id', $l->linkedAccount?->subscription?->id)
+                            ->whereNotNull('covered_by_payment_id')
+                            ->latest()
+                            ->first();
+                        return [
+                            'id' => $l->linked_account_id,
+                            'name' => $l->linkedAccount?->name ?? ('Account #' . $l->linked_account_id),
+                            'status' => $l->status,
+                            'amount' => $linkedPayment?->amount,
+                        ];
+                    })->values(),
                 ];
             }
 
@@ -190,6 +194,7 @@ class FinanceController extends Controller
 
         $revenueThisRange = $rows
             ->whereIn('status', $paidStatuses)
+            ->whereNull('covered_by_payment_id')
             ->sum('amount');
 
         // MRR: paid rows in the last 30 days from "to", regardless of the
@@ -198,6 +203,7 @@ class FinanceController extends Controller
         $mrrRows = DB::query()
             ->fromSub($this->unifiedQuery($mrrFrom, $to), 'p')
             ->whereIn('status', $paidStatuses)
+            ->whereNull('covered_by_payment_id')
             ->sum('amount');
 
         $activeSubscriptions = DB::table('subscriptions')
@@ -212,6 +218,7 @@ class FinanceController extends Controller
         $monthly = DB::query()
             ->fromSub($this->unifiedQuery($from, $to), 'p')
             ->whereIn('status', $paidStatuses)
+            ->whereNull('covered_by_payment_id')
             ->selectRaw("DATE_FORMAT(paid_at, '%Y-%m') as month, SUM(amount) as total")
             ->groupBy('month')
             ->orderBy('month')
