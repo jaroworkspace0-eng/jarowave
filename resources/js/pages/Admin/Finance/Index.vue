@@ -2056,16 +2056,6 @@ onMounted(() => {
     margin-top: 2px;
 }
 
-.connector-col {
-    width: 20px;
-    padding: 0 !important;
-    position: relative;
-}
-.connector {
-    position: relative;
-    height: 100%;
-    min-height: 44px;
-}
 .connector__dot {
     position: absolute;
     left: 50%;
@@ -2111,32 +2101,48 @@ onMounted(() => {
     background: #fff;
     border: 2px solid #ea580c;
 }
+.connector-col {
+    width: 28px;
+    padding: 0 !important;
+    position: relative;
+    overflow: visible;
+}
+.connector {
+    position: relative;
+    height: 100%;
+    min-height: 44px;
+    overflow: visible;
+}
 .connector__trunk-start {
     position: absolute;
     left: 8px;
     top: 50%;
-    bottom: 0;
+    bottom: -1px; /* was 0 — extend 1px past the row border */
     width: 2px;
     background: #fed7aa;
+    z-index: 3;
 }
 .connector__trunk-continue {
     position: absolute;
     left: 8px;
-    top: 50%;
-    bottom: 0;
+    top: -1px; /* was 50% — extend 1px above into the previous row's border */
+    bottom: -1px; /* was 0 */
     width: 2px;
     background: #fed7aa;
+    z-index: 3;
 }
 .connector__branch {
     position: absolute;
     left: 8px;
-    top: 0;
+    top: -1px; /* was 0 — extend 1px up to meet the trunk across the border */
     width: 12px;
-    height: 50%;
+    height: calc(50% + 1px);
     border-left: 2px solid #fed7aa;
     border-bottom: 2px solid #fed7aa;
     border-bottom-left-radius: 10px;
+    z-index: 3;
 }
+
 .linked-note {
     font-size: 11px;
     color: #94a3b8;
