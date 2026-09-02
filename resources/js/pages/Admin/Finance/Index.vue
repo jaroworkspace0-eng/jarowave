@@ -1999,6 +1999,7 @@ onMounted(() => {
     }
 }
 
+/* ---- Account link / primary-linked connector ---- */
 .primary-badge {
     font-size: 9px;
     font-weight: 700;
@@ -2010,45 +2011,11 @@ onMounted(() => {
     margin-left: 6px;
     vertical-align: 1px;
 }
-.thread {
-    margin-top: 4px;
-    padding-left: 10px;
-}
-.thread__branch {
-    position: relative;
+.linked-note {
     font-size: 11px;
     color: #94a3b8;
-    padding-left: 12px;
-    line-height: 18px;
+    margin-top: 2px;
 }
-.thread__line {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 8px;
-    border-left: 1.5px solid #e4e8ef;
-    border-bottom: 1.5px solid #e4e8ef;
-    border-bottom-left-radius: 4px;
-    height: 9px;
-}
-.thread--up {
-    font-size: 11px;
-    color: #94a3b8;
-    padding-left: 12px;
-    position: relative;
-}
-.thread__line--up {
-    position: absolute;
-    left: 0;
-    top: -2px;
-    width: 8px;
-    height: 8px;
-    border-left: 1.5px solid #e4e8ef;
-    border-top: 1.5px solid #e4e8ef;
-    border-top-left-radius: 4px;
-}
-
 .amount-breakdown {
     font-size: 10px;
     font-weight: 500;
@@ -2056,31 +2023,21 @@ onMounted(() => {
     margin-top: 2px;
 }
 
-.connector__dot {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #ea580c;
-    z-index: 2;
-}
-.connector__dot--linked {
-    background: #cbd5e1;
-    width: 6px;
-    height: 6px;
-}
 .connector-col {
     width: 28px;
     padding: 0 !important;
     position: relative;
+    overflow: visible;
+    border-bottom: none;
+}
+.data-table tbody tr .connector-col {
+    border-bottom: none;
 }
 .connector {
     position: relative;
     height: 100%;
     min-height: 44px;
+    overflow: visible;
 }
 .connector__dot {
     position: absolute;
@@ -2088,7 +2045,7 @@ onMounted(() => {
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    z-index: 2;
+    z-index: 3;
 }
 .connector__dot--primary {
     left: 8px;
@@ -2101,68 +2058,33 @@ onMounted(() => {
     background: #fff;
     border: 2px solid #ea580c;
 }
-.connector-col {
-    width: 28px;
-    padding: 0 !important;
-    position: relative;
-    overflow: visible;
-}
-.connector {
-    position: relative;
-    height: 100%;
-    min-height: 44px;
-    overflow: visible;
-}
 .connector__trunk-start {
     position: absolute;
     left: 8px;
     top: 50%;
-    bottom: -1px; /* was 0 — extend 1px past the row border */
+    bottom: -1px;
     width: 2px;
     background: #fed7aa;
-    z-index: 3;
+    z-index: 2;
 }
 .connector__trunk-continue {
     position: absolute;
     left: 8px;
-    top: -1px; /* was 50% — extend 1px above into the previous row's border */
-    bottom: -1px; /* was 0 */
+    top: -1px;
+    bottom: -1px;
     width: 2px;
     background: #fed7aa;
-    z-index: 3;
+    z-index: 2;
 }
 .connector__branch {
     position: absolute;
     left: 8px;
-    top: -1px; /* was 0 — extend 1px up to meet the trunk across the border */
+    top: -1px;
     width: 12px;
     height: calc(50% + 1px);
     border-left: 2px solid #fed7aa;
     border-bottom: 2px solid #fed7aa;
     border-bottom-left-radius: 10px;
-    z-index: 3;
-}
-
-.linked-note {
-    font-size: 11px;
-    color: #94a3b8;
-    margin-top: 2px;
-}
-.primary-badge {
-    font-size: 9px;
-    font-weight: 700;
-    color: #ea580c;
-    background: #fff7ed;
-    border: 1px solid #fed7aa;
-    border-radius: 10px;
-    padding: 1px 6px;
-    margin-left: 6px;
-    vertical-align: 1px;
-}
-.amount-breakdown {
-    font-size: 10px;
-    font-weight: 500;
-    color: #94a3b8;
-    margin-top: 2px;
+    z-index: 2;
 }
 </style>
