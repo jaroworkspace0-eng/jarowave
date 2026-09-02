@@ -276,29 +276,37 @@ const filteredTransactions = computed(() => {
 const groupedTransactions = computed(() => {
     const rows = filteredTransactions.value;
     const byId = new Map(rows.map((r) => [`${r.source}-${r.id}`, r]));
-    const consumed = new Set<string>();
-    const result: TransactionRow[] = [];
 
+    // Pass 1: collect every row-id that is "linked" to some primary,
+    // so we never place it standalone regardless of where it sorts.
+    const linkedRowKeys = new Set<string>();
     for (const row of rows) {
-        const key = `${row.source}-${row.id}`;
-        if (consumed.has(key)) continue;
-
-        result.push(row);
-        consumed.add(key);
-
-        // If this row is a primary, pull its linked accounts' rows in
-        // directly underneath it, wherever they actually sit in the list.
         if (
             row.account_link?.is_primary &&
             row.account_link.linked_accounts?.length
         ) {
             for (const linked of row.account_link.linked_accounts) {
-                const linkedKey = `individual-${linked.id}`;
-                const linkedRow = byId.get(linkedKey);
-                if (linkedRow && !consumed.has(linkedKey)) {
-                    result.push(linkedRow);
-                    consumed.add(linkedKey);
-                }
+                linkedRowKeys.add(`individual-${linked.id}`);
+            }
+        }
+    }
+
+    // Pass 2: walk the list, skip anything already claimed as linked,
+    // and when we hit a primary, immediately emit its linked rows after it.
+    const result: TransactionRow[] = [];
+    for (const row of rows) {
+        const key = `${row.source}-${row.id}`;
+        if (linkedRowKeys.has(key)) continue; // handled beneath its primary instead
+
+        result.push(row);
+
+        if (
+            row.account_link?.is_primary &&
+            row.account_link.linked_accounts?.length
+        ) {
+            for (const linked of row.account_link.linked_accounts) {
+                const linkedRow = byId.get(`individual-${linked.id}`);
+                if (linkedRow) result.push(linkedRow);
             }
         }
     }
