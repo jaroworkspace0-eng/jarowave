@@ -142,6 +142,7 @@ async function loadOverview() {
 function drawRevenueChart() {
     if (!revenueChartEl.value || !overview.value) return;
     revenueChart?.destroy();
+    const points = overview.value.monthly_series.length;
     revenueChart = new Chart(revenueChartEl.value, {
         type: 'line',
         data: {
@@ -153,7 +154,8 @@ function drawRevenueChart() {
                     backgroundColor: 'rgba(234,88,12,0.08)',
                     fill: true,
                     tension: 0.35,
-                    pointRadius: 0,
+                    pointRadius: points > 1 ? 0 : 5,
+                    pointBackgroundColor: '#ea580c',
                     borderWidth: 2,
                 },
             ],
@@ -163,7 +165,10 @@ function drawRevenueChart() {
             maintainAspectRatio: false,
             plugins: { legend: { display: false } },
             scales: {
-                y: { ticks: { callback: (v) => 'R' + v } },
+                y: {
+                    beginAtZero: points <= 1,
+                    ticks: { callback: (v) => 'R' + v },
+                },
             },
         },
     });

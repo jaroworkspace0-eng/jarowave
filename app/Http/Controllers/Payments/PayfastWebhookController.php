@@ -333,7 +333,7 @@ class PayfastWebhookController extends Controller
             'amount_fee'                => $data['amount_fee']      ?? null,
             'amount_net'                => $data['amount_net']      ?? null,
             'currency'                  => $data['currency_code']   ?? 'ZAR',
-            'payment_method'            => $data['payment_method']  ?? null,
+            'payment_method'            => $data['payment_method'] ?? 'payfast',
             'payer_name'                => trim(($data['name_first'] ?? '') . ' ' . ($data['name_last'] ?? '')) ?: null,
             'payer_email'               => $data['email_address']   ?? null,
             'status'                    => strtolower($status),

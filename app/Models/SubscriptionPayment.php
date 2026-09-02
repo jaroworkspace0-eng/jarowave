@@ -34,6 +34,7 @@ class SubscriptionPayment extends Model
         'notes',
         'proof_of_payment',
         'refunded_at',
+        'covered_by_payment_id',
     ];
 
     protected $casts = [
@@ -50,6 +51,16 @@ class SubscriptionPayment extends Model
     ];
 
     // ── Relationships ──
+
+    public function coveredByPayment()
+    {
+        return $this->belongsTo(SubscriptionPayment::class, 'covered_by_payment_id');
+    }
+
+    public function coveredPayments()
+    {
+        return $this->hasMany(SubscriptionPayment::class, 'covered_by_payment_id');
+    }
 
     public function subscription(): BelongsTo
     {
