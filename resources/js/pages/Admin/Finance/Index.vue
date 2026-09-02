@@ -214,6 +214,7 @@ interface TransactionRow {
     paid_at: string | null;
     created_at: string;
     account_link?: AccountLinkInfo | null;
+    _connectorRole?: 'primary' | 'linked-mid' | 'linked-last';
 }
 const transactions = ref<TransactionRow[]>([]);
 const txMeta = ref({ current_page: 1, last_page: 1 });
@@ -285,9 +286,8 @@ const groupedTransactions = computed(() => {
             row.account_link.linked_accounts?.length
         ) {
             for (const linked of row.account_link.linked_accounts) {
-                if (linked.payment_id) {
+                if (linked.payment_id)
                     linkedRowKeys.add(`individual-${linked.payment_id}`);
-                }
             }
         }
     }
@@ -297,18 +297,28 @@ const groupedTransactions = computed(() => {
         const key = `${row.source}-${row.id}`;
         if (linkedRowKeys.has(key)) continue;
 
-        result.push(row);
+        const linkedList = row.account_link?.is_primary
+            ? (row.account_link.linked_accounts ?? [])
+            : [];
 
-        if (
-            row.account_link?.is_primary &&
-            row.account_link.linked_accounts?.length
-        ) {
-            for (const linked of row.account_link.linked_accounts) {
-                if (!linked.payment_id) continue;
-                const linkedRow = byId.get(`individual-${linked.payment_id}`);
-                if (linkedRow) result.push(linkedRow);
+        result.push({
+            ...row,
+            _connectorRole: linkedList.length ? 'primary' : undefined,
+        });
+
+        linkedList.forEach((linked, idx) => {
+            if (!linked.payment_id) return;
+            const linkedRow = byId.get(`individual-${linked.payment_id}`);
+            if (linkedRow) {
+                result.push({
+                    ...linkedRow,
+                    _connectorRole:
+                        idx === linkedList.length - 1
+                            ? 'linked-last'
+                            : 'linked-mid',
+                });
             }
-        }
+        });
     }
 
     return result;
@@ -903,26 +913,37 @@ onMounted(() => {
                             >
                                 <td class="connector-col">
                                     <div
-                                        v-if="
-                                            row.account_link?.is_primary &&
-                                            row.account_link.linked_accounts
-                                                ?.length
-                                        "
-                                        class="connector connector--primary"
+                                        v-if="row._connectorRole === 'primary'"
+                                        class="connector"
                                     >
-                                        <span class="connector__dot"></span>
                                         <span
-                                            class="connector__line-down"
+                                            class="connector__dot connector__dot--primary"
+                                        ></span>
+                                        <span
+                                            class="connector__trunk-start"
                                         ></span>
                                     </div>
                                     <div
                                         v-else-if="
-                                            row.account_link?.is_primary ===
-                                            false
+                                            row._connectorRole === 'linked-mid'
                                         "
-                                        class="connector connector--linked"
+                                        class="connector"
                                     >
-                                        <span class="connector__line-up"></span>
+                                        <span class="connector__branch"></span>
+                                        <span
+                                            class="connector__trunk-continue"
+                                        ></span>
+                                        <span
+                                            class="connector__dot connector__dot--linked"
+                                        ></span>
+                                    </div>
+                                    <div
+                                        v-else-if="
+                                            row._connectorRole === 'linked-last'
+                                        "
+                                        class="connector"
+                                    >
+                                        <span class="connector__branch"></span>
                                         <span
                                             class="connector__dot connector__dot--linked"
                                         ></span>
@@ -2061,25 +2082,60 @@ onMounted(() => {
     width: 6px;
     height: 6px;
 }
-.connector__line-down {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    transform: translateX(-50%);
-    width: 2px;
-    height: calc(50% + 44px);
-    background: #fed7aa;
-    z-index: 1;
+.connector-col {
+    width: 28px;
+    padding: 0 !important;
+    position: relative;
 }
-.connector__line-up {
+.connector {
+    position: relative;
+    height: 100%;
+    min-height: 44px;
+}
+.connector__dot {
     position: absolute;
-    left: 50%;
-    top: -50%;
-    transform: translateX(-50%);
+    top: 50%;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    z-index: 2;
+}
+.connector__dot--primary {
+    left: 8px;
+    transform: translate(-50%, -50%);
+    background: #ea580c;
+}
+.connector__dot--linked {
+    left: 20px;
+    transform: translate(-50%, -50%);
+    background: #fff;
+    border: 2px solid #ea580c;
+}
+.connector__trunk-start {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    bottom: 0;
     width: 2px;
-    height: calc(50% + 22px);
     background: #fed7aa;
-    z-index: 1;
+}
+.connector__trunk-continue {
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    bottom: 0;
+    width: 2px;
+    background: #fed7aa;
+}
+.connector__branch {
+    position: absolute;
+    left: 8px;
+    top: 0;
+    width: 12px;
+    height: 50%;
+    border-left: 2px solid #fed7aa;
+    border-bottom: 2px solid #fed7aa;
+    border-bottom-left-radius: 10px;
 }
 .linked-note {
     font-size: 11px;
