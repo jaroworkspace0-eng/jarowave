@@ -2062,7 +2062,7 @@ onMounted(() => {
     position: absolute;
     left: 8px;
     top: 50%;
-    bottom: -1px;
+    bottom: -3px;
     width: 2px;
     background: #fed7aa;
     z-index: 2;
@@ -2070,8 +2070,8 @@ onMounted(() => {
 .connector__trunk-continue {
     position: absolute;
     left: 8px;
-    top: -1px;
-    bottom: -1px;
+    top: -3px;
+    bottom: -3px;
     width: 2px;
     background: #fed7aa;
     z-index: 2;
@@ -2079,9 +2079,9 @@ onMounted(() => {
 .connector__branch {
     position: absolute;
     left: 8px;
-    top: -1px;
+    top: -3px;
     width: 12px;
-    height: calc(50% + 1px);
+    height: calc(50% + 3px);
     border-left: 2px solid #fed7aa;
     border-bottom: 2px solid #fed7aa;
     border-bottom-left-radius: 10px;
