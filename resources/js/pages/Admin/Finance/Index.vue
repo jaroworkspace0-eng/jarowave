@@ -186,6 +186,7 @@ interface AccountLinkInfo {
     is_primary: boolean | null;
     linked_accounts?: {
         id: number;
+        payment_id?: number;
         name: string;
         status: string;
         amount?: number;
@@ -277,8 +278,6 @@ const groupedTransactions = computed(() => {
     const rows = filteredTransactions.value;
     const byId = new Map(rows.map((r) => [`${r.source}-${r.id}`, r]));
 
-    // Pass 1: collect every row-id that is "linked" to some primary,
-    // so we never place it standalone regardless of where it sorts.
     const linkedRowKeys = new Set<string>();
     for (const row of rows) {
         if (
@@ -286,17 +285,17 @@ const groupedTransactions = computed(() => {
             row.account_link.linked_accounts?.length
         ) {
             for (const linked of row.account_link.linked_accounts) {
-                linkedRowKeys.add(`individual-${linked.id}`);
+                if (linked.payment_id) {
+                    linkedRowKeys.add(`individual-${linked.payment_id}`);
+                }
             }
         }
     }
 
-    // Pass 2: walk the list, skip anything already claimed as linked,
-    // and when we hit a primary, immediately emit its linked rows after it.
     const result: TransactionRow[] = [];
     for (const row of rows) {
         const key = `${row.source}-${row.id}`;
-        if (linkedRowKeys.has(key)) continue; // handled beneath its primary instead
+        if (linkedRowKeys.has(key)) continue;
 
         result.push(row);
 
@@ -305,7 +304,8 @@ const groupedTransactions = computed(() => {
             row.account_link.linked_accounts?.length
         ) {
             for (const linked of row.account_link.linked_accounts) {
-                const linkedRow = byId.get(`individual-${linked.id}`);
+                if (!linked.payment_id) continue;
+                const linkedRow = byId.get(`individual-${linked.payment_id}`);
                 if (linkedRow) result.push(linkedRow);
             }
         }

@@ -127,7 +127,8 @@ class FinanceController extends Controller
                             ->latest()
                             ->first();
                         return [
-                            'id' => $l->linked_account_id,
+                            'id' => $l->linked_account_id,        // user id — keep for display/lookups elsewhere
+                            'payment_id' => $linkedPayment?->id,   // NEW — the actual transaction row id
                             'name' => $l->linkedAccount?->name ?? ('Account #' . $l->linked_account_id),
                             'status' => $l->status,
                             'amount' => $linkedPayment?->amount,
