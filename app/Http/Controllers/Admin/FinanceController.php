@@ -106,12 +106,52 @@ class FinanceController extends Controller
             ->get()
             ->keyBy('id');
 
+        // Collect every user id we'll need account-link info for, in one pass.
+        $allUserIds = collect();
+        foreach ($individualPayments as $p) {
+            $allUserIds->push($p->subscription?->user_id);
+        }
+        foreach ($estatePayments as $p) {
+            foreach ($p->channelSubscription?->subscriptions ?? [] as $s) {
+                $allUserIds->push($s->user_id);
+            }
+        }
+        $links = $this->resolveAccountLinks($allUserIds);
+
+        $buildAccountLink = function (?int $userId) use ($links) {
+            if (!$userId) return null;
+
+            if ($links['byPrimary']->has($userId)) {
+                return [
+                    'is_primary' => true,
+                    'linked_accounts' => $links['byPrimary'][$userId]->map(fn ($l) => [
+                        'id' => $l->linked_account_id,
+                        'name' => $l->linkedAccount?->name ?? ('Account #' . $l->linked_account_id),
+                        'status' => $l->status,
+                    ])->values(),
+                ];
+            }
+
+            if ($links['byLinked']->has($userId)) {
+                $link = $links['byLinked'][$userId];
+                return [
+                    'is_primary' => false,
+                    'primary_name' => $link->primaryAccount?->name,
+                    'primary_id' => $link->primary_account_id,
+                    'status' => $link->status,
+                ];
+            }
+
+            return null; // not part of any AccountLink
+        };
+
         foreach ($rows as $row) {
             if ($row->source === 'individual') {
                 $payment = $individualPayments->get($row->id);
                 $row->household_name = $payment?->subscription?->user?->name
                     ?? $payment?->payer_name;
                 $row->linked_accounts = [];
+                $row->account_link = $buildAccountLink($payment?->subscription?->user_id);
                 $row->proof_of_payment_url = $payment?->proof_of_payment
                     ? Storage::url($payment->proof_of_payment)
                     : null;
@@ -126,8 +166,10 @@ class FinanceController extends Controller
                 ?->map(fn ($s) => [
                     'id' => $s->id,
                     'name' => $s->user?->name ?? ('Household #' . $s->id),
+                    'account_link' => $buildAccountLink($s->user_id),
                 ])
                 ->values() ?? [];
+            $row->account_link = null; // estate row itself isn't a User, has no AccountLink
             $row->proof_of_payment_url = $payment?->proof_of_payment
                 ? Storage::url($payment->proof_of_payment)
                 : null;
@@ -343,5 +385,23 @@ class FinanceController extends Controller
             'first_payment_at' => $rows->min('created_at'),
             'monthly_series' => $monthly,
         ]);
+    }
+
+
+    private function resolveAccountLinks($userIds): array
+    {
+        $userIds = collect($userIds)->filter()->unique()->values();
+
+        $links = AccountLink::with(['primaryAccount', 'linkedAccount'])
+            ->where(function ($q) use ($userIds) {
+                $q->whereIn('primary_account_id', $userIds)
+                ->orWhereIn('linked_account_id', $userIds);
+            })
+            ->get();
+
+        return [
+            'byPrimary' => $links->groupBy('primary_account_id'), // primary -> [links]
+            'byLinked'  => $links->keyBy('linked_account_id'),    // linked -> its one link
+        ];
     }
 }

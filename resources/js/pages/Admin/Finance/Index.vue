@@ -9,7 +9,6 @@ import {
     CheckCircle,
     Clock,
     FileText,
-    Link2,
     TrendingUp,
     Users,
     Wallet,
@@ -175,6 +174,20 @@ interface LinkedAccount {
     id: number;
     name: string;
 }
+
+interface AccountLinkInfo {
+    is_primary: boolean | null;
+    linked_accounts?: { id: number; name: string; status: string }[];
+    primary_name?: string;
+    primary_id?: number;
+    status?: string;
+}
+interface LinkedAccount {
+    id: number;
+    name: string;
+    account_link?: AccountLinkInfo | null;
+}
+
 interface TransactionRow {
     id: number;
     source: 'individual' | 'estate';
@@ -186,6 +199,7 @@ interface TransactionRow {
     payment_method: string | null;
     paid_at: string | null;
     created_at: string;
+    account_link?: AccountLinkInfo | null;
 }
 const transactions = ref<TransactionRow[]>([]);
 const txMeta = ref({ current_page: 1, last_page: 1 });
@@ -834,17 +848,48 @@ onMounted(() => {
                                 <td class="household-cell">
                                     <div class="household-cell__name">
                                         {{ row.household_name ?? '—' }}
+                                        <span
+                                            v-if="row.account_link?.is_primary"
+                                            class="primary-badge"
+                                            >Primary</span
+                                        >
                                     </div>
+
+                                    <!-- Thread: this account is primary, show its linked accounts -->
                                     <div
-                                        v-if="row.linked_accounts?.length"
-                                        class="household-cell__linked"
+                                        v-if="
+                                            row.account_link?.is_primary &&
+                                            row.account_link.linked_accounts
+                                                ?.length
+                                        "
+                                        class="thread"
                                     >
-                                        <Link2 :size="10" />
-                                        {{
-                                            row.linked_accounts
-                                                .map((l) => l.name)
-                                                .join(', ')
-                                        }}
+                                        <div
+                                            v-for="acc in row.account_link
+                                                .linked_accounts"
+                                            :key="acc.id"
+                                            class="thread__branch"
+                                        >
+                                            <span class="thread__line"></span>
+                                            {{ acc.name }}
+                                        </div>
+                                    </div>
+
+                                    <!-- Thread: this account is linked, show who it's under -->
+                                    <div
+                                        v-else-if="
+                                            row.account_link?.is_primary ===
+                                            false
+                                        "
+                                        class="thread thread--up"
+                                    >
+                                        <span
+                                            class="thread__line thread__line--up"
+                                        ></span>
+                                        linked to
+                                        <strong>{{
+                                            row.account_link.primary_name
+                                        }}</strong>
                                     </div>
                                 </td>
                                 <td
@@ -1853,5 +1898,55 @@ onMounted(() => {
         flex-direction: column;
         align-items: stretch;
     }
+}
+
+.primary-badge {
+    font-size: 9px;
+    font-weight: 700;
+    color: #ea580c;
+    background: #fff7ed;
+    border: 1px solid #fed7aa;
+    border-radius: 10px;
+    padding: 1px 6px;
+    margin-left: 6px;
+    vertical-align: 1px;
+}
+.thread {
+    margin-top: 4px;
+    padding-left: 10px;
+}
+.thread__branch {
+    position: relative;
+    font-size: 11px;
+    color: #94a3b8;
+    padding-left: 12px;
+    line-height: 18px;
+}
+.thread__line {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 8px;
+    border-left: 1.5px solid #e4e8ef;
+    border-bottom: 1.5px solid #e4e8ef;
+    border-bottom-left-radius: 4px;
+    height: 9px;
+}
+.thread--up {
+    font-size: 11px;
+    color: #94a3b8;
+    padding-left: 12px;
+    position: relative;
+}
+.thread__line--up {
+    position: absolute;
+    left: 0;
+    top: -2px;
+    width: 8px;
+    height: 8px;
+    border-left: 1.5px solid #e4e8ef;
+    border-top: 1.5px solid #e4e8ef;
+    border-top-left-radius: 4px;
 }
 </style>
