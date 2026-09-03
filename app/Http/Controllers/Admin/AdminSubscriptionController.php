@@ -14,10 +14,12 @@ use App\Models\SubscriptionPayment;
 use App\Models\User;
 use App\Services\BillingService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 
 class AdminSubscriptionController extends Controller
 {
@@ -72,118 +74,174 @@ class AdminSubscriptionController extends Controller
      */
     public function markEftPaid(Request $request, Subscription $subscription)
     {
-
         if ($subscription->cancellation_reason === 'estate_optin' || $subscription->channel_subscription_id) {
             return response()->json([
                 'success' => false,
                 'message' => 'This household is billed through estate/bulk billing, not individually. Process payment via the channel\'s estate billing instead.',
             ], 422);
         }
-        
+
+        $linkedAs = AccountLink::with('primaryAccount')
+            ->where('linked_account_id', $subscription->user_id)
+            ->where('status', 'active')
+            ->first();
+
+        if ($linkedAs) {
+            $primaryUser = $linkedAs->primaryAccount;
+
+            return response()->json([
+                'success' => false,
+                'message' => "This account is linked under {$primaryUser->name}'s account and is billed there. Upload the EFT proof against {$primaryUser->name}'s subscription instead.",
+                'primary_account_id'   => $linkedAs->primary_account_id,
+                'primary_account_name' => $primaryUser->name,
+            ], 422);
+        }
+
+        if ($subscription->status === 'active'
+            && $subscription->current_period_end
+            && $subscription->current_period_end->isFuture()
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' => "This household is already paid up. Their current billing period runs until {$subscription->current_period_end->format('d M Y')}, with the next payment due on {$subscription->current_period_end->format('d M Y')}.",
+                'current_period_end' => $subscription->current_period_end->toDateString(),
+                'next_billing_date'  => $subscription->current_period_end->toDateString(),
+            ], 422);
+        }
+
         $request->validate([
             'amount' => 'required|numeric|min:1',
             'note'   => 'required|string|max:255',
             'proof'  => 'required|file|mimes:pdf,jpg,jpeg,png|max:5120',
         ]);
 
-        $proofPath    = $request->file('proof')->store('eft-proofs', 'public');
-        $amountRands  = round($request->amount, 2);
-        $eftReference = 'EFT-' . strtoupper(uniqid());
-        $user         = $subscription->user;
-        $channel      = $user->employee?->channels()->first();
+        // Idempotency: prevent double-submission (double-click, admin re-processing)
+        // from creating duplicate payments and re-extending the period.
+        $lock = Cache::lock("eft-payment:subscription:{$subscription->id}", 15);
 
-        $payment = DB::transaction(function () use (
-            $request, $subscription, $proofPath, $amountRands, $eftReference
-        ) {
-            // $periodStart = ($subscription->current_period_end && $subscription->current_period_end->isPast())
-            //     ? $subscription->current_period_end
-            //     : ($subscription->current_period_start ?? now());
-            // $periodEnd   = $periodStart->copy()->addDays(30);
-            
-
-            $periodStart = $subscription->current_period_end ?? ($subscription->current_period_start ?? now());
-            $periodEnd   = $periodStart->copy()->addDays(30);
-
-            $payment = SubscriptionPayment::create([
-                'subscription_id'           => $subscription->id,
-                'user_id'                   => $subscription->user_id,
-                'amount'                    => $amountRands,
-                'amount_gross'              => $amountRands,
-                'amount_fee'                => 0,
-                'amount_net'                => $amountRands,
-                'status'                    => 'complete',
-                'gateway'                   => 'manual_eft',
-                'gateway_transaction_id'    => null,
-                'gateway_payment_reference' => $eftReference,
-                'gateway_status'            => 'COMPLETE',
-                'merchant_reference'        => $eftReference,
-                'currency'                  => 'ZAR',
-                'payment_method'            => 'eft',
-                'payer_name'                => trim($subscription->user->name ?? '') ?: null,
-                'payer_email'               => $subscription->user->email ?? null,
-                'gateway_payload'           => null,
-                'signature'                 => null,
-                'ip_address'                => $request->ip(),
-                'billing_period_start'      => $periodStart,
-                'billing_period_end'        => $periodEnd,
-                'paid_at'                   => now(),
-                'notes'                     => $request->note,
-                'proof_of_payment'          => $proofPath,
-            ]);
-
-            $subscription->update([
-                'status'               => 'active',
-                'payment_failed_at'    => null,
-                'sos_suspended_at'     => null,
-                'gateway'              => 'manual_eft',
-                'current_period_start' => $periodStart,
-                'current_period_end'   => $periodEnd,
-            ]);
-
-            $subscription->syncUserStatus();
-
-
-            return $payment;
-        });
-
-        $invoiceSent     = false;
-        $sideEffectError = null;
-        $linkedPayments  = []; // payment IDs, for the response
-        $linkedUserIds   = []; // user IDs, for notifying Node
+        if (!$lock->get()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'This subscription\'s EFT payment is already being processed. Please try again shortly.',
+            ], 429);
+        }
 
         try {
-            if ($subscription->client) {
-                Earning::createFromPayment($payment, $subscription->client);
+            $proofPath = null;
+
+            try {
+                $proofPath = $request->file('proof')->store('eft-proofs', 'public');
+            } catch (\Throwable $e) {
+                Log::error('EFT payment: proof upload failed', [
+                    'subscription_id' => $subscription->id,
+                    'error'           => $e->getMessage(),
+                ]);
+                throw $e;
             }
 
-            $invoice = Invoice::createFromPayment($payment);
-            $invoice->load('payment.subscription', 'client');
+            $amountRands  = round($request->amount, 2);
+            $eftReference = 'EFT-' . strtoupper(uniqid());
+            $user         = $subscription->user;
+            $channel      = $user->employee?->channels()->first();
 
-            // Same fallback as ProcessPayfastPaymentSideEffects: subscription->price
-            // may not be set yet if this is the very first payment (it's written
-            // just below, gated on activation_fee_paid).
-            $primaryMonthlyPrice = $subscription->price
-                ?? BillingService::unitPrice($channel?->amount_per_household);
+            try {
+                $payment = DB::transaction(function () use (
+                    $request, $subscription, $proofPath, $amountRands, $eftReference
+                ) {
+                    [$periodStart, $periodEnd] = $this->resolveNextPeriod($subscription);
 
-            Mail::to($user->email)->queue(new PaymentSuccessMail(
-                userName:     $user->name,
-                amount:       $amountRands,
-                periodEnd:    $subscription->fresh()->current_period_end->format('d M Y'),
-                invoice:      $invoice,
-                monthlyPrice: $primaryMonthlyPrice,
-            ));
+                    $payment = SubscriptionPayment::create([
+                        'subscription_id'           => $subscription->id,
+                        'user_id'                   => $subscription->user_id,
+                        'amount'                    => $amountRands,
+                        'amount_gross'              => $amountRands,
+                        'amount_fee'                => 0,
+                        'amount_net'                => $amountRands,
+                        'status'                    => 'complete',
+                        'gateway'                   => 'manual_eft',
+                        'gateway_transaction_id'    => null,
+                        'gateway_payment_reference' => $eftReference,
+                        'gateway_status'            => 'COMPLETE',
+                        'merchant_reference'        => $eftReference,
+                        'currency'                  => 'ZAR',
+                        'payment_method'            => 'eft',
+                        'payer_name'                => trim($subscription->user->name ?? '') ?: null,
+                        'payer_email'               => $subscription->user->email ?? null,
+                        'gateway_payload'           => null,
+                        'signature'                 => null,
+                        'ip_address'                => $request->ip(),
+                        'billing_period_start'      => $periodStart,
+                        'billing_period_end'        => $periodEnd,
+                        'paid_at'                   => now(),
+                        'notes'                     => $request->note,
+                        'proof_of_payment'          => $proofPath,
+                        'covered_by_payment_id'     => null,
+                    ]);
 
-            $invoiceSent = true;
+                    $subscription->update([
+                        'status'               => 'active',
+                        'payment_failed_at'    => null,
+                        'sos_suspended_at'     => null,
+                        'gateway'              => 'manual_eft',
+                        'current_period_start' => $periodStart,
+                        'current_period_end'   => $periodEnd,
+                    ]);
 
-            if (!$subscription->activation_fee_paid) {
-                $subscription->update([
-                    'activation_fee_paid'    => true,
-                    'activation_fee_paid_at' => now(),
-                    'price' => BillingService::unitPrice($channel?->amount_per_household),
+                    $subscription->syncUserStatus();
+
+                    return $payment;
+                });
+            } catch (\Throwable $e) {
+                Storage::disk('public')->delete($proofPath);
+                throw $e;
+            }
+
+            $invoiceSent     = false;
+            $sideEffectError = null;
+
+            try {
+                if ($subscription->client) {
+                    Earning::createFromPayment($payment, $subscription->client);
+                }
+
+                $invoice = Invoice::createFromPayment($payment);
+                $invoice->load('payment.subscription', 'client');
+
+                $primaryMonthlyPrice = $subscription->price
+                    ?? BillingService::unitPrice($channel?->amount_per_household);
+
+                Mail::to($user->email)->queue(new PaymentSuccessMail(
+                    userName:     $user->name,
+                    amount:       $amountRands,
+                    periodEnd:    $subscription->fresh()->current_period_end->format('d M Y'),
+                    invoice:      $invoice,
+                    monthlyPrice: $primaryMonthlyPrice,
+                ));
+
+                $invoiceSent = true;
+
+                if (!$subscription->activation_fee_paid) {
+                    $subscription->update([
+                        'activation_fee_paid'    => true,
+                        'activation_fee_paid_at' => now(),
+                        'price' => BillingService::unitPrice($channel?->amount_per_household),
+                    ]);
+                }
+            } catch (\Throwable $e) {
+                $sideEffectError = $e->getMessage();
+                Log::warning('EFT payment: earning/invoice/email failed', [
+                    'subscription_id' => $subscription->id,
+                    'payment_id'      => $payment->id,
+                    'error'           => $sideEffectError,
                 ]);
             }
 
-            // Consolidate and mark paid any accounts linked under this subscriber
+            // Consolidate and mark paid any accounts linked under this subscriber.
+            // Isolated from the primary's side-effect try/catch above so a failed
+            // primary invoice/email doesn't skip linked-account processing.
+            $linkedPayments = [];
+            $linkedUserIds  = [];
+
             $linkedAccounts = AccountLink::with('linkedAccount.subscription')
                 ->where('primary_account_id', $subscription->user_id)
                 ->where('status', 'active')
@@ -214,19 +272,14 @@ class AdminSubscriptionController extends Controller
                     continue;
                 }
 
-
-                // $linkedPeriodStart = $linkedSub->current_period_end ?? ($linkedSub->current_period_start ?? $subscription->current_period_start);
-                // $linkedPeriodEnd   = $subscription->current_period_end;
-
-
-                $linkedPeriodStart = $subscription->current_period_end ?? ($subscription->current_period_start ?? now());
-                $linkedPeriodEnd   = $linkedPeriodStart->copy()->addDays(30);
-
-
-                $linkedPayment = DB::transaction(function () use (
+                try {
+                    $linkedPayment = DB::transaction(function () use (
                     $linkedSub, $linkedUser, $linkedAmount, $eftReference,
-                    $proofPath, $request, $linkedPeriodStart, $linkedPeriodEnd
+                    $proofPath, $request, $subscription, $payment
                 ) {
+                    $linkedPeriodStart = $subscription->current_period_start;
+                    $linkedPeriodEnd   = $subscription->current_period_end;
+
                     $linkedPayment = SubscriptionPayment::create([
                         'subscription_id'           => $linkedSub->id,
                         'user_id'                   => $linkedSub->user_id,
@@ -252,6 +305,7 @@ class AdminSubscriptionController extends Controller
                         'paid_at'                   => now(),
                         'notes'                     => 'Consolidated under linked account EFT: ' . $eftReference,
                         'proof_of_payment'          => $proofPath,
+                        'covered_by_payment_id'     => $payment->id,
                     ]);
 
                     $linkedSub->update([
@@ -262,15 +316,19 @@ class AdminSubscriptionController extends Controller
                         'current_period_start' => $linkedPeriodStart,
                         'current_period_end'   => $linkedPeriodEnd,
                     ]);
-                    
-                     $linkedSub->syncUserStatus();
 
+                    $linkedSub->syncUserStatus();
 
                     return $linkedPayment;
                 });
-
-
-                // 
+                } catch (\Throwable $e) {
+                    Log::warning('EFT payment: linked account payment/activation failed', [
+                        'primary_subscription_id' => $subscription->id,
+                        'linked_subscription_id'  => $linkedSub->id,
+                        'error'                   => $e->getMessage(),
+                    ]);
+                    continue;
+                }
 
                 try {
                     $linkedInvoice = Invoice::createFromPayment($linkedPayment);
@@ -298,34 +356,46 @@ class AdminSubscriptionController extends Controller
                 $linkedUserIds[]  = $linkedUser->id;
             }
 
-        } catch (\Throwable $e) {
-            $sideEffectError = $e->getMessage();
-            Log::warning('EFT payment: earning/invoice/email failed', [
-                'subscription_id' => $subscription->id,
-                'payment_id'      => $payment->id,
-                'error'           => $sideEffectError,
-            ]);
-        }
-
-        $this->notifyNode('POST', '/payment-resolved', [
-            'userId' => $subscription->user_id,
-            'note'   => 'EFT payment confirmed by admin',
-        ]);
-
-        foreach ($linkedUserIds as $linkedUserId) {
             $this->notifyNode('POST', '/payment-resolved', [
-                'userId' => $linkedUserId,
-                'note'   => 'EFT payment confirmed by admin (consolidated under primary)',
+                'userId' => $subscription->user_id,
+                'note'   => 'EFT payment confirmed by admin',
             ]);
-        }
 
-        return response()->json([
-            'success'           => true,
-            'message'           => 'EFT payment recorded. SOS re-enabled.',
-            'invoice_sent'      => $invoiceSent,
-            'side_effect_error' => $sideEffectError,
-            'linked_payments'   => $linkedPayments,
-        ]);
+            foreach ($linkedUserIds as $linkedUserId) {
+                $this->notifyNode('POST', '/payment-resolved', [
+                    'userId' => $linkedUserId,
+                    'note'   => 'EFT payment confirmed by admin (consolidated under primary)',
+                ]);
+            }
+
+            return response()->json([
+                'success'           => true,
+                'message'           => 'EFT payment recorded. SOS re-enabled.',
+                'invoice_sent'      => $invoiceSent,
+                'side_effect_error' => $sideEffectError,
+                'linked_payments'   => $linkedPayments,
+            ]);
+        } finally {
+            optional($lock)->release();
+        }
+    }
+
+    /**
+     * Resolve the next billing period start/end for a subscription.
+     * If the current period already ended in the past, don't anchor a stale
+     * date — start fresh from now so the new period isn't born already expired.
+     */
+    private function resolveNextPeriod(Subscription $subscription, ?\Carbon\Carbon $anchor = null): array
+    {
+        $periodEnd = $anchor ?? $subscription->current_period_end;
+
+        $periodStart = ($periodEnd && !$periodEnd->isPast())
+            ? $periodEnd
+            : ($subscription->current_period_start && !$subscription->current_period_start->isPast()
+                ? $subscription->current_period_start
+                : now());
+
+        return [$periodStart, $periodStart->copy()->addDays(30)];
     }
 
     // ── POST /api/admin/subscriptions/{id}/suspend ───────────────────────────
