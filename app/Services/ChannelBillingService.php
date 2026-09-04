@@ -404,10 +404,12 @@ class ChannelBillingService
         $amountPerLinkedAccount = BillingService::unitPrice($channel->amount_per_linked_account);
         $linkedAccountTotal = $linkedAccountCount * $amountPerLinkedAccount;
 
-        // Households that opted out mid-cycle are no longer counted above, but
-        // they had coverage for part of this cycle and still owe for it — until
-        // the estate's payment for this cycle clears (which deletes these rows).
-        $channelSubscription = $this->resolveActiveChannelSubscription($channel);
+        // Look up directly — do NOT call resolveActiveChannelSubscription() here,
+        // it can create a new row and calls back into this method, causing recursion.
+        $channelSubscription = ChannelSubscription::where('channel_id', $channel->id)
+            ->whereIn('status', ['pending', 'active'])
+            ->latest()
+            ->first();
 
         $midcycleOptoutTotal = $channelSubscription
             ? EstateMidcycleOptout::where('channel_subscription_id', $channelSubscription->id)
