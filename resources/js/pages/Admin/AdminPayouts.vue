@@ -521,7 +521,7 @@ async function exportCsv() {
                     <div class="page-header__eyebrow">Finance</div>
                     <h1 class="page-header__title">Process Payouts</h1>
                     <p class="page-header__sub">
-                        Review client earnings and process EFT disbursements ·
+                        Review partner earnings and process EFT disbursements ·
                         paid on the 1st of each month
                     </p>
                 </div>
@@ -707,7 +707,7 @@ async function exportCsv() {
                                     @change="toggleSelectAll"
                                 />
                             </th>
-                            <th>Client</th>
+                            <th>Partner</th>
                             <th>Period</th>
                             <th>Pending</th>
                             <th>Paid to Date</th>
@@ -1114,9 +1114,7 @@ async function exportCsv() {
                                         </div>
                                         <div class="review-info-panel__sub">
                                             {{ c.bank_details?.bank_name }} ·
-                                            {{
-                                                c.bank_details?.account_number
-                                            }}
+                                            {{ c.bank_details?.account_number }}
                                             ·
                                             {{ c.bank_details?.account_type }} ·
                                             Branch
