@@ -20,6 +20,7 @@ import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/vue3';
 import {
     AlertTriangle,
+    ArrowsUpFromLineIcon,
     BarChart3,
     Briefcase,
     Building,
@@ -82,11 +83,11 @@ const adminGroups: NavGroup[] = [
     {
         label: 'Payments',
         items: [
-            //         {
-            //             title: 'Process Payouts',
-            //             href: '/admin/process-payouts',
-            //             icon: ArrowsUpFromLineIcon,
-            //         },
+            {
+                title: 'Process Payouts',
+                href: '/admin/process-payouts',
+                icon: ArrowsUpFromLineIcon,
+            },
             //         {
             //             title: 'Gate Guard Payouts',
             //             href: '/admin/gate-guard-payouts',

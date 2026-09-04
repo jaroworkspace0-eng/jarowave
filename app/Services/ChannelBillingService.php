@@ -467,39 +467,42 @@ class ChannelBillingService
      */
    public function resolveActiveChannelSubscription(Channel $channel): ChannelSubscription
     {
-        $existing = ChannelSubscription::where('channel_id', $channel->id)
-            ->whereIn('status', ['pending', 'active', 'overdue'])
-            ->latest()
-            ->first();
+        return DB::transaction(function () use ($channel) {
+            // Lock this channel's row so concurrent requests (e.g. /summary and
+            // /opted-in-households firing together) serialize here instead of
+            // both deciding "no subscription exists" and creating duplicates.
+            $lockedChannel = Channel::where('id', $channel->id)->lockForUpdate()->first();
 
-        if (!$existing) {
-            $billing = $this->calculateBillingAmount($channel);
+            $existing = ChannelSubscription::where('channel_id', $lockedChannel->id)
+                ->whereIn('status', ['pending', 'active', 'overdue'])
+                ->latest()
+                ->first();
 
-            $existing = ChannelSubscription::create([
-                'channel_id'           => $channel->id,
-                'household_count'      => $billing['household_count'],
-                'amount_per_household' => $billing['amount_per_household'],
-                'linked_account_count'      => $billing['linked_account_count'],
-                'amount_per_linked_account' => $billing['amount_per_linked_account'],
-                'total_amount'         => $billing['total_amount'],
-                'status'               => 'pending',
-                'billing_model'        => $channel->billing_model,
-                'current_period_start' => now(),
-                'current_period_end'   => now()->addDays(self::FIRST_BILLING_PERIOD_DAYS),
-            ]);
-        }
+            if (!$existing) {
+                $billing = $this->calculateBillingAmount($lockedChannel);
 
-        // Sync any household still legitimately opted in but pointing at a
-        // superseded ChannelSubscription row (e.g. left overdue by a cycle
-        // rollover) onto the current one — runs every resolve, not just on
-        // creation, so an already-orphaned household self-heals too.
-        Subscription::where('cancellation_reason', 'estate_optin')
-            ->where('status', 'active')
-            ->whereHas('channelSubscription', fn($q) => $q->where('channel_id', $channel->id))
-            ->where('channel_subscription_id', '!=', $existing->id)
-            ->update(['channel_subscription_id' => $existing->id]);
+                $existing = ChannelSubscription::create([
+                    'channel_id'                => $lockedChannel->id,
+                    'household_count'           => $billing['household_count'],
+                    'amount_per_household'      => $billing['amount_per_household'],
+                    'linked_account_count'      => $billing['linked_account_count'],
+                    'amount_per_linked_account' => $billing['amount_per_linked_account'],
+                    'total_amount'              => $billing['total_amount'],
+                    'status'                    => 'pending',
+                    'billing_model'             => $lockedChannel->billing_model,
+                    'current_period_start'      => now(),
+                    'current_period_end'        => now()->addDays(self::FIRST_BILLING_PERIOD_DAYS),
+                ]);
+            }
 
-        return $existing;
+            Subscription::where('cancellation_reason', 'estate_optin')
+                ->where('status', 'active')
+                ->whereHas('channelSubscription', fn($q) => $q->where('channel_id', $lockedChannel->id))
+                ->where('channel_subscription_id', '!=', $existing->id)
+                ->update(['channel_subscription_id' => $existing->id]);
+
+            return $existing;
+        });
     }
 
     /**
@@ -588,14 +591,14 @@ class ChannelBillingService
         $this->refreshChannelSubscription($channelSubscription);
         $channelSubscription->refresh();
 
-        // $periodStart = ($channelSubscription->current_period_end && $channelSubscription->current_period_end->isPast())
-        //     ? now()
-        //     : ($channelSubscription->current_period_start ?? now());
+        $periodStart = ($channelSubscription->current_period_end && $channelSubscription->current_period_end->isPast())
+            ? now()
+            : ($channelSubscription->current_period_start ?? now());
 
-        // $periodEnd = $periodStart->copy()->addDays(30);
+        $periodEnd = $periodStart->copy()->addDays(30);
 
-        $periodStart = $channelSubscription->current_period_end ?? ($channelSubscription->current_period_start ?? now());
-        $periodEnd   = $periodStart->copy()->addDays(30);
+        // $periodStart = $channelSubscription->current_period_end ?? ($channelSubscription->current_period_start ?? now());
+        // $periodEnd   = $periodStart->copy()->addDays(30);
 
         try {
             DB::transaction(function () use ($payment, $channelSubscription, $periodStart, $periodEnd, $ipAddress) {
