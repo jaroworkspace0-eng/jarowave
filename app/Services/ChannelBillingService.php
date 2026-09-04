@@ -394,38 +394,37 @@ class ChannelBillingService
     // Channel Subscription Management
     // -------------------------------------------------------------------------
 
-    public function calculateBillingAmount(Channel $channel): array
-    {
-        $householdCount = $this->getOptedInCount($channel);
-        $amountPerHousehold = BillingService::unitPrice($channel->amount_per_household);
-        $householdTotal = $householdCount * $amountPerHousehold;
+   public function calculateBillingAmount(Channel $channel): array
+{
+    $householdCount = $this->getOptedInCount($channel);
+    $amountPerHousehold = BillingService::unitPrice($channel->amount_per_household);
+    $householdTotal = $householdCount * $amountPerHousehold;
 
-        $linkedAccountCount = $this->getActiveLinkedAccountCount($channel);
-        $amountPerLinkedAccount = BillingService::unitPrice($channel->amount_per_linked_account);
-        $linkedAccountTotal = $linkedAccountCount * $amountPerLinkedAccount;
+    $linkedAccountCount = $this->getActiveLinkedAccountCount($channel);
+    $amountPerLinkedAccount = BillingService::unitPrice($channel->amount_per_linked_account);
+    $linkedAccountTotal = $linkedAccountCount * $amountPerLinkedAccount;
 
-        // Look up directly — do NOT call resolveActiveChannelSubscription() here,
-        // it can create a new row and calls back into this method, causing recursion.
-        $channelSubscription = ChannelSubscription::where('channel_id', $channel->id)
-            ->whereIn('status', ['pending', 'active'])
-            ->latest()
-            ->first();
+    // Look up directly — do NOT call resolveActiveChannelSubscription() here,
+    // it can create a new row and calls back into this method, causing recursion.
+    $channelSubscription = ChannelSubscription::where('channel_id', $channel->id)
+        ->whereIn('status', ['pending', 'active', 'overdue'])
+        ->latest()
+        ->first();
 
-        $midcycleOptoutTotal = $channelSubscription
-            ? EstateMidcycleOptout::where('channel_subscription_id', $channelSubscription->id)
-                ->sum('amount_owed')
-            : 0;
+    $midcycleOptoutTotal = $channelSubscription
+        ? EstateMidcycleOptout::where('channel_subscription_id', $channelSubscription->id)
+            ->sum('amount_owed')
+        : 0;
 
-        return [
-            'household_count'           => $householdCount,
-            'amount_per_household'      => $amountPerHousehold,
-            'linked_account_count'      => $linkedAccountCount,
-            'amount_per_linked_account' => $amountPerLinkedAccount,
-            'midcycle_optout_total'     => $midcycleOptoutTotal,
-            'total_amount'              => $householdTotal + $linkedAccountTotal + $midcycleOptoutTotal,
-        ];
-    }
-
+    return [
+        'household_count'           => $householdCount,
+        'amount_per_household'      => $amountPerHousehold,
+        'linked_account_count'      => $linkedAccountCount,
+        'amount_per_linked_account' => $amountPerLinkedAccount,
+        'midcycle_optout_total'     => $midcycleOptoutTotal,
+        'total_amount'              => $householdTotal + $linkedAccountTotal + $midcycleOptoutTotal,
+    ];
+}
     /**
      * Get count of households opted into bulk billing for a channel.
      */
@@ -469,7 +468,7 @@ class ChannelBillingService
    public function resolveActiveChannelSubscription(Channel $channel): ChannelSubscription
     {
         $existing = ChannelSubscription::where('channel_id', $channel->id)
-            ->whereIn('status', ['pending', 'active'])
+            ->whereIn('status', ['pending', 'active', 'overdue'])
             ->latest()
             ->first();
 
