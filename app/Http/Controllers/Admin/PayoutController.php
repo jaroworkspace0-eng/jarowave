@@ -7,9 +7,6 @@ use App\Models\Payout;
 use App\Models\User;
 use Illuminate\Http\Request;
 
-// Assumes "client" = User (role client), matching Payments\PayoutController's
-// `Payout::where('client_id', $user->id)`. Swap User for your Client model
-// if you actually have a separate one.
 class PayoutController extends Controller
 {
     // GET /api/admin/payouts/clients
@@ -36,7 +33,7 @@ class PayoutController extends Controller
                 'client_id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
-                'organisation' => $user->organisation,
+                'organisation' => $user->organisation_name,
                 'pending_amount' => (float) $pending->sum('net_amount'),
                 'paid_amount' => (float) $paid->sum('net_amount'),
                 'total_amount' => (float) $payouts->sum('net_amount'),
@@ -150,7 +147,7 @@ class PayoutController extends Controller
                 $clients = $payouts->groupBy('client_id')->map(function ($clientPayouts) {
                     $client = $clientPayouts->first()->client;
                     return [
-                        'organisation' => $client?->organisation ?? 'Unknown',
+                        'organisation' => $client?->organisation_name ?? 'Unknown',
                         'amount' => (float) $clientPayouts->sum('net_amount'),
                     ];
                 })->values();
@@ -170,6 +167,7 @@ class PayoutController extends Controller
     }
 
     // GET /api/admin/payouts/export  — month/year optional
+    // Only includes payouts with status=pending AND a client with bank details on file.
     public function export(Request $request)
     {
         $hasPeriod = $request->filled('month') && $request->filled('year');
@@ -199,7 +197,7 @@ class PayoutController extends Controller
             foreach ($payouts as $p) {
                 $bd = $p->client->bankDetails;
                 fputcsv($handle, [
-                    $p->client->organisation,
+                    $p->client->organisation_name,
                     $p->client->email,
                     $bd->bank_name,
                     $bd->account_holder,

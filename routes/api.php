@@ -463,14 +463,14 @@ Route::get('/export',    [PayoutController::class, 'export']);
 
 
 
-        Route::prefix('admin/payouts')->group(function () {
-            Route::get('/clients', [ControllersAdminPayoutController::class, 'clients']);
-            Route::get('/clients/{client}/earnings', [ControllersAdminPayoutController::class, 'earnings']);
-            Route::post('/process', [ControllersAdminPayoutController::class, 'process']);
-            Route::post('/notify-bank-details', [ControllersAdminPayoutController::class, 'notifyBankDetails']);
-            Route::get('/history', [ControllersAdminPayoutController::class, 'history']);
-            Route::get('/export', [ControllersAdminPayoutController::class, 'export']);
-        });
+        // Route::prefix('admin/payouts')->group(function () {
+        //     Route::get('/clients', [ControllersAdminPayoutController::class, 'clients']);
+        //     Route::get('/clients/{client}/earnings', [ControllersAdminPayoutController::class, 'earnings']);
+        //     Route::post('/process', [ControllersAdminPayoutController::class, 'process']);
+        //     Route::post('/notify-bank-details', [ControllersAdminPayoutController::class, 'notifyBankDetails']);
+        //     Route::get('/history', [ControllersAdminPayoutController::class, 'history']);
+        //     Route::get('/export', [ControllersAdminPayoutController::class, 'export']);
+        // });
 
         // estate_billing — estate tickets
         Route::prefix('estate')->group(function () {
@@ -574,6 +574,9 @@ Route::middleware(['auth:sanctum'])->group(function () {
         Route::get('/clients/{clientId}/earnings',      [AdminPayoutController::class, 'clientEarnings']);
         Route::post('/process',                         [AdminPayoutController::class, 'process']);
         Route::post('/notify-bank-details',             [AdminPayoutController::class, 'notifyBankDetails']);
+
+        Route::get('/history', [AdminPayoutController::class, 'history']);
+        Route::get('/export', [AdminPayoutController::class, 'export']);
 
 
         // Gate guard payouts

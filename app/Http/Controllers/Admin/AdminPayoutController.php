@@ -243,6 +243,112 @@ class AdminPayoutController extends Controller
         return response()->json(['message' => 'Notification sent to ' . $client->email]);
     }
 
+    // ── GET /api/admin/payouts/history ─────────────────────────────────────────
+    // Groups processed Payout rows by the EFT reference the admin entered when
+    // marking them paid, so a batch run across multiple clients shows as one entry.
+    public function history()
+    {
+        $this->requireAdmin();
+
+        $history = Payout::whereNotNull('transfer_reference')
+            ->get()
+            ->groupBy('transfer_reference')
+            ->map(function ($payouts, $ref) {
+                $clients = $payouts->map(function ($payout) {
+                    $user = User::find($payout->client_id);
+                    return [
+                        'organisation' => $user?->organisation_name ?? $user?->name ?? '—',
+                        'amount'       => round($payout->net_amount, 2),
+                    ];
+                })->values();
+
+                return [
+                    'eft_reference' => $ref,
+                    'processed_at'  => optional($payouts->max('paid_at'))->toIso8601String(),
+                    'client_count'  => $clients->count(),
+                    'total_amount'  => round($payouts->sum('net_amount'), 2),
+                    'clients'       => $clients,
+                ];
+            })
+            ->sortByDesc('processed_at')
+            ->values();
+
+        return response()->json(['history' => $history]);
+    }
+
+    // ── GET /api/admin/payouts/export ──────────────────────────────────────────
+    // CSV of clients ready to be paid: bank details on file + at least one
+    // pending earning. Supports ?month=&year= — omit both for all-time.
+    public function export(Request $request)
+    {
+        $this->requireAdmin();
+
+        $q = Earning::query()
+            ->select(
+                'client_id',
+                DB::raw('SUM(CASE WHEN status = "pending" THEN earned_amount ELSE 0 END) as pending_amount'),
+                DB::raw('SUM(CASE WHEN status = "pending" THEN 1 ELSE 0 END) as pending_count'),
+                DB::raw('MIN(period_start) as earliest_period'),
+                DB::raw('MAX(period_end) as latest_period')
+            )
+            ->groupBy('client_id')
+            ->having(DB::raw('SUM(CASE WHEN status = "pending" THEN 1 ELSE 0 END)'), '>', 0);
+
+        if ($request->filled('month') && $request->filled('year')) {
+            $q->where(function ($query) use ($request) {
+                $query->whereMonth('period_start', $request->integer('month'))
+                    ->whereYear('period_start', $request->integer('year'))
+                    ->orWhereNull('period_start');
+            });
+        }
+
+        $rows = $q->get();
+
+        $hasPeriod = $request->filled('month') && $request->filled('year');
+        $filename = $hasPeriod
+            ? sprintf('payouts-%d-%02d.csv', $request->integer('year'), $request->integer('month'))
+            : 'payouts-all.csv';
+
+        $callback = function () use ($rows) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, [
+                'Organisation', 'Email', 'Bank Name', 'Account Holder',
+                'Account Number', 'Account Type', 'Branch Code',
+                'Period Start', 'Period End', 'Pending Amount', 'Pending Earnings',
+            ]);
+
+            foreach ($rows as $row) {
+                $bankDetails = BankDetail::where('client_id', $row->client_id)->first();
+                if (!$bankDetails) {
+                    continue; // not bank-ready — skip from the EFT export
+                }
+
+                $user = User::find($row->client_id);
+
+                fputcsv($handle, [
+                    $user?->organisation_name ?? $user?->name ?? '—',
+                    $user?->email ?? '—',
+                    $bankDetails->bank_name,
+                    $bankDetails->account_holder,
+                    $bankDetails->account_number,
+                    $bankDetails->account_type,
+                    $bankDetails->branch_code,
+                    $row->earliest_period,
+                    $row->latest_period,
+                    number_format($row->pending_amount, 2),
+                    $row->pending_count,
+                ]);
+            }
+
+            fclose($handle);
+        };
+
+        return response()->stream($callback, 200, [
+            'Content-Type'        => 'text/csv',
+            'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+        ]);
+    }
+
     private function requireAdmin(): void
     {
         abort_if(auth()->user()->role !== 'admin', 403, 'Admin access required.');
