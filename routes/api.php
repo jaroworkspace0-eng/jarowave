@@ -18,6 +18,7 @@ use App\Http\Controllers\EmergencyAlertController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\HouseholdController;
 use App\Http\Controllers\Admin\IncidentReportExportController;
+use App\Http\Controllers\Admin\PayoutController as ControllersAdminPayoutController;
 use App\Http\Controllers\AdminAlertScopeController;
 use App\Http\Controllers\AlertGuardNotifyController;
 use App\Http\Controllers\Api\Admin\PlatformTicketController;
@@ -458,6 +459,17 @@ Route::get('/export',    [PayoutController::class, 'export']);
             Route::get('/alert-scopes', [AdminAlertScopeController::class, 'index']);
             Route::post('/alert-scopes', [AdminAlertScopeController::class, 'store']);
             Route::delete('/alert-scopes/{scope}', [AdminAlertScopeController::class, 'destroy']);
+        });
+
+
+
+        Route::prefix('admin/payouts')->group(function () {
+            Route::get('/clients', [ControllersAdminPayoutController::class, 'clients']);
+            Route::get('/clients/{client}/earnings', [ControllersAdminPayoutController::class, 'earnings']);
+            Route::post('/process', [ControllersAdminPayoutController::class, 'process']);
+            Route::post('/notify-bank-details', [ControllersAdminPayoutController::class, 'notifyBankDetails']);
+            Route::get('/history', [ControllersAdminPayoutController::class, 'history']);
+            Route::get('/export', [ControllersAdminPayoutController::class, 'export']);
         });
 
         // estate_billing — estate tickets

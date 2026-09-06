@@ -1051,7 +1051,7 @@ const filteredPayments = computed(() => {
                     <div class="bank-details-box">
                         <div class="bdb-title">Echo Link Bank Details</div>
                         <div class="bdb-row">
-                            <span>Bank</span><strong>FNB</strong>
+                            <span>Bank</span><strong>GoTyme Bank</strong>
                         </div>
                         <div class="bdb-row">
                             <span>Account Name</span
@@ -1059,10 +1059,10 @@ const filteredPayments = computed(() => {
                         </div>
                         <div class="bdb-row">
                             <span>Account Number</span
-                            ><strong>62XXXXXXXXXX</strong>
+                            ><strong>53000247161</strong>
                         </div>
                         <div class="bdb-row">
-                            <span>Branch Code</span><strong>250655</strong>
+                            <span>Branch Code</span><strong>678910</strong>
                         </div>
                         <div class="bdb-row">
                             <span>Account Type</span><strong>Cheque</strong>

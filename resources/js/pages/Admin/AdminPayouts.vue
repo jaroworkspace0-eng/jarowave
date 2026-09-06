@@ -83,9 +83,10 @@ const isLoading = ref(true);
 const isProcessing = ref(false);
 const flash = ref<{ msg: string; type: 'success' | 'error' } | null>(null);
 
-// Period filters (drive the API fetch)
+// Period filters — inert until the admin explicitly applies them
 const filterMonth = ref(new Date().getMonth() + 1);
 const filterYear = ref(new Date().getFullYear());
+const periodFilterActive = ref(false);
 
 // Client-side filters (instant, no refetch)
 const quickFilter = ref<'all' | 'ready' | 'no_bank'>('all');
@@ -121,7 +122,9 @@ const expandedHistoryRef = ref<string | null>(null);
 // Export
 const isExporting = ref(false);
 
-// Notify loading per client
+// Notify confirmation
+const showNotifyConfirm = ref(false);
+const notifyTarget = ref<Client | null>(null);
 const notifying = ref<number | null>(null);
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -229,6 +232,12 @@ function bankStatus(c: Client) {
     return { label: 'Ready to Pay', cls: 'bg-emerald-50 text-emerald-700' };
 }
 
+// Only attach month/year to a request when the admin has explicitly applied a period filter.
+function periodParams(): Record<string, any> {
+    if (!periodFilterActive.value) return {};
+    return { month: filterMonth.value, year: filterYear.value };
+}
+
 // ── Computed ──────────────────────────────────────────────────────────────
 const filterOptions = [
     { value: 'all', label: 'All Clients' },
@@ -298,8 +307,7 @@ async function fetchClients(resetSelection = true) {
     try {
         const params: Record<string, any> = {
             status: 'all', // always pull the full list — filtering happens client-side
-            month: filterMonth.value,
-            year: filterYear.value,
+            ...periodParams(),
         };
         const { data } = await axios.get(
             `${import.meta.env.VITE_APP_URL}/api/admin/payouts/clients`,
@@ -316,7 +324,16 @@ async function fetchClients(resetSelection = true) {
         isLoading.value = false;
     }
 }
-onMounted(() => fetchClients());
+onMounted(() => fetchClients()); // loads every client, every period — no month/year sent
+
+function applyPeriodFilter() {
+    periodFilterActive.value = true;
+    fetchClients();
+}
+function clearPeriodFilter() {
+    periodFilterActive.value = false;
+    fetchClients();
+}
 
 // ── Selection ─────────────────────────────────────────────────────────────
 function toggleClient(clientId: number) {
@@ -343,11 +360,7 @@ async function viewEarnings(client: Client) {
     showDetailModal.value = true;
     isDetailLoading.value = true;
     try {
-        const params = {
-            status: 'all',
-            month: filterMonth.value,
-            year: filterYear.value,
-        };
+        const params = { status: 'all', ...periodParams() };
         const { data } = await axios.get(
             `${import.meta.env.VITE_APP_URL}/api/admin/payouts/clients/${client.client_id}/earnings`,
             { ...getHeaders(), params },
@@ -385,11 +398,7 @@ async function confirmProcess() {
 
     for (const client of selectedList.value) {
         try {
-            const params = {
-                status: 'pending',
-                month: filterMonth.value,
-                year: filterYear.value,
-            };
+            const params = { status: 'pending', ...periodParams() };
             const { data } = await axios.get(
                 `${import.meta.env.VITE_APP_URL}/api/admin/payouts/clients/${client.client_id}/earnings`,
                 { ...getHeaders(), params },
@@ -441,7 +450,17 @@ async function confirmProcess() {
 }
 
 // ── Notify no bank details ────────────────────────────────────────────────
-async function notifyNoBankDetails(client: Client) {
+function askNotify(client: Client) {
+    notifyTarget.value = client;
+    showNotifyConfirm.value = true;
+}
+function cancelNotify() {
+    showNotifyConfirm.value = false;
+    notifyTarget.value = null;
+}
+async function confirmNotify() {
+    if (!notifyTarget.value) return;
+    const client = notifyTarget.value;
     notifying.value = client.client_id;
     try {
         await axios.post(
@@ -454,6 +473,8 @@ async function notifyNoBankDetails(client: Client) {
         showFlash('Failed to send notification.', 'error');
     } finally {
         notifying.value = null;
+        showNotifyConfirm.value = false;
+        notifyTarget.value = null;
     }
 }
 
@@ -485,11 +506,7 @@ function toggleHistoryRow(ref: string) {
 async function exportCsv() {
     isExporting.value = true;
     try {
-        const params = {
-            status: 'ready',
-            month: filterMonth.value,
-            year: filterYear.value,
-        };
+        const params = { status: 'ready', ...periodParams() };
         const res = await axios.get(
             `${import.meta.env.VITE_APP_URL}/api/admin/payouts/export`,
             { ...getHeaders(), params, responseType: 'blob' },
@@ -499,7 +516,9 @@ async function exportCsv() {
         );
         const a = document.createElement('a');
         a.href = url;
-        a.download = `payouts-${filterYear.value}-${String(filterMonth.value).padStart(2, '0')}.csv`;
+        a.download = periodFilterActive.value
+            ? `payouts-${filterYear.value}-${String(filterMonth.value).padStart(2, '0')}.csv`
+            : 'payouts-all.csv';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -630,8 +649,18 @@ async function exportCsv() {
                                 </option>
                             </select>
                         </div>
-                        <button class="btn-secondary" @click="fetchClients()">
+                        <button
+                            class="btn-secondary"
+                            @click="applyPeriodFilter"
+                        >
                             Apply
+                        </button>
+                        <button
+                            v-if="periodFilterActive"
+                            class="btn-secondary"
+                            @click="clearPeriodFilter"
+                        >
+                            <X :size="14" /> All Periods
                         </button>
                     </div>
                 </div>
@@ -652,6 +681,17 @@ async function exportCsv() {
                                 {{ f.label }}
                             </button>
                         </div>
+                    </div>
+
+                    <div class="filter-group">
+                        <span class="filter-group__label">Period</span>
+                        <span class="filter-count">
+                            {{
+                                periodFilterActive
+                                    ? `${months[filterMonth - 1]} ${filterYear}`
+                                    : 'All periods'
+                            }}
+                        </span>
                     </div>
 
                     <div class="selection-summary ml-auto">
@@ -795,7 +835,7 @@ async function exportCsv() {
                                         :disabled="
                                             notifying === client.client_id
                                         "
-                                        @click="notifyNoBankDetails(client)"
+                                        @click="askNotify(client)"
                                     >
                                         <Bell :size="15" />
                                     </button>
@@ -996,9 +1036,63 @@ async function exportCsv() {
                                     :disabled="
                                         notifying === detailClient.client_id
                                     "
-                                    @click="notifyNoBankDetails(detailClient)"
+                                    @click="askNotify(detailClient)"
                                 >
                                     <Bell :size="14" /> Notify Client
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+        </Teleport>
+
+        <!-- NOTIFY CONFIRMATION MODAL -->
+        <Teleport to="body">
+            <transition name="modal">
+                <div
+                    v-if="showNotifyConfirm"
+                    class="modal-backdrop"
+                    @click.self="cancelNotify"
+                >
+                    <div class="modal-sheet" style="max-width: 420px">
+                        <div class="modal-sheet__header">
+                            <div class="modal-sheet__title">Notify Client</div>
+                            <button class="close-btn" @click="cancelNotify">
+                                <X :size="16" />
+                            </button>
+                        </div>
+                        <div class="modal-sheet__body">
+                            <p
+                                class="review-description"
+                                style="font-style: normal"
+                            >
+                                Send a reminder to
+                                <strong>{{
+                                    notifyTarget?.organisation
+                                }}</strong>
+                                ({{ notifyTarget?.email }}) to submit their
+                                banking details?
+                            </p>
+                            <div class="modal-actions">
+                                <button
+                                    class="btn-secondary"
+                                    @click="cancelNotify"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    class="btn-primary btn-primary--danger"
+                                    :disabled="
+                                        notifying === notifyTarget?.client_id
+                                    "
+                                    @click="confirmNotify"
+                                >
+                                    {{
+                                        notifying === notifyTarget?.client_id
+                                            ? 'Sending…'
+                                            : 'Send Notification'
+                                    }}
                                 </button>
                             </div>
                         </div>
